@@ -124,6 +124,66 @@ something. Use placeholder art only.
     - **do not push.** Commit locally, report that the round is ready to
       push, and push only when Dan says to (see Technical Notes).
 
+#### Coding round 1 report (2026-09-23)
+Tests: **40 passing** (`npm test`). Type-check and production build are clean.
+Nothing is pushed, and nothing is confirmed on a real iPad.
+
+| # | Item | Status | Verified by |
+|---|------|--------|-------------|
+| 0 | Commit docs first | **Done** (`docs: update plan from planning session`), then re-read both | n/a |
+| 1 | Scaffold | **Done.** Vite 8 + TypeScript 7 (strict, `noUncheckedIndexedAccess`) + Vitest 5, folders `src/game`, `src/data`, `src/render`, `src/ui`, plus `tests/`, `.gitignore`. All five commands confirmed; `lint` is `tsc --noEmit` (no ESLint yet). | commands run |
+| 2 | Game state model | **Done.** Plain data (`src/game/types.ts`): map/tiles, players (explored flags per player), units, cities, turn, current player, seed + RNG state, id counter, event log. Supports 1–5 players (1 human + up to 4 AI); M1 default is 2. | unit-tested (JSON round-trip, round-trip after play, round-tripped game plays on identically, 5-player setup) |
+| 3 | Seeded map generation | **Done.** 32×24, all 8 terrains, yields/move costs in `src/data/terrain.ts`. Value-noise continents with percentile thresholds; coast = water touching land. Start placement spreads players (target ≥7 tiles apart, relaxes if needed) on grassland/plains/hills in a land region of ≥15 tiles; regenerates deterministically if 5 starts don't fit. | unit-tested (determinism, all terrains, coast rule, 5-player starts across 40 seeds) |
+| 4 | Canvas rendering | **Done.** Colored tiles + simple terrain marks, lettered unit discs in owner color with stack badge, city squares + name labels, reachable-tile highlight. Full-screen, resize/orientation/`visualViewport`/ResizeObserver, `devicePixelRatio` scaling (checked backing store = CSS size × DPR). | preview-verified (desktop); preview-verified (touch emulation, 820×1180 portrait and 1180×820 landscape) |
+| 5 | Touch + mouse input | **Done.** Pointer Events only: tap/click to select/move, one-finger/mouse drag to pan, pinch + wheel (and trackpad pinch) to zoom. No hover/right-click/keyboard dependency. Buttons ≥44×44 (measured: 107×44, 99×44, End Turn 140×64). `touch-action: none`, no-zoom viewport, `gesturestart`/`touchmove`/double-tap/`selectstart` guards, `overscroll-behavior: none`, safe-area insets. | preview-verified (desktop mouse); touch emulation via synthetic touch PointerEvents (tap, drag, pinch) at iPad size. Safari-specific guards **not verified**, iPad only. |
+| 6 | Units | **Done.** Settler + Warrior in `src/data/units.ts`. Move points, terrain costs (forest/hills 2), no water or mountains, diagonal moves; a full-move unit can always make one move. Pathing plans through unexplored tiles optimistically so it never reveals hidden terrain. | unit-tested; preview-verified |
+| 7 | Found city | **Done.** On-screen Found City button (disabled with reason when invalid; keyboard B/F extra). Uses up the settler; not on water/mountains; min distance 3 from other cities; names from the civ's list in `src/data/civs.ts`. | unit-tested; preview-verified |
+| 8 | Turn cycle | **Done.** Large End Turn button (pulses when no units can move); Enter is a desktop extra. Movement resets at the start of each player's turn; turn counter advances when play wraps; dead players are skipped. | unit-tested; preview-verified |
+| 9 | Fog of war | **Done.** Unexplored = black; explored-not-visible = dimmed, enemy units hidden there; cities stay drawn once explored. Sight: units 1, cities 2 (data). | unit-tested; preview-verified |
+| 10 | Minimal AI | **Done.** Uses the same action functions. Settler founds the capital right away (later settlers look for a decent site); warrior walks to the nearest exploration frontier. Also works with all 4 rivals (`?players=5`). | unit-tested (founds city, explores, deterministic, 5-player run); preview-verified |
+| 11 | Unit tests | **Done.** Movement rules, city founding, turn reset, seeded map determinism, plus fog, state, and AI (40 tests). | `npm test` |
+| 12 | Hub integration | **Partly done. Waiting on Dan.** Findings are below. Added `netlify.toml` to this repo (same pattern as Sole Match). Added the Epoch card to `game-hub/games.js`, but **the commit in the hub repo was blocked** by the agent's permission guard (a separate, shared repo), so that edit sits **uncommitted** in the hub's working tree. The card URL `https://epoch-dan.netlify.app/` is a **placeholder guess**. | build verified locally; not live |
+
+**Hub findings (item 12):**
+- **Separate repos.** Every browser game is its own GitHub repo
+  (`danemoll-jpg/<game>`) with its **own Netlify site**. The hub
+  (`danemoll-jpg/game-hub`) is a plain static page (no build step,
+  `publish = "."`) that only links out.
+- **How the hub links:** one object per game in `game-hub/games.js`
+  (`id, name, tagline, icon, url, tags, accent`), rendered by `app.js` as
+  cards. Nothing else changes.
+- **Netlify config per game:** `netlify.toml` with
+  `command = "npm install && npm run build"`, publish `dist` (or
+  `packages/client/dist` for the npm-workspace games like Golf, Spades, and
+  Mexican Train), plus an SPA `/* → /index.html 200` redirect. Vite fits this
+  pattern directly. Epoch copies Sole Match's single-package version.
+- **Firebase:** not used by the hub at all. Individual games use it (Sole
+  Match: online rooms plus a leaderboard, with `firestore.rules`; Mexican
+  Train: `network/firebase.ts` for online play; Nonogram: `firebase.js`).
+  Each game has its own Firebase client code. Epoch uses none (per M1).
+
+**Dan's steps to go live (in order):**
+1. Say "push" so the agent pushes this repo to `danemoll-jpg/epoch`.
+   (`origin` is already set; the repo is new on GitHub, so this is its first
+   push.)
+2. In Netlify, create a new site from the `epoch` repo. It reads
+   `netlify.toml`, so there are no build settings to type. Pick the site
+   name.
+3. Put the real URL into the Epoch card in `game-hub/games.js` (it's already
+   edited but uncommitted there), then commit and push the hub, or tell the
+   agent to. Don't push the hub before the Netlify site exists, or the card
+   will be a dead link.
+
+**Known limits / notes for planning:**
+- A tap on a tile holding your own unit always *selects* it. You can't yet
+  move a unit onto your own stack by tapping it (units can stack; only the
+  tap gesture is ambiguous). Revisit with the city screen in M2.
+- No save yet, so reloading starts a new game (autosave is M2).
+- Rival actions show as toasts ("Babylon founded Babylon") even when out of
+  sight. That's fine for now, but decide later whether this should respect fog.
+- Tapping empty explored terrain shows its yields, which is handy for
+  checking the data.
+
 **Done means:** items 0–12 are reported individually and tests pass. The game
 must be **preview-verified** in a desktop browser *and* in an iPad-sized
 touch emulation, and **ready to push** to the hub. It goes live when Dan

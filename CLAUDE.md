@@ -104,14 +104,35 @@ released publicly or sold.
   matters especially for iPad-only bugs.
 
 ## Commands
-Confirm these once the project is scaffolded and update them if they differ.
+Confirmed working (2026-09-23, Node 24, Vite 8, TypeScript 7, Vitest 5).
 ```
 npm install      # install dependencies
 npm run dev      # start local dev server
-npm test         # run unit tests (Vitest)
-npm run build    # production build
-npm run lint     # lint / type-check
+npm test         # run unit tests (Vitest, tests/**/*.test.ts)
+npm run build    # type-check + production build into dist/
+npm run lint     # type-check only (tsc --noEmit); no ESLint yet
 ```
+Dev URL options: `?seed=123` gives a reproducible map, and `?players=5` gives a full
+5-civ game. `window.__epoch` exposes `{ app, seed }` for debugging, including from
+Safari's Web Inspector on the iPad.
+
+## Code layout
+- `src/data/`: terrain, units, civs/leaders/city names, rule constants.
+- `src/game/`: pure rules. `types.ts` (state), `rng.ts`, `grid.ts`, `mapgen.ts`,
+  `newGame.ts`, `movement.ts`, `city.ts`, `fog.ts`, `turn.ts`, `ai.ts`, and
+  `actions.ts` (the single `applyAction` entry point the UI uses).
+- `src/render/`: `camera.ts` and `renderer.ts` (Canvas 2D; read-only on state).
+- `src/ui/`: `app.ts` (view state, HUD, dispatch), `input.ts` (Pointer Events,
+  Safari gesture guards), `style.css`.
+- `tests/`: Vitest suites plus `helpers.ts` for hand-built map states.
+- A player's `id` always equals its index in `state.players`.
+
+## Hub integration (how Dan's games are deployed)
+Each game is its **own GitHub repo and its own Netlify site**. The hub
+(`danemoll-jpg/game-hub`) is a static launcher that links out to each game's
+live URL through one entry in its `games.js`. This repo's `netlify.toml`
+follows the same shape as Sole Match: `npm install && npm run build`, publish
+`dist`, SPA redirect.
 
 ## Reporting back (every round)
 When you finish a round of work, update `TODO.md` and this file, and commit
@@ -130,9 +151,9 @@ push everything waiting in one go.
 ## Where things stand
 **Always check `TODO.md` for the current objective before starting work.**
 
-Nothing has been built yet. Scoping, core design, and the publishing and
-platform decisions are done. The current objective is **Milestone 1: a
-playable skeleton, ready for the game hub**. That means project scaffold,
-map generation, rendering, touch and mouse input, settler and warrior
-movement, founding a city, turn cycling, fog of war, one minimal AI
-opponent, tests, and hub integration. See the numbered list in TODO.md.
+**Milestone 1 (playable skeleton) is built and committed locally, but not
+pushed.** Items 1–11 are done, unit-tested, and preview-verified on desktop
+and in iPad-sized touch emulation. Item 12 is waiting on Dan: the Netlify
+site for this repo still has to be created, and the hub's card needs its
+real URL and a commit. See TODO.md for the per-item report. Nothing is
+confirmed on a real iPad yet.
