@@ -1,0 +1,50 @@
+import { describe, expect, it } from 'vitest';
+import { RULES } from '../src/data/rules';
+import { applyAction } from '../src/game/actions';
+import { createGame } from '../src/game/newGame';
+
+describe('game state', () => {
+  it('survives a JSON round-trip unchanged', () => {
+    const state = createGame({ seed: 42 });
+    const copy = JSON.parse(JSON.stringify(state));
+    expect(copy).toEqual(state);
+  });
+
+  it('still round-trips after play (cities, log, moved units)', () => {
+    const state = createGame({ seed: 7 });
+    const settler = state.units.find((u) => u.owner === 0 && u.type === 'settler')!;
+    applyAction(state, { type: 'foundCity', unitId: settler.id });
+    applyAction(state, { type: 'endTurn' });
+    applyAction(state, { type: 'endTurn' });
+    expect(JSON.parse(JSON.stringify(state))).toEqual(state);
+  });
+
+  it('a round-tripped game plays on identically to the original', () => {
+    const a = createGame({ seed: 99 });
+    const b = JSON.parse(JSON.stringify(a));
+    for (let i = 0; i < 5; i++) {
+      applyAction(a, { type: 'endTurn' });
+      applyAction(b, { type: 'endTurn' });
+    }
+    expect(b).toEqual(a);
+  });
+
+  it('supports the full 5-player game (1 human, 4 AI)', () => {
+    const state = createGame({ seed: 3, playerCount: RULES.maxPlayers });
+    expect(state.players).toHaveLength(5);
+    expect(state.players.filter((p) => p.kind === 'human')).toHaveLength(1);
+    expect(state.players.filter((p) => p.kind === 'ai')).toHaveLength(4);
+    expect(new Set(state.players.map((p) => p.civId)).size).toBe(5);
+    for (const p of state.players) {
+      expect(state.units.filter((u) => u.owner === p.id).map((u) => u.type).sort()).toEqual(['settler', 'warrior']);
+    }
+  });
+
+  it('Milestone 1 default spawns 2 players', () => {
+    expect(createGame({ seed: 5 }).players).toHaveLength(2);
+  });
+
+  it('rejects more players than the game supports', () => {
+    expect(() => createGame({ seed: 1, playerCount: 6 })).toThrow();
+  });
+});
