@@ -436,8 +436,8 @@ Steps, Technical Notes.
       a little oddly. Leader names are used in the offer panels.
 
 * **Round 6 — Icon candidates, research pace, mixed stacks, message
-  grammar — done by the coding agent (2026-09-24).** Waiting on Dan: icon
-  picks, and iPad checks (b) and (c).
+  grammar — done by the coding agent (2026-09-24).** Dan has picked the
+  icons (below). His iPad checks (b) and (c) are still open.
   - **Result:** 241 unit tests passing (10 new). Type-check and production
     build are clean, and the dev-code leak check passes. Preview-verified
     on desktop and in iPad-sized emulation (1024×768 landscape, 768×1024
@@ -524,14 +524,26 @@ Steps, Technical Notes.
     - City growth levels off around size 4–5 (a radius-1 work area, and
       grassland only feeds its own worker). It's the main brake on late
       income.
-  - **Pushed** to `origin/main` at the end of the round, and the play server
-    was restarted with this build at http://10.0.0.224:4173/.
+  - **Pushed** to `origin/main` at the end of the round (`07fdd44`), and the
+    play server was restarted with this build at http://10.0.0.224:4173/.
+  - **Follow-ups after the round report (2026-09-24, same session):**
+    - **Picker on the icon page (Dan's request):** instead of typing a list,
+      Dan taps one candidate per unit; a bottom bar counts the picks, and
+      **Copy my picks** / **Share** give him the list to paste. Picks are
+      remembered on the device. Preview-verified at iPad size (picking,
+      undo, count, saved picks, copied text). The clipboard itself was only
+      checked by hand-off to Dan, who used it successfully. `b033636`.
+    - **Dan's picks recorded** (table above) and checked side by side at
+      map size. `e43c14b`.
+    - Game code didn't change, so the play server wasn't restarted (it's
+      already serving this round's build).
 
 ## Current Objective (Focus Area)
 
 ### Round 6 — Icon candidates + mixed stacks + a first research-pace pass
 **Status: done by the coding agent (2026-09-24); see Completed Tasks.
-Waiting on Dan's icon picks and iPad checks.**
+Icons picked by Dan (a). Still open: iPad checks (b) and (c). Dan will
+decide on the next step after reviewing this file.**
 
 **Goal:**
 - Put unit icon candidates in front of Dan so he can pick them. He approves
@@ -631,7 +643,8 @@ C1. **Plural civ names in messages:** "Franks declared war on you!" reads
   standing instruction; see Technical Notes).
 
 Dan then:
-- (a) picks icons from the preview page (Claude publishes it for him);
+- (a) picks icons from the preview page. **Done (2026-09-24)**, using the
+  page's picker; see "Dan's icon picks" under Round 6 in Completed Tasks;
 - (b) confirms mixed stacks are obvious on the map and easy to pick from;
 - (c) confirms research feels noticeably faster in a real game.
 
@@ -657,6 +670,17 @@ unless Dan decides otherwise):**
 
 All of these are deferred for **sequencing only**. Each depends on the
 milestone before it. None has been decided against.
+
+- **Unit icons, step 2 (proposed for the next round; Dan decides after
+  review):** wire Dan's 15 picks into the game (the SVGs are already in
+  `docs/icon-candidates/`), drawn in `drawGlyph` in `renderer.ts`, which is
+  the only place a unit's mark is drawn. Keep the letters as a fallback
+  while an icon loads. Also add the **About / Credits** screen and
+  `CREDITS.md`, crediting each icon's author (CC BY 3.0 requires it; the
+  authors are Delapouite, Lorc, Cathelineau, HeavenlyDog, and Skoll).
+  Check the mixed-stack second disc and the army ring still read well with
+  icons. The coding agent offered to do this right away; Dan chose to
+  review first.
 
 - **Go live in the hub. Deferred by Dan** until the game is further along.
   He tests on the iPad over the local network until then. `netlify.toml` is

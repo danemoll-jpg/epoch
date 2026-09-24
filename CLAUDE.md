@@ -321,9 +321,11 @@ what was pushed.
   pushed to GitHub every round.
 
 **Round 6 is done by the coding agent (2026-09-24)**; the report is in
-TODO.md under Completed Tasks. Waiting on Dan:
-- **Part A:** he picks icons from `docs/icon-candidates.html` (e.g.
-  "Legion: B"). Nothing is wired in yet.
+TODO.md under Completed Tasks. Dan will decide on the next step after
+reviewing it.
+- **Part A:** Dan has picked his 15 icons (with the page's tap-to-pick
+  selector); they're recorded in TODO.md. Nothing is wired in yet. That's
+  proposed for the next round, in Next Steps.
 - **Part B:** research is faster, on the era targets in the all-AI sim.
 - **Part C:** mixed stacks now show a second disc and a full list in the
   unit panel (`mixed-stack` scenario), and plural civ names read
