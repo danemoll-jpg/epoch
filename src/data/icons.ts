@@ -9,6 +9,8 @@ export interface IconCredit {
   title: string;
   author: string;
   url: string;
+  /** How we changed it, if we did (CC BY asks us to say so). */
+  modified?: string;
 }
 
 export const ICON_LICENSE = { name: 'CC BY 3.0', url: 'https://creativecommons.org/licenses/by/3.0/' };
@@ -30,4 +32,14 @@ export const ICON_CREDITS: Record<string, IconCredit> = {
   'lee-enfield': { title: 'Lee Enfield', author: 'Skoll', url: 'https://game-icons.net/1x1/skoll/lee-enfield.html' },
   mortar: { title: 'Mortar', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/mortar.html' },
   tank: { title: 'Tank', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/tank.html' },
+  // Ships (Dan's round 8 picks).
+  'drakkar': { title: 'Drakkar', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/drakkar.html' },
+  'caravel': { title: 'Caravel', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/caravel.html' },
+  'shooner-sailboat': { title: 'Schooner sailboat', author: 'Pierre Leducq', url: 'https://game-icons.net/1x1/pierre-leducq/shooner-sailboat.html' },
+  'paddle-steamer': { title: 'Paddle steamer', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/paddle-steamer.html' },
+  'cargo-ship': { title: 'Cargo ship', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/cargo-ship.html' },
+  'speed-boat': { title: 'Speed boat', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/speed-boat.html' },
+  'battleship': { title: 'Battleship', author: 'Cathelineau', url: 'https://game-icons.net/1x1/cathelineau/battleship.html' },
+  'submarine': { title: 'Submarine', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/submarine.html' },
+  'carrier': { title: 'Carrier', author: 'Cathelineau', url: 'https://game-icons.net/1x1/cathelineau/carrier.html', modified: 'wave lines removed and cropped, so it reads differently from the Battleship' },
 };

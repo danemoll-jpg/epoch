@@ -144,10 +144,10 @@ const OUTCOMES: Record<string, (s: GameState) => void> = {
   'all-ships': (s) => {
     const ships = UNIT_IDS.filter((id) => UNITS[id].domain === 'sea');
     for (const id of ships) expect(s.units.some((u) => u.owner === 0 && u.type === id)).toBe(true);
-    // Every ship is on water, and they show letters until their icons are picked.
+    // Every ship is on water, with its own icon.
     for (const u of s.units.filter((x) => UNITS[x.type].domain === 'sea')) {
       expect(isWaterAt(s, u.x, u.y)).toBe(true);
-      expect(UNITS[u.type].icon).toBeUndefined();
+      expect(UNITS[u.type].icon).toBeDefined();
     }
     expect(s.units.filter((u) => u.carriedBy !== null)).toHaveLength(2);
   },

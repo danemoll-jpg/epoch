@@ -1,6 +1,6 @@
 // Unit icons (Round 7): every unit has an icon file in src/assets/icons/, every used icon is
 // credited (the CC BY 3.0 license requires it) in data and in CREDITS.md, and no two unit
-// types share an icon. Ships (Round 8) have no icon until Dan picks them, and show their letters.
+// types share an icon. Ships got theirs from Dan's round 8 picks (the Carrier's is modified).
 
 import { describe, expect, it } from 'vitest';
 import { ICON_CREDITS } from '../src/data/icons';
@@ -10,11 +10,11 @@ import credits from '../CREDITS.md?raw';
 // The bundled files, read the same way the game reads them (as text, through Vite).
 const FILES = import.meta.glob<string>('../src/assets/icons/*.svg', { query: '?raw', import: 'default', eager: true });
 
-const WITH_ICON = UNIT_IDS.filter((id) => UNITS[id].domain === 'land');
+const WITH_ICON = UNIT_IDS;
 
 describe('unit icons', () => {
-  it('every land unit has an icon; ships wait for Dan’s picks', () => {
-    for (const id of UNIT_IDS) expect(!!UNITS[id].icon, id).toBe(UNITS[id].domain === 'land');
+  it('every unit, ships included, has an icon', () => {
+    for (const id of UNIT_IDS) expect(UNITS[id].icon, id).toBeDefined();
   });
 
   it.each(WITH_ICON)('%s has a bundled, credited icon', (id) => {

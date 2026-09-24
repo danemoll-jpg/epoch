@@ -290,8 +290,10 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   color, and size for the map; inline SVG for the panels). A unit's look on
   the map is drawn only in `drawGlyph` (its icon, white on the owner's
   color; letters while it loads or if it's missing).
-- `src/assets/icons/`: the 15 unit icons Dan picked (game-icons.net, CC BY
-  3.0), credited in `CREDITS.md` and on ☰ → About / Credits.
+- `src/assets/icons/`: the 24 unit icons Dan picked (15 land, 9 ships;
+  game-icons.net, CC BY 3.0; the Carrier's is modified), credited in
+  `CREDITS.md` and on ☰ → About / Credits (a credit's `modified` field
+  says what we changed).
 - `src/dev/`: dev/test only, never in the production build. `build.ts`
   (hand-made state builder shared by tests and scenarios), `scenarios.ts`,
   and `sim.ts` (all-AI simulation: era turns, techs over time, wars; used
@@ -372,8 +374,8 @@ what was pushed.
   culture, and the four victories.
 - **Round 8 (naval) is done:** sea techs, 9 ships, transports, naval combat
   and bombarding, Harbors, maps with several landmasses, and an AI that
-  settles and invades overseas. Ships show letters until Dan picks their
-  icons from the candidates page.
+  settles and invades overseas. Three ships of a type form a fleet. The
+  ships use Dan's icon picks (wired in early, 2026-09-24).
 - **The play server:** http://10.0.0.224:4173/.
 - The epoch repo is pushed every round until Netlify is set up.
 

@@ -25,8 +25,7 @@ export interface UnitDef {
   glyph: string;
   /**
    * The unit's icon: a file `src/assets/icons/<icon>.svg`, credited in icons.ts (Round 7,
-   * Dan's picks from game-icons.net). Ships have none yet (Dan picks them from the round 8
-   * candidates page), so they show their letters.
+   * Dan's picks from game-icons.net; ships from his round 8 picks).
    */
   icon?: string;
   domain: UnitDomain;
@@ -88,15 +87,15 @@ export const UNITS: Record<UnitTypeId, UnitDef> = {
   artillery: unit('artillery', 'Artillery', 'At', 'mortar', 60, 10, 2, 1, 'machine_tools'),
   tank: unit('tank', 'Tank', 'Tk', 'tank', 80, 12, 8, 3, 'automobile'),
   // Ships (Round 8).   name          glyph cost att def mv sight cargo tech
-  galley: ship('galley', 'Galley', 'Ga', 30, 1, 1, 3, 1, 2, 'map_making', { coastOnly: true }),
-  caravel: ship('caravel', 'Caravel', 'Cv', 40, 1, 2, 3, 2, 3, 'navigation'),
-  frigate: ship('frigate', 'Frigate', 'Fr', 50, 4, 3, 4, 2, 2, 'magnetism'),
-  ironclad: ship('ironclad', 'Ironclad', 'Ic', 60, 7, 5, 4, 1, 0, 'steam_engine'),
-  transport: ship('transport', 'Transport', 'Tr', 50, 0, 4, 5, 1, 8, 'industrialization'),
-  destroyer: ship('destroyer', 'Destroyer', 'De', 60, 8, 6, 6, 2, 0, 'combustion'),
-  battleship: ship('battleship', 'Battleship', 'Bs', 120, 16, 12, 4, 2, 0, 'automobile'),
-  submarine: ship('submarine', 'Submarine', 'Su', 70, 14, 3, 4, 2, 0, 'combustion', { stealth: true }),
-  carrier: ship('carrier', 'Carrier', 'Cr', 100, 2, 14, 4, 2, 0, 'flight'),
+  galley: ship('galley', 'Galley', 'Ga', 30, 1, 1, 3, 1, 2, 'map_making', { icon: 'drakkar', coastOnly: true }),
+  caravel: ship('caravel', 'Caravel', 'Cv', 40, 1, 2, 3, 2, 3, 'navigation', { icon: 'caravel' }),
+  frigate: ship('frigate', 'Frigate', 'Fr', 50, 4, 3, 4, 2, 2, 'magnetism', { icon: 'shooner-sailboat' }),
+  ironclad: ship('ironclad', 'Ironclad', 'Ic', 60, 7, 5, 4, 1, 0, 'steam_engine', { icon: 'paddle-steamer' }),
+  transport: ship('transport', 'Transport', 'Tr', 50, 0, 4, 5, 1, 8, 'industrialization', { icon: 'cargo-ship' }),
+  destroyer: ship('destroyer', 'Destroyer', 'De', 60, 8, 6, 6, 2, 0, 'combustion', { icon: 'speed-boat' }),
+  battleship: ship('battleship', 'Battleship', 'Bs', 120, 16, 12, 4, 2, 0, 'automobile', { icon: 'battleship' }),
+  submarine: ship('submarine', 'Submarine', 'Su', 70, 14, 3, 4, 2, 0, 'combustion', { icon: 'submarine', stealth: true }),
+  carrier: ship('carrier', 'Carrier', 'Cr', 100, 2, 14, 4, 2, 0, 'flight', { icon: 'carrier' }),
 };
 
 export const UNIT_IDS = Object.keys(UNITS) as UnitTypeId[];

@@ -5,7 +5,7 @@
 The unit icons are from [game-icons.net](https://game-icons.net), licensed
 under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). They're
 recolored in the game (drawn white on each civ's color); the shapes are
-unchanged. The SVG files are in `src/assets/icons/`, and the game's
+unchanged except where noted below. The SVG files are in `src/assets/icons/`, and the game's
 ☰ → About / Credits screen shows the same list.
 
 | Unit | Icon | Author | Source | License |
@@ -25,6 +25,19 @@ unchanged. The SVG files are in `src/assets/icons/`, and the game's
 | Rifleman | Lee Enfield | Skoll | https://game-icons.net/1x1/skoll/lee-enfield.html | CC BY 3.0 |
 | Artillery | Mortar | Delapouite | https://game-icons.net/1x1/delapouite/mortar.html | CC BY 3.0 |
 | Tank | Tank | Lorc | https://game-icons.net/1x1/lorc/tank.html | CC BY 3.0 |
+| Galley | Drakkar | Delapouite | https://game-icons.net/1x1/delapouite/drakkar.html | CC BY 3.0 |
+| Caravel | Caravel | Delapouite | https://game-icons.net/1x1/delapouite/caravel.html | CC BY 3.0 |
+| Frigate | Schooner sailboat | Pierre Leducq | https://game-icons.net/1x1/pierre-leducq/shooner-sailboat.html | CC BY 3.0 |
+| Ironclad | Paddle steamer | Delapouite | https://game-icons.net/1x1/delapouite/paddle-steamer.html | CC BY 3.0 |
+| Transport | Cargo ship | Delapouite | https://game-icons.net/1x1/delapouite/cargo-ship.html | CC BY 3.0 |
+| Destroyer | Speed boat | Delapouite | https://game-icons.net/1x1/delapouite/speed-boat.html | CC BY 3.0 |
+| Battleship | Battleship | Cathelineau | https://game-icons.net/1x1/cathelineau/battleship.html | CC BY 3.0 |
+| Submarine | Submarine | Delapouite | https://game-icons.net/1x1/delapouite/submarine.html | CC BY 3.0 |
+| Carrier | Carrier | Cathelineau | https://game-icons.net/1x1/cathelineau/carrier.html | CC BY 3.0 |
+
+**Modified:** the Carrier icon has its wave lines removed and is cropped a
+little larger, so it reads differently from the Battleship at map size.
 
 The other candidates Dan chose from (not used in the game) are in
-`docs/icon-candidates/`, credited in its `SOURCES.md`.
+`docs/icon-candidates/` and `docs/ship-air-icon-candidates/`, credited in
+their `SOURCES.md` files.

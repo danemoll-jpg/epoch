@@ -928,7 +928,7 @@ export const SCENARIOS: Scenario[] = [
   {
     id: 'all-ships',
     title: 'All ships',
-    note: `One of each ship (${UNIT_IDS.filter((id) => UNITS[id].domain === 'sea').length}) along the north coast in table order: Galley, Caravel, Frigate, Ironclad, Transport, Destroyer, Battleship, Submarine, Carrier. They show letters until you pick their icons. A Galley on the east coast carries two units (teal “2” badge), and a Mauryan Frigate sits right below it (you are at peace). Tap any ship for its stats.`,
+    note: `One of each ship (${UNIT_IDS.filter((id) => UNITS[id].domain === 'sea').length}) along the north coast in table order: Galley, Caravel, Frigate, Ironclad, Transport, Destroyer, Battleship, Submarine, Carrier. Each shows the icon you picked (the Carrier's trimmed one); pinch-zoom to check they're clear. A Galley on the east coast carries two units (teal “2” badge), and a Mauryan Frigate sits right below it (you are at peace). Tap any ship for its stats.`,
     build: allShipsScenario,
   },
 ];

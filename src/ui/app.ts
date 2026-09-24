@@ -807,6 +807,7 @@ export class App {
     const rows = used
       .map(
         (u) => `<li>${this.badge(u.id, this.human)}<span><b>${UNITS[u.id].name}</b>: “${esc(u.credit?.title ?? u.icon)}” by ${esc(u.credit?.author ?? 'unknown')}
+          ${u.credit?.modified ? `<span class="sub">(modified: ${esc(u.credit.modified)})</span>` : ''}
           ${u.credit ? `<a href="${u.credit.url}" target="_blank" rel="noopener">source</a>` : ''}</span></li>`,
       )
       .join('');
@@ -815,7 +816,7 @@ export class App {
       <p class="sub">A turn-based strategy game made for family and friends.</p>
       <div class="label">Unit icons</div>
       <p class="sub">From <a href="${ICON_SITE}" target="_blank" rel="noopener">game-icons.net</a>, used under the
-        <a href="${ICON_LICENSE.url}" target="_blank" rel="noopener">${ICON_LICENSE.name}</a> license. Recolored to fit the map; shapes unchanged.</p>
+        <a href="${ICON_LICENSE.url}" target="_blank" rel="noopener">${ICON_LICENSE.name}</a> license. Recolored to fit the map; shapes unchanged except where noted.</p>
       <ul class="credits">${rows}</ul>`;
   }
 

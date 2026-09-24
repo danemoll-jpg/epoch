@@ -1078,9 +1078,14 @@ milestone before it. None has been decided against.
   - **Great People:** they add culture and can speed up wonders.
   - **Exploration huts.**
   - Possibly culture borders and city flipping.
-- **Round 9, Part A:** wire in Dan's ship icon picks (recorded under Round
-  8 in Completed Tasks, 2026-09-24; the Carrier uses the approved trimmed
-  file `carrier-a-trimmed.svg`, credited as modified).
+- **Round 9, Part A — DONE EARLY (2026-09-24, after Dan asked why
+  `all-ships` still showed letters):** the 9 ship icons are wired in
+  (`src/assets/icons/`, `icon` on each ship in `units.ts`, credits in
+  `src/data/icons.ts`, `CREDITS.md`, and About / Credits). The Carrier uses
+  the approved trimmed file, credited as modified (new `modified` field on
+  a credit). Tests: every unit has a bundled, credited icon (366 pass).
+  Preview-verified on desktop (`all-ships`: all 9 drawn, Carrier distinct
+  from the Battleship). Only the aircraft icons remain (round 10).
 - **Round 10 — Air:** (the aircraft icons were picked in round 8)
   - **Flight finally unlocks something:** a Fighter (Flight), a Bomber
     (Flight, or a new **Advanced Flight** tech), a Jet Fighter (Advanced
