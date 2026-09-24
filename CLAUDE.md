@@ -5,16 +5,17 @@ Read this at the start of every session. It is the short, operational version.
 to work on.
 
 ## ⚠️ Never push without Dan's go-ahead
-Pushing to GitHub deploys straight to the live game hub via Netlify. **Dan
-decides when to push.** Commit locally as much as you like, but never run
-`git push`, and never trigger a deploy any other way, unless Dan has
-explicitly said to push in this session. At the end of a round, report that
-the work is **ready to push** and wait.
+**Dan decides when to push.** Commit locally as much as you like, but never
+run `git push` in this repo or the game hub repo, and never trigger a deploy
+any other way, unless Dan has explicitly said to push in this session. At
+the end of a round, report that the work is **ready to push** and wait.
+There's no Netlify site for Epoch yet, so a push currently only updates
+GitHub. The rule still applies.
 
 ## ⚠️ Start every round by committing updated docs
-Planning happens in a separate Claude session. When the plan changes, Dan
-copies the new `CLAUDE.md` and `TODO.md` into this repo's root, overwriting
-the old copies. So at the **start of every round**:
+Planning happens in a separate Claude session, which writes the updated
+`CLAUDE.md` and `TODO.md` directly into this repo's root. So at the **start of
+every round**:
 1. Run `git status`. If `CLAUDE.md` or `TODO.md` has changed, commit just
    those two files first, as their own commit
    (`docs: update plan from planning session`), before touching any code.
@@ -24,16 +25,16 @@ the old copies. So at the **start of every round**:
    (a status, a finding), don't restore it silently. Mention it in your
    report so it gets reconciled. Git history has the old version.
 
-The local repo already exists (Dan created it). Don't run `git init` or
-re-create it.
+The local repo already exists (`C:\Users\danmo\epoch`). Don't run `git init`
+or re-create it.
 
 ## What this project is
 A single-player, turn-based 4X strategy game in the spirit of the original
 **Civilization Revolution (2008)**, not Civ Rev 2. It uses a small map, a
 simple economy, a short era-based tech tree, and fast turns. The game has its
 own look, name, and text. It copies gameplay ideas only, never assets or
-wording. It's published in Dan's **game hub** for family and friends, not
-released publicly or sold.
+wording. It will eventually be published in Dan's **game hub** for family and
+friends, not released publicly or sold.
 
 **Design targets (decided):**
 - Play close to Civ Rev 1. When a rule is unclear, do what Civ Rev 1 did.
@@ -48,14 +49,14 @@ released publicly or sold.
 - **Rendering:** HTML5 Canvas 2D. No game engine.
 - **Tests:** Vitest.
 - **Targets:** iPad Safari (touch) and desktop browsers (mouse and keyboard).
-- **Repo:** a local git repo Dan already created. Scaffold the project into
-  it.
-- **Hosting/deploy:** Dan's existing game hub. Pipeline: push to GitHub, then
-  Netlify deploys. Pushing is Dan's call (see the top of this file). Follow
-  the integration pattern the hub's other games already use (see TODO.md
-  item 12). The hub also uses Firebase as its database, but this game
-  doesn't use Firebase yet.
-- **Backend:** none of its own. Game logic runs entirely client-side.
+- **Testing on iPad:** Dan tests on his iPad over the **local network**
+  against the dev server. Not live in the hub yet, by Dan's choice.
+- **Hosting (later):** its own GitHub repo (`danemoll-jpg/epoch`) and its own
+  Netlify site, linked from the game hub. `netlify.toml` is already in place.
+  See "Hub integration" below.
+- **Firebase:** not used. The hub doesn't use Firebase; individual games
+  have their own. Epoch would only get one if cloud saves are added later.
+- **Backend:** none. Game logic runs entirely client-side.
 
 ## Code Style & Architecture
 - **Keep game logic separate from rendering.** All rules live in pure,
@@ -67,16 +68,17 @@ released publicly or sold.
   class instance or hold a function or DOM reference. Save/load has to be
   `JSON.stringify` / `JSON.parse`.
 - **Every state change goes through an action or command function**
-  (e.g. `moveUnit(state, unitId, to)`). This keeps rules testable and lets the
-  AI use exactly the same moves as the player.
+  (`applyAction` in `src/game/actions.ts`). This keeps rules testable and
+  lets the AI use exactly the same moves as the player.
 - **Use a seeded RNG, never `Math.random()` in game logic.** The same seed and
   the same actions must produce the same game. This is what makes bugs
   reproducible.
 - **Content is data-driven.** Civs, leaders, units, buildings, techs, wonders,
-  and terrain are defined in `src/data/` as typed data tables. Adding a leader
-  or unit should mean editing data, not logic.
+  terrain, and rule constants are defined in `src/data/` as typed data
+  tables. Adding a leader, unit, or building should mean editing data, not
+  logic.
 - **Player count is data, not hard-coded.** Everything must work for 5
-  players, even while early milestones only spawn 2.
+  players.
 - **Touch-first input:**
   - Use Pointer Events so one code path handles mouse and touch.
   - Nothing depends on hover, right-click, or the keyboard. Keyboard
@@ -86,6 +88,7 @@ released publicly or sold.
     `devicePixelRatio`.
   - Stop Safari's double-tap zoom, page bounce, and text selection on the
     game surface.
+  - Never use browser `alert`/`confirm`/`prompt` dialogs. Use on-screen UI.
 - **Square tile grid**, as in Civ Rev, not hexes.
 - **Placeholder art until an art pass:** simple shapes, colors, and letters.
   Don't spend time on visuals before the mechanics work.
@@ -94,9 +97,7 @@ released publicly or sold.
   - Never use the name "Civilization" (it's a trademark) in the title or UI.
   - Leaders: any historical or real figure is allowed while the game is
     shared only with family and friends. Keep all leaders in `src/data/` so
-    the list can be reviewed and swapped in one place. Before any public
-    release, review the list for living or recently deceased people (see
-    TODO.md).
+    the list can be reviewed and swapped in one place.
 - **Test game rules with unit tests** (Vitest) against real state objects.
   Don't guess whether a rule works; prove it with a test.
 - **When a bug survives a couple of fixes, add instrumentation and get real
@@ -112,18 +113,23 @@ npm test         # run unit tests (Vitest, tests/**/*.test.ts)
 npm run build    # type-check + production build into dist/
 npm run lint     # type-check only (tsc --noEmit); no ESLint yet
 ```
-Dev URL options: `?seed=123` gives a reproducible map, and `?players=5` gives a full
-5-civ game. `window.__epoch` exposes `{ app, seed }` for debugging, including from
-Safari's Web Inspector on the iPad.
+**iPad over the local network:** document the exact command here (TODO.md,
+M2 item 14).
+
+Dev URL options: `?seed=123` gives a reproducible map, and `?players=5` gives
+a full 5-civ game. `window.__epoch` exposes `{ app, seed }` for debugging,
+including from Safari's Web Inspector on the iPad.
 
 ## Code layout
 - `src/data/`: terrain, units, civs/leaders/city names, rule constants.
-- `src/game/`: pure rules. `types.ts` (state), `rng.ts`, `grid.ts`, `mapgen.ts`,
-  `newGame.ts`, `movement.ts`, `city.ts`, `fog.ts`, `turn.ts`, `ai.ts`, and
-  `actions.ts` (the single `applyAction` entry point the UI uses).
-- `src/render/`: `camera.ts` and `renderer.ts` (Canvas 2D; read-only on state).
-- `src/ui/`: `app.ts` (view state, HUD, dispatch), `input.ts` (Pointer Events,
-  Safari gesture guards), `style.css`.
+- `src/game/`: pure rules. `types.ts` (state), `rng.ts`, `grid.ts`,
+  `mapgen.ts`, `newGame.ts`, `movement.ts`, `city.ts`, `fog.ts`, `turn.ts`,
+  `ai.ts`, and `actions.ts` (the single `applyAction` entry point the UI
+  uses).
+- `src/render/`: `camera.ts` and `renderer.ts` (Canvas 2D; read-only on
+  state).
+- `src/ui/`: `app.ts` (view state, HUD, dispatch), `input.ts` (Pointer
+  Events, Safari gesture guards), `style.css`.
 - `tests/`: Vitest suites plus `helpers.ts` for hand-built map states.
 - A player's `id` always equals its index in `state.players`.
 
@@ -131,29 +137,31 @@ Safari's Web Inspector on the iPad.
 Each game is its **own GitHub repo and its own Netlify site**. The hub
 (`danemoll-jpg/game-hub`) is a static launcher that links out to each game's
 live URL through one entry in its `games.js`. This repo's `netlify.toml`
-follows the same shape as Sole Match: `npm install && npm run build`, publish
-`dist`, SPA redirect.
+follows the same shape as Sole Match: `npm install && npm run build`,
+publish `dist`, SPA redirect.
+
+**The hub repo is shared and separate.** Don't edit or commit there unless a
+TODO item says to. Never add a hub card with a guessed URL, and never let a
+hub push happen before Epoch's Netlify site exists.
 
 ## Reporting back (every round)
 When you finish a round of work, update `TODO.md` and this file, and commit
-them with your code. Dan takes these updated files back to the planning
-session, so they are your report. Give an **explicit per-item status for
-every numbered item you were asked to do**: done, not done, or deferred, and
-why. Say how each item was verified: unit-tested, preview-verified on
-desktop, preview-verified in touch emulation, ready to push, live in the
-hub, or not verified. Only Dan can mark something *confirmed on iPad*.
-Don't quietly skip an item.
+them with your code. The planning session reads these files back from the
+repo, so they are your report. Give an **explicit per-item status for every
+numbered item you were asked to do**: done, not done, or deferred, and why.
+Say how each item was verified: unit-tested, preview-verified on desktop,
+preview-verified in touch emulation, ready to push, live in the hub, or not
+verified. Only Dan can mark something *confirmed on iPad*. Don't quietly
+skip an item.
 
 End each round by saying whether the work is **ready to push** and listing
-the local commits waiting. Then wait for Dan to say "push." When he does,
-push everything waiting in one go.
+the local commits waiting. Then wait for Dan to say "push."
 
 ## Where things stand
 **Always check `TODO.md` for the current objective before starting work.**
 
-**Milestone 1 (playable skeleton) is built and committed locally, but not
-pushed.** Items 1–11 are done, unit-tested, and preview-verified on desktop
-and in iPad-sized touch emulation. Item 12 is waiting on Dan: the Netlify
-site for this repo still has to be created, and the hub's card needs its
-real URL and a commit. See TODO.md for the per-item report. Nothing is
-confirmed on a real iPad yet.
+**Milestone 1 (playable skeleton) is done and CONFIRMED by Dan on his iPad**
+over the local network. Going live in the hub is deferred by Dan until the
+game is further along. The current objective is **Milestone 2: cities,
+economy, and autosave**, items 0–14 in TODO.md. Item 0b cleans up the
+uncommitted placeholder card left in the hub repo.
