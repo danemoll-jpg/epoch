@@ -4,13 +4,16 @@ Read this at the start of every session. It is the short, operational version.
 `TODO.md` is the planning and history record and the source of truth for what
 to work on.
 
-## ⚠️ Never push without Dan's go-ahead
-**Dan decides when to push.** Commit locally as much as you like, but never
-run `git push` in this repo or the game hub repo, and never trigger a deploy
-any other way, unless Dan has explicitly said to push in this session. At
-the end of a round, report that the work is **ready to push** and wait.
-There's no Netlify site for Epoch yet, so a push currently only updates
-GitHub. The rule still applies.
+## ⚠️ Pushing rules
+- **Epoch repo: push at the end of every round** (Dan's standing
+  instruction, 2026-09-24). After tests pass and the docs are committed,
+  `git push` the `epoch` repo to GitHub, then restart the play server.
+  There's no Netlify site for Epoch yet, so nothing deploys. **Once Dan
+  connects Netlify, this rule ends**, and pushing goes back to "only when
+  Dan says," because a push would then deploy to the live site.
+- **Game hub repo: never push without Dan explicitly saying so.** The hub
+  is live on Netlify, so a hub push deploys immediately.
+- Report the push (branch, commit) in the round report.
 
 ## ⚠️ Start every round by committing updated docs
 Planning happens in a separate Claude session, which writes the updated
@@ -291,33 +294,28 @@ preview-verified in touch emulation, ready to push, live in the hub, or not
 verified. Only Dan can mark something *confirmed on iPad*. Don't quietly
 skip an item.
 
-End each round by saying whether the work is **ready to push** and listing
-the local commits waiting. Then wait for Dan to say "push."
+End each round by pushing the epoch repo (see Pushing rules) and listing
+what was pushed.
 
 ## Where things stand
 **Always check `TODO.md` for the current objective before starting work.**
 
-- **Milestones 1–4:** done and tested by Dan on the iPad. That covers the
-  skeleton, cities and economy, the tech tree, combat and armies, and save
-  safety.
-- **Round 5 (M4 follow-ups + Milestone 5):** done by the coding agent,
-  waiting for Dan's iPad checks. See the Round 5 report in TODO.md.
-- Going live in the hub is deferred by Dan.
+- **Milestones 1–5:** done and tested by Dan on the iPad. That covers the
+  skeleton, cities and economy, the tech tree, combat and armies, save
+  safety, 5 civs, and diplomacy.
+- **The play server** is reached from the iPad at
+  **http://10.0.0.224:4173/**.
+- Going live in the hub is deferred by Dan. Until then, the epoch repo is
+  pushed to GitHub every round.
 
-**The current objective is Round 5 (done, awaiting Dan's checks):**
-- **Part A, Dan's round 4 feedback:**
-  - keep the play server current at the end of each round;
-  - winning the last fight at a city captures it;
-  - fix Legions (units in a city) not being able to form an army;
-  - add a victory scenario.
-- **Part B, Milestone 5:**
-  - 5 civs by default;
-  - meeting civs, war and peace, and a diplomacy screen;
-  - tech trading and AI demands;
-  - a more competent AI (faster expansion, capped defenders, real war
-    plans).
+**The current objective is Round 6:**
+- **Part A:** icon *candidates* from game-icons.net on a preview page for
+  Dan to pick from. Nothing is wired in yet.
+- **Part B:** a first research-pace speed-up, to era targets.
+- **Part C:** a mixed-stack indicator (Dan's feedback), and a
+  message-grammar fix.
 
-See items 0, A1–A4, and B1–B12 in TODO.md.
+See items 0, A1–A3, B1–B4, and C0–C1 in TODO.md.
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.

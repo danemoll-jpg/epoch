@@ -347,8 +347,10 @@ Steps, Technical Notes.
       them when you attack a walled city.
 
 * **Round 5 — Combat follow-ups + Milestone 5 (5 civs, diplomacy, a
-  smarter AI) — done by the coding agent (2026-09-24). Waiting for Dan's
-  iPad checks (a)–(c).** Nothing pushed.
+  smarter AI) — done by the coding agent (2026-09-24). Dan: all scenarios
+  passed on the iPad (2026-09-24), and the play server was reached at
+  10.0.0.224:4173.** A real-game diplomacy check needs a New Game, because
+  his play save migrated from M4 is at war with everyone. Nothing pushed.
   - **Result:** 231 unit tests passing (44 new). Type-check and production
     build are clean, and the dev-code leak check passes on `dist/` and
     `dist-play/`. Preview-verified on desktop and in iPad-sized touch
@@ -435,214 +437,126 @@ Steps, Technical Notes.
 
 ## Current Objective (Focus Area)
 
-### Round 5 — Combat follow-ups + Milestone 5 (full AI roster and diplomacy)
-**Status (coding round 5):** all items done (0, A1–A4, B1–B12). See the
-report under Completed Tasks. **Waiting for Dan's iPad checks (a)–(c).**
-Nothing pushed.
-
+### Round 6 — Icon candidates + mixed stacks + a first research-pace pass
 **Goal:**
-- Apply Dan's feedback from round 4.
-- Keep an always-current play server running for him.
-- Turn the everyone-at-war placeholder into real relations with 4 AI
-  rivals: meeting civs, war and peace, tech trading, and AI demands, as in
-  Civ Rev 1. Make the AI a competent rival.
-- Placeholder art only.
+- Put unit icon candidates in front of Dan so he can pick them. He approves
+  before anything goes in.
+- Make mixed stacks obvious (Dan's feedback).
+- Speed up research enough that the game can move through its eras, since
+  slow research is now holding back AI wars too.
+- Everything else stays placeholder art until M9.
 
 **Items for the coding agent. Report status on each one individually:**
-
-**Part A — Follow-ups from Dan's round 4 testing**
 
 0. **Commit the updated docs first:** `CLAUDE.md` and `TODO.md` as their own
    commit, then re-read them.
 
-A1. **Standing rule, from this round on (also in CLAUDE.md): keep the play
-    server current.**
-    - at the **end of every round**, after tests pass and docs are
-      committed, (re)start `npm run play:lan` so
-      `http://<PC-IP>:4173/` serves the latest build;
-    - Dan never has to run a command; he just opens that address on the
-      iPad;
-    - restart it **only at the end of a round**, never mid-round;
-    - a new build may upgrade his save on load, which is fine because
-      backups are kept;
-    - report that it's running and give the exact LAN address;
-    - if the server can't be kept running after your session ends (e.g.
-      the process dies when the session closes), say so plainly in the
-      report and suggest the simplest fix. Don't leave Dan with a dead
-      address and no explanation.
+**Part A — Unit icons, step 1: Dan picks them (DECIDED by Dan,
+2026-09-24: game-icons.net, and Dan approves the icons before they go in)**
 
-A2. **Winning an attack on a city captures it (DECIDED by Dan):**
-    - when an attack kills the **last defender in an enemy city**, the
-      winning unit **moves into the city and captures it** right away,
-      with the same capture rules as before (owner change, −1 population,
-      Walls destroyed, and so on);
-    - only land units with attack > 0 can capture, and the unit's turn
-      still ends;
-    - an open-field win still leaves the attacker in place;
-    - update the `capture` scenario's note (one unit is now enough), and
-      the AI's capture logic;
-    - tests.
+A1. **Icon candidates, no game changes yet:**
+    - from **game-icons.net** (license **CC BY 3.0**: free use with credit
+      to each icon's author), choose **2–3 candidate icons per unit type**:
+      Settler, Warrior, Archer, Spearman, Horseman, Chariot, Legion,
+      Catapult, Pikeman, Knight, Musketman, Cannon, Rifleman, Artillery,
+      and Tank;
+    - pick icons that would be easy to tell apart at small sizes.
 
-A3. **"Legions can't form an army"** (Dan tried in a real game):
-    - the rules allow Legions. The likely cause is that the three were **in
-      a city**: the unit panel (which holds Form Army and Fortify) is hidden
-      while the city panel is open, and tapping a city tile opens the city
-      panel;
-    - reproduce it first. If that's the cause, make Form Army (and Fortify)
-      reachable for units inside a city. For example, when a unit is
-      tapped in the city panel's unit list, close the city panel and show
-      the unit panel with its buttons. Or put the actions on the unit rows;
-    - if the cause is something else, report what it was;
-    - add a dev scenario `army-in-city` (3 Legions inside your city) with a
-      note;
+A2. **A preview page for Dan to choose from:**
+    - make one **self-contained HTML file**, `docs/icon-candidates.html`,
+      with the SVGs inlined and nothing loaded from the web. The planning
+      session will publish it as a private page Dan can open on his iPad;
+    - one row per unit type, showing each candidate labeled **A / B / C**;
+    - show each candidate twice: **large**, and **at real map size** on a
+      colored unit disc in two civ colors;
+    - the author credit under each icon;
+    - keep the candidate SVG files in `docs/icon-candidates/` for next
+      round.
+
+A3. **Stop there for icons.** Don't wire any icons into the game this
+    round. Dan picks (e.g. "Legion: B"), and the next round implements the
+    chosen set, plus the About / Credits screen and `CREDITS.md`.
+
+**Part B — Research pace, first pass (Q7)**
+
+B1. **Target:**
+    - in the all-AI simulation (5 civs, the same seeds as round 5), a
+      typical civ reaches the **Medieval era by about turn 50–70**, the
+      **Industrial era by about turn 120–150**, and **Modern by about turn
+      180–220**;
+    - a full game (someone finishing the tree) should fit in roughly
+      **250 turns**. That's our assumption for a 2–3 hour game at fast Civ
+      Rev turn speed;
+    - report before and after numbers.
+
+B2. **How to hit the target:** tune the data only (science income, tech
+    costs, Library, trade yields, city growth if it's the bottleneck). Don't
+    change the rules. Say which levers you pulled and why.
+
+B3. **Keep AI wars sensible:** check that faster research doesn't cause
+    constant wars or early eliminations. Report wars declared, peace
+    treaties, and eliminations by turn 120, compared with round 5.
+
+B4. **Tests:** update any tests that hard-code costs or pace. Add a
+    simulation test that asserts the era-timing ranges loosely, so future
+    changes that break pacing get caught.
+
+**Part C — Small fixes**
+
+C0. **Show what's in a mixed stack (Dan's feedback).** Dan had 3 Legions on
+    a tile with another unit type, and the map showed only one unit, so he
+    didn't realize a different unit was there (the real reason Form Army
+    wasn't offered):
+    - when a tile holds **more than one unit type** (yours or a visible
+      enemy's), show a clear indicator on the map. For example, a small
+      second glyph behind the top one, or a "mixed" badge next to the
+      count;
+    - tapping your stack should make the contents obvious. For example, the
+      unit panel lists every unit on the tile (type, ★, 🛡, army) and lets
+      Dan tap one to select it;
+    - Form Army should appear whenever 3 of any one type are present, not
+      only for the selected unit's type;
+    - it works with letters now, and must keep working when icons arrive;
+    - add a dev scenario `mixed-stack` with a note;
     - tests where the logic is testable.
 
-A4. **`victory` dev scenario:** one rival with one weak city next to your
-    army. Take it, and the Victory panel shows. The panel has only been
-    checked in tests so far.
-
-**Part B — Milestone 5: Full AI roster and diplomacy (Civ Rev 1 spirit)**
-
-These are default rules, and all numbers are in data.
-
-B1. **5 civs by default:** new games have Dan plus 4 AI rivals. `?players=`
-    still works on the dev server.
-
-B2. **Meeting civs:**
-    - two civs have **met** once either one's unit or city sees the other's
-      unit or city (or, later, trades or messages);
-    - track it per pair in state;
-    - on first contact, show a short **"You have met the <Civ> — led by
-      <Leader>"** panel;
-    - unmet civs don't appear in diplomacy;
-    - finish the M2 event rule: rival events show if the tile is visible
-      **or you've met that civ**, for civ-level news like "Babylon entered
-      the Medieval era." Map-level news still needs visibility.
-
-B3. **War and peace, replacing "everyone at war":**
-    - newly met civs start at **peace**;
-    - at peace, units can't attack each other or enter each other's cities;
-    - **declaring war** is an explicit action with an on-screen confirm for
-      Dan;
-    - **peace** can be proposed and accepted or refused;
-    - after a peace treaty there's a minimum number of turns before war can
-      be declared again (in data);
-    - the AI declares war or proposes peace based on relative military
-      strength, its personality, and how the war is going (below);
-    - log and announce declarations.
-
-B4. **AI personalities, light:**
-    - each leader in `src/data/civs.ts` gets an **aggression** value and a
-      **trade willingness** value;
-    - these feed war and peace, demands, and trade acceptance;
-    - leader-specific bonuses stay in M8.
-
-B5. **Diplomacy screen, touch-first:**
-    - open it from the top bar;
-    - it lists met civs with the leader name, civ color, relation (war or
-      peace), attitude (friendly / neutral / hostile, derived from recent
-      events), city count, and known strength (rough);
-    - actions per civ:
-      - Declare War / Propose Peace;
-      - **Trade Techs** (swap one of yours for one of theirs, or ask for one
-        in exchange for gold);
-      - **Give Gold**;
-    - every action gets a clear accept or refuse answer with a one-line
-      reason in our own words;
-    - it works in portrait and landscape, with a large close button.
-
-B6. **AI demands, a Civ Rev flavor:**
-    - occasionally a stronger, aggressive AI **demands** tribute from Dan,
-      either gold or a tech;
-    - Dan gets an on-screen panel with **Give** or **Refuse**, and refusing
-      raises the chance of war;
-    - it's rare and capped (e.g. at most once per N turns per civ, in data).
-
-B7. **Tech trading rules:**
-    - AIs only trade techs they have for techs they lack;
-    - they won't give a tech to someone they're hostile with;
-    - a traded tech is learned instantly by the receiver and doesn't cost
-      the giver;
-    - AIs also trade with each other occasionally (logged, shown if met).
-
-B8. **AI competence, from the round 3 and round 4 observations:**
-    - **expand faster:** the city target scales with map room, not a fixed
-      4, and early Settlers are prioritized;
-    - **stop piling up defenders:** cap the defenders per city (in data),
-      and once buildings run out, build Settlers, offense, or
-      rush-buy-worthy items instead of endless Spearmen;
-    - **go to war on purpose:** pick a target civ (the weakest nearby, or
-      the one at war), gather an attack force (armies when possible), move
-      it toward a target city, and attack with the odds rule;
-    - keep defenders home;
-    - make peace when losing;
-    - it stays deterministic;
-    - report the before and after numbers from your simulation, e.g. cities
-      per AI at turns 50 and 100, units per AI at turn 120, and wars
-      declared.
-
-B9. **Early-game fairness:** with peace-on-meeting, early raids now require
-    a war declaration. Also keep a short **grace period** at the start
-    (in data, e.g. the first 20 turns) where AIs won't declare war on Dan.
-
-B10. **Save migration v4 → v5:**
-     - pairs who can currently see each other's units or cities count as
-       met;
-     - existing relations carry over as they are (at war stays at war),
-       so Dan's game doesn't suddenly change;
-     - backups are kept as usual.
-
-B11. **Dev scenarios:**
-     - `first-contact`: move one tile to meet a civ;
-     - `peace`: at war and losing, propose peace, and it's accepted;
-     - `demand`: an AI demand arrives at End Turn;
-     - `tech-trade`: a friendly AI with a tech you lack. Trade for it;
-     - `ai-war`: watch an AI declare war and march on a city over a few
-       turns;
-     - each has a note.
-
-B12. **Unit tests:**
-     - contact detection;
-     - peace blocks attacks and city entry;
-     - declaring war;
-     - the peace duration rule;
-     - AI war and peace choices (deterministic, and both ways);
-     - demand frequency caps;
-     - tech trade rules;
-     - event visibility with "met";
-     - the AI city count and defender cap in a simulation;
-     - the v4 → v5 migration;
-     - every new scenario.
+C1. **Plural civ names in messages:** "Franks declared war on you!" reads
+    oddly. Use the civ's proper form, e.g. "the Franks declared war on you!",
+    or the leader's name, e.g. "Charlemagne declared war on you!". Pick one
+    style and use it consistently. Keep the civ names in data with whatever
+    grammar fields they need.
 
 **Done means:**
-- every item (0, A1–A4, B1–B12) is reported individually;
+- every item (0, A1–A3, B1–B4, C0–C1) is reported individually;
 - tests pass;
-- it's preview-verified on desktop and in iPad-sized touch emulation;
-- the play server is running on 4173 with this build (A1).
+- it's preview-verified;
+- the play server is restarted with this build (standing rule).
 
-Dan then confirms on the iPad:
-- (a) the play address works without him running anything;
-- (b) the new scenarios behave as their notes say;
-- (c) in a real 5-civ game, meeting a civ, the diplomacy screen, and at
-  least one trade or peace deal feel right.
+- **the `epoch` repo is pushed to GitHub** at the end of the round (Dan's
+  standing instruction; see Technical Notes).
 
-Nothing gets pushed without Dan saying so.
+Dan then:
+- (a) picks icons from the preview page (Claude publishes it for him);
+- (b) confirms mixed stacks are obvious on the map and easy to pick from;
+- (c) confirms research feels noticeably faster in a real game.
 
-**Dan's optional action outside the agent:** the two hub commits that cancel
-out are still there. Run `git reset --hard origin/main` in
-`C:\Users\danmo\game-hub` if you want them gone. It's harmless either way.
+**Dan's optional actions outside the agent:**
+- **Your current play game was migrated from version 4, so it's at war
+  with every civ** (the M4 rule), whether you've met them or not. To try
+  peace-on-meeting and diplomacy properly, start a **New Game** on the
+  play server. Your old game is kept as a backup.
+- The two hub commits that cancel out are still there
+  (`git reset --hard origin/main` in `C:\Users\danmo\game-hub` if you want
+  them gone). It's harmless either way.
 
 **Open questions (defaults in bold; the coding agent proceeds on the default
 unless Dan decides otherwise):**
 - **Q1 — Working title:** **"Epoch" as a codename for now.**
 - **Q5 — Starting techs:** **none.**
-- **Q6 — Combat model:** **one loser destroyed, no hit points.** Dan tested
-  attacking and it seemed fine.
-- **Q7 — Research pace:** it's far too slow for a 2–3 hour game. **Default:
-  leave it for the balance pass** unless Dan finds it slow.
-- **Q8 — Starting relations:** **peace when civs first meet**, with the AI
-  deciding on war from there. The alternative is to start at war, as in
-  M4.
+- **Q6 — Combat model:** **one loser destroyed, no hit points.**
+- **Q7 — Research pace:** **first-pass speed-up in this round** (Part B),
+  to the targets above. The full balance pass stays in M9.
+- **Q8 — Starting relations:** **peace on meeting** (built in round 5).
 
 ## Next Steps (Do Not Start Yet)
 
@@ -652,8 +566,8 @@ milestone before it. None has been decided against.
 - **Go live in the hub. Deferred by Dan** until the game is further along.
   He tests on the iPad over the local network until then. `netlify.toml` is
   already in place. Steps when he's ready:
-  1. Dan says "push," and the agent pushes this repo to `danemoll-jpg/epoch`.
-     `origin` is already set, and this is the first push.
+  1. The `epoch` repo is already pushed every round (Dan's standing
+     instruction, from round 6).
   2. Dan creates a Netlify site from the `epoch` repo. Netlify reads
      `netlify.toml`, so no build settings need typing. Dan picks the site
      name.
@@ -670,6 +584,12 @@ milestone before it. None has been decided against.
 - **Milestone 7 — Flavor systems:** Great People, wonders, barbarians, and
   exploration huts. The Temple and culture effects get filled in here or in
   M6.
+- **Leader portraits (Dan may make these with AI image tools).** Plan
+  for them in M8: each leader gets an optional `portrait` image path in
+  the data, with a placeholder (initials on the civ color) until Dan
+  supplies art. They show on first contact, in diplomacy, and in demands.
+  When M8 is scoped, tell Dan the exact size and format (e.g. square
+  PNG/WebP, about 512 px).
 - **Milestone 8 — Leader roster:** 12–16 civs, each leader with era-based
   bonuses, all in data. Any historical or real figure is allowed for
   family-and-friends use.
@@ -707,9 +627,14 @@ milestone before it. None has been decided against.
   iPad*. These are separate claims. For now, Dan's iPad testing is over the
   local network, which counts as iPad-confirmed. "Live in hub" is a
   separate claim that comes later.
-- **Pushing is Dan's call, never automatic.** Until Epoch's Netlify site
-  exists, an Epoch push only updates GitHub and nothing deploys. A hub
-  push, though, deploys right away. Either way, it's Dan's call.
+- **Pushing — standing instruction from Dan (2026-09-24):**
+  - **until Epoch's Netlify site exists, push the `epoch` repo to GitHub at
+    the end of every round**, as the last step before restarting the play
+    server;
+  - nothing deploys from it yet;
+  - **once Dan connects Netlify, this stops**, and pushing goes back to
+    "only when Dan says," because a push would then deploy;
+  - **the hub repo is never pushed without Dan saying so.** It's live.
 - **Dev scenarios (from Round 3):** dev-only, never in the production build,
   and never allowed to overwrite the real autosave. They're how Dan checks
   hard-to-reach rules on the iPad, and new milestones should add scenarios
