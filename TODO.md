@@ -396,9 +396,9 @@ Steps, Technical Notes.
     human was eliminated in 1 of 5 by turn 120. A human who builds nothing
     at all gets attacked around turns 28–36 and usually loses.
   - **Play server (A1):** running `npm run play:lan` on port 4173. This PC
-    has two LAN addresses: **http://192.168.0.214:4173/** (Wi-Fi) and
-    **http://10.0.0.224:4173/** (Ethernet). Use the one on the iPad's
-    Wi-Fi network (most likely the 192.168.0.x one). It was started as a
+    has two LAN addresses. **The iPad reaches http://10.0.0.224:4173/**
+    (the Ethernet one; confirmed by Dan 2026-09-24). The Wi-Fi address,
+    192.168.0.214, doesn't work from the iPad. It was started as a
     separate background process so it survives this chat session ending.
     It stops if the PC restarts, sleeps long enough to drop the network, or
     someone closes the Node process. **Simplest fix if it's down:** start a

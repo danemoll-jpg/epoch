@@ -276,8 +276,10 @@ and never runs a command himself.
 - Start it detached so it outlives the chat session, e.g. from PowerShell:
   `Start-Process -WindowStyle Hidden cmd -ArgumentList '/c','npm run play:lan > play-lan.log 2>&1' -WorkingDirectory C:/Users/danmo/epoch`
   (stop any old one on port 4173 first). `play-lan.log` is git-ignored.
-  This PC has two LAN addresses: Wi-Fi 192.168.0.214 and Ethernet
-  10.0.0.224 (as of 2026-09-24; check with `ipconfig`).
+  **Dan's iPad uses http://10.0.0.224:4173/** (the PC's Ethernet
+  address; confirmed 2026-09-24). The PC's Wi-Fi address, 192.168.0.214,
+  doesn't work from the iPad. Report the 10.0.0.x address, and re-check
+  with `ipconfig` if it ever stops working (DHCP can change it).
 
 ## Reporting back (every round)
 When you finish a round of work, update `TODO.md` and this file, and commit
