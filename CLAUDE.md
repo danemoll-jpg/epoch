@@ -411,21 +411,25 @@ what was pushed.
 ## Where things stand
 **Always check `TODO.md` for the current objective before starting work.**
 
-- **Milestones 1–6 and round 8 (naval)** are done and approved: the land
-  and sea units with icons, fleets, wonders, culture, the four victories,
-  and diplomacy.
-- **Round 9 (Milestone 7) is done by the coding agent (2026-09-24)** and
-  waiting for Dan's checks: barbarians and villages (Dan's spec: 4 flags
-  spawn a unit; take one to destroy it for a reward or settle it as a
-  size-1 city), ancient artifacts, map resources, exploration huts, Great
-  People, and the map icon picker page
-  (http://10.0.0.224:4173/docs/map-icon-candidates.html). Per-item report
-  under Round 9 in TODO.md.
+- **Milestones 1–7 and naval** are done and approved: land and sea units,
+  wonders, culture, the four victories, diplomacy, barbarians, villages,
+  resources, huts, and Great People.
 - **The play server:** http://10.0.0.224:4173/.
 - The epoch repo is pushed every round until Netlify is set up.
 
-**Next:** the planning session picks the next round from TODO.md (Dan's
-map icon picks to wire in; Round 10, air, is queued).
+**The current objective is Round 10:**
+- **Part A:** wire in Dan's 24 map icon picks and 5 aircraft icons, with
+  credits.
+- **Part B, air units:**
+  - Fighter, Bomber, Jet Fighter, Stealth Bomber, and Helicopter;
+  - the base-and-strike model, with an automatic return and no crashing;
+  - interception;
+  - Carriers carrying aircraft;
+  - the Airport with an airlift;
+  - the AI using air power.
+
+See items 0, A1–A3, and B1–B10 in TODO.md. After this comes M8 (the leader
+roster and Dan's AI portraits), then M9 (polish).
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.

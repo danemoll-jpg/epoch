@@ -830,8 +830,8 @@ Steps, Technical Notes.
       boarding check was done at desktop size.
 
 * **Round 9 — Milestone 7: barbarians, villages, artifacts, resources, huts,
-  and Great People — done by the coding agent (2026-09-24). Waiting for
-  Dan's checks (a)–(c) below**, including his map icon picks.
+  and Great People — done. APPROVED by Dan (2026-09-24)**, map icons
+  picked. Round 10 wires the icons in.
   - **Result:** 413 unit tests passing (47 new). Type-check and production
     build are clean, and the dev-code leak check passes. Preview-verified on
     desktop and in iPad-sized touch emulation (768×1024). **Save format 8**
@@ -986,220 +986,169 @@ Steps, Technical Notes.
 
 ## Current Objective (Focus Area)
 
-### Round 9 — Milestone 7: barbarians, villages, artifacts, resources, huts, and Great People
-**Status: done by the coding agent (2026-09-24).** Per-item report under
-"Round 9" in Completed Tasks. Waiting for Dan's checks (a)–(c), especially
-**his map icon picks** (the next round wires them in). The item list below is
-kept as it was assigned.
-
-**Goal:** the flavor systems that make each game feel different:
-- barbarian villages, built to **Dan's spec**;
-- map resources;
-- exploration huts;
-- Great People.
-
-The ship icons were already wired in early (see Next Steps), so Part A here
-is only new-art *candidates* for Dan to approve.
+### Round 10 — Wire in the map and aircraft icons + Air units
+**Goal:**
+- Replace the round 9 placeholders with Dan's 24 map icon picks.
+- Add aircraft, so Flight finally unlocks something that flies (Dan's
+  aircraft icon picks are from round 8).
+- After this round the unit roster is complete. Next up is M8 (leaders).
 
 **Items for the coding agent. Report status on each one individually:**
 
 0. **Commit the updated docs first:** `CLAUDE.md` and `TODO.md` as their own
    commit, then re-read them.
 
-**Part A — Art candidates for the new map things (Dan approves art before
-it's wired in)**
+**Part A — Wire in Dan's icon picks**
 
-A1. **One picker page**, `docs/map-icon-candidates.html`, working like the
-    round 8 page (the play server serves it at `/docs/…`). It offers 2–3
-    game-icons.net candidates for each of:
-    - the **barbarian village**;
-    - the **exploration hut**;
-    - the **barbarian unit marker**, if barbarians need something beyond
-      their color;
-    - **each resource type** (B4);
-    - **each Great Person type** (B6);
-    - an **artifact** icon for the discovery panel.
+A1. **The 24 map icons** (the table under Round 9 in Completed Tasks):
+    - the village, hut, barbarian badge, 15 resources, 5 Great People, and
+      the artifact;
+    - copy them into `src/assets/icons/`, bundled and never loaded from the
+      web;
+    - draw them on the map the way the picker page showed them. The village
+      icon keeps its flag count visible, resources sit in the tile corner on
+      a dark badge, and the barbarian units get the badge;
+    - use them in the panels too: the village choice, the artifact
+      discovery, the Great Person arrival and use, the city panel's worked
+      tiles or resources, and hut results where it fits;
+    - letters stay as the fallback.
 
-    Show them at map size on the terrain they'll sit on. Until Dan picks,
-    use simple placeholders (letters or shapes). Picks get wired in next
-    round.
+A2. **The 5 aircraft icons** (the table under Round 8): Fighter (Biplane),
+    Bomber (Carpet Bombing), Jet Fighter, Stealth Bomber, and Helicopter.
+    Watch Bomber B at 22 px. If its bomb dots vanish and it can't be told
+    apart from the fighters, report it with a comparison rather than
+    swapping it silently.
 
-**Part B — Barbarians and villages (Dan's spec, 2026-09-24; numbers in
-data)**
+A3. **Credits:**
+    - add every new icon to `src/data/icons.ts`, `CREDITS.md`, and About /
+      Credits;
+    - new authors include Willdabeast, Guard13007, Lord Berandas, Quoting,
+      and Skoll;
+    - keep `tests/icons.test.ts` enforcing that every used icon is bundled
+      and credited, now covering map things as well as units.
 
-B1. **The barbarian faction:**
-    - a special player that's always at war with everyone;
-    - it's not in diplomacy, can't win, and isn't counted for domination
-      or elimination;
-    - it gets its own color, and its units show as barbarians.
+**Part B — Air units (Civ Rev 1 spirit; all numbers in data)**
 
-B2. **Villages:**
-    - **stationary barbarian villages** are placed at map start on land;
-    - they're kept away from civ starts (e.g. at least 6 tiles), with a
-      count scaled to the map;
-    - a village holds a fortified defender and has a defense bonus.
+B1. **Techs:**
+    - **Flight** (existing) unlocks the Fighter and the Bomber;
+    - add **Advanced Flight** (Modern; needs Flight plus a sensible second
+      prerequisite), which unlocks the Jet Fighter and the Helicopter;
+    - the **Stealth Bomber** needs Advanced Flight plus Computers, or
+      another late tech;
+    - keep the tree valid and re-check the era pace (`npm run sim`,
+      `pace.test.ts`).
 
-    **Flags:**
-    - each village **gains flags over time** (e.g. 1 every N turns);
-    - **at 4 flags it sends a unit out** and resets;
-    - there are no spawns in the first ~10 turns;
-    - spawned units scale mildly with the world's era but stay **relatively
-      weak**;
-    - villages stop spawning after a late era (in data, e.g. from the
-      Industrial era).
+B2. **How air units move: a "base and strike" model, chosen so nothing
+    crashes by accident on a touchscreen:**
+    - every aircraft (except the Helicopter, see B5) is **based in a
+      friendly city or on a Carrier**, and each has a **range** in tiles;
+    - **Strike:** select the aircraft, and tiles in range with a valid target
+      are outlined. Tapping one opens the odds panel, and Attack resolves the
+      fight. **The aircraft then returns to its base automatically.** One
+      strike per turn;
+    - **Rebase:** move to another friendly city or Carrier within range,
+      using up the turn;
+    - aircraft never sit on open map tiles, so there's no fuel or crash
+      rule.
 
-    **Behavior:**
-    - barbarian units stay near their village (a radius in data);
-    - they attack adjacent civ units when the odds are decent;
-    - they occasionally head for nearby civ units or **unguarded cities**.
+B3. **Air combat rules:**
+    - **Bombers** (and the Stealth Bomber) have a strong attack against land
+      units, cities, and ships, and a weak defense. A win destroys the
+      defender, but **aircraft never capture or move in**, like a ship's
+      bombard;
+    - **Fighters and Jet Fighters** are good against aircraft and can make
+      weaker strikes against ground or sea;
+    - **interception:** when an enemy aircraft strikes a tile within range of
+      one of your fighters' bases, your best fighter **intercepts first**. If
+      the attacker loses, the strike never happens. If the fighter loses, the
+      strike goes ahead. Show a message either way;
+    - the **Stealth Bomber** is harder to intercept (a data modifier);
+    - ground units and ships can't attack aircraft;
+    - **aircraft in a city don't defend it** and are lost if the city is
+      captured;
+    - **aircraft on a Carrier are lost if it sinks**;
+    - no air armies (default; see Q16).
 
-    **Barbarians never capture cities.** A barbarian reaching an unguarded
-    city **raids** it instead: it steals some gold and costs 1 population
-    (never below 1), then leaves. (Default; see Q13.)
+B4. **Carriers:** carry up to 3 aircraft (in data). Aircraft rebase onto them
+    within range, strike from them, and move with them. The Carrier's panel
+    lists its aircraft, like cargo.
 
-B3. **Taking a village (Dan's rule):** when your unit kills the last
-    defender and moves in, or walks into an empty village, show a **choice
-    panel**:
-    - **Destroy it for a random reward.** The weights are in data: most
-      often **gold (30, 40, or 50)**; occasionally a **Horseman**, a
-      **Settler**, a **Galley** (coastal villages only, if the finder knows
-      Map Making, else re-roll), or a **free tech**. Destroying it also
-      **reveals a hidden resource** on that tile, if there is one (B4);
-    - **or settle it:** the village becomes **your new city at population
-      1**, founded on that tile with the normal city naming. Allow it even
-      if the tile is within the normal minimum city distance, and say so in
-      the report;
-    - **Ancient artifacts (either choice, confirmed by Dan):** there's a
-      random chance (data) to find an artifact. It grants **free
-      technology**: usually 1 tech, and rarely a leap of 2–3, possibly
-      advanced for the era. Use generic names of our own ("Ancient
-      Tablets", "Lost Library Scrolls", "Forgotten Star Chart", …), and show
-      a discovery panel;
-    - **the AI takes villages too,** and settles when the site is good and
-      not crowded, otherwise destroys. It's deterministic;
-    - world news: "The Franks destroyed a barbarian village" (visible if
-      met).
+B5. **Helicopter:**
+    - it **moves like a land unit over any terrain**, including crossing
+      water and ignoring terrain costs;
+    - it can end its turn anywhere;
+    - it has a strong attack against land units, but **can't capture
+      cities**;
+    - it's vulnerable to fighters (it can be intercepted when it attacks).
 
-**Part C — Resources, huts, and Great People**
+B6. **Airport building** (needs Flight):
+    - aircraft built there start as veterans;
+    - **airlift:** once per turn, one land unit can move instantly from this
+      city to another friendly city that also has an Airport.
 
-B4. **Map resources (a new system, all in data):**
-    - special resources on tiles with yield bonuses. For example: Iron and
-      Aluminum on hills; Rubber and Game in forest; Wheat on plains; Cattle
-      on grassland; Fish and Whales on coast/ocean; Gold and Gems on hills
-      or mountains; Oil on desert; Spices/Wine and so on. Pick about 12–16
-      with our own bonus numbers;
-    - **visible** ones are shown on the map from the start. **Hidden** ones
-      (a data flag, e.g. Iron, Aluminum, Oil, Rubber) show only once
-      revealed, by destroying a village on that tile (B3). Optionally, also
-      by learning a tech (say which you chose);
-    - worked tiles use the bonus, and the automatic tile picker and the AI
-      count it. The city panel shows it;
-    - placement is seeded and fair: every civ start has at least 1–2 food
-      or production resources nearby;
-    - **no strategic requirements** (e.g. Iron needed for Legions). That's
-      not Civ Rev 1 style, so it's bonuses only.
+B7. **The AI uses air power:**
+    - in the Modern era it builds fighters for defense in border or coastal
+      cities;
+    - at war, it builds bombers and strikes targets ahead of its invasions,
+      using the odds rule;
+    - it rebases toward the front;
+    - it stays deterministic;
+    - **sim report:** aircraft per civ at turn 220, strikes and intercepts per
+      game, the era pace, victory turns, and **whether domination wins
+      finally appear**.
 
-B5. **Exploration huts:**
-    - a few huts are scattered on land at the start, separate from
-      barbarian villages;
-    - a unit (or the AI) entering one gets a random result from data:
-      **gold** (e.g. 25–50), **map knowledge** (reveals a nearby area), a
-      **free unit** (Warrior/Horseman), a **free tech** (rare), or,
-      rarely and never before turn 20, **a few barbarians appear nearby**;
-    - there are **no artifacts from huts**. Those come only from villages
-      (Dan's rule).
-
-B6. **Great People (Civ Rev spirit, our own rules):**
-    - each civ earns a Great Person each time its **culture total** passes
-      the next threshold (rising thresholds, in data);
-    - types: **Scientist, Artist, Merchant, Engineer, and General**;
-    - Dan gets an arrival panel and chooses how to use it:
-      - **Settle it in a city** for a permanent bonus: Scientist +science %,
-        Artist +culture, Merchant +gold %, Engineer +production, General
-        (new units there are veterans and armies are stronger);
-      - **or a one-time effect:** Scientist a free tech, Artist a big
-        culture burst, Merchant a big gold sum, Engineer finishes the
-        current wonder or building, General makes every unit in one stack
-        a veteran;
-    - Great People have names from a generic list of our own, not Civ Rev's
-      exact list; historical names are fine;
-    - the AI uses them sensibly (e.g. an Engineer on a wonder) and
-      deterministically;
-    - Great People count toward culture as they do now, only through their
-      effects.
-
-B7. **Culture borders and city flipping: NOT this round.** Deferred to M9
-    or later, only if Dan wants them.
-
-**Part D — Wrap-up**
-
-B8. **Save migration v7 → v8 (Dan's current game keeps going):**
-    - resources are generated from the seed for the whole map;
-    - **villages and huts are placed only on tiles no civ has explored
-      yet**;
-    - culture thresholds for Great People start from each civ's current
-      culture, so nobody gets a backlog at once;
-    - backups are kept as usual.
+B8. **Save migration v8 → v9:** no aircraft exist, Advanced Flight is
+    unknown, and backups are kept as usual.
 
 B9. **Dev scenarios, each with a note:**
-    - `village-spawn`: 4 flags, and a unit comes out at End Turn;
-    - `take-village`: the choice panel, then destroy or settle;
-    - `village-artifact`: an artifact is found for certain;
-    - `village-resource`: destroying one reveals Iron;
-    - `barbarian-raid`: an unguarded city is raided, not captured;
-    - `hut`: each result, or a forced one;
-    - `great-person`: one arrives. Settle vs one-time;
-    - `engineer-wonder`: an Engineer finishes a wonder;
-    - `all-resources`: one of each resource, for Dan's icon check.
+    - `air-strike`: a bomber strikes a unit and returns to base;
+    - `intercept`: an enemy fighter stops your bomber;
+    - `rebase`: fly to another city and onto a Carrier;
+    - `carrier-sunk`: the aircraft aboard are lost;
+    - `bomber-no-capture`: an empty city after the strike, and the bomber
+      still can't take it;
+    - `helicopter`;
+    - `airlift`;
+    - `all-aircraft`: for Dan's icon check;
+    - `all-map-icons`: every resource, the village, the hut, and a barbarian
+      unit, for the map-icon check.
 
-B10. **Simulation report:**
-     - villages taken per game (destroyed vs settled, AI);
-     - barbarian units spawned and killed;
-     - raids;
-     - **eliminations caused by barbarians (should be 0)**;
-     - Great People per civ by turn 150;
-     - huts entered;
-     - the era pace before and after, which must stay near target given
-       the free techs;
-     - victory turns, still none before 150.
-
-B11. **Unit tests:**
-     - the barbarian faction rules;
-     - the flag timer and spawning at 4;
-     - the no-spawn grace period and the late-era stop;
-     - barbarians raid but never capture;
-     - the village choice: destroy rewards (weights with fixed seeds, the
-       Galley coast rule), settle founding a size-1 city, and the artifact
-       chance and tech counts with either choice;
-     - resource yields and hidden/revealed rules;
-     - start fairness;
-     - hut results;
-     - Great People thresholds, settled and one-time effects, and AI use;
-     - the v7 → v8 migration (nothing placed on explored tiles);
+B10. **Unit tests:**
+     - the new techs and the tree;
+     - strike range, one strike per turn, and the automatic return;
+     - rebasing (city and Carrier) and Carrier capacity;
+     - interception, including the stealth modifier;
+     - no capture by air;
+     - ground units can't attack air;
+     - aircraft lost with a captured city or a sunk Carrier;
+     - Helicopter movement and no capture;
+     - Airport veterans and the airlift once per turn;
+     - AI air use (deterministic);
+     - the v8 → v9 migration;
+     - icons bundled and credited;
      - every new scenario;
      - `pace.test.ts` still passing.
 
 **Done means:**
-- every item (0, A1, B1–B11) is reported individually;
+- every item (0, A1–A3, B1–B10) is reported individually;
 - tests pass;
 - it's preview-verified on desktop and in iPad emulation;
 - the epoch repo is **pushed**, and the play server is **restarted**.
 
 Dan then:
-- (a) picks the map icons on the picker page;
-- (b) tries the village, hut, raid, and Great Person scenarios;
-- (c) in a real game, takes a barbarian village and makes the choice.
+- (a) checks the map icons and aircraft icons (the `all-map-icons` and
+  `all-aircraft` scenarios, then a real game);
+- (b) tries the air scenarios;
+- (c) confirms the round 9 things in a real game, if not done yet: take a
+  village and make the choice.
 
 **Open questions (defaults in bold; the coding agent proceeds on the default
 unless Dan decides otherwise):**
 - **Q1 — Working title:** **"Epoch" as a codename for now.**
-- **Q13 — Barbarians and cities:** **they raid (steal gold, −1 population)
-  but never capture.** The alternative is that they capture unguarded
-  cities.
-- **Q14 — Resources:** **yield bonuses only, no "needs Iron to build"
-  rules** (Civ Rev style).
-- **Q15 — Villages respawning:** **no**. Villages are placed at the start
-  only, and once they're gone, they're gone.
+- **Q16 — Air armies:** **no** (land armies and naval fleets only).
+- **Q17 — Air movement model:** **base and strike, with automatic return**,
+  so there's no fuel or crash rule on a touchscreen.
+- **Q18 — Nuclear weapons:** **not planned.**
 
 ## Next Steps (Do Not Start Yet)
 
@@ -1242,18 +1191,6 @@ milestone before it. None has been decided against.
   a credit). Tests: every unit has a bundled, credited icon (366 pass).
   Preview-verified on desktop (`all-ships`: all 9 drawn, Carrier distinct
   from the Battleship). Only the aircraft icons remain (round 10).
-- **Round 10 — Air:** (the aircraft icons were picked in round 8)
-  - **Flight finally unlocks something:** a Fighter (Flight), a Bomber
-    (Flight, or a new **Advanced Flight** tech), a Jet Fighter (Advanced
-    Flight), and a Stealth Bomber or similar (a late tech). Maybe a
-    Helicopter.
-  - Air units are range-based: each must end its move in a friendly city
-    or on a Carrier.
-  - Fighters intercept. Bombers attack but **can't capture** cities.
-  - An **Airport** building.
-  - The AI uses air units.
-  - Dan picks the icons first.
-  - Nuclear weapons: **not planned** unless Dan asks.
 - **Leader portraits (Dan may make these with AI image tools).** Plan
   for them in M8: each leader gets an optional `portrait` image path in
   the data, with a placeholder (initials on the civ color) until Dan
