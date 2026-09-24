@@ -113,23 +113,50 @@ npm test         # run unit tests (Vitest, tests/**/*.test.ts)
 npm run build    # type-check + production build into dist/
 npm run lint     # type-check only (tsc --noEmit); no ESLint yet
 ```
-**iPad over the local network:** document the exact command here (TODO.md,
-M2 item 14).
+**iPad over the local network:**
+```
+npm run dev:lan  # = vite --host: listens on the LAN as well as localhost
+```
+Vite prints a `Network: http://<PC-IP>:5173/` line; open that URL in
+Safari on the iPad (same Wi-Fi). Windows may ask once to allow Node through
+the firewall; allow it on private networks. Plain `npm run dev` stays
+localhost-only, and Vite is not set to listen on the network by default.
+The `epoch-dev` preview config in `.claude/launch.json` also passes
+`--host` (port 5174); `epoch-verify` (port 5175, localhost only) is for a
+second session to preview without taking 5174.
 
 Dev URL options: `?seed=123` gives a reproducible map, and `?players=5` gives
-a full 5-civ game. `window.__epoch` exposes `{ app, seed }` for debugging,
-including from Safari's Web Inspector on the iPad.
+a full 5-civ game. **The autosave wins:** if a saved game exists it resumes,
+and `?seed`/`?players` only apply to new games (New Game in the ☰ menu, or
+`?new`). `?new` ignores the save and starts fresh on *every* load, so
+don't leave it in a bookmark. `window.__epoch` exposes `{ app, seed }` for
+debugging, including from Safari's Web Inspector on the iPad.
+
+**Autosave:** `localStorage` key `epoch.autosave` (synchronous, so it
+completes inside Safari's `pagehide`). Saved after every successful action
+(including End Turn), on `visibilitychange` → hidden, and on `pagehide`.
+The save carries `saveVersion` (= `STATE_VERSION` in `src/game/types.ts`).
+**Bump `STATE_VERSION` whenever the state shape changes**; older saves then
+start a new game with an on-screen notice instead of crashing.
 
 ## Code layout
-- `src/data/`: terrain, units, civs/leaders/city names, rule constants.
-- `src/game/`: pure rules. `types.ts` (state), `rng.ts`, `grid.ts`,
-  `mapgen.ts`, `newGame.ts`, `movement.ts`, `city.ts`, `fog.ts`, `turn.ts`,
-  `ai.ts`, and `actions.ts` (the single `applyAction` entry point the UI
+- `src/data/`: terrain, units (incl. cost, `popCost`), buildings,
+  civs/leaders/city names, rule constants (`rules.ts`: growth, focus
+  weights, rush-buy formula, science rate, etc.).
+- `src/game/`: pure rules. `types.ts` (state + `STATE_VERSION`), `rng.ts`,
+  `grid.ts`, `mapgen.ts`, `newGame.ts`, `movement.ts`, `city.ts`
+  (founding), `yields.ts` (tile yields, automatic worked tiles, trade
+  split), `production.ts` (build/focus/rate/rush-buy actions and the
+  end-of-turn city update), `fog.ts`, `log.ts` (event log + fog filter),
+  `turn.ts`, `ai.ts`, `save.ts` (serialize/deserialize with version
+  check), and `actions.ts` (the single `applyAction` entry point the UI
   uses).
 - `src/render/`: `camera.ts` and `renderer.ts` (Canvas 2D; read-only on
   state).
-- `src/ui/`: `app.ts` (view state, HUD, dispatch), `input.ts` (Pointer
-  Events, Safari gesture guards), `style.css`.
+- `src/ui/`: `app.ts` (view state, HUD, city panel, menu, dispatch),
+  `tap.ts` (pure tap rule, unit-tested), `storage.ts` (localStorage
+  autosave), `input.ts` (Pointer Events, Safari gesture guards; touch
+  scrolling is allowed only inside `.scroll` elements), `style.css`.
 - `tests/`: Vitest suites plus `helpers.ts` for hand-built map states.
 - A player's `id` always equals its index in `state.players`.
 
@@ -162,6 +189,10 @@ the local commits waiting. Then wait for Dan to say "push."
 
 **Milestone 1 (playable skeleton) is done and CONFIRMED by Dan on his iPad**
 over the local network. Going live in the hub is deferred by Dan until the
-game is further along. The current objective is **Milestone 2: cities,
-economy, and autosave**, items 0–14 in TODO.md. Item 0b cleans up the
-uncommitted placeholder card left in the hub repo.
+game is further along.
+
+**Milestone 2 (cities, economy, and autosave): items 0–14 done
+(2026-09-23)**, with 84 unit tests passing, preview-verified on desktop and in
+iPad-sized emulation (portrait and landscape). **Waiting for Dan to confirm
+on his iPad**, including autosave surviving a Safari tab reload. Nothing has
+been pushed. Per-item status is in TODO.md.

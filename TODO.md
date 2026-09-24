@@ -106,9 +106,70 @@ Steps, Technical Notes.
       commit was blocked, so that edit sits **uncommitted** in the hub's
       working tree. Cleanup is M2 item 0b below.
 
+* **Milestone 2 — Cities, economy, and autosave — coding done (2026-09-23).
+  Waiting for Dan to confirm on his iPad**, including autosave surviving a
+  Safari tab reload. Nothing pushed.
+  - **Result:** 84 unit tests passing (44 new). Type-check and production
+    build are clean. Preview-verified on desktop and in iPad-sized emulation
+    (768×1024 portrait and 1024×768 landscape, touch).
+  - **Per-item status (coding round 2):**
+
+    | # | Item | Status | Verified by |
+    |---|------|--------|-------------|
+    | 0 | Commit docs first | Done (`7ba7f72`), then re-read both | n/a |
+    | 0b | Hub cleanup | Done, **but the hub was not in the state TODO described** (see note below). Reverted with `git revert`. The hub's files now match `origin/main` exactly. Nothing pushed | `git diff origin/main` is empty |
+    | 1 | City growth | Done. Food box, growth, starvation (shrinks at 0, never below 1). Threshold `10 + 5×size`, 2 food per citizen, 0% kept after growth, all in `rules.ts` | unit-tested; preview-verified |
+    | 2 | Worked tiles by focus | Done. Center + 1 tile per citizen, radius in data (1 = the 8 surrounding tiles). Balanced/Food/Production/Trade weights in data. A food-first "starvation guard" stops any focus from starving a city while food exists. Cities take turns picking one tile at a time (oldest first each round), so no tile is shared and new cities aren't squeezed out. Citizens with no free tile become specialists (1 trade, in data) | unit-tested; preview-verified (focus switch changes the worked tile on the map) |
+    | 3 | Production | Done. One item at a time, overflow carried over, production stored while nothing is chosen, switching items keeps production (no penalty). Units repeat; after a building the city asks again. Rush-buy `ceil(2×remaining + remaining²/20)` in data; the bought item appears at end of turn | unit-tested; preview-verified |
+    | 4 | Settlers cost population | Done. `popCost: 1` on the Settler in `units.ts`. A size-1 city keeps accumulating and finishes the Settler once it reaches size 2. Can't rush-buy it while too small | unit-tested |
+    | 5 | Trade → science and gold | Done. One empire-wide rate, 10% steps, default 60% science, per-city split rounded, science accumulates only | unit-tested; preview-verified (HUD rate +/−) |
+    | 6 | Starter buildings | Done in `src/data/buildings.ts`: Granary (keeps 50%), Barracks (veteran flag on new units, shown as ★), Walls (`defenseBonusPct` stored, unused until M4), Library +50% science, Marketplace +50% gold, Temple (placeholder `culture: 1`, no effect). No techs, no upkeep | unit-tested |
+    | 7 | City screen | Done. Size, food bar + turns to grow/shrink, production bar + turns, food/production/trade totals with the science/gold split, focus picker, build list (cost, turns, effect), Buy button with cost (disabled with the reason), buildings built, units inside. 52 px close button. Side sheet in landscape, bottom sheet in portrait (the map re-centers the city above/left of the panel). Only the panel scrolls; the page still can't bounce | preview-verified desktop + iPad portrait/landscape emulation |
+    | 8 | Empire HUD | Done. Turn, gold (+/turn), science (+/turn), science/gold rate with 44 px − / + buttons | preview-verified |
+    | 9 | Tap on own stack | Done. **Rule:** (1) a selected unit with moves + a tap on a different tile → move there, even onto your own units or city. If it's your city and the unit can't reach it at all, open the city instead. (2) A tap on the selected unit's own tile, or with nothing movable selected → your city opens (its panel lists the units inside, and tapping one selects it), your units get selected (a repeat tap cycles the stack), or empty ground is inspected. Also added an ✕ Deselect button to the unit panel, since touch had no way to deselect | unit-tested (pure `src/ui/tap.ts`); preview-verified with real pointer events in landscape emulation |
+    | 10 | AI uses city systems | Done. Build rules: no defender → Warrior; below 4 cities (counting settlers out and in production, one Settler at a time) → Settler; then buildings in data order; then Warrior. A size-1 city building a Settler switches to Food focus. An undefended city rush-buys its Warrior if it can afford it. The starting warrior explores, the capital builds its own defender, and each city's sole defender stays home. Settlers that see no valid site go exploring | unit-tested (deterministic 5-player 40-turn run; every AI reaches ≥2 cities) |
+    | 11 | Fog-respecting events | Done. Log entries carry a tile. Rival events show only if that tile is visible to the player right now; own events always show. The "met civ" half waits for M5 | unit-tested; preview-verified (5-player, 30 turns: 46 rival events logged, 0 shown, all out of sight) |
+    | 12 | Autosave and resume | Done. **localStorage** (`epoch.autosave`), because it's synchronous and finishes inside Safari's `pagehide`. Saves after every successful action (more than asked; a reload loses at most one tap), on `visibilitychange` → hidden, and on `pagehide`. Resumes on load with a "Resumed your game" toast. ☰ menu → New Game → on-screen confirm. `saveVersion` check: an old or damaged save starts a new game with a notice. Save is about 33 KB at turn 30 with 5 players | unit-tested (round-trip, resume continues identically, incompatible, corrupt); preview-verified (reload resumes, planted v1 save shows the notice, New Game confirm/cancel) |
+    | 13 | Unit tests | Done: 44 new, 84 total (`tests/cities.test.ts`) | `npm test` |
+    | 14 | iPad dev command | Done. `npm run dev:lan` (= `vite --host`), documented in CLAUDE.md. Plain `npm run dev` stays localhost-only | script added; not run from an iPad by me |
+
+  - **Item 0b, what I found and did:** `game-hub/games.js` had **no
+    uncommitted changes**. The placeholder Epoch card
+    (`https://epoch-dan.netlify.app/`) had been **committed locally** as
+    `00d47a9` "Add Epoch to the game library" (danmo, co-authored by Claude,
+    2026-09-23 20:36), 1 commit ahead of `origin/main` and **not pushed**.
+    That contradicts the M1 note that the hub commit was blocked. I reverted
+    it with `git revert` (`298b281`), so the hub is now 2 commits ahead of
+    origin with a net-zero diff. No other uncommitted hub changes. **Dan's
+    call:** either leave it (pushing would publish an add+revert pair, which
+    is harmless) or drop both local commits with
+    `git reset --hard origin/main` in the hub.
+  - **Placeholder numbers chosen (all in `src/data/`, tune later):** city
+    center bonus +1 food / +2 production / +1 trade (with +1 production, a
+    grassland capital took 10 turns per Warrior). Warrior 10, Settler 30,
+    Granary/Walls 40, Barracks/Temple 30, Library/Marketplace 60. Balanced
+    focus weights food 2 / production 2 / trade 1.
+  - **Other decisions worth reviewing:** new units appear at end of turn
+    with 0 moves and move next turn. A city with nothing chosen shows a gold
+    "!" on the map, and the first such city's panel opens at the start of
+    your turn. A newly founded city opens its panel for the first build
+    choice. The unit panel hides while a city panel is open.
+  - **Also committed:** `.claude/launch.json` had an uncommitted `--host` on
+    `epoch-dev` that I didn't make (presumably for iPad testing). I kept it,
+    added an `epoch-verify` config on port 5175, and committed both
+    (`66492c0`). Another session's server was on 5174, so I left it alone.
+  - **Observed, not fixed (balance):** AI expansion is slow, 2–4 cities per
+    AI by turn 40. Production is low, and the first Settler takes ~15 turns.
+    Fine for M2; revisit in the balance pass or M5.
+
 ## Current Objective (Focus Area)
 
 ### Milestone 2 — Cities, economy, and autosave
+**Status (coding round 2):** all items 0–14 done. See the report under
+Completed Tasks. **Waiting for Dan to check on the iPad** (`npm run dev:lan`, then
+open the Network URL in Safari): play a few turns, reload the tab, and
+confirm the game resumes.
+
 **Goal:** cities become the heart of the game, as in Civ Rev 1. They grow
 from food, build one thing at a time, and turn trade into science and gold.
 The game survives an iPad reload. Placeholder art only.
