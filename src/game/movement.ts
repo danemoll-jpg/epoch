@@ -19,6 +19,7 @@ import { updateContacts } from './diplomacy';
 import { updateExplored } from './fog';
 import { cargoCapacity, cargoOf, cargoRoom, isShip, isWaterAt, shipTerrainError, shipWithRoom, terrainAllows } from './naval';
 import { atWar } from './war';
+import { enterTile, pendingVillage } from './villages';
 import type { ActionResult, Coord, GameState, Unit } from './types';
 
 export function findUnit(state: GameState, unitId: number): Unit | undefined {
@@ -127,6 +128,8 @@ export function moveUnit(state: GameState, unitId: number, to: Coord): ActionRes
   updateExplored(state, unit.owner);
   updateContacts(state);
   if (captured) captureCity(state, captured, unit.owner);
+  // A barbarian village or an exploration hut here (Round 9).
+  else if (!isShip(unit) && unit.carriedBy === null) enterTile(state, unit);
   return { ok: true };
 }
 
@@ -239,6 +242,8 @@ export function moveUnitToward(state: GameState, unitId: number, to: Coord): Act
     const res = moveUnit(state, unitId, step);
     if (!res.ok) return moved ? { ok: true } : res;
     moved = true;
+    // Took a village on the way: stop there so its owner can choose (Round 9).
+    if (pendingVillage(state, unit.owner)) break;
   }
   return { ok: true };
 }

@@ -23,8 +23,12 @@ import { BUILDINGS } from '../data/buildings';
 import { RULES } from '../data/rules';
 import { TERRAIN } from '../data/terrain';
 import { UNITS } from '../data/units';
+import { GREAT_PEOPLE_RULES } from '../data/greatPeople';
+import { isBarbarian, raidCity, raidError, villageAt, villageDefensePct } from './barbarians';
 import { captureCity, checkEliminations, civAdjective, CivName, civName } from './conquest';
-import { recordLoss } from './diplomacy';
+import { recordLoss, updateContacts } from './diplomacy';
+import { enterTile } from './villages';
+import { settled } from './yields';
 import { distance, tileAt } from './grid';
 import { addLog } from './log';
 import { findUnit } from './movement';
@@ -72,9 +76,19 @@ function armyFactor(u: Unit): number {
   return u.army ? RULES.combat.armyMultiplier : 1;
 }
 
-export function attackStrength(u: Unit): Strength {
+/** A settled Great General (Round 9) makes armies attacking from, or defending in, its city fight better. */
+function generalMod(state: GameState | undefined, u: Unit): Modifier | undefined {
+  if (!state || !u.army) return undefined;
+  const city = state.cities.find((c) => c.x === u.x && c.y === u.y && c.owner === u.owner);
+  const n = city ? settled(city, 'general') : 0;
+  return n > 0 ? { label: 'Great General', pct: n * GREAT_PEOPLE_RULES.generalArmyPct } : undefined;
+}
+
+export function attackStrength(u: Unit, state?: GameState): Strength {
   const mods: Modifier[] = [];
   if (u.veteran) mods.push({ label: 'Veteran', pct: RULES.combat.veteranPct });
+  const general = generalMod(state, u);
+  if (general) mods.push(general);
   return strength(UNITS[u.type].attack * armyFactor(u), mods);
 }
 
@@ -84,6 +98,9 @@ export function defenseStrength(state: GameState, u: Unit, attackerIsLand = true
   const terrain = TERRAIN[tileAt(state.map, u.x, u.y)!.terrain];
   const city = state.cities.find((c) => c.x === u.x && c.y === u.y);
   if (terrain.defensePct) mods.push({ label: terrain.name, pct: terrain.defensePct });
+  // A barbarian village (Round 9) is dug in.
+  const village = villageDefensePct(state, u);
+  if (village) mods.push({ label: 'Barbarian village', pct: village });
   if (city) {
     mods.push({ label: 'In a city', pct: RULES.combat.cityDefensePct });
     if (attackerIsLand) {
@@ -96,6 +113,8 @@ export function defenseStrength(state: GameState, u: Unit, attackerIsLand = true
   // A ship told to stay put (Round 8) is marked fortified, but only land units dig in.
   if (u.fortified && !isShip(u)) mods.push({ label: 'Fortified', pct: RULES.combat.fortifiedPct });
   if (u.veteran) mods.push({ label: 'Veteran', pct: RULES.combat.veteranPct });
+  const general = generalMod(state, u);
+  if (general) mods.push(general);
   return strength(UNITS[u.type].defense * armyFactor(u), mods);
 }
 
@@ -129,7 +148,7 @@ export function attackError(state: GameState, unit: Unit, at: Coord): string | u
 export function combatOdds(state: GameState, unit: Unit, at: Coord): CombatOdds | undefined {
   const defender = pickDefender(state, at, unit.owner);
   if (!defender) return undefined;
-  const attack = attackStrength(unit);
+  const attack = attackStrength(unit, state);
   const defense = defenseStrength(state, defender, !isShip(unit));
   return { attacker: unit, defender, attack, defense, chance: winChance(attack.total, defense.total) };
 }
@@ -167,14 +186,32 @@ export function attack(state: GameState, unitId: number, at: Coord): ActionResul
   // The last defender of an enemy city fell: the winner moves in and takes the city. A ship
   // bombarding never moves in.
   let captured: number | undefined;
+  let raided = false;
+  let tookVillage: number | undefined;
   const city = state.cities.find((c) => c.x === at.x && c.y === at.y && c.owner === defender.owner);
   const defenders = state.units.some((u) => u.x === at.x && u.y === at.y && u.owner !== unit.owner && defendsTile(state, u));
-  if (attackerWon && city && !defenders && !isShip(unit)) {
+  const village = villageAt(state, at);
+  if (attackerWon && city && !defenders && !isShip(unit) && isBarbarian(state, unit.owner)) {
+    // Barbarians never take a city (Round 9, Q13): they raid it and stay outside.
+    if (!raidError(state, city)) raidCity(state, unit, city);
+    raided = true;
+    checkEliminations(state, winner.owner, at);
+  } else if (attackerWon && city && !defenders && !isShip(unit)) {
     unit.x = at.x;
     unit.y = at.y;
     updateExplored(state, unit.owner);
     captureCity(state, city, unit.owner);
     captured = city.id;
+  } else if (attackerWon && village && village.takenBy === null && !defenders && !isShip(unit) && !isBarbarian(state, unit.owner)) {
+    // The village's last defender fell: the winner moves in and takes it (its owner then
+    // chooses: destroy or settle; see villages.ts).
+    unit.x = at.x;
+    unit.y = at.y;
+    tookVillage = village.id;
+    updateExplored(state, unit.owner);
+    updateContacts(state);
+    enterTile(state, unit);
+    checkEliminations(state, winner.owner, at);
   } else {
     checkEliminations(state, winner.owner, at);
   }
@@ -193,6 +230,8 @@ export function attack(state: GameState, unitId: number, at: Coord): ActionResul
       y: at.y,
       promoted,
       capturedCityId: captured,
+      tookVillage,
+      raided: raided || undefined,
       bombard: isShip(unit) && !isWaterAt(state, at.x, at.y),
       cargoLost,
     },

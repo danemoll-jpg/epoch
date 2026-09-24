@@ -11,7 +11,14 @@ import { UNITS, UNIT_IDS, type UnitTypeId } from '../data/units';
 import { PROJECTS, VICTORY, VICTORY_NAMES, type VictoryKind } from '../data/victory';
 import { WONDERS, WONDER_LIST } from '../data/wonders';
 import { applyAction, type Action } from '../game/actions';
-import { foundCityError } from '../game/city';
+import { BARBARIANS } from '../data/barbarians';
+import { GREAT_PEOPLE, GREAT_PEOPLE_RULES } from '../data/greatPeople';
+import { RESOURCES } from '../data/resources';
+import { villageAt } from '../game/barbarians';
+import { cityNameFor, foundCityError } from '../game/city';
+import { cultureToNextGreatPerson, engineerCities, generalTiles, greatPersonError, merchantGold } from '../game/greatPeople';
+import { bonusText, visibleResource } from '../game/resources';
+import { pendingVillage, settleVillageError } from '../game/villages';
 import { attackError, combatOdds, fortifyError, type Strength } from '../game/combat';
 import { CivName, civAdjective, civName, civVerb } from '../game/conquest';
 import {
@@ -28,7 +35,7 @@ import {
   tradeableTechs,
   treatyLockedUntil,
 } from '../game/diplomacy';
-import { neighbors, tileAt } from '../game/grid';
+import { distance, neighbors, tileAt, tileIndex } from '../game/grid';
 import { unitVisibleTo } from '../game/fog';
 import { armyWord, cargoCapacity, cargoOf, isShip, isWaterAt } from '../game/naval';
 import { entryText, eventsVisibleTo } from '../game/log';
@@ -66,6 +73,8 @@ import {
   type CombatReport,
   type Coord,
   type GameState,
+  type GreatPerson,
+  type Village,
   type LogEntry,
   type Offer,
   type Unit,
@@ -128,6 +137,8 @@ export class App {
   private diploAnswer: { civ: number; accepted: boolean; reason: string } | undefined;
   /** Panels waiting to be shown one at a time (first contact, war declared on you, AI offers). */
   private notices: Notice[] = [];
+  /** Great People the human put off this turn ("Decide later"). */
+  private gpLater = new Set<number>();
   private cssW = 0;
   private cssH = 0;
   private frameQueued = false;
@@ -240,7 +251,21 @@ export class App {
     // Cheap (a few tens of KB), and means a reload never loses more than one tap.
     if (res.ok) this.save();
     this.refresh();
+    this.checkPending();
     return res;
+  }
+
+  /**
+   * Round 9: a village the human has taken waits for a choice, and a new Great Person for a
+   * decision. Each gets its panel once (a Great Person put off with "Decide later" comes back
+   * next turn).
+   */
+  private checkPending(): void {
+    const v = pendingVillage(this.state, this.human);
+    if (v) this.queueVillage(v);
+    for (const gp of this.state.greatPeople) {
+      if (gp.owner === this.human && !this.gpLater.has(gp.id)) this.queueGreatPerson(gp);
+    }
   }
 
   private save(): void {
@@ -376,6 +401,8 @@ export class App {
     }
     // Offers from AIs (demands, peace) wait for an answer.
     for (const o of this.state.diplomacy.offers) if (o.to === this.human) this.queueOffer(o);
+    this.gpLater.clear();
+    this.checkPending();
     this.refresh();
   }
 
@@ -490,6 +517,14 @@ export class App {
           const cityText = city ? `${city.name} · ` : '';
           const defense = def.defensePct ? ` · defense +${def.defensePct}%` : '';
           this.toast(`${cityText}${def.name} — food ${y.food}, production ${y.production}, trade ${y.trade}${defense}`);
+          // Round 9: a resource you can see, a barbarian village, a hut.
+          const res = visibleResource(this.state, this.human, tileIndex(this.state.map, tx, ty));
+          if (res) this.toast(`${res.name}: ${bonusText(res.bonus)} when a city works it`);
+          const village = villageAt(this.state, { x: tx, y: ty });
+          if (village) {
+            this.toast(`Barbarian village · ${village.flags}/${BARBARIANS.flagsToSpawn} flags (at ${BARBARIANS.flagsToSpawn} it sends a unit out) · defense +${BARBARIANS.villageDefensePct}%. Take it to destroy it for a reward or settle it as a city`);
+          }
+          if (tile.hut) this.toast('Ruins to explore: step a unit onto them to see what’s there');
           // Enemy units in sight: say what they are.
           const enemies = unitsOnTile(this.state, tx, ty).filter((u) => u.owner !== this.human && unitVisibleTo(this.state, this.human, u));
           if (enemies.length === 1) this.toast(`${this.unitLabel(enemies[0]!)} · ${unitSummary(enemies[0]!.type)}`);
@@ -723,6 +758,18 @@ export class App {
         ${me.space.launchedTurn === null && !launchErr ? '<button type="button" data-act="launch" class="bigBtn launchBtn">🚀 Launch spaceship</button>' : ''}</div>`;
     }
     const culture = cityCulture(this.state, city);
+    // Round 9: resources on the tiles it works (and its own), and Great People settled here.
+    const resTiles = [tileIndex(this.state.map, city.x, city.y), ...city.worked];
+    const resList = resTiles
+      .map((k) => visibleResource(this.state, this.human, k))
+      .filter((r) => !!r)
+      .map((r) => `<b>${r!.name}</b> <span class="sub">${bonusText(r!.bonus)}</span>`);
+    const resHtml = resList.length ? `<div class="section"><div class="label">Resources worked</div><div>${resList.join('<br>')}</div></div>` : '';
+    const gpHtml = city.greatPeople.length
+      ? `<div class="section"><div class="label">Great People settled here</div><div>${city.greatPeople
+          .map((k) => `<b>${GREAT_PEOPLE[k].name}</b> <span class="sub">${GREAT_PEOPLE[k].settleText}</span>`)
+          .join('<br>')}</div></div>`
+      : '';
 
     panel.innerHTML = `
       <div class="cityHead">
@@ -745,11 +792,13 @@ export class App {
         <span>Trade <b>${y.trade}</b></span><span class="sub">→ Science ${sg.science} · Gold ${sg.gold}</span>
         <span>Culture <b>${culture}</b></span>
       </div>
+      ${resHtml}
       <div class="section"><div class="label">Focus</div><div class="seg">${focusBtns}</div></div>
       <div class="section"><div class="label">Build</div><div class="buildList">${buildBtns}</div></div>
       ${spaceHtml}
       <div class="section"><div class="label">Buildings</div><div>${builtList}</div></div>
       ${wonderList}
+      ${gpHtml}
     `;
     panel.hidden = false;
     panel.scrollTop = scrollTop;
@@ -1063,7 +1112,7 @@ export class App {
       : `Turn ${this.state.turn}. The first civ to reach any one of these wins.`;
     const body = $('victoryBody');
     const scroll = body.scrollTop;
-    const order = [this.human, ...this.state.players.map((p) => p.id).filter((p) => p !== this.human)];
+    const order = [this.human, ...this.state.players.filter((p) => p.kind !== 'barbarian').map((p) => p.id).filter((p) => p !== this.human)];
     const cards = order.map((p) => this.victoryCard(p)).join('');
     const S = VICTORY.spaceship;
     const rules = `<div class="vrules">
@@ -1113,7 +1162,7 @@ export class App {
       <span class="vval">${value}</span>${bar(pct, 100, 'vbar')}</div>`;
     return `<div class="vcard${me ? ' me' : ''}">${head}${!capital ? ' <span class="sub">· capital lost</span>' : ''}</div>
       ${row('Domination', `${g.capitals.held}/${g.capitals.of} rival capitals`, (g.capitals.held / Math.max(1, g.capitals.of)) * 100)}
-      ${row('Culture', `${g.culture}/${VICTORY.cultureGoal} <span class="sub">(+${g.culturePerTurn}/turn)</span>${building(g.buildingWonder.culture, WONDERS.world_council.name)}`, (g.culture / VICTORY.cultureGoal) * 100)}
+      ${row('Culture', `${g.culture}/${VICTORY.cultureGoal} <span class="sub">(+${g.culturePerTurn}/turn)</span>${building(g.buildingWonder.culture, WONDERS.world_council.name)}${me ? ` <span class="sub">· next Great Person in ${cultureToNextGreatPerson(this.state, p)} culture</span>` : ''}`, (g.culture / VICTORY.cultureGoal) * 100)}
       ${row('Economic', `${g.gold}/${VICTORY.goldGoal} gold${building(g.buildingWonder.economic, WONDERS.global_exchange.name)}`, (g.gold / VICTORY.goldGoal) * 100)}
       ${row('Technology', space, g.space.arrivesTurn !== null ? 100 : (g.space.parts / S.parts) * 100)}
       ${launch}</div>`;
@@ -1295,6 +1344,160 @@ export class App {
     });
   }
 
+  /** Shows `n` right away, ahead of anything else waiting. */
+  private showNow(n: Notice): void {
+    this.notices.unshift(n);
+    this.showNotice();
+  }
+
+  // ---- Round 9: villages, artifacts, Great People ------------------------------------------
+
+  private queueVillage(v: Village): void {
+    if (this.notices.some((n) => n.villageId === v.id)) return;
+    const unit = unitsOnTile(this.state, v.x, v.y).find((u) => u.owner === this.human);
+    const err = settleVillageError(this.state, v);
+    const close = this.state.cities.some((c) => distance(c, v) < RULES.minCityDistance);
+    const name = cityNameFor(this.state, this.human);
+    this.queueNotice({
+      title: 'Barbarian village taken',
+      text: `Your ${unit ? UNITS[unit.type].name : 'unit'} took the village. Destroy it for a reward, or settle it as a new city?`,
+      sub:
+        `Destroy: a random reward (usually gold), and anything hidden under it comes to light. ` +
+        `Settle: it becomes ${name}, a size 1 city.${close ? ' It’s closer to another city than a Settler could found, which is allowed for a village.' : ''} ` +
+        'Either way, your people may dig up an ancient artifact.',
+      villageId: v.id,
+      dismissible: false,
+      buttons: [
+        { label: 'Destroy it', cls: 'bigBtn', run: () => this.chooseVillage(v.id, 'destroy') },
+        { label: `Settle ${name}`, cls: 'bigBtn', disabled: !!err, run: () => this.chooseVillage(v.id, 'settle') },
+      ],
+    });
+  }
+
+  private chooseVillage(villageId: number, choice: 'destroy' | 'settle'): void {
+    const res = this.dispatchResult({ type: 'chooseVillage', villageId, choice });
+    const o = res.village;
+    if (!o) return;
+    if (o.choice === 'settle') {
+      const city = o.cityId !== undefined ? findCity(this.state, o.cityId) : undefined;
+      if (city) {
+        this.toast(`The village is now ${city.name}`);
+        this.openCity(city.id);
+      }
+    } else {
+      const res2 = o.revealed ? RESOURCES[o.revealed] : undefined;
+      this.showNow({
+        title: 'Village destroyed',
+        text: `Your people found ${o.reward}.`,
+        sub: res2 ? `There was ${res2.name} under the village (${bonusText(res2.bonus)} when a city works it).` : undefined,
+        buttons: [{ label: 'OK', cls: 'bigBtn' }],
+      });
+    }
+    if (o.artifact) {
+      const techs = o.artifact.techs.map((t) => TECHS[t].name);
+      this.queueNotice({
+        title: 'Ancient artifact!',
+        text: `Digging through the village, your people found the ${o.artifact.name}.`,
+        sub: `It taught you ${techs.length === 1 ? techs[0] : `${techs.slice(0, -1).join(', ')} and ${techs[techs.length - 1]}`}.`,
+        buttons: [
+          { label: 'Tech tree', run: () => this.openTech() },
+          { label: 'OK', cls: 'bigBtn' },
+        ],
+      });
+    }
+  }
+
+  /** What using this Great Person once would do, in words. */
+  private gpUseText(gp: GreatPerson): string {
+    const me = this.state.players[this.human]!;
+    switch (gp.kind) {
+      case 'scientist':
+        return me.researching ? `learn ${TECHS[me.researching].name} at once` : 'learn a tech you could research, at once';
+      case 'artist':
+        return `+${GREAT_PEOPLE_RULES.artistCultureBurst} culture at once`;
+      case 'merchant':
+        return `+${merchantGold(this.state, this.human)} gold at once`;
+      case 'engineer':
+        return 'finish the wonder or building one city is making';
+      case 'general':
+        return 'make every unit on one tile a veteran';
+    }
+  }
+
+  private queueGreatPerson(gp: GreatPerson): void {
+    if (this.notices.some((n) => n.gpId === gp.id)) return;
+    this.queueNotice(this.greatPersonNotice(gp));
+  }
+
+  private greatPersonNotice(gp: GreatPerson): Notice {
+    const def = GREAT_PEOPLE[gp.kind];
+    const needsTarget = gp.kind === 'engineer' || gp.kind === 'general';
+    const noTarget =
+      gp.kind === 'engineer' && engineerCities(this.state, this.human).length === 0
+        ? 'No city is making a wonder or a building'
+        : gp.kind === 'general' && generalTiles(this.state, this.human).length === 0
+          ? 'You have no units to train'
+          : !needsTarget
+            ? greatPersonError(this.state, gp, { mode: 'use' })
+            : undefined;
+    return {
+      title: `${def.name}: ${gp.name}`,
+      text: `${gp.name}, a ${def.name}, has joined your empire. Settle them in a city for good, or use them once.`,
+      sub: `Settle: ${def.settleText}. Use now: ${this.gpUseText(gp)}.${noTarget ? ` (${noTarget}.)` : ''}`,
+      gpId: gp.id,
+      buttons: [
+        { label: 'Decide later', run: () => this.gpLater.add(gp.id) },
+        { label: 'Settle in a city…', cls: 'bigBtn', run: () => this.pickGreatPersonTarget(gp, 'settle') },
+        { label: 'Use now', cls: 'bigBtn', disabled: !!noTarget, run: () => (needsTarget ? this.pickGreatPersonTarget(gp, 'use') : this.useGreatPerson(gp, { mode: 'use' })) },
+      ],
+    };
+  }
+
+  /** A list of cities (settle, or an Engineer) or tiles (a General) to choose from. */
+  private pickGreatPersonTarget(gp: GreatPerson, mode: 'settle' | 'use'): void {
+    const back = { label: '← Back', run: () => this.showNow(this.greatPersonNotice(gp)) };
+    const def = GREAT_PEOPLE[gp.kind];
+    if (mode === 'use' && gp.kind === 'general') {
+      const tiles = generalTiles(this.state, this.human);
+      this.showNow({
+        title: `${gp.name}: train which units?`,
+        text: 'Every unit on the tile you pick becomes a veteran (+50% in combat).',
+        gpId: gp.id,
+        list: true,
+        buttons: [
+          ...tiles.map((c) => {
+            const units = unitsOnTile(this.state, c.x, c.y).filter((u) => u.owner === this.human);
+            const city = this.state.cities.find((x) => x.x === c.x && x.y === c.y);
+            const near = city ?? [...this.myCities()].sort((a, b) => distance(a, c) - distance(b, c))[0];
+            const where = city ? city.name : near ? `near ${near.name}` : `at ${c.x},${c.y}`;
+            return { label: `${where}: ${stackLabel(units)}`, run: () => this.useGreatPerson(gp, { mode: 'use', at: c }) };
+          }),
+          back,
+        ],
+      });
+      return;
+    }
+    const cities = mode === 'use' ? engineerCities(this.state, this.human) : this.myCities();
+    this.showNow({
+      title: mode === 'settle' ? `Settle ${gp.name} where?` : `${gp.name}: finish what?`,
+      text: mode === 'settle' ? `${def.settleText}, for good.` : 'The city finishes what it is making at the end of this turn.',
+      gpId: gp.id,
+      list: true,
+      buttons: [
+        ...cities.map((c) => ({
+          label: mode === 'settle' ? c.name : `${c.name}: ${c.build ? itemName(c.build) : ''}`,
+          run: () => this.useGreatPerson(gp, mode === 'settle' ? { mode: 'settle', cityId: c.id } : { mode: 'use', cityId: c.id }),
+        })),
+        back,
+      ],
+    });
+  }
+
+  private useGreatPerson(gp: GreatPerson, how: { mode: 'settle'; cityId: number } | { mode: 'use'; cityId?: number; at?: Coord }): void {
+    const res = this.dispatchResult({ type: 'useGreatPerson', gpId: gp.id, how });
+    if (res.ok && res.message) this.toast(res.message);
+  }
+
   private answerOffer(offerId: number, accept: boolean): void {
     const res = this.dispatchResult({ type: 'answerOffer', offerId, accept });
     if (res.answer) this.toast(res.answer.reason, !res.answer.accepted);
@@ -1306,6 +1509,8 @@ export class App {
     if (!n) return;
     $('noticeTitle').textContent = n.title;
     $('noticeText').innerHTML = `${esc(n.text)}${n.sub ? `<span class="sub">${esc(n.sub)}</span>` : ''}`;
+    // A long list of choices (cities, tiles) stacks up and scrolls.
+    $('noticeButtons').className = n.list ? 'row list scroll' : 'row';
     $('noticeButtons').innerHTML = n.buttons
       .map((b, i) => `<button type="button" data-i="${i}" class="${b.cls ?? ''}" ${b.disabled ? 'disabled' : ''}>${esc(b.label)}</button>`)
       .join('');
@@ -1406,7 +1611,7 @@ export class App {
     const met = metCivs(this.state, this.human);
     if (this.diploCiv !== undefined && !met.includes(this.diploCiv)) this.diploCiv = met[0];
     $('diploStatus').textContent = met.length
-      ? `You have met ${plural(met.length, 'civ')} of ${this.state.players.length - 1}.`
+      ? `You have met ${plural(met.length, 'civ')} of ${this.state.players.filter((p) => p.kind !== 'barbarian').length - 1}.`
       : '';
     const listEl = $('diploList');
     const scroll = listEl.scrollTop;
@@ -1785,6 +1990,11 @@ interface Notice {
   offerId?: number;
   /** False when the panel needs an answer (Esc doesn't close it). */
   dismissible?: boolean;
+  /** Round 9: set for a barbarian village's choice, or a Great Person's, so each is queued once. */
+  villageId?: number;
+  gpId?: number;
+  /** The buttons are a list of choices (cities, tiles): stacked, and scrolling if long. */
+  list?: boolean;
 }
 
 const ATTITUDE_LABEL = { friendly: 'Friendly', neutral: 'Neutral', hostile: 'Hostile' } as const;

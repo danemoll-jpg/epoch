@@ -433,7 +433,7 @@ describe('save migration v5 → v6', () => {
     const s = res.state;
     expect(s.version).toBe(STATE_VERSION);
     expect(res.migratedFrom).toBe(5);
-    expect(s.players.map((p) => p.culture)).toEqual([0, 0]);
+    expect(s.players.filter((p) => p.kind !== 'barbarian').map((p) => p.culture)).toEqual([0, 0]);
     expect(s.players[0]!.space).toEqual({ parts: 0, launchedTurn: null, arrivesTurn: null });
     expect(s.cities.every((c) => c.wonders.length === 0)).toBe(true);
     expect([s.victory, s.keepPlaying, s.warned]).toEqual([null, false, []]);

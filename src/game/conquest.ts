@@ -8,6 +8,7 @@
 // Ships (Round 8) don't defend a city, so a city with only ships in port counts as empty;
 // when it falls, the ships docked there and their cargo are lost.
 
+import { BARBARIAN_CIV } from '../data/barbarians';
 import { CIVS } from '../data/civs';
 import { BUILDINGS } from '../data/buildings';
 import { UNITS } from '../data/units';
@@ -26,7 +27,7 @@ import type { City, Coord, GameState, Unit } from './types';
 
 function civOf(state: GameState, playerId: number) {
   const civId = state.players[playerId]?.civId;
-  return CIVS.find((c) => c.id === civId);
+  return civId === BARBARIAN_CIV.id ? BARBARIAN_CIV : CIVS.find((c) => c.id === civId);
 }
 
 /** The civ's name as it reads mid-sentence: "the Franks", "Babylon". */
@@ -53,8 +54,7 @@ export function civVerb(state: GameState, playerId: number, singular: string, pl
 }
 
 export function civAdjective(state: GameState, playerId: number): string {
-  const civId = state.players[playerId]?.civId;
-  return CIVS.find((c) => c.id === civId)?.adjective ?? 'Foreign';
+  return civOf(state, playerId)?.adjective ?? 'Foreign';
 }
 
 /** The enemy city `unit` would capture by stepping onto `to`, if it can. */
@@ -62,6 +62,8 @@ export function capturableCity(state: GameState, unit: Unit, to: Coord): City | 
   const city = state.cities.find((c) => c.x === to.x && c.y === to.y);
   if (!city || city.owner === unit.owner) return undefined;
   if (!atWar(state, unit.owner, city.owner)) return undefined;
+  // Barbarians never capture cities; they raid them (Round 9, barbarians.ts).
+  if (state.players[unit.owner]?.kind === 'barbarian') return undefined;
   if (UNITS[unit.type].attack <= 0 || isShip(unit)) return undefined;
   if (state.units.some((u) => u.x === to.x && u.y === to.y && u.owner !== unit.owner && defendsTile(state, u))) return undefined;
   return city;
@@ -102,7 +104,8 @@ export function captureCity(state: GameState, city: City, newOwner: number): voi
 /** Marks every living civ with no cities and no units as eliminated. */
 export function checkEliminations(state: GameState, by: number, at: Coord): void {
   for (const p of state.players) {
-    if (!p.alive) continue;
+    // The barbarians are never eliminated (Round 9).
+    if (!p.alive || p.kind === 'barbarian') continue;
     const hasCity = state.cities.some((c) => c.owner === p.id);
     const hasUnit = state.units.some((u) => u.owner === p.id);
     if (hasCity || hasUnit) continue;

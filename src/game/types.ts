@@ -1,7 +1,10 @@
 // Game state: plain, serializable data only. No classes, functions, or DOM references —
 // save/load must be JSON.stringify / JSON.parse.
 
+import type { HutResultKind } from '../data/barbarians';
 import type { BuildingId } from '../data/buildings';
+import type { GreatPersonKind } from '../data/greatPeople';
+import type { ResourceId } from '../data/resources';
 import type { CityFocus } from '../data/rules';
 import type { TechId } from '../data/techs';
 import type { TerrainId } from '../data/terrain';
@@ -16,6 +19,14 @@ export interface Coord {
 
 export interface Tile {
   terrain: TerrainId;
+  /** A map resource (Round 9): extra yields. Hidden kinds count only once revealed. */
+  resource?: ResourceId;
+  /** A hidden resource here was revealed for everyone (a barbarian village on it was destroyed). */
+  revealed?: boolean;
+  /** An exploration hut (Round 9): the first unit to step here gets a random result. */
+  hut?: boolean;
+  /** A hut's result set in advance (the dev scenarios use it to show each one); normally random. */
+  hutResult?: HutResultKind;
 }
 
 export interface GameMap {
@@ -25,7 +36,8 @@ export interface GameMap {
   tiles: Tile[];
 }
 
-export type PlayerKind = 'human' | 'ai';
+/** 'barbarian' (Round 9): the barbarian faction, always last in `players` when there is one. */
+export type PlayerKind = 'human' | 'ai' | 'barbarian';
 
 export interface Player {
   id: number;
@@ -52,6 +64,10 @@ export interface Player {
   culture: number;
   /** The spaceship (technology victory). */
   space: SpaceProgram;
+  /** Great People earned so far (Round 9); the next one needs a higher culture total. */
+  greatPeople: number;
+  /** Culture that doesn't count toward Great People (what a v7 save already had). */
+  greatPeopleCultureBase: number;
 }
 
 export interface SpaceProgram {
@@ -81,6 +97,8 @@ export interface Unit {
    * moves with it; it dies if the ship is sunk.
    */
   carriedBy: number | null;
+  /** A barbarian unit's village (Round 9): it stays near it. Absent for everyone else. */
+  home?: number;
 }
 
 export type BuildItem =
@@ -117,6 +135,10 @@ export interface City {
    * refreshWorkedTiles; stored so the UI and saves see exactly what the rules used.
    */
   worked: number[];
+  /** Great People settled here for good (Round 9). */
+  greatPeople: GreatPersonKind[];
+  /** The turn barbarians last raided the city, if ever. */
+  lastRaid?: number;
 }
 
 /**
@@ -126,8 +148,9 @@ export interface City {
  * 5 = Milestone 5 (diplomacy: contact, peace treaties, opinions, offers, AI war plans).
  * 6 = Milestone 6 (culture, wonders, spaceship, victory).
  * 7 = Round 8 (ships: cargo, and the AI's sea plans).
+ * 8 = Round 9 (barbarians and villages, resources, huts, Great People).
  */
-export const STATE_VERSION = 7;
+export const STATE_VERSION = 8;
 
 export interface GameState {
   version: number;
@@ -158,6 +181,35 @@ export interface GameState {
   keepPlaying: boolean;
   /** Near-win warnings already given (keys from victory.ts), so each is shown once. */
   warned: string[];
+  /** Barbarian villages still standing (Round 9). */
+  villages: Village[];
+  /** Great People waiting for their owner to settle or use them (the human's; the AI uses its own at once). */
+  greatPeople: GreatPerson[];
+  /** Great People names already given out, so each is used once per game. */
+  greatPeopleNames: string[];
+}
+
+/**
+ * A barbarian village (Round 9). It gains a flag every few turns and sends a unit out at 4.
+ * When a civ's unit takes it, `takenBy` is set until that civ chooses: destroy or settle.
+ */
+export interface Village {
+  id: number;
+  x: number;
+  y: number;
+  flags: number;
+  /** Turns toward the next flag. */
+  progress: number;
+  /** The civ whose unit took it and must now choose, or null. */
+  takenBy: number | null;
+}
+
+export interface GreatPerson {
+  id: number;
+  owner: number;
+  kind: GreatPersonKind;
+  name: string;
+  turn: number;
 }
 
 export interface Victory {
@@ -251,7 +303,10 @@ export interface LogEntry {
    */
   publicText?: string;
   /** What kind of event, so the UI can give some of them their own panel. */
-  kind?: 'contact' | 'war' | 'peace' | 'trade' | 'demand' | 'gift' | 'era' | 'wonder' | 'space' | 'victory' | 'warning' | 'landing';
+  kind?:
+    | 'contact' | 'war' | 'peace' | 'trade' | 'demand' | 'gift' | 'era' | 'wonder' | 'space' | 'victory' | 'warning' | 'landing'
+    // Round 9
+    | 'village' | 'artifact' | 'hut' | 'raid' | 'greatPerson' | 'barbarians';
   /** Where it happened, so the UI can hide rival events the viewer can't see. */
   x?: number;
   y?: number;
@@ -264,6 +319,23 @@ export interface ActionResult {
   answer?: { accepted: boolean; reason: string };
   /** Set by an attack: what happened, for the UI's result message. */
   combat?: CombatReport;
+  /** Set by choosing what to do with a taken barbarian village (Round 9). */
+  village?: VillageOutcome;
+  /** A one-line result for the UI (e.g. what a Great Person did). */
+  message?: string;
+}
+
+/** What came of a barbarian village its taker chose to destroy or settle (Round 9). */
+export interface VillageOutcome {
+  choice: 'destroy' | 'settle';
+  /** Destroy: what the reward was, in words ("40 gold", "a free Horseman"...). */
+  reward?: string;
+  rewardKind?: string;
+  /** Destroy: a hidden resource revealed on the tile. */
+  revealed?: ResourceId;
+  /** Settle: the new city. */
+  cityId?: number;
+  artifact?: { name: string; techs: TechId[] };
 }
 
 export interface CombatReport {
@@ -285,6 +357,10 @@ export interface CombatReport {
   capturedCityId?: number;
   /** A ship attacked a land tile (it never moves in). */
   bombard?: boolean;
+  /** The attack killed a barbarian village's last defender and the winner moved in (Round 9). */
+  tookVillage?: number;
+  /** Barbarians won against a city's last defender and raided it instead of taking it. */
+  raided?: boolean;
   /** Units that went down with a sunk ship. */
   cargoLost?: number;
 }

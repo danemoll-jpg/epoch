@@ -3,7 +3,12 @@
 // with the size number. Armies get a thick gold ring and "×3"; fortified units a small
 // shield; capitals a star; tiles the selected unit can attack a red outline. A ship carrying
 // units (Round 8) gets a teal cargo badge; cargo isn't counted in the stack badge.
+// Round 9 (placeholders until Dan picks icons): barbarian units are near-black discs with a
+// red rim; a barbarian village is a wooden fence around its tile with a red flag per flag
+// it has; a hut is a small tan dome with "?"; a resource is a small dark badge with its
+// letters in the tile's upper-right corner (hidden ones only once the viewer can see them).
 
+import { BARBARIAN_CIV, BARBARIANS } from '../data/barbarians';
 import { CIVS } from '../data/civs';
 import { RULES } from '../data/rules';
 import type { TerrainId } from '../data/terrain';
@@ -12,6 +17,7 @@ import { behindUnit } from '../game/stack';
 import { unitVisibleTo, visibleTiles } from '../game/fog';
 import { cargoOf } from '../game/naval';
 import { tileIndex } from '../game/grid';
+import { visibleResource } from '../game/resources';
 import type { Coord, GameState, Unit } from '../game/types';
 import { worldToScreen, type Camera } from './camera';
 import { iconBitmap } from './icons';
@@ -45,7 +51,109 @@ export interface ViewState {
 
 export function playerColor(state: GameState, playerId: number): string {
   const civId = state.players[playerId]?.civId;
+  if (civId === BARBARIAN_CIV.id) return BARBARIAN_CIV.color;
   return CIVS.find((c) => c.id === civId)?.color ?? '#cccccc';
+}
+
+/** A barbarian village (Round 9): a wooden fence around the tile (its flags come later, over the units). */
+function drawVillage(ctx: CanvasRenderingContext2D, x: number, y: number, s: number): void {
+  const inset = s * 0.08;
+  ctx.save();
+  ctx.strokeStyle = '#5a3a1a';
+  ctx.lineWidth = Math.max(2, s * 0.07);
+  ctx.strokeRect(x + inset, y + inset, s - inset * 2, s - inset * 2);
+  // Stakes along the fence.
+  ctx.fillStyle = '#8a5a2a';
+  const n = 5;
+  for (let i = 0; i < n; i++) {
+    const px = x + inset + ((s - inset * 2) * (i + 0.5)) / n;
+    for (const py of [y + inset, y + s - inset]) {
+      ctx.beginPath();
+      ctx.moveTo(px - s * 0.035, py + s * 0.035);
+      ctx.lineTo(px, py - s * 0.05);
+      ctx.lineTo(px + s * 0.035, py + s * 0.035);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+/** A village's flags, top right, one per flag it has gained: drawn over the units so they stay readable. */
+function drawVillageFlags(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, flags: number): void {
+  const inset = s * 0.08;
+  ctx.save();
+  for (let i = 0; i < BARBARIANS.flagsToSpawn; i++) {
+    const fx = x + s - inset - s * 0.05 - i * s * 0.13;
+    const fy = y + inset + s * 0.02;
+    ctx.strokeStyle = '#2a1a0a';
+    ctx.lineWidth = Math.max(1, s * 0.025);
+    ctx.beginPath();
+    ctx.moveTo(fx, fy);
+    ctx.lineTo(fx, fy + s * 0.2);
+    ctx.stroke();
+    ctx.fillStyle = i < flags ? '#e03a2f' : 'rgba(255,255,255,0.25)';
+    ctx.beginPath();
+    ctx.moveTo(fx, fy);
+    ctx.lineTo(fx - s * 0.1, fy + s * 0.05);
+    ctx.lineTo(fx, fy + s * 0.1);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/** An exploration hut (Round 9): a small tan dome with "?". */
+function drawHut(ctx: CanvasRenderingContext2D, x: number, y: number, s: number): void {
+  const cx = x + s / 2;
+  const cy = y + s * 0.62;
+  const r = s * 0.24;
+  ctx.save();
+  ctx.fillStyle = '#d8b878';
+  ctx.strokeStyle = '#4a3418';
+  ctx.lineWidth = Math.max(1.5, s * 0.04);
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, Math.PI, 0);
+  ctx.lineTo(cx + r, cy + r * 0.35);
+  ctx.lineTo(cx - r, cy + r * 0.35);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#4a3418';
+  ctx.font = `800 ${Math.round(s * 0.26)}px system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('?', cx, cy - r * 0.15);
+  ctx.restore();
+}
+
+/** A resource (Round 9): its letters on a small dark badge in the tile's upper-right corner. */
+function drawResource(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, glyph: string): void {
+  const w = s * 0.34;
+  const h = s * 0.24;
+  const bx = x + s - w - s * 0.04;
+  const by = y + s * 0.04;
+  ctx.save();
+  ctx.fillStyle = 'rgba(15,20,28,0.82)';
+  ctx.strokeStyle = 'rgba(255,224,102,0.9)';
+  ctx.lineWidth = Math.max(1, s * 0.025);
+  // A rounded badge, drawn by hand (older iPad Safari has no roundRect).
+  const r = h * 0.35;
+  ctx.beginPath();
+  ctx.moveTo(bx + r, by);
+  ctx.arcTo(bx + w, by, bx + w, by + h, r);
+  ctx.arcTo(bx + w, by + h, bx, by + h, r);
+  ctx.arcTo(bx, by + h, bx, by, r);
+  ctx.arcTo(bx, by, bx + w, by, r);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#ffe9a8';
+  ctx.font = `700 ${Math.round(s * 0.16)}px system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(glyph, bx + w / 2, by + h / 2 + s * 0.005);
+  ctx.restore();
 }
 
 function drawTerrainMark(ctx: CanvasRenderingContext2D, t: TerrainId, x: number, y: number, s: number): void {
@@ -144,8 +252,10 @@ function drawUnit(
     ctx.stroke();
   }
   ctx.fillStyle = playerColor(state, unit.owner);
-  ctx.strokeStyle = unit.movesLeft > 0 ? '#ffffff' : '#333333';
-  ctx.lineWidth = Math.max(1.5, s * 0.045);
+  // Barbarians (Round 9) get a red rim so they read as barbarians, not as a civ.
+  const barbarian = state.players[unit.owner]?.kind === 'barbarian';
+  ctx.strokeStyle = barbarian ? '#e03a2f' : unit.movesLeft > 0 ? '#ffffff' : '#333333';
+  ctx.lineWidth = Math.max(barbarian ? 2.5 : 1.5, s * (barbarian ? 0.07 : 0.045));
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.fill();
@@ -302,6 +412,30 @@ export function render(
   }
   ctx.stroke();
 
+  // Round 9: resources the viewer can see, huts, and barbarian villages, on explored tiles.
+  if (s >= 14) {
+    for (let ty = y0; ty <= y1; ty++) {
+      for (let tx = x0; tx <= x1; tx++) {
+        const i = tileIndex(map, tx, ty);
+        if (explored[i] !== 1) continue;
+        const res = visibleResource(state, view.viewer, i);
+        if (res) {
+          const p = pos(tx, ty);
+          drawResource(ctx, p.x, p.y, s, res.glyph);
+        }
+        if (map.tiles[i]!.hut) {
+          const p = pos(tx, ty);
+          drawHut(ctx, p.x, p.y, s);
+        }
+      }
+    }
+  }
+  for (const v of state.villages) {
+    if (explored[tileIndex(map, v.x, v.y)] !== 1) continue;
+    const p = pos(v.x, v.y);
+    drawVillage(ctx, p.x, p.y, s);
+  }
+
   // Reachable-this-turn highlight for the selected unit.
   ctx.fillStyle = 'rgba(255,255,255,0.22)';
   ctx.strokeStyle = 'rgba(255,255,255,0.55)';
@@ -383,6 +517,13 @@ export function render(
     const others = shown.carriedBy === null ? outside : list;
     const aboard = shown.carriedBy === null ? cargoOf(state, shown).length : 0;
     drawUnit(ctx, state, shown, others.length, p.x, p.y, s, shown.id === view.selectedUnitId, inCity, behindUnit(others, shown), view.onIconReady, aboard);
+  }
+
+  // Village flags go over the units standing in them.
+  for (const v of state.villages) {
+    if (explored[tileIndex(map, v.x, v.y)] !== 1) continue;
+    const p = pos(v.x, v.y);
+    drawVillageFlags(ctx, p.x, p.y, s, v.flags);
   }
 
   // Tiles the selected unit can attack.

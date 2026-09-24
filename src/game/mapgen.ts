@@ -3,6 +3,7 @@
 // terrain mix are stable from seed to seed. Round 8: water channels are cut between 3–4
 // continent centers (RULES.map), so most games have several landmasses and ships matter.
 
+import { RESOURCES } from '../data/resources';
 import { RULES } from '../data/rules';
 import { TERRAIN, yieldScore, type TerrainId } from '../data/terrain';
 import { distance, inBounds, neighbors, tileIndex, tilesInRadius } from './grid';
@@ -212,8 +213,12 @@ export function landRegionSizes(map: GameMap): number[] {
 export function siteScore(map: GameMap, c: Coord): number {
   let score = 0;
   for (const t of tilesInRadius(map, c, 2)) {
-    const def = TERRAIN[map.tiles[tileIndex(map, t.x, t.y)]!.terrain];
+    const tile = map.tiles[tileIndex(map, t.x, t.y)]!;
+    const def = TERRAIN[tile.terrain];
     score += def.id === 'ocean' ? 1 : yieldScore(def.yields);
+    // Resources everyone can see (Round 9) make a site better.
+    const res = tile.resource ? RESOURCES[tile.resource] : undefined;
+    if (res && !res.hidden) score += yieldScore(res.bonus);
   }
   return score;
 }

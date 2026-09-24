@@ -31,19 +31,22 @@ describe('game state', () => {
 
   it('supports the full 5-player game (1 human, 4 AI)', () => {
     const state = createGame({ seed: 3, playerCount: RULES.maxPlayers });
-    expect(state.players).toHaveLength(5);
+    // Plus the barbarians (Round 9), always last.
+    expect(state.players).toHaveLength(6);
+    expect(state.players[5]!.kind).toBe('barbarian');
     expect(state.players.filter((p) => p.kind === 'human')).toHaveLength(1);
     expect(state.players.filter((p) => p.kind === 'ai')).toHaveLength(4);
-    expect(new Set(state.players.map((p) => p.civId)).size).toBe(5);
-    for (const p of state.players) {
+    expect(new Set(state.players.map((p) => p.civId)).size).toBe(6);
+    for (const p of state.players.filter((q) => q.kind !== 'barbarian')) {
       expect(state.units.filter((u) => u.owner === p.id).map((u) => u.type).sort()).toEqual(['settler', 'warrior']);
     }
   });
 
   it('a new game has 5 civs by default (Milestone 5)', () => {
     expect(RULES.defaultPlayers).toBe(5);
-    expect(createGame({ seed: 5 }).players).toHaveLength(5);
-    expect(createGame({ seed: 5, playerCount: 2 }).players).toHaveLength(2);
+    const civs = (s: ReturnType<typeof createGame>) => s.players.filter((p) => p.kind !== 'barbarian');
+    expect(civs(createGame({ seed: 5 }))).toHaveLength(5);
+    expect(civs(createGame({ seed: 5, playerCount: 2 }))).toHaveLength(2);
   });
 
   it('rejects more players than the game supports', () => {

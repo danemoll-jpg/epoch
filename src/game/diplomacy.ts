@@ -81,7 +81,8 @@ function setBoth<T>(t: T[][], a: number, b: number, v: T): void {
  * Returns the newly met pairs. Cheap when everyone alive has already met.
  */
 export function updateContacts(state: GameState): [number, number][] {
-  const alive = state.players.filter((p) => p.alive).map((p) => p.id);
+  // Nobody "meets" the barbarians (Round 9).
+  const alive = state.players.filter((p) => p.alive && p.kind !== 'barbarian').map((p) => p.id);
   const unmet: [number, number][] = [];
   for (const a of alive) for (const b of alive) if (a < b && !hasMet(state, a, b)) unmet.push([a, b]);
   if (unmet.length === 0) return [];
@@ -481,7 +482,7 @@ export function cityDistance(state: GameState, a: number, b: number): number {
 export function warScore(state: GameState, ai: number, target: number): number {
   if (ai === target || !state.players[target]?.alive || !hasMet(state, ai, target)) return -Infinity;
   if (declareWarError(state, ai, target)) return -Infinity;
-  if (state.players.some((p) => p.alive && atWar(state, ai, p.id))) return -Infinity;
+  if (state.players.some((p) => p.alive && p.kind !== 'barbarian' && atWar(state, ai, p.id))) return -Infinity;
   if (state.players[target]!.kind === 'human' && state.turn < D.aiGraceTurns) return -Infinity;
   const ratio = strengthRatio(state, ai, target);
   if (ratio < D.warMinStrengthRatio) return -Infinity;
@@ -510,7 +511,7 @@ export function bestAttack(state: GameState, p: number): number {
     if (def.canFoundCity || def.domain !== 'land' || !hasTech(player, def.requires)) continue;
     best = Math.max(best, def.attack * RULES.combat.armyMultiplier);
   }
-  for (const u of state.units) if (u.owner === p && UNITS[u.type].domain === 'land') best = Math.max(best, attackStrength(u).total);
+  for (const u of state.units) if (u.owner === p && UNITS[u.type].domain === 'land') best = Math.max(best, attackStrength(u, state).total);
   return best;
 }
 
@@ -591,7 +592,8 @@ export function runAiDiplomacy(state: GameState, ai: number): void {
 
   for (const p of state.players) {
     const e = p.id;
-    if (!p.alive || !atWar(state, ai, e)) continue;
+    // No peace with the barbarians (Round 9).
+    if (!p.alive || p.kind === 'barbarian' || !atWar(state, ai, e)) continue;
     const want = peaceDesire(state, ai, e);
     if (p.kind === 'ai') {
       if (want.value > 0 && peaceDesire(state, e, ai).value > 0) makePeace(state, ai, e);

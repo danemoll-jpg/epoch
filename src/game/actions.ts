@@ -12,6 +12,8 @@ import { setResearch } from './tech';
 import { endHumanTurn } from './turn';
 import { checkVictory, keepPlaying, launchSpaceship } from './victory';
 import type { ActionResult, BuildItem, Coord, GameState } from './types';
+import { chooseVillage, type VillageChoice } from './villages';
+import { useGreatPerson, type GreatPersonUse } from './greatPeople';
 
 export type Action =
   | { type: 'move'; unitId: number; to: Coord }
@@ -34,6 +36,10 @@ export type Action =
   | { type: 'tradeTech'; partner: number; get: TechId; give: TechId | null }
   | { type: 'giveGold'; target: number; amount: number }
   | { type: 'answerOffer'; offerId: number; accept: boolean }
+  /** Round 9: destroy or settle the barbarian village your unit just took. */
+  | { type: 'chooseVillage'; villageId: number; choice: VillageChoice }
+  /** Round 9: settle a waiting Great Person in a city, or use it once. */
+  | { type: 'useGreatPerson'; gpId: number; how: GreatPersonUse }
   | { type: 'launchSpaceship' }
   | { type: 'keepPlaying' }
   | { type: 'endTurn' };
@@ -81,6 +87,10 @@ function runAction(state: GameState, action: Action): ActionResult {
       return giveGold(state, action.target, action.amount);
     case 'answerOffer':
       return answerOffer(state, action.offerId, action.accept);
+    case 'chooseVillage':
+      return chooseVillage(state, action.villageId, action.choice);
+    case 'useGreatPerson':
+      return useGreatPerson(state, action.gpId, action.how);
     case 'launchSpaceship':
       return launchSpaceship(state);
     case 'keepPlaying':

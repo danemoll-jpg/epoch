@@ -7,7 +7,11 @@ import type { TechId } from '../data/techs';
 import { RULES } from '../data/rules';
 import { UNITS } from '../data/units';
 import { newDiplomacy } from './diplomacy';
-import { STATE_VERSION, type GameState } from './types';
+import { newBarbarianPlayer } from './barbarians';
+import { placeResources } from './resources';
+import { placeVillagesAndHuts } from './villages';
+import { setAlwaysAtWar } from './war';
+import { STATE_VERSION, type Coord, type GameMap, type GameState } from './types';
 
 /** Bump together with STATE_VERSION whenever the state shape changes. */
 export const SAVE_VERSION = STATE_VERSION;
@@ -123,6 +127,54 @@ const MIGRATIONS: Record<number, (s: Raw) => void> = {
     for (const u of s.units as Raw[]) u.carriedBy = null;
     s.aiFerries = (s.players as Raw[]).map(() => null);
   },
+  // Round 8 → Round 9: barbarians, villages, resources, huts, and Great People. Resources
+  // come from the seed for the whole map (what a new game with that seed would have; a
+  // hidden one already under a city stays hidden until revealed). The barbarians join as the
+  // last player, at war with everyone; villages and huts go only on tiles no civ has explored
+  // yet, so nothing appears where Dan has already looked. Culture counts toward Great People
+  // only from now on, so nobody gets a backlog at once. Nobody has settled one.
+  7: (s) => {
+    const players = s.players as Raw[];
+    const map = s.map as Raw;
+    const n = players.length;
+    for (const p of players) {
+      p.greatPeople = 0;
+      p.greatPeopleCultureBase = p.culture ?? 0;
+    }
+    for (const c of s.cities as Raw[]) c.greatPeople = [];
+    s.villages = [];
+    s.greatPeople = [];
+    s.greatPeopleNames = [];
+    // Where each civ started: its capital, else its oldest unit (for fair resources near it).
+    const starts: Coord[] = players.map((p) => {
+      const city = (s.cities as Raw[]).find((c) => c.capitalOf === p.id) ?? (s.cities as Raw[]).find((c) => c.owner === p.id);
+      const unit = (s.units as Raw[]).filter((u) => u.owner === p.id).sort((a, b) => a.id - b.id)[0];
+      return city ? { x: city.x, y: city.y } : unit ? { x: unit.x, y: unit.y } : { x: -99, y: -99 };
+    });
+    placeResources(map as GameMap, s.seed as number, starts.filter((c) => c.x >= 0));
+    // The barbarian player, last, at war with everyone; every table grows by one.
+    const barb = n;
+    players.push(newBarbarianPlayer(barb, map.width * map.height) as unknown as Raw);
+    const grow = <T>(t: T[][], fill: T): T[][] => {
+      for (const row of t) row.push(fill);
+      t.push(Array.from({ length: n + 1 }, () => fill));
+      return t;
+    };
+    s.atWar = grow(s.atWar as boolean[][], false);
+    setAlwaysAtWar(s.atWar as boolean[][], barb);
+    const d = s.diplomacy as Raw;
+    grow(d.met, false);
+    grow(d.peaceTurn, null);
+    grow(d.warStart, null);
+    grow(d.opinion, 0);
+    grow(d.warLosses, 0);
+    grow(d.lastDemand, null);
+    grow(d.lastPeaceOffer, null);
+    (s.aiPlans as unknown[]).push(null);
+    (s.aiFerries as unknown[]).push(null);
+    const explored = (i: number) => players.some((p, id) => id !== barb && p.explored?.[i] === 1);
+    placeVillagesAndHuts(s as unknown as GameState, starts.filter((c) => c.x >= 0), (i) => !explored(i));
+  },
 };
 
 /** What each migration brought, for the "your game was updated" notice. Keyed like MIGRATIONS. */
@@ -132,6 +184,7 @@ export const MIGRATION_NOTES: Record<number, string> = {
   4: 'diplomacy',
   5: 'wonders, culture, and victory',
   6: 'ships and the sea',
+  7: 'barbarians, villages, resources, huts, and Great People',
 };
 
 /** "the tech tree and combat and armies" for a save upgraded from version `from`. */
@@ -165,6 +218,8 @@ function shapeError(s: Record<string, unknown>): string | undefined {
   if (!Array.isArray(s.warned) || typeof s.keepPlaying !== 'boolean') return 'missing victory';
   if (!Array.isArray(s.aiFerries) || s.aiFerries.length !== s.players.length) return 'missing sea plans';
   if (!s.units.every((u) => isObject(u) && (u.carriedBy === null || typeof u.carriedBy === 'number'))) return 'missing cargo';
+  if (!Array.isArray(s.villages) || !Array.isArray(s.greatPeople) || !Array.isArray(s.greatPeopleNames)) return 'missing villages';
+  if (!s.cities.every((c) => isObject(c) && Array.isArray(c.greatPeople))) return 'missing Great People';
   return undefined;
 }
 

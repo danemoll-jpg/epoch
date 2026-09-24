@@ -13,13 +13,17 @@ import { buildOptions, buyError } from '../src/game/production';
 import { deserializeGame, serializeGame } from '../src/game/save';
 import { playerEra } from '../src/game/tech';
 import type { City, GameState } from '../src/game/types';
-import { cityCulture, cityYields, foodSurplus, tileYields } from '../src/game/yields';
+import { cityCulture, cityScienceGold, cityYields, foodSurplus, tileYields } from '../src/game/yields';
 import { WONDERS } from '../src/data/wonders';
 import { eventsVisibleTo } from '../src/game/log';
 import { armyCandidates, behindUnit, isMixedStack, stackLabel, unitsOnTile } from '../src/game/stack';
 import { cargoOf, isWaterAt } from '../src/game/naval';
 import { landmassAt } from '../src/game/mapgen';
 import { reachableThisTurn } from '../src/game/movement';
+import { BARBARIANS } from '../src/data/barbarians';
+import { RESOURCE_IDS } from '../src/data/resources';
+import { visibleResource } from '../src/game/resources';
+import { pendingVillage } from '../src/game/villages';
 
 const capital = (s: GameState): City => s.cities.find((c) => c.owner === 0)!;
 const FRONT = { x: 9, y: 5 };
@@ -45,6 +49,127 @@ function endTurn(s: GameState): void {
 
 /** What each scenario's note promises. A new scenario without an entry here fails the suite. */
 const OUTCOMES: Record<string, (s: GameState) => void> = {
+  // ---- Round 9: barbarians, villages, artifacts, resources, huts, Great People ----
+  'village-spawn': (s) => {
+    const v = s.villages[0]!;
+    expect(v.flags).toBe(BARBARIANS.flagsToSpawn - 1);
+    const before = s.units.filter((u) => u.home === v.id).length;
+    endTurn(s);
+    const mine = s.units.filter((u) => u.home === v.id);
+    expect(mine).toHaveLength(before + 1);
+    expect(v.flags).toBe(0);
+    const out = mine.find((u) => !(u.x === v.x && u.y === v.y))!;
+    expect(distance(out, v)).toBe(1);
+    expect(['warrior', 'archer']).toContain(out.type);
+    expect(s.log.some((e) => e.kind === 'barbarians')).toBe(true);
+  },
+  'take-village': (s) => {
+    const legion = mineAt(s, FRONT)[0]!;
+    const odds = combatOdds(s, legion, ENEMY)!;
+    expect(odds.defense.mods.map((m) => m.label)).toContain('Barbarian village');
+    expect(noteOf('take-village')).toContain(`${Math.round(odds.chance * 100)}%`);
+    const settle = JSON.parse(JSON.stringify(s)) as GameState;
+    const res = applyAction(s, { type: 'attack', unitId: legion.id, at: ENEMY });
+    expect(res.combat?.attackerWon).toBe(true);
+    expect(res.combat?.tookVillage).toBe(s.villages[0]!.id);
+    expect(legion).toMatchObject(ENEMY);
+    expect(pendingVillage(s, 0)).toBeDefined();
+    const gold = s.players[0]!.gold;
+    const out = applyAction(s, { type: 'chooseVillage', villageId: s.villages[0]!.id, choice: 'destroy' });
+    expect(out.ok).toBe(true);
+    expect(s.villages).toHaveLength(0);
+    expect(out.village?.reward).toBeTruthy();
+    expect(s.players[0]!.gold >= gold).toBe(true);
+    // The same fight, settled instead: a size 1 city of yours on the village's tile.
+    applyAction(settle, { type: 'attack', unitId: legion.id, at: ENEMY });
+    const r2 = applyAction(settle, { type: 'chooseVillage', villageId: settle.villages[0]!.id, choice: 'settle' });
+    const city = settle.cities.find((c) => c.id === r2.village?.cityId)!;
+    expect(city).toMatchObject({ owner: 0, size: 1, ...ENEMY });
+  },
+  'village-artifact': (s) => {
+    const copy = JSON.parse(JSON.stringify(s)) as GameState;
+    for (const [state, choice] of [[s, 'destroy'], [copy, 'settle']] as const) {
+      const w = state.units.find((u) => u.owner === 0)!;
+      const known = state.players[0]!.techs.length;
+      expect(applyAction(state, { type: 'move', unitId: w.id, to: ENEMY }).ok).toBe(true);
+      const res = applyAction(state, { type: 'chooseVillage', villageId: state.villages[0]!.id, choice });
+      expect(res.village?.artifact, choice).toBeDefined();
+      expect(state.players[0]!.techs.length).toBeGreaterThanOrEqual(known + res.village!.artifact!.techs.length);
+      expect(state.log.some((e) => e.kind === 'artifact')).toBe(true);
+    }
+  },
+  'village-resource': (s) => {
+    const k = ENEMY.x + ENEMY.y * s.map.width;
+    expect(visibleResource(s, 0, k)).toBeUndefined();
+    const settle = JSON.parse(JSON.stringify(s)) as GameState;
+    const w = s.units.find((u) => u.owner === 0)!;
+    applyAction(s, { type: 'move', unitId: w.id, to: ENEMY });
+    const res = applyAction(s, { type: 'chooseVillage', villageId: s.villages[0]!.id, choice: 'destroy' });
+    expect(res.village?.revealed).toBe('iron');
+    expect(visibleResource(s, 0, k)?.id).toBe('iron');
+    expect(visibleResource(s, 1, k)?.id).toBe('iron'); // revealed for everyone
+    expect(tileYields(s, k, 0).production).toBe(2 + 3); // hills + Iron
+    // Settling keeps it hidden.
+    const w2 = settle.units.find((u) => u.owner === 0)!;
+    applyAction(settle, { type: 'move', unitId: w2.id, to: ENEMY });
+    applyAction(settle, { type: 'chooseVillage', villageId: settle.villages[0]!.id, choice: 'settle' });
+    expect(visibleResource(settle, 0, k)).toBeUndefined();
+  },
+  'barbarian-raid': (s) => {
+    const ur = s.cities.find((c) => c.name === 'Ur')!;
+    endTurn(s);
+    expect(ur.owner).toBe(0);
+    expect(ur.size).toBe(2);
+    expect(s.players[0]!.gold).toBe(100 - 25);
+    expect(noteOf('barbarian-raid')).toContain('25 gold');
+    expect(eventsVisibleTo(s, 0, s.log).some((e) => e.kind === 'raid')).toBe(true);
+  },
+  hut: (s) => {
+    const warriors = s.units.filter((u) => u.owner === 0).sort((a, b) => a.y - b.y);
+    const gold = s.players[0]!.gold;
+    const explored = s.players[0]!.explored.filter((e) => e === 1).length;
+    const units = s.units.filter((u) => u.owner === 0).length;
+    const barbs = s.units.filter((u) => u.owner !== 0).length;
+    for (const w of warriors) expect(applyAction(s, { type: 'move', unitId: w.id, to: { x: 9, y: w.y } }).ok).toBe(true);
+    const got = (k: string) => s.log.filter((e) => e.kind === 'hut' && e.player === 0).map((e) => e.text).find((t) => t.includes(k));
+    expect(s.players[0]!.gold - gold).toBeGreaterThanOrEqual(25);
+    expect(s.players[0]!.explored.filter((e) => e === 1).length).toBeGreaterThan(explored);
+    expect(s.units.filter((u) => u.owner === 0).length).toBe(units + 1);
+    expect(s.players[0]!.techs).toContain('pottery');
+    expect(s.units.filter((u) => u.owner !== 0).length).toBe(barbs + 2);
+    expect(got('gold')).toBeTruthy();
+    expect(s.map.tiles.some((t) => t.hut)).toBe(false);
+  },
+  'great-person': (s) => {
+    endTurn(s);
+    expect(s.greatPeople).toHaveLength(1);
+    const gp = s.greatPeople[0]!;
+    expect(gp).toMatchObject({ owner: 0, kind: 'scientist', name: 'Hypatia' });
+    const use = JSON.parse(JSON.stringify(s)) as GameState;
+    // Settle: +50% science in Babylon.
+    const before = cityScienceGold(s, capital(s)).science;
+    expect(applyAction(s, { type: 'useGreatPerson', gpId: gp.id, how: { mode: 'settle', cityId: capital(s).id } }).ok).toBe(true);
+    expect(capital(s).greatPeople).toEqual(['scientist']);
+    expect(cityScienceGold(s, capital(s)).science).toBe(before + Math.floor(before / 2));
+    // Use now: learn Writing at once.
+    expect(applyAction(use, { type: 'useGreatPerson', gpId: gp.id, how: { mode: 'use' } }).ok).toBe(true);
+    expect(use.players[0]!.techs).toContain('writing');
+    expect(use.greatPeople).toHaveLength(0);
+  },
+  'engineer-wonder': (s) => {
+    const gp = s.greatPeople[0]!;
+    expect(applyAction(s, { type: 'useGreatPerson', gpId: gp.id, how: { mode: 'use', cityId: capital(s).id } }).ok).toBe(true);
+    endTurn(s);
+    expect(capital(s).wonders).toContain('pyramids');
+  },
+  'all-resources': (s) => {
+    const shown = new Set<string>();
+    for (let k = 0; k < s.map.tiles.length; k++) {
+      const r = visibleResource(s, 0, k);
+      if (r) shown.add(r.id);
+    }
+    expect(shown.size).toBe(RESOURCE_IDS.length);
+  },
   // ---- Round 8: ships ----
   'board-unload': (s) => {
     const at = (t: string) => s.units.find((u) => u.owner === 0 && u.type === t)!;

@@ -4,12 +4,15 @@
 
 import { UNITS } from '../data/units';
 import { runAiTurn } from './ai';
+import { runBarbarianTurn } from './barbarians';
+import { checkGreatPeople } from './greatPeople';
 import { expireOffers, updateContacts } from './diplomacy';
 import { updateExplored } from './fog';
 import { processCities } from './production';
 import { processResearch } from './tech';
 import { checkVictory, issueWarnings } from './victory';
 import type { ActionResult, GameState } from './types';
+import { chooseVillage, pendingVillage } from './villages';
 
 function startTurnFor(state: GameState, playerId: number): void {
   for (const u of state.units) {
@@ -26,6 +29,8 @@ function startTurnFor(state: GameState, playerId: number): void {
 export function endTurn(state: GameState): ActionResult {
   processCities(state, state.currentPlayer);
   processResearch(state, state.currentPlayer);
+  // The turn's culture is in: any Great People earned (Round 9). An AI uses its own at once.
+  checkGreatPeople(state, state.currentPlayer);
   const n = state.players.length;
   let next = state.currentPlayer;
   for (let i = 0; i < n; i++) {
@@ -40,6 +45,14 @@ export function endTurn(state: GameState): ActionResult {
   return { ok: true };
 }
 
+/** Plays a computer-run player's turn: the barbarians (Round 9), or a civ's AI. */
+export function playComputerTurn(state: GameState, playerId: number): void {
+  const p = state.players[playerId];
+  if (!p || !p.alive) return;
+  if (p.kind === 'barbarian') runBarbarianTurn(state, playerId);
+  else runAiTurn(state, playerId);
+}
+
 /**
  * Plays out AI turns until it's a human's turn again. The AI acts through the same action
  * functions the player uses.
@@ -51,7 +64,7 @@ export function runUntilHuman(state: GameState): void {
     if (!state.players.some((q) => q.kind === 'human' && q.alive)) return;
     const p = state.players[state.currentPlayer]!;
     if (p.kind === 'human' && p.alive) return;
-    if (p.alive) runAiTurn(state, p.id);
+    playComputerTurn(state, p.id);
     endTurn(state);
   }
 }
@@ -62,6 +75,9 @@ export function endHumanTurn(state: GameState): ActionResult {
   if (!p || p.kind !== 'human') return { ok: false, reason: 'Not your turn' };
   // Offers left unanswered count as refused.
   expireOffers(state, p.id);
+  // A village left without a choice is destroyed for its reward (Round 9).
+  const waiting = pendingVillage(state, p.id);
+  if (waiting) chooseVillage(state, waiting.id, 'destroy');
   endTurn(state);
   runUntilHuman(state);
   // Anyone the human has met who got close to winning this round.

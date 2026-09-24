@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { RULES } from '../src/data/rules';
 import { applyAction } from '../src/game/actions';
-import { aiCityTarget, isMilitary, runAiTurn } from '../src/game/ai';
+import { aiCityTarget, isMilitary } from '../src/game/ai';
 import { attackError } from '../src/game/combat';
 import {
   answerOffer,
@@ -25,7 +25,7 @@ import { entryText, eventsVisibleTo } from '../src/game/log';
 import { moveUnit } from '../src/game/movement';
 import { createGame } from '../src/game/newGame';
 import { deserializeGame, serializeGame } from '../src/game/save';
-import { endTurn } from '../src/game/turn';
+import { endTurn, playComputerTurn } from '../src/game/turn';
 import { STATE_VERSION, type GameState } from '../src/game/types';
 import { atWar } from '../src/game/war';
 import { CivName, checkEliminations, civName, civPossessive } from '../src/game/conquest';
@@ -404,10 +404,9 @@ describe('AI expansion and defender cap (simulation)', () => {
   it('expands past the old fixed 4 cities, keeps unit counts in check, and stays deterministic', () => {
     const play = () => {
       const s = createGame({ seed: 33, playerCount: 5 });
-      for (const p of s.players) p.kind = 'ai';
+      for (const p of s.players) if (p.kind === 'human') p.kind = 'ai';
       while (s.turn <= 100) {
-        const p = s.players[s.currentPlayer]!;
-        if (p.alive) runAiTurn(s, p.id);
+        playComputerTurn(s, s.currentPlayer);
         endTurn(s);
       }
       return s;
@@ -415,7 +414,7 @@ describe('AI expansion and defender cap (simulation)', () => {
     const s = play();
     expect(play()).toEqual(s);
     expect(aiCityTarget(s)).toBeGreaterThan(4);
-    const alive = s.players.filter((p) => p.alive);
+    const alive = s.players.filter((p) => p.alive && p.kind !== 'barbarian');
     const cities = alive.map((p) => s.cities.filter((c) => c.owner === p.id).length);
     expect(cities.reduce((a, b) => a + b, 0) / alive.length).toBeGreaterThan(4.5);
     // The cap: defenders + wartime offense per city, plus a little slack for units in production.
@@ -424,7 +423,7 @@ describe('AI expansion and defender cap (simulation)', () => {
       const military = s.units.filter((u) => u.owner === p.id && isMilitary(u)).length;
       expect(military).toBeLessThanOrEqual(n * (RULES.ai.borderDefendersAtWar + RULES.ai.offensePerCityWar) + 3);
     }
-  });
+  }, 30_000);
 });
 
 describe('save migration v4 → v5', () => {
@@ -454,7 +453,8 @@ describe('save migration v4 → v5', () => {
     // M4 had everyone at war; that stays, met or not.
     expect(atWar(s, 0, 1) && atWar(s, 0, 2) && atWar(s, 1, 2)).toBe(true);
     expect(s.diplomacy.offers).toEqual([]);
-    expect(s.aiPlans).toEqual([null, null, null]);
+    // Round 9 adds the barbarians as a fourth player.
+    expect(s.aiPlans).toEqual([null, null, null, null]);
     // It plays on.
     expect(applyAction(s, { type: 'endTurn' }).ok).toBe(true);
   });

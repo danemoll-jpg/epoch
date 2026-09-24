@@ -13,6 +13,15 @@ export function noWars(n: number): boolean[][] {
   return Array.from({ length: n }, () => Array.from({ length: n }, () => false));
 }
 
+/** Puts player `id` (the barbarians, Round 9) at war with everyone in the table. */
+export function setAlwaysAtWar(table: boolean[][], id: number): void {
+  for (let i = 0; i < table.length; i++) {
+    if (i === id) continue;
+    table[i]![id] = true;
+    table[id]![i] = true;
+  }
+}
+
 export function atWar(state: GameState, a: number, b: number): boolean {
   return a !== b && state.atWar[a]?.[b] === true;
 }

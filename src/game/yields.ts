@@ -4,20 +4,33 @@
 // first each round), so no tile is ever worked twice and new cities aren't starved out.
 
 import { BUILDINGS } from '../data/buildings';
+import { GREAT_PEOPLE_RULES as GP, type GreatPersonKind } from '../data/greatPeople';
 import { WONDERS, type WonderDef, type WonderEffects } from '../data/wonders';
 import { RULES } from '../data/rules';
 import { TERRAIN, type Yields } from '../data/terrain';
 import { tileIndex, tilesInRadius } from './grid';
+import { resourceBonus } from './resources';
 import type { City, GameState } from './types';
 
-export function tileYields(state: GameState, index: number): Yields {
+/**
+ * What the tile gives: its terrain, plus its resource (Round 9) when `viewer` can see and use
+ * it (hidden ones need revealing). Without a viewer, the terrain alone.
+ */
+export function tileYields(state: GameState, index: number, viewer?: number): Yields {
   const t = state.map.tiles[index]!;
-  return { ...TERRAIN[t.terrain].yields };
+  const y = { ...TERRAIN[t.terrain].yields };
+  const bonus = viewer === undefined ? undefined : resourceBonus(state, viewer, index);
+  if (bonus) {
+    y.food += bonus.food;
+    y.production += bonus.production;
+    y.trade += bonus.trade;
+  }
+  return y;
 }
 
-/** What a tile gives when this city works it: its terrain, plus the Harbor's food on water (Round 8). */
+/** What a tile gives when this city works it: its terrain and resource, plus the Harbor's food on water (Round 8). */
 export function workedTileYields(state: GameState, city: City, index: number): Yields {
-  const y = tileYields(state, index);
+  const y = tileYields(state, index, city.owner);
   if (TERRAIN[state.map.tiles[index]!.terrain].isWater) {
     for (const b of city.buildings) y.food += BUILDINGS[b].effects.waterFood ?? 0;
   }
@@ -25,7 +38,7 @@ export function workedTileYields(state: GameState, city: City, index: number): Y
 }
 
 export function centerYields(state: GameState, city: City): Yields {
-  const y = tileYields(state, tileIndex(state.map, city.x, city.y));
+  const y = tileYields(state, tileIndex(state.map, city.x, city.y), city.owner);
   const b = RULES.cityCenterBonus;
   return { food: y.food + b.food, production: y.production + b.production, trade: y.trade + b.trade };
 }
@@ -96,7 +109,8 @@ export function cityYields(state: GameState, city: City): Yields {
   total.trade += sp * RULES.specialistYields.trade;
   // Wonders (Milestone 6): extra food in their city, and production bonuses.
   for (const w of cityWonderDefs(city)) total.food += w.effects.food ?? 0;
-  const prodPct = cityWonderPct(city, 'productionPct') + empireWonderPct(state, city.owner, 'productionPct');
+  const prodPct =
+    cityWonderPct(city, 'productionPct') + empireWonderPct(state, city.owner, 'productionPct') + settled(city, 'engineer') * GP.engineerProductionPct;
   total.production += Math.floor((total.production * prodPct) / 100);
   return total;
 }
@@ -125,9 +139,14 @@ export function empireWonderEffect(state: GameState, owner: number, key: 'vetera
   return empireWonders(state, owner).some((w) => w.effects.empire?.[key]);
 }
 
-/** Culture the city makes per turn: its buildings (Temple) and wonders. */
+/** How many Great People of this kind are settled in the city (Round 9). */
+export function settled(city: City, kind: GreatPersonKind): number {
+  return (city.greatPeople ?? []).filter((k) => k === kind).length;
+}
+
+/** Culture the city makes per turn: its buildings (Temple), wonders, and settled Artists. */
 export function cityCulture(_state: GameState, city: City): number {
-  let culture = 0;
+  let culture = settled(city, 'artist') * GP.artistCulture;
   for (const b of city.buildings) culture += BUILDINGS[b].effects.culture ?? 0;
   for (const w of cityWonderDefs(city)) culture += w.effects.culture ?? 0;
   return culture;
@@ -142,10 +161,11 @@ export function foodSurplus(state: GameState, city: City): number {
   return cityYields(state, city).food - city.size * RULES.foodPerCitizen;
 }
 
-/** Percent bonus from the city's buildings and wonders, and the owner's empire-wide wonders. */
+/** Percent bonus from the city's buildings, wonders, and settled Great People, and the owner's empire-wide wonders. */
 function buildingPct(state: GameState, city: City, key: 'sciencePct' | 'goldPct'): number {
   const buildings = city.buildings.reduce((sum, b) => sum + (BUILDINGS[b].effects[key] ?? 0), 0);
-  return buildings + cityWonderPct(city, key) + empireWonderPct(state, city.owner, key);
+  const people = key === 'sciencePct' ? settled(city, 'scientist') * GP.scientistSciencePct : settled(city, 'merchant') * GP.merchantGoldPct;
+  return buildings + people + cityWonderPct(city, key) + empireWonderPct(state, city.owner, key);
 }
 
 /**

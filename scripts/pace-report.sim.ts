@@ -11,6 +11,8 @@ it('report', () => {
   const ships100: number[] = [], ships200: number[] = [];
   const seedTree: number[] = [];
   const wins: string[] = [];
+  const barbs: any[] = [];
+  const gp150: number[] = [];
   for (const seed of seeds) {
     const t0 = Date.now();
     const r = simulate(seed, turns);
@@ -19,7 +21,7 @@ it('report', () => {
     const v = r.victory;
     const win = v ? `${r.state.players[v.winner]!.civId} ${v.kind} t${v.turn}` : 'none';
     wins.push(`seed ${seed}: ${win}`);
-    const ends = r.state.players.map((q) => `${q.civId}:${r.goals[q.id]} cul=${q.culture} gold=${q.gold} sci=${q.scienceRate} parts=${q.space.parts} arrives=${q.space.arrivesTurn ?? '-'} wonders=${r.state.cities.filter((c) => c.owner === q.id).reduce((n, c) => n + c.wonders.length, 0)}`).join('\n  ');
+    const ends = r.state.players.filter((q) => q.kind !== 'barbarian').map((q) => `${q.civId}:${r.goals[q.id]} cul=${q.culture} gold=${q.gold} sci=${q.scienceRate} parts=${q.space.parts} arrives=${q.space.arrivesTurn ?? '-'} wonders=${r.state.cities.filter((c) => c.owner === q.id).reduce((n, c) => n + c.wonders.length, 0)}`).join('\n  ');
     console.log(`seed ${seed} (${Date.now()-t0}ms) wars=${r.warsDeclared} peace=${r.peaceTreaties} elim@120=${r.eliminated} VICTORY=${win}\n  ${line}\n  ${ends}`);
     const naval = r.civs.map((c) => `${c.civId}:overseas=${c.overseasCities} ships@100=${c.shipsAt[100] ?? '-'} ships@200=${c.shipsAt[200] ?? '-'}`).join(' ');
     console.log(`  NAVAL landings=${r.landings} ${naval}`);
@@ -28,6 +30,10 @@ it('report', () => {
     ships100.push(...r.civs.map((c) => c.shipsAt[100] ?? 0));
     ships200.push(...r.civs.map((c) => c.shipsAt[200] ?? 0));
     all.push(...r.civs);
+    barbs.push(r.barbarians);
+    gp150.push(...r.civs.map((c) => c.greatPeopleAt[150] ?? 0));
+    const b = r.barbarians;
+    console.log(`  BARBARIANS villages=${b.villagesAtStart} destroyed=${b.villagesDestroyed} settled=${b.villagesSettled} spawned=${b.spawned} killed=${b.killed} raids=${b.raids} elimByBarb=${b.eliminationsByBarbarians} huts=${b.hutsEntered} artifacts=${b.artifacts}; GP@150 ${r.civs.map((c) => `${c.civId}:${c.greatPeopleAt[150] ?? '-'}`).join(' ')}`);
     seedTree.push(Math.min(...r.civs.map((c) => c.treeDoneTurn ?? Infinity)));
   }
   const alive = all;
@@ -41,6 +47,9 @@ it('report', () => {
   console.log(`VICTORIES\n  ${wins.join('\n  ')}`);
   const avg1 = (a: number[]) => (a.reduce((x, y) => x + y, 0) / Math.max(1, a.length)).toFixed(1);
   console.log(`NAVAL per game: overseas cities founded=${overseas / seeds.length} landings=${landings / seeds.length}; ships per civ t100=${avg1(ships100)} (max ${Math.max(...ships100)}) t200=${avg1(ships200)} (max ${Math.max(...ships200)})`);
+  const sum = (k: string) => barbs.reduce((a, b) => a + b[k], 0) / barbs.length;
+  console.log(`BARBARIANS per game: villages at start=${sum('villagesAtStart')} destroyed=${sum('villagesDestroyed')} settled=${sum('villagesSettled')} spawned=${sum('spawned')} killed=${sum('killed')} raids=${sum('raids')} eliminations by barbarians=${sum('eliminationsByBarbarians')} huts entered=${sum('hutsEntered')} artifacts=${sum('artifacts')}`);
+  console.log(`GREAT PEOPLE per civ by turn 150: avg ${avg1(gp150)} (min ${Math.min(...gp150)}, max ${Math.max(...gp150)})`);
   const lm = landmassStats(100);
   console.log(`LANDMASSES (100 seeds): each civ alone=${lm.allSeparate} all on one=${lm.allTogether} shared/mixed=${lm.mixed}; distinct start landmasses 1..5=${lm.distinctStarts.join('/')}; empty island (room for a city)=${lm.emptyIsland} (room for 2+: ${lm.emptyBigIsland})`);
 }, 600000);

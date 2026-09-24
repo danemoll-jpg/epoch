@@ -829,9 +829,127 @@ Steps, Technical Notes.
       by pressing the real buttons from the page; the full tap-by-tap
       boarding check was done at desktop size.
 
+* **Round 9 — Milestone 7: barbarians, villages, artifacts, resources, huts,
+  and Great People — done by the coding agent (2026-09-24). Waiting for
+  Dan's checks (a)–(c) below**, including his map icon picks.
+  - **Result:** 413 unit tests passing (47 new). Type-check and production
+    build are clean, and the dev-code leak check passes. Preview-verified on
+    desktop and in iPad-sized touch emulation (768×1024). **Save format 8**
+    (a v7 game is upgraded, with the original kept as a backup). Package
+    version 0.9.0. Pushed; play server restarted (see the end of this entry).
+  - **Per-item status (coding round 9):**
+
+    | # | Item | Status | Verified by |
+    |---|------|--------|-------------|
+    | 0 | Commit docs first | Done (`b8c9df7`), then re-read both. Nothing from last round's report was dropped: the removed lines were the old Round 8 task list, and the "Part A done early" note moved to Next Steps | n/a |
+    | A1 | Map icon picker page | Done: **`docs/map-icon-candidates.html`** (251 KB, self-contained), built like the round 8 page, with **72 game-icons.net candidates, 3 for each of 24 subjects**: the barbarian village, the hut, a barbarian unit badge, the 15 resources, the 5 Great People, and the artifact. Each is shown at map size on the terrain it sits on (village with 0/2/4 flags; resources in the tile corner, on a dark badge and in plain color; Great People on a gold disc and in a panel; the artifact in a discovery panel). Tap to pick, picks saved on the device (its own key, `epoch.mapIconPicks`), "n of 24 picked", Next unpicked, Copy my picks, Share, and a "Watch out" note under look-alikes. SVGs and `SOURCES.md` (every author) in `docs/map-icon-candidates/`. **Weak spots:** game-icons.net has no silk, aluminum, or rubber icons, so those three are stand-ins (cloth; can/bar/sheet; tire/boot/ball). Until Dan picks, the game draws placeholders (below) | Checked in a preview browser by a helper agent: every candidate shows, pick/undo, picks survive a reload, copied text, no sideways scroll at 375 px, bar buttons 44 px. **Not opened on the iPad yet** |
+    | B1 | Barbarian faction | Done. A special player, **always last** in `players`, kind `'barbarian'`, always at war with everyone (`setAlwaysAtWar`). Never met (contact skips it), so it's not in diplomacy; war can't be declared on it or peace made. It **can't win**, isn't a rival for domination, and is **never eliminated**. The AI doesn't count it as "a war" (so barbarians don't block AI wars or put an AI on a war footing). Near-black discs with a **red rim** on the map | unit-tested; preview-verified |
+    | B2 | Villages | Done. Placed at the start on land a city could stand on: **one per 50 land tiles, 3–8** (about 6 on the default map), **≥ 6 tiles from every civ start**, ≥ 5 apart, each with a **fortified barbarian Warrior** and a **+50% "Barbarian village" defense** bonus. **Flags:** a flag every **3 turns** from **turn 10**, and at **4 flags** a unit comes out on a free tile next to it (villages start with 0–2 flags, so the first units appear around turns 16–22). **At most 2 units out** per village (then its flags wait at 4). Spawns follow the **world's era = the median civ's**: Ancient Warrior/Warrior/Archer, Medieval Archer/Horseman/Legion; **no flags once the median civ is Industrial**. **Behavior:** units stay within **4 tiles** of home; attack an adjacent civ unit at **≥ 45%** odds; **35%** of turns head for a civ unit or an unguarded city within 4 tiles; else wander. A garrison that dies is replaced by the next unit out. **Barbarians never capture:** they can't walk into a city, and **raid** an unguarded one next to them: **25% of the owner's gold (5–60) and 1 population, never below size 1**, then stay outside; a city can't be raided again for **6 turns**. Killing a city's last defender also raids instead of capturing. The raided civ gets a message ("Keep a unit in your cities to stop raids"). All numbers in `src/data/barbarians.ts` | unit-tested; preview-verified (`village-spawn`, `barbarian-raid`, and 60 turns of a real game) |
+    | B3 | Taking a village | Done, Dan's rule. Kill the last defender (the winner moves in, like taking a city) or walk into an empty village, and a **choice panel** opens (it can't be dismissed): **Destroy it** (a random reward: gold 30/40/50, weights 22/18/14; Horseman 12; Settler 10; Galley 10, only for a coastal village with Map Making, else re-rolled; free tech 8; plus any **hidden resource** under it is revealed) or **Settle <next city name>** (a size-1 city on that tile with the civ's next name). **Settling is allowed even inside the normal 3-tile minimum distance**; the panel says so when it applies. **Artifacts: 20% either way**; 1 tech 80%, 2 techs 14%, 3 techs 6%. The first tech is what you're researching (else a random one you could research); a leap's extra ones are the **deepest** you can reach. Our own names ("Ancient Tablets", "Lost Library Scrolls", "Forgotten Star Chart", "Bronze Astrolabe"… 10 in data), shown in an **"Ancient artifact!"** panel with the techs. **The AI takes villages too**: a free unit goes for a known village (or hut) within 6 tiles on its landmass when it has no war plan, attacking a held one only at ≥ 60%. It **settles** a village that isn't within 3 tiles of a city, scores ≥ 20 as a site, while it's below its city target; otherwise it destroys. Deterministic. **World news:** "The Franks destroyed a barbarian village" / "…settled a barbarian village as Metz", shown if you've met them. A village left unchosen at End Turn counts as Destroy | unit-tested (reward weights over 400 fixed seeds; the Galley rule both ways; settle within the minimum distance; artifact rate and 1–3 techs over 500 seeds each way; AI choice, identical twice); preview-verified (attack → panel → Destroy: 50 gold; walk in → Settle Ur → artifact panel) |
+    | B4 | Map resources | Done: **15 kinds** in `src/data/resources.ts` (bonus on top of terrain): Wheat (plains +2 food), Cattle (grassland +1 food +1 prod), Game (forest +2 food), Fish (coast +2 food), Whales (ocean/coast +1/+1/+1), Oasis (desert +3 food), Spices (grassland +2 trade), Silk (forest +2 trade), Wine (plains +2 trade), Gold (hills/mountains +3 trade), Gems (hills/mountains +1 prod +2 trade), and **hidden** Iron (hills +3 prod), Aluminum (hills/mountains +3 prod +1 trade), Rubber (forest +2 prod +1 trade), Oil (desert +3 prod). **Hidden ones give nothing and don't show** until revealed: on their tile for everyone by destroying a village there, **or by a tech for that civ (I chose yes): Iron ← Iron Working, Aluminum ← Electricity, Rubber ← Industrialization, Oil ← Refining**. A village sits on a hidden resource 40% of the time when its terrain allows one. **Placement:** seeded on its own RNG stream from the game seed, 6% of tiles, at least 2 apart (about 46 on the default map), and **every civ start gets ≥ 2 visible food or production resources within 2 tiles**. Worked tiles and the city's own tile use the bonus; the automatic tile picker counts it; the AI's site score counts visible ones. On the map: a small dark badge with the resource's letters in the tile's corner (placeholder). Tapping a tile names it and its bonus; the city panel lists "Resources worked". **Bonuses only, no "needs Iron" rules (Q14)** | unit-tested (yields, picker, hidden/revealed both ways, 40-seed start fairness, same seed = same resources); preview-verified (`all-resources`, `village-resource`) |
+    | B5 | Exploration huts | Done. **One per 35 land tiles, 4–12** (about 9 on the default map), not within 2 tiles of a civ start, a village, or another hut. The first civ unit to step on one gets (weights) **gold 25–50** (40), **the map within 5 tiles** (20), **a free Warrior or Horseman** (18), **a free tech** (8), or **2 barbarian Warriors next to it** (8; **never before turn 20**, never next to a city). **No artifacts from huts.** The AI walks into huts it knows within 6 tiles. On the map: a tan dome with "?" (placeholder); the result is a message | unit-tested (each result; 300 seeds before turn 20: no barbarians, no artifacts); preview-verified (`hut`, all five) |
+    | B6 | Great People | Done. A civ earns one each time the culture it has made passes the next threshold: **80, 200, 400, 680, …** (first 80, +120 more each time, rising by 80). Kind is random (seeded): **Scientist, Artist, Merchant, Engineer, General**; names from our own list of historical figures (10 per kind, each used once per game). **The human gets a panel:** **Settle in a city…** (pick the city) for good: Scientist **+50% science**, Artist **+3 culture/turn**, Merchant **+50% gold**, Engineer **+25% production**, General **new units there are veterans and armies there fight 25% better**; or **Use now**: Scientist **learns a tech** (your research, else one you could research), Artist **+150 culture**, Merchant **150 gold + 75 per era**, Engineer **finishes the wonder or building a city is making** (pick the city), General **makes every unit on one tile a veteran** (pick the tile). There's also **"Decide later"** (the panel comes back next turn). The 🏆 screen shows "next Great Person in N culture"; the city panel lists settled ones. **The AI decides at once, deterministically:** an Engineer finishes a wonder it's building (else settles in its best production city); a Scientist/Merchant/Artist is used at once when it matches the AI's victory goal (tech/economic/culture) and settled otherwise; a General trains a stack of 2+ at war, else settles. Great People count toward culture only through their effects | unit-tested (thresholds, every settled and one-time effect, AI engineer, a real 150-turn game); preview-verified (`great-person` → settle in Babylon; `engineer-wonder` → Pyramids finished) |
+    | B7 | Culture borders and city flipping | **Not done, as planned** (deferred to M9 or later, only if Dan wants them) | n/a |
+    | B8 | Save migration v7 → v8 | Done. `STATE_VERSION` 8. **Resources come from the seed for the whole map** (what a new game with that seed would have; fair starts measured from each civ's capital). **The barbarians join as the last player**, and every table grows by one. **Villages and huts go only on tiles no civ has explored.** **Great People count only culture made from now on** (`greatPeopleCultureBase` = culture so far), so nobody gets a backlog. The pre-upgrade save is kept as a backup as usual; the notice says "updated for barbarians, villages, resources, huts, and Great People". v2–v6 saves chain through | unit-tested (v7 → v8: nothing on explored tiles, tables sized, no backlog, plays on and re-saves); preview-verified (a planted v7 save at turn 61 loaded as v8, original in backup slot 1 "Upgraded from version 7", 2 villages and 8 huts placed in unexplored corners) |
+    | B9 | Dev scenarios | Done, all 9: `village-spawn`, `take-village` (67%), `village-artifact` (dice set so both choices find one), `village-resource` (Iron), `barbarian-raid`, `hut` (five huts, one of each result: a hut can carry a set result, used only by this scenario), `great-person` (Hypatia), `engineer-wonder`, `all-resources`. Odds and amounts in the notes are computed | unit-tested (each outcome); preview-verified: `take-village`, `village-artifact`, `great-person`, `engineer-wonder`, `hut`, `barbarian-raid`, `village-spawn`, `all-resources` (`village-resource` through its test only) |
+    | B10 | Simulation report | Done; `npm run sim` now prints barbarians, villages, huts, artifacts, and Great People per game. Numbers below | `npm run sim` |
+    | B11 | Unit tests | Done: 47 new, 413 total. New **`tests/barbarians.test.ts`** (29): the faction rules, the flag timer and spawn at 4, the grace period and late-era stop, the unit cap, units staying home, raids (never a capture, never below 1, cooldown, raid after killing the last defender), the village choice (reward weights, Galley rule, settle within the minimum distance, artifact rate and counts both ways), the AI taking a village (deterministic), resources (yields, picker, hidden/revealed, start fairness, seeded), every hut result, no early barbarians or artifacts from huts, Great People (thresholds, settled and one-time effects, the AI), the v7 → v8 migration. `tests/scenarios.test.ts`: the 9 new scenarios. **`pace.test.ts` still passes.** Older tests changed only for the extra barbarian player (player counts, migration table sizes), the new tech cost numbers, and a longer timeout on one simulation test | `npm test` |
+
+  - **B10 simulation** (`npm run sim`, all-AI, 5 civs, seeds 8/13/21/33/42,
+    300 turns), per game: **villages at start 5.8; destroyed 4.4, settled 0.4**
+    (by the AIs); **barbarian units spawned 24.4 (villages and huts), killed
+    28.4** (the starting garrisons count as killed too); **raids 3.2;
+    eliminations caused by barbarians: 0** (in every game); **huts entered
+    9.0; artifacts 0.8**. **Great People per civ by turn 150: 3.3 on average**
+    (min 0, max 6). Wars 2.4, peace treaties 1.6, eliminations 0 by turn 120.
+  - **Era pace, before → after** (same runs):
+
+    | | Round 8 | Round 9 first try | Round 9 final | Target |
+    |---|---|---|---|---|
+    | Medieval era, median civ | 63 | 54 | **63** | 50–70 |
+    | Industrial era, median civ | 119 | 105 | **125** | 120–150 |
+    | Modern era, median civ | 185 | 159 | **198** | 180–220 |
+    | First to finish the tree, per seed | 196, 195, 169, 195, 197 | 151–181 | **195, 214, 194, 174, 204** | ~250 |
+    | Winners | turns 201–232 | turns 176–228 | **turns 193–230** (Tech ×2, Culture ×3) | none before 150 |
+
+    **What sped it up, measured by switching each system off:** resources
+    (about +20 turns faster by Industrial: both the scattered ones and the fair
+    start ones), much more than free techs from huts, villages, and artifacts
+    (about 1 turn) or Great People (a few turns late). **Fix, in data:** fewer
+    and smaller trade resources (6% of tiles, trade bonuses cut by 1), Great
+    People a little rarer, and **tech cost per tech known 6 → 8.5**
+    (`TECH_COST.perKnown`), which puts every era back inside its target.
+  - **Dan's checks for this round:**
+    - (a) On the iPad, open
+      **http://10.0.0.224:4173/docs/map-icon-candidates.html** and pick one
+      per subject (24), then Copy my picks or Share and paste the list into the
+      chat. Silk, Aluminum, and Rubber are stand-ins (the site has no good
+      icons for them); say if you'd rather keep letters for those.
+    - (b) On `dev:lan`: ☰ → Dev scenarios → the **Barbarians: …**, **Huts:
+      every result**, **Great People: …**, and **All resources** scenarios;
+      each should do what its note says.
+    - (c) In a real game on `play:lan`: take a barbarian village and make the
+      choice. Your current game is upgraded: villages and huts appear only in
+      places you haven't explored yet.
+  - **Decisions worth reviewing:**
+    - **Barbarians are a player** (always last, kind `'barbarian'`), not
+      units with no owner, so combat, movement, and fog work for them
+      unchanged. `?players=2` still adds them.
+    - A village's Warrior (fortified, +50% village) defends at 2: a Warrior
+      attacks it at 33%, a Horseman 50%, an Archer 60%, a Legion 67%.
+    - A village left without a choice when you tap End Turn is **destroyed**
+      (like an unanswered demand counting as refused). The panel can't be
+      closed without choosing, so this only happens by reload tricks.
+    - **Settling a village doesn't reveal** a hidden resource under it; only
+      destroying does (or the tech).
+    - Barbarians have **full map knowledge** (so they can find paths); they
+      only act near home.
+    - A raid shows as a message, not a panel.
+    - Great People have **"Decide later"**; the AI never leaves one waiting.
+    - Great Person thresholds count culture since the game started (or since
+      the upgrade for Dan's game), and an Artist's one-time burst counts
+      toward the next one.
+    - **Tech costs went up** (8.5 per tech known instead of 6) to keep the era
+      pace with the richer economy.
+  - **Also changed:**
+    - **AI bug fixed (found through a failing test):** the AI merged three
+      Spearmen guarding a city into an army, then counted the city as short
+      of defenders and built more, forever (60 Spearmen in one civ by turn
+      100 on seed 33). The AI now forms armies only from attack-minded types
+      (attack ≥ defense). Players can still form any army.
+    - New files: `src/data/barbarians.ts`, `src/data/resources.ts`,
+      `src/data/greatPeople.ts`, `src/game/barbarians.ts`,
+      `src/game/villages.ts`, `src/game/resources.ts`,
+      `src/game/greatPeople.ts`, `tests/barbarians.test.ts`, and the picker
+      page with its folder.
+    - New actions `chooseVillage` and `useGreatPerson`. `playComputerTurn` in
+      `turn.ts` plays either the barbarians or a civ AI (the sim and tests use
+      it). `createCity` in `city.ts` is shared by settlers and settled villages.
+    - The combat result says when an attack took a village (`tookVillage`) or
+      raided a city (`raided`).
+    - Map placeholders: village = wooden fence around the tile with a red
+      flag per flag (the flags are drawn over the unit); hut = tan dome with
+      "?"; resource = dark badge with 2 letters in the corner; barbarian unit
+      = near-black disc with a red rim.
+    - The notice panel can show a scrolling list of choices (cities or tiles).
+  - **Observed, not fixed:**
+    - **The AI rarely settles villages** (0.4 per game; it mostly destroys
+      them), and about 1 village per game survives into the late game. Both
+      are data (`aiVillageChoice`, loot distance 6).
+    - The combat message calls a barbarian unit just "the Warrior" (the
+      existing message wording).
+    - The preview pane again drew iPad-emulation screenshots in one corner, so
+      the iPad-size checks were done by measuring (panel buttons 44–56 px, no
+      sideways overflow) and by pressing the real buttons from the page.
+
 ## Current Objective (Focus Area)
 
 ### Round 9 — Milestone 7: barbarians, villages, artifacts, resources, huts, and Great People
+**Status: done by the coding agent (2026-09-24).** Per-item report under
+"Round 9" in Completed Tasks. Waiting for Dan's checks (a)–(c), especially
+**his map icon picks** (the next round wires them in). The item list below is
+kept as it was assigned.
+
 **Goal:** the flavor systems that make each game feel different:
 - barbarian villages, built to **Dan's spec**;
 - map resources;

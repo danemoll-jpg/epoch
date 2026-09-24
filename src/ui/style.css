@@ -1048,6 +1048,19 @@ button.bigBtn {
   margin-top: 6px;
 }
 
+/* Round 9: a list of choices (settle a Great Person in which city, train which tile). */
+#noticeButtons.list {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  max-height: min(50vh, 420px);
+  overflow-y: auto;
+}
+
+#noticeButtons.list button {
+  width: 100%;
+  text-align: left;
+}
+
 /* ---- city panel: form an army from the units list ---- */
 
 .unitList .armyBtn {

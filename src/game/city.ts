@@ -13,7 +13,7 @@ import { updateExplored } from './fog';
 import { addLog } from './log';
 import { findUnit } from './movement';
 import { refreshWorkedTiles } from './yields';
-import type { ActionResult, City, GameState } from './types';
+import type { ActionResult, City, Coord, GameState } from './types';
 
 /** Why this unit can't found a city right now, or undefined if it can. */
 export function foundCityError(state: GameState, unitId: number): string | undefined {
@@ -43,13 +43,25 @@ export function foundCity(state: GameState, unitId: number): ActionResult & { ci
   const err = foundCityError(state, unitId);
   if (err) return { ok: false, reason: err };
   const unit = findUnit(state, unitId)!;
-  const player = state.players[unit.owner]!;
+  state.units = state.units.filter((u) => u.id !== unitId);
+  const city = createCity(state, unit.owner, unit);
+  addLog(state, unit.owner, `${CivName(state, unit.owner)} founded ${city.name}`, city);
+  return { ok: true, city };
+}
+
+/**
+ * A new size-1 city for `owner` on `at`, named from the civ's list (the first one is its
+ * capital). Shared by settlers and settled barbarian villages (Round 9); the caller checks
+ * the site and logs it.
+ */
+export function createCity(state: GameState, owner: number, at: Coord): City {
+  const player = state.players[owner]!;
   const city: City = {
     id: state.nextId++,
-    name: cityNameFor(state, unit.owner),
-    owner: unit.owner,
-    x: unit.x,
-    y: unit.y,
+    name: cityNameFor(state, owner),
+    owner,
+    x: at.x,
+    y: at.y,
     foundedTurn: state.turn,
     size: 1,
     food: 0,
@@ -59,15 +71,14 @@ export function foundCity(state: GameState, unitId: number): ActionResult & { ci
     buildings: [],
     wonders: [],
     // A civ's first city is its capital.
-    capitalOf: player.citiesFounded === 0 ? unit.owner : null,
+    capitalOf: player.citiesFounded === 0 ? owner : null,
     worked: [],
+    greatPeople: [],
   };
   player.citiesFounded++;
   state.cities.push(city);
-  state.units = state.units.filter((u) => u.id !== unitId);
   refreshWorkedTiles(state);
-  updateExplored(state, unit.owner);
+  updateExplored(state, owner);
   updateContacts(state);
-  addLog(state, unit.owner, `${CivName(state, unit.owner)} founded ${city.name}`, city);
-  return { ok: true, city };
+  return city;
 }

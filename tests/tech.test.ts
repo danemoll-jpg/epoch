@@ -130,8 +130,9 @@ describe('research', () => {
     expect(techCostFor(1, 1)).toBe(Math.round(c.base + c.perKnown + c.perKnownSq));
     expect(techCostFor(10, 1)).toBe(Math.round(c.base + 10 * c.perKnown + 100 * c.perKnownSq));
     expect(techCostFor(10, 3) - techCostFor(10, 1)).toBe(2 * c.perTier); // per tier above 1
-    // Round 6 numbers: 14 + 6 per tech known + 4 per tier above 1.
-    expect([techCostFor(0, 1), techCostFor(1, 1), techCostFor(10, 1), techCostFor(10, 3)]).toEqual([14, 20, 74, 82]);
+    // Round 9 numbers: 14 + 8.5 per tech known + 4 per tier above 1 (was 6 per tech known
+    // before resources, huts, villages, and Great People sped research up).
+    expect([techCostFor(0, 1), techCostFor(1, 1), techCostFor(10, 1), techCostFor(10, 3)]).toEqual([14, 23, 99, 107]);
     const p = makeState(['g']).players[0]!;
     expect(techCost(p, 'alphabet')).toBe(techCostFor(0, 1));
     p.techs.push('bronze_working');
@@ -341,7 +342,7 @@ describe('saves from Milestone 2', () => {
     expect(res.savedAt).toBe(42);
     const s = res.state;
     expect(s.version).toBe(STATE_VERSION); // 2 → 3 → 4 in one go
-    for (const p of s.players) {
+    for (const p of s.players.filter((q) => q.kind !== 'barbarian')) {
       expect(p.techs).toEqual([]);
       expect(p.researching).toBeNull();
       expect(p.science).toBe(37); // banked, ready to spend

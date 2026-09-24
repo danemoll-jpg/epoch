@@ -30,7 +30,8 @@ export function newSpaceProgram(): SpaceProgram {
 
 /** The rivals' original capitals `p` holds (an eliminated rival counts), out of how many rivals. */
 export function capitalsHeld(state: GameState, p: number): { held: number; of: number } {
-  const rivals = state.players.filter((q) => q.id !== p);
+  // The barbarians aren't a rival (Round 9).
+  const rivals = state.players.filter((q) => q.id !== p && q.kind !== 'barbarian');
   const held = rivals.filter((r) => !r.alive || state.cities.some((c) => c.capitalOf === r.id && c.owner === p)).length;
   return { held, of: rivals.length };
 }
@@ -157,7 +158,7 @@ const WON: Record<VictoryKind, (state: GameState, p: number) => boolean> = {
 
 /** What `p` has won, if anything (ignores whether the game is already over). */
 export function victoryFor(state: GameState, p: number): VictoryKind | undefined {
-  if (!state.players[p]?.alive) return undefined;
+  if (!state.players[p]?.alive || state.players[p]!.kind === 'barbarian') return undefined;
   return VICTORY_KINDS.find((k) => WON[k](state, p));
 }
 

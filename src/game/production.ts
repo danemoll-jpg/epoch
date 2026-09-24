@@ -19,7 +19,7 @@ import { hasTech } from './tech';
 import { addSpaceshipPart, spaceshipError, victoryWonderBlocker } from './victory';
 import { completeWonder, wonderError } from './wonders';
 import { coastalError } from './naval';
-import { cityCulture, cityScienceGold, cityYields, empireWonderEffect, foodSurplus, refreshWorkedTiles } from './yields';
+import { cityCulture, cityScienceGold, cityYields, empireWonderEffect, foodSurplus, refreshWorkedTiles, settled } from './yields';
 import type { ActionResult, BuildItem, City, GameState, Unit } from './types';
 
 export function findCity(state: GameState, cityId: number): City | undefined {
@@ -186,7 +186,11 @@ export function turnsToFinish(state: GameState, city: City): number | undefined 
 }
 
 function spawnUnit(state: GameState, city: City, type: Unit['type']): Unit {
-  const veteran = city.buildings.some((b) => BUILDINGS[b].effects.veteranUnits) || empireWonderEffect(state, city.owner, 'veteranUnits');
+  // Barracks, a veteran wonder, or a Great General settled here (Round 9).
+  const veteran =
+    city.buildings.some((b) => BUILDINGS[b].effects.veteranUnits) ||
+    empireWonderEffect(state, city.owner, 'veteranUnits') ||
+    settled(city, 'general') > 0;
   const unit: Unit = {
     id: state.nextId++,
     type,

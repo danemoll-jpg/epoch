@@ -144,8 +144,9 @@ export function citiesOf(state: GameState, playerId: number): City[] {
   return state.cities.filter((c) => c.owner === playerId).sort((a, b) => a.id - b.id);
 }
 
+/** At war with another civ (the barbarians, always at war with everyone, don't count). */
 function atWarWithAnyone(state: GameState, playerId: number): boolean {
-  return state.players.some((p) => p.alive && atWar(state, playerId, p.id));
+  return state.players.some((p) => p.alive && p.kind !== 'barbarian' && atWar(state, playerId, p.id));
 }
 
 /** The unlocked military unit with the best defense (cheaper wins a tie). */
@@ -172,7 +173,7 @@ function bestUnit(state: GameState, city: City, score: (d: (typeof UNITS)[UnitTy
 /** How many cities this AI aims for: the map's land per living civ, in data-set bounds. */
 export function aiCityTarget(state: GameState): number {
   const land = state.map.tiles.filter((t) => TERRAIN[t.terrain].canFoundCity).length;
-  const civs = Math.max(1, state.players.filter((p) => p.alive).length);
+  const civs = Math.max(1, state.players.filter((p) => p.alive && p.kind !== 'barbarian').length);
   return Math.max(AI.minTargetCities, Math.min(AI.maxTargetCities, Math.floor(land / civs / AI.landTilesPerCity)));
 }
 
@@ -418,10 +419,16 @@ export function tryCombat(state: GameState, unit: Unit): boolean {
   return attack(state, unit.id, best.at).ok;
 }
 
-/** Any three of a kind standing together become an army (lowest id first, so it's deterministic). */
+/**
+ * Any three of a kind standing together become an army (lowest id first, so it's
+ * deterministic), but only attack-minded types (attack at least defense). Round 9 found a loop:
+ * three Spearmen guarding a city merged into one army, the city then counted too few defenders
+ * and built more, which merged again (60 Spearmen in one civ by turn 100).
+ */
 function formArmies(state: GameState, playerId: number): void {
   const mine = state.units.filter((u) => u.owner === playerId).sort((a, b) => a.id - b.id);
   for (const u of mine) {
+    if (UNITS[u.type].attack < UNITS[u.type].defense) continue;
     if (findUnit(state, u.id) && !formArmyError(state, u)) formArmy(state, u.id);
   }
 }
@@ -587,6 +594,8 @@ export function runAiTurn(state: GameState, playerId: number): void {
       continue;
     }
     if (tryCombat(state, unit)) continue;
+    // A barbarian village or a hut nearby (Round 9): go and take it.
+    if (!plan && goForLoot(state, unit)) continue;
     if (id === explorer) {
       if (explore(state, unit, false)) continue;
       explorer = undefined;
@@ -619,6 +628,42 @@ export function runAiTurn(state: GameState, playerId: number): void {
   // After moving, so a city founded this turn gets its first build choice right away.
   manageCities(state, playerId);
 }
+
+/**
+ * Round 9: a free unit heads for a known barbarian village or hut close by, on its own
+ * landmass. An empty village or a hut it walks into; a held village it only approaches when
+ * it would win the fight (tryCombat attacks from next door on a later turn).
+ */
+function goForLoot(state: GameState, unit: Unit): boolean {
+  const explored = state.players[unit.owner]!.explored;
+  const land = landmassAt(state.map, unit);
+  let best: { at: Coord; d: number } | undefined;
+  const consider = (at: Coord, held: boolean) => {
+    const d = distance(unit, at);
+    if (d > LOOT_DISTANCE || explored[tileIndex(state.map, at.x, at.y)] !== 1 || landmassAt(state.map, at) !== land) return;
+    if (held) {
+      const odds = combatOdds(state, unit, at);
+      if (!odds || odds.chance * 100 < RULES.combat.aiAttackMinChancePct) return;
+    }
+    if (!best || d < best.d || (d === best.d && (at.y < best.at.y || (at.y === best.at.y && at.x < best.at.x)))) best = { at, d };
+  };
+  for (const v of state.villages) {
+    if (v.takenBy !== null) continue;
+    consider(v, state.units.some((u) => u.x === v.x && u.y === v.y && u.owner !== unit.owner));
+  }
+  for (let i = 0; i < state.map.tiles.length; i++) {
+    if (!state.map.tiles[i]!.hut) continue;
+    const at = coordOf(state, i);
+    if (!state.units.some((u) => u.x === at.x && u.y === at.y && u.owner !== unit.owner)) consider(at, false);
+  }
+  if (!best) return false;
+  const target: Coord = best.at;
+  const held = state.units.some((u) => u.x === target.x && u.y === target.y && u.owner !== unit.owner);
+  if (held) return approach(state, unit, target);
+  return moveUnitToward(state, unit.id, target).ok;
+}
+
+const LOOT_DISTANCE = 6;
 
 /** Researched first when an AI is boxed in on its landmass (Round 8). */
 const SEA_TECHS: TechId[] = ['map_making', 'seafaring', 'navigation'];

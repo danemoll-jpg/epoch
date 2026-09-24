@@ -23,7 +23,13 @@ import { tileIndex } from '../game/grid';
 import { foodSurplus } from '../game/yields';
 import { techCost } from '../game/tech';
 import type { City, GameState } from '../game/types';
-import { addCity, addUnit, makeState } from './build';
+import { addBarbarians, addCity, addUnit, addVillage, makeState } from './build';
+import { BARBARIANS, HUTS, type HutResultKind } from '../data/barbarians';
+import { GREAT_PEOPLE, GREAT_PEOPLE_RULES } from '../data/greatPeople';
+import { RESOURCES, RESOURCE_IDS } from '../data/resources';
+import { addBarbarianUnit } from '../game/barbarians';
+import { updateExplored, visibleTiles } from '../game/fog';
+import { greatPersonThreshold } from '../game/greatPeople';
 
 /** Appears in every dev bundle and must never appear in dist/ (see scripts/check-dist.mjs). */
 export const SCENARIO_MARKER = 'epoch-dev-scenarios';
@@ -660,6 +666,187 @@ function oddsAt(state: GameState, from: { x: number; y: number }, at: { x: numbe
   return Math.round(combatOdds(state, u, at)!.chance * 100);
 }
 
+// ---- Round 9: barbarians, villages, artifacts, resources, huts, Great People ----------------
+// The village sits east of your capital, at (10, 5), next to your unit at (9, 5).
+
+const VILLAGE = { x: 10, y: 5 };
+
+/** Your capital, plus the barbarians (they play last, at war with everyone). */
+function withBarbarians(patch?: string[], city: Partial<City> = {}): { state: GameState; city: City } {
+  const made = withCapital(patch, city);
+  addBarbarians(made.state);
+  made.state.rngState = FAIR_DICE;
+  return made;
+}
+
+/**
+ * Finds the first RNG state for which `check` (run on a fresh copy of the scenario) is true,
+ * and returns the scenario with those dice. For rules decided by a roll during an action
+ * (an artifact), so the note can promise the result.
+ */
+function withDiceFor(build: () => GameState, check: (s: GameState) => boolean): GameState {
+  for (let i = 0; i < 5000; i++) {
+    const dice = (FAIR_DICE + i * 0x9e3779b9) >>> 0;
+    const trial = build();
+    trial.rngState = dice;
+    if (check(trial)) {
+      const state = build();
+      state.rngState = dice;
+      return state;
+    }
+  }
+  throw new Error('no dice found for the scenario');
+}
+
+/** A village with 3 of 4 flags, one turn from its 4th; your fortified Spearman keeps watch next to it. */
+function villageSpawnBase(): GameState {
+  const { state } = withBarbarians();
+  state.turn = BARBARIANS.graceTurns + 2;
+  addUnit(state, 'spearman', 0, 10, 7, { fortified: true });
+  addVillage(state, 9, 7, { flags: BARBARIANS.flagsToSpawn - 1, progress: BARBARIANS.turnsPerFlag - 1 });
+  return state;
+}
+
+function villageSpawnScenario(): GameState {
+  // Dice where the new unit comes out on a tile you can see.
+  return withDice(villageSpawnBase, (s) => {
+    const vis = visibleTiles(s, 0);
+    return s.units.some((u) => u.owner !== 0 && !u.fortified && vis[tileIndex(s.map, u.x, u.y)] === true);
+  });
+}
+
+/** Your Legion at (9, 5) next to a village held by a fortified barbarian Warrior. */
+function takeVillageScenario(): GameState {
+  const { state } = withBarbarians();
+  addUnit(state, 'legion', 0, FRONT.x, FRONT.y);
+  addVillage(state, VILLAGE.x, VILLAGE.y);
+  return state;
+}
+
+/** Your Warrior at (9, 5) next to an empty village (its defender is out). */
+function emptyVillageBase(extra: (s: GameState) => void = () => {}): GameState {
+  const { state } = withBarbarians();
+  addUnit(state, 'warrior', 0, FRONT.x, FRONT.y);
+  addVillage(state, VILLAGE.x, VILLAGE.y, {}, null);
+  extra(state);
+  return state;
+}
+
+/** Walks your Warrior in and makes the choice, on a copy: did an artifact turn up? */
+function artifactWith(s: GameState, choice: 'destroy' | 'settle'): boolean {
+  const w = s.units.find((u) => u.owner === 0)!;
+  applyAction(s, { type: 'move', unitId: w.id, to: VILLAGE });
+  const v = s.villages[0]!;
+  return !!applyAction(s, { type: 'chooseVillage', villageId: v.id, choice }).village?.artifact;
+}
+
+function villageArtifactScenario(): GameState {
+  const base = () => emptyVillageBase((s) => {
+    s.players[0]!.techs = ['alphabet'];
+    s.players[0]!.researching = 'writing';
+  });
+  return withDiceFor(base, (s) => {
+    const copy = JSON.parse(JSON.stringify(s)) as GameState;
+    return artifactWith(s, 'destroy') && artifactWith(copy, 'settle');
+  });
+}
+
+function villageResourceScenario(): GameState {
+  return emptyVillageBase((s) => {
+    setTerrain(s, VILLAGE.x, VILLAGE.y, 'hills');
+    s.map.tiles[tileIndex(s.map, VILLAGE.x, VILLAGE.y)]!.resource = 'iron';
+  });
+}
+
+const RAID_CITY = 'Ur';
+
+/** Ur, size 3 with nobody home, and a barbarian Archer next to it. You have 100 gold. */
+function barbarianRaidScenario(): GameState {
+  const { state } = withBarbarians();
+  addCity(state, 0, 11, 8, { name: RAID_CITY, size: 3, build: { kind: 'unit', id: 'warrior' } });
+  state.players[0]!.citiesFounded = 2;
+  state.players[0]!.gold = 100;
+  // All trade to science, so the treasury holds exactly 100 when the raid comes.
+  state.players[0]!.scienceRate = 100;
+  addBarbarianUnit(state, 'archer', { x: 12, y: 8 });
+  state.units.find((u) => u.type === 'archer')!.movesLeft = UNITS.archer.moves;
+  return state;
+}
+
+/** Five huts in a column east of your capital, each with a Warrior next to it and a set result. */
+const HUT_ROWS: { y: number; result: HutResultKind; says: string }[] = [
+  { y: 3, result: 'gold', says: `${HUTS.goldMin}–${HUTS.goldMax} gold` },
+  { y: 4, result: 'map', says: 'the map around it' },
+  { y: 5, result: 'unit', says: 'a free Warrior or Horseman' },
+  { y: 6, result: 'tech', says: 'Pottery (what you’re researching)' },
+  { y: 7, result: 'barbarians', says: `${HUTS.barbarianCount} barbarians appear` },
+];
+
+function hutScenario(): GameState {
+  const { state } = withCapital(undefined, {});
+  addBarbarians(state);
+  state.rngState = FAIR_DICE;
+  state.turn = HUTS.barbariansFromTurn + 5;
+  // Only the land near Babylon is known, so the map result shows something new.
+  state.players[0]!.explored.fill(0);
+  state.players[0]!.researching = 'pottery';
+  for (const row of HUT_ROWS) {
+    addUnit(state, 'warrior', 0, 8, row.y);
+    const tile = state.map.tiles[tileIndex(state.map, 9, row.y)]!;
+    tile.hut = true;
+    tile.hutResult = row.result;
+  }
+  updateExplored(state, 0);
+  return state;
+}
+
+/** Babylon one culture short of its first Great Person, researching Writing. */
+function greatPersonBase(): GameState {
+  const { state } = withCapital(undefined, { buildings: ['temple'] });
+  state.players[0]!.techs = ['alphabet', 'ceremonial_burial'];
+  state.players[0]!.researching = 'writing';
+  state.players[0]!.culture = greatPersonThreshold(0) - 1;
+  return state;
+}
+
+function greatPersonScenario(): GameState {
+  return withDice(greatPersonBase, (s) => s.greatPeople[0]?.kind === 'scientist');
+}
+
+/** A Great Engineer is waiting; Babylon is building the Pyramids with a long way to go. */
+function engineerWonderScenario(): GameState {
+  const { state, city } = withCapital(undefined, { size: 3, build: { kind: 'wonder', id: 'pyramids' } });
+  state.players[0]!.techs = ['masonry'];
+  city.production = 10;
+  const name = GREAT_PEOPLE.engineer.names[0]!;
+  state.greatPeople.push({ id: state.nextId++, owner: 0, kind: 'engineer', name, turn: 1 });
+  state.greatPeopleNames.push(name);
+  return state;
+}
+
+/** One of each resource along the north of the island (row 3, then row 7), hidden ones revealed; fish and whales at sea. */
+function allResourcesScenario(): GameState {
+  const { state } = withCapital(undefined, {});
+  let land = 0;
+  for (const id of RESOURCE_IDS) {
+    const def = RESOURCES[id];
+    const water = def.terrains.every((t) => t === 'coast' || t === 'ocean');
+    const at = water ? (id === 'fish' ? { x: 5, y: 1 } : { x: 9, y: 0 }) : land < 12 ? { x: 2 + land, y: 3 } : { x: 2 + land - 12, y: 7 };
+    if (!water) land++;
+    const tile = state.map.tiles[tileIndex(state.map, at.x, at.y)]!;
+    tile.terrain = def.terrains[0]!;
+    tile.resource = id;
+    if (def.hidden) tile.revealed = true;
+  }
+  return state;
+}
+
+/** The order the all-resources scenario lays them out in (land ones, then the two at sea). */
+function resourceOrder(): string {
+  const land = RESOURCE_IDS.filter((id) => !RESOURCES[id].terrains.every((t) => t === 'coast' || t === 'ocean'));
+  return land.map((id) => RESOURCES[id].name).join(', ');
+}
+
 export const SCENARIOS: Scenario[] = [
   {
     id: 'grow',
@@ -930,6 +1117,62 @@ export const SCENARIOS: Scenario[] = [
     title: 'All ships',
     note: `One of each ship (${UNIT_IDS.filter((id) => UNITS[id].domain === 'sea').length}) along the north coast in table order: Galley, Caravel, Frigate, Ironclad, Transport, Destroyer, Battleship, Submarine, Carrier. Each shows the icon you picked (the Carrier's trimmed one); pinch-zoom to check they're clear. A Galley on the east coast carries two units (teal “2” badge), and a Mauryan Frigate sits right below it (you are at peace). Tap any ship for its stats.`,
     build: allShipsScenario,
+  },
+
+  // ---- Round 9: barbarians, villages, artifacts, resources, huts, Great People ----
+  {
+    id: 'village-spawn',
+    title: 'Barbarians: a village sends a unit',
+    note: `A barbarian village (the fenced tile) south-east of ${CAPITAL} has ${BARBARIANS.flagsToSpawn - 1} of its ${BARBARIANS.flagsToSpawn} red flags; your Spearman keeps watch next to it. Tap End Turn: it gains its ${BARBARIANS.flagsToSpawn}th flag and sends a unit out (a Warrior or an Archer, dark with a red rim) next to it, and its flags start again at 0. Tap the village tile to see its flag count.`,
+    build: villageSpawnScenario,
+  },
+  {
+    id: 'take-village',
+    title: 'Barbarians: take a village',
+    note: `Your Legion stands next to a barbarian village held by a fortified Warrior (${frontOdds(takeVillageScenario())}% odds: the village adds +${BARBARIANS.villageDefensePct}%). Tap the Legion, then the village, then Attack: the Legion wins and moves in, and a panel asks: Destroy it (a random reward, usually gold) or Settle it (it becomes your new size 1 city). Pick either.`,
+    build: takeVillageScenario,
+  },
+  {
+    id: 'village-artifact',
+    title: 'Barbarians: an ancient artifact',
+    note: `Walk your Warrior east into the empty barbarian village and choose Destroy or Settle: either way your people dig up an ancient artifact (the dice are set so it happens), and a panel names it and the tech it taught you.`,
+    build: villageArtifactScenario,
+  },
+  {
+    id: 'village-resource',
+    title: 'Barbarians: destroying reveals Iron',
+    note: `The empty barbarian village east of your Warrior sits on hills with hidden Iron (nothing shows yet). Walk in and choose Destroy: you get the reward, and the panel says there was Iron under it; an "Fe" badge appears on the tile (+${RESOURCES.iron.bonus.production} production when a city works it). Settling instead keeps it hidden until you learn ${TECHS[RESOURCES.iron.revealedBy!].name}.`,
+    build: villageResourceScenario,
+  },
+  {
+    id: 'barbarian-raid',
+    title: 'Barbarians: a raid, not a capture',
+    note: `${RAID_CITY} (south-east) is size 3 with no defender, and you have 100 gold. A barbarian Archer stands next to it. Tap End Turn: the barbarians raid ${RAID_CITY}: they take ${Math.round((100 * BARBARIANS.raidGoldPct) / 100)} gold and 1 population (${RAID_CITY} goes to size 2), but ${RAID_CITY} stays yours.`,
+    build: barbarianRaidScenario,
+  },
+  {
+    id: 'hut',
+    title: 'Huts: every result',
+    note: `Five huts (tan domes with "?") in a column east of ${CAPITAL}, each with your Warrior to its west. Walk each Warrior east onto its hut. Top to bottom: ${HUT_ROWS.map((r) => r.says).join('; ')}. (Normally a hut's result is random, and barbarians only come from turn ${HUTS.barbariansFromTurn}.)`,
+    build: hutScenario,
+  },
+  {
+    id: 'great-person',
+    title: 'Great People: one arrives',
+    note: `${CAPITAL} is 1 culture short of your first Great Person. Tap End Turn: a Great Scientist, ${GREAT_PEOPLE.scientist.names[0]}, arrives and a panel asks what to do. "Settle in a city…" → ${CAPITAL}: +${GREAT_PEOPLE_RULES.scientistSciencePct}% science there for good (the city panel lists them). Or "Use now": you learn Writing at once. "Decide later" brings the panel back next turn.`,
+    build: greatPersonScenario,
+  },
+  {
+    id: 'engineer-wonder',
+    title: 'Great People: an Engineer finishes a wonder',
+    note: `A Great Engineer, ${GREAT_PEOPLE.engineer.names[0]}, is waiting (the panel shows). ${CAPITAL} is building the ${WONDERS.pyramids.name} (10/${WONDERS.pyramids.cost}). Tap Use now, then ${CAPITAL}: ${WONDERS.pyramids.name}. Tap End Turn: ${CAPITAL} completes the ${WONDERS.pyramids.name}.`,
+    build: engineerWonderScenario,
+  },
+  {
+    id: 'all-resources',
+    title: 'All resources',
+    note: `One of each of the ${RESOURCE_IDS.length} resources, for the icon check (hidden ones shown as if revealed). Along the north of the island, then continuing on the row below ${CAPITAL}: ${resourceOrder()}. Fish is on the north coast, Whales out at sea. Tap one to see its bonus.`,
+    build: allResourcesScenario,
   },
 ];
 

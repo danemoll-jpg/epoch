@@ -411,7 +411,8 @@ describe('save migration v6 → v7', () => {
     expect(res.migratedFrom).toBe(6);
     expect(res.state.version).toBe(STATE_VERSION);
     expect(res.state.units.every((u) => u.carriedBy === null)).toBe(true);
-    expect(res.state.aiFerries).toEqual([null, null]);
+    // Round 9 adds the barbarians as a third player.
+    expect(res.state.aiFerries).toEqual([null, null, null]);
     expect(res.state.players[0]!.techs).not.toContain('map_making');
     expect(applyAction(res.state, { type: 'endTurn' }).ok).toBe(true);
   });

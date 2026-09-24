@@ -52,7 +52,7 @@ describe('seeded map generation', () => {
     for (const seed of SEEDS) {
       const state = createGame({ seed, playerCount: 5 });
       const regions = landRegionSizes(state.map);
-      const starts = state.players.map((p) => state.units.find((u) => u.owner === p.id)!);
+      const starts = state.players.filter((p) => p.kind !== 'barbarian').map((p) => state.units.find((u) => u.owner === p.id)!);
       for (const s of starts) {
         const t = state.map.tiles[tileIndex(state.map, s.x, s.y)]!.terrain;
         expect(['grassland', 'plains', 'hills']).toContain(t);

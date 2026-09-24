@@ -116,7 +116,7 @@ npm run dev      # start local dev server
 npm test         # run unit tests (Vitest, tests/**/*.test.ts)
 npm run build    # type-check + production build into dist/
 npm run lint     # type-check only (tsc --noEmit); no ESLint yet
-npm run sim      # pace/war/victory/naval report on 5 all-AI seeds + landmass stats (not part of npm test)
+npm run sim      # pace/war/victory/naval/barbarian/Great People report on 5 all-AI seeds + landmass stats (not part of npm test)
 ```
 **iPad over the local network:**
 ```
@@ -156,7 +156,7 @@ debugging, including from Safari's Web Inspector on the iPad.
 completes inside Safari's `pagehide`). Saved after every successful action
 (including End Turn), on `visibilitychange` → hidden, and on `pagehide`.
 The save carries `saveVersion` (= `STATE_VERSION` in `src/game/types.ts`,
-currently 7). **Bump `STATE_VERSION` whenever the state shape changes, and
+currently 8). **Bump `STATE_VERSION` whenever the state shape changes, and
 add a migration** to `MIGRATIONS` in `src/game/save.ts` (keyed by the
 version it upgrades from), plus a line in `MIGRATION_NOTES` for the notice,
 so Dan's game carries forward. Migrated so far: 2 → 3 (M3: no techs,
@@ -165,8 +165,12 @@ science kept as banked, tech-locked builds go back to "choose"), 3 → 4
 capital), 4 → 5 (M5: pairs who can see each other now count as met,
 wars carry over as they are, no treaties/opinions/offers/plans yet),
 5 → 6 (M6: culture 0, no wonders, no spaceship, nobody has won, no
-warnings given), and 6 → 7 (Round 8: no unit aboard a ship, no AI sea
-plans; the four sea techs are simply unknown).
+warnings given), 6 → 7 (Round 8: no unit aboard a ship, no AI sea
+plans; the four sea techs are simply unknown), and 7 → 8 (Round 9:
+resources from the seed for the whole map, the barbarians added as the
+last player with every table grown by one, villages and huts only on tiles
+no civ has explored, and Great People counting only culture made from now
+on via `greatPeopleCultureBase`).
 
 **Backups: a save is never thrown away.** All startup and replace logic
 is in `src/ui/storage.ts` (`loadOrStart`, `backupCurrentSave`,
@@ -194,8 +198,16 @@ never autosaves**, so the real game can't be overwritten. Current set:
 `win-domination`, `win-culture`, `win-economic`, `win-space`, `lose-space`,
 `stop-launch`, `near-win-warning`; (round 8) `board-unload`, `galley-coast`,
 `naval-battle`, `bombard`, `ship-sunk-cargo`, `amphibious-capture`,
-`harbor`, `ai-overseas`, `all-ships`, `fleet`. The naval ones use `seaState()` (your
-island plus an eastern landmass across a coast channel or open ocean).
+`harbor`, `ai-overseas`, `all-ships`, `fleet`; (round 9) `village-spawn`,
+`take-village`, `village-artifact`, `village-resource`, `barbarian-raid`,
+`hut`, `great-person`, `engineer-wonder`, `all-resources`. The naval ones use `seaState()` (your
+island plus an eastern landmass across a coast channel or open ocean). The
+round 9 ones use `withBarbarians()` (your capital plus the barbarian
+player); `makeState(..., { barbarians: true })` or `addBarbarians(state)`
+adds them in tests, and `addVillage` places a village with its defender. A
+roll made during an action (an artifact) uses `withDiceFor(build, check)`.
+A hut can carry a set result (`Tile.hutResult`), used only by the `hut`
+scenario.
 The combat ones start from `FAIR_DICE` (first roll about 0.48), because
 `makeState`'s default RNG state rolls 0.98 first and would make every
 first attack lose. A rule that happens on a dice roll at End Turn (a
@@ -247,7 +259,16 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   overseas site score, plan timeouts, escort and invasion waits, warships
   kept)). A tech's
   unlocks are the `requires` fields on units/buildings/wonders, so adding a
-  unit never touches `techs.ts`.
+  unit never touches `techs.ts`. Round 9: `barbarians.ts` (the barbarian
+  "civ" `BARBARIAN_CIV`, `BARBARIANS`: village count and spacing, defense
+  bonus, flag timer, grace turns, stop era, units out, spawn units by era,
+  home radius, attack odds, seek chance, raids; `VILLAGE_REWARDS`;
+  `ARTIFACTS`: chance, tech counts, names; `HUTS`: count, results,
+  amounts), `resources.ts` (the 15 resources: terrains, bonus, `hidden`,
+  `revealedBy` tech; `RESOURCE_RULES`: chance, spacing, fair starts), and
+  `greatPeople.ts` (the 5 kinds, texts, names; `GREAT_PEOPLE_RULES`:
+  thresholds and every effect's number). `TECH_COST.perKnown` is 8.5 since
+  round 9 (was 6) to keep the era pace.
 - `src/game/`: pure rules. `types.ts` (state + `STATE_VERSION`), `rng.ts`,
   `grid.ts`, `mapgen.ts` (continents; `landRegionIds`/`landmassAt`: which
   landmass a tile is on), `newGame.ts`, `movement.ts` (land and sea moves,
@@ -265,6 +286,13 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   `victory.ts` (the four victories, one function each; `checkVictory`,
   called after every action and every player's turn; spaceship
   launch/loss; Keep playing; progress and near-win warnings),
+  `barbarians.ts` (Round 9: `barbarianId`/`civPlayers`, the world's era,
+  village flags and spawning, raids, and `runBarbarianTurn`), `villages.ts`
+  (placing villages and huts, `enterTile` when a civ unit steps on one,
+  `chooseVillage` destroy/settle, rewards, `freeTech`, artifacts, hut
+  results, the AI's village choice), `resources.ts` (seeded placement, fair
+  starts, `visibleResource`, reveal), `greatPeople.ts` (thresholds,
+  `checkGreatPeople`, `useGreatPerson` settle/use, the AI's use),
   `aiGoals.ts` (which victory each AI leans toward), `aiNaval.ts` (the AI at
   sea: boxed-in exploring, sea plans in `state.aiFerries` to settle
   overseas or invade, warships in port), `tech.ts`
@@ -278,15 +306,20 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   declare war, peace and `peaceDesire`, opinions/attitude, tech trades and
   prices, gifts, AI offers to the human and `answerOffer`, and
   `runAiDiplomacy`: the AI's war, peace, demand, and trade choices),
-  `fog.ts`, `log.ts` (event log; `eventsVisibleTo`: your own and your
+  `fog.ts` (the barbarians see the whole map), `log.ts` (event log; `eventsVisibleTo`: your own and your
   `other` entries, civ-level news with `publicText` if you've met a civ
   involved, map-level news only in sight; `entryText` gives each viewer
-  their wording), `turn.ts`, `ai.ts` (build choice with the city target
-  and caps, guards, explorer, war plans in `state.aiPlans`), `save.ts`
+  their wording), `turn.ts` (`playComputerTurn`: the barbarians or a civ
+  AI; Great People are checked after each player's cities), `ai.ts` (build
+  choice with the city target and caps, guards, explorer, war plans in
+  `state.aiPlans`, going for nearby villages and huts; it forms armies only
+  from attack-minded units), `save.ts`
   (serialize/deserialize with version check and migrations), and
   `actions.ts` (the single `applyAction` entry point the UI uses).
 - `src/render/`: `camera.ts`, `renderer.ts` (Canvas 2D; read-only on
-  state), and `icons.ts` (the bundled unit SVGs: bitmaps cached per icon,
+  state; Round 9 placeholders until Dan's map icon picks: village fence
+  with flags drawn over its unit, hut dome with "?", resource letter badge,
+  barbarian discs with a red rim), and `icons.ts` (the bundled unit SVGs: bitmaps cached per icon,
   color, and size for the map; inline SVG for the panels). A unit's look on
   the map is drawn only in `drawGlyph` (its icon, white on the owner's
   color; letters while it loads or if it's missing).
@@ -315,6 +348,11 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   icon candidates (game-icons.net, CC BY 3.0; `SOURCES.md` has each
   author), with the picker Dan used. The game uses its own copies of the
   15 picks in `src/assets/icons/`.
+- `docs/map-icon-candidates.html` + `docs/map-icon-candidates/`: round 9's
+  candidates for the village, hut, barbarian badge, 15 resources, 5 Great
+  People, and the artifact (72 icons, same picker; picks saved under
+  `epoch.mapIconPicks`; `SOURCES.md` has each author). Waiting for Dan's
+  picks; the next round wires them in.
 - `docs/ship-air-icon-candidates.html` + `docs/ship-air-icon-candidates/`:
   round 8's candidates for the 9 ships and 5 aircraft (35 icons, same
   picker; `SOURCES.md` has each author). Dan's picks are recorded under
@@ -322,8 +360,12 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   removed so it doesn't look like the Battleship; compare in
   `docs/carrier-trim-candidates.html`).
 - The version shown on the About screen comes from `package.json`
-  (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.8.0 for
-  round 8.
+  (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.9.0 for
+  round 9.
+- The barbarians, when present, are always the **last** player (kind
+  `'barbarian'`). Loops over civs should skip them (`civPlayers`, or
+  `p.kind !== 'barbarian'`): they're always at war with everyone but never
+  met, never a rival, never eliminated.
 - A player's `id` always equals its index in `state.players`.
 
 ## Hub integration (how Dan's games are deployed)
@@ -372,20 +414,18 @@ what was pushed.
 - **Milestones 1–6 and round 8 (naval)** are done and approved: the land
   and sea units with icons, fleets, wonders, culture, the four victories,
   and diplomacy.
+- **Round 9 (Milestone 7) is done by the coding agent (2026-09-24)** and
+  waiting for Dan's checks: barbarians and villages (Dan's spec: 4 flags
+  spawn a unit; take one to destroy it for a reward or settle it as a
+  size-1 city), ancient artifacts, map resources, exploration huts, Great
+  People, and the map icon picker page
+  (http://10.0.0.224:4173/docs/map-icon-candidates.html). Per-item report
+  under Round 9 in TODO.md.
 - **The play server:** http://10.0.0.224:4173/.
 - The epoch repo is pushed every round until Netlify is set up.
 
-**The current objective is Round 9 (Milestone 7):**
-- barbarian villages, built to Dan's spec: 4 flags spawn a unit, and
-  taking one means choosing to destroy it for a reward (plus a revealed
-  resource) or settle it as a size-1 city;
-- a random ancient-artifact chance on either choice, for free techs;
-- map resources (bonus yields; some hidden);
-- exploration huts;
-- Great People;
-- a picker page for the new map icons.
-
-See items 0, A1, and B1–B11 in TODO.md. Round 10 (air) is queued.
+**Next:** the planning session picks the next round from TODO.md (Dan's
+map icon picks to wire in; Round 10, air, is queued).
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.
