@@ -4,8 +4,14 @@
     {
       "name": "epoch-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "--port", "5174", "--strictPort"],
+      "runtimeArgs": ["run", "dev", "--", "--host", "--port", "5174", "--strictPort"],
       "port": 5174
+    },
+    {
+      "name": "epoch-verify",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5175", "--strictPort"],
+      "port": 5175
     }
   ]
 }
