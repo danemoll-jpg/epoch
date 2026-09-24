@@ -458,6 +458,33 @@ Steps, Technical Notes.
     | C0 | Mixed stacks | Done. **Map:** when a tile holds more than one unit type (yours, or a rival's in sight), a **second, smaller disc of another type peeks out behind** the top one (upper left; straight up in a city), with its own letters, next to the count badge. The one behind is the strongest other defender. **Unit panel:** when the selected unit shares its tile, it shows "**Mixed** 4 units here: 1 Warrior, 3 Legions", a button for **every unit** (type, army ×3, ★, 🛡, moves; the selected one is outlined; tap to select), and a **Form <Type> army** button for **every type with 3 on the tile**, not just the selected unit's type (the old single Form Army button is gone). The city panel uses the same rule. **Tapping a rival stack** says what's in it: "Mauryan mixed stack: 1 Spearman, 1 Archer". It works with icons later: the unit's look is drawn only in `drawGlyph`. New scenario **`mixed-stack`** (Dan's case: a Warrior on top of 3 Legions, and a rival Spearman + Archer). Pure helpers in `src/game/stack.ts` | unit-tested (`tests/stack.test.ts`, `mixed-stack` outcome); preview-verified on desktop and in 1024×768 / 768×1024 emulation: both discs drawn, the list selects units, Form Legion army worked with the Warrior selected, the rival tap listed both units |
     | C1 | Plural civ names | Done. **Style: the civ's proper form**, not the leader, because era, capture, and elimination news reads oddly with a person's name. "**The Franks declared war on you!**", "The Inca have been eliminated", "You refused the Franks' demand", "Charlemagne of the Franks demands…", and "You have met the Franks, led by Charlemagne". Singular names stay as they were ("Babylon declared war on you!"). Data: `article: 'the'` and `plural: true` on Franks and Inca in `civs.ts`. Helpers in `conquest.ts`: `civName` (mid-sentence), `CivName` (starts a sentence), `civPossessive`, `civVerb` (has/have, is/are). Every message and dialog line that names a civ uses them. Labels and lists keep the bare name ("Franks") | unit-tested (3 new tests: war news for all three viewers, offer text and the possessive, a plural elimination) |
 
+  - **Dan's icon picks (2026-09-24), from the page's picker.** Files are
+    `docs/icon-candidates/<unit>-<letter>.svg`; authors are in `SOURCES.md`:
+
+    | Unit | Pick | Icon (author) |
+    |---|---|---|
+    | Settler | A | Old Wagon (Delapouite) |
+    | Warrior | B | Caveman (Delapouite) |
+    | Archer | A | Bowman (Lorc) |
+    | Spearman | A | Spartan (Lorc) |
+    | Horseman | B | Horse Head (Delapouite) |
+    | Chariot | A | Chariot (Cathelineau) |
+    | Legion | A | Centurion Helmet (Delapouite) |
+    | Catapult | A | Catapult (HeavenlyDog) |
+    | Pikeman | A | Pikeman (Delapouite) |
+    | Knight | A | Mounted Knight (Skoll) |
+    | Musketman | B | Blunderbuss (Lorc) |
+    | Cannon | A | Cannon (Lorc) |
+    | Rifleman | B | Lee Enfield (Skoll) |
+    | Artillery | B | Mortar (Delapouite) |
+    | Tank | B | Tank (Lorc) |
+
+    Checked side by side at both map sizes (31 px and 22 px): every file
+    exists, and no two picks look alike. Archer and Pikeman are the closest
+    (both standing figures), but the bow and the pike tell them apart.
+    **Not wired in yet**, per A3: the next round implements this set, plus
+    the About / Credits screen and `CREDITS.md`.
+
   - **B1 numbers** (all-AI simulation, 5 civs, seeds 8/13/21/33/42):
 
     | | Before (round 5 data) | After | Target |
