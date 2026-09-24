@@ -891,6 +891,48 @@ Steps, Technical Notes.
     - (c) In a real game on `play:lan`: take a barbarian village and make the
       choice. Your current game is upgraded: villages and huts appear only in
       places you haven't explored yet.
+  - **Dan's map icon picks (2026-09-24), from the picker page (check (a)
+    done).** Files are `docs/map-icon-candidates/<subject>-<letter>.svg`;
+    authors are in that folder's `SOURCES.md`. **Not wired in yet:** the game
+    still draws the placeholders. Wiring them in means copying the 24 files
+    into `src/assets/icons/`, drawing them on the map and in the panels, and
+    crediting each one in `src/data/icons.ts`, `CREDITS.md`, and About /
+    Credits (new authors: Willdabeast, Guard13007, Lord Berandas).
+
+    | Subject | Pick | Icon (author) |
+    |---|---|---|
+    | Village | A | goblin-camp (Delapouite) |
+    | Hut | A | hut (Delapouite) |
+    | Barbarian badge | A | skull-crossed-bones (Lorc) |
+    | Wheat | A | wheat (Lorc) |
+    | Cattle | A | cow (Delapouite) |
+    | Game | B | stag-head (Lorc) |
+    | Fish | B | circling-fish (Delapouite) |
+    | Whales | A | sperm-whale (Delapouite) |
+    | Oasis | A | oasis (Delapouite) |
+    | Spices | B | chili-pepper (Delapouite) |
+    | Silk | C | kimono (Delapouite) |
+    | Wine | B | wine-bottle (Delapouite) |
+    | Gold | B | gold-bar (Willdabeast) |
+    | Gems | A | cut-diamond (Lorc) |
+    | Iron | A | anvil (Lorc) |
+    | Aluminum | A | soda-can (Guard13007) |
+    | Rubber | A | car-wheel (Delapouite) |
+    | Oil | B | oil-drum (Skoll) |
+    | Great Scientist | C | microscope (Lord Berandas) |
+    | Great Artist | A | palette (Delapouite) |
+    | Great Merchant | A | two-coins (Delapouite) |
+    | Great Engineer | A | gears (Lorc) |
+    | Great General | A | laurel-crown (Lorc) |
+    | Artifact | A | amphora (Delapouite) |
+
+    **Watch-outs from the picker page that apply to these picks:**
+    - Rubber A (tire) and Great Engineer A (gears) are both ring shapes. They
+      rarely appear side by side (a resource on a tile, a Great Person in a
+      panel), so this is probably fine.
+    - Wine B (bottle and glass) was flagged as muddy at small size.
+    - Great Merchant A (coins) means much the same as Gold, but Gold is the
+      bar (B), so they look different.
   - **Decisions worth reviewing:**
     - **Barbarians are a player** (always last, kind `'barbarian'`), not
       units with no owner, so combat, movement, and fog work for them
