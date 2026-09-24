@@ -116,6 +116,7 @@ npm run dev      # start local dev server
 npm test         # run unit tests (Vitest, tests/**/*.test.ts)
 npm run build    # type-check + production build into dist/
 npm run lint     # type-check only (tsc --noEmit); no ESLint yet
+npm run sim      # research-pace/war report: all-AI games on 5 seeds (not part of npm test)
 ```
 **iPad over the local network:**
 ```
@@ -181,7 +182,8 @@ one from the ☰ menu (the "Dev scenarios" list) instead of typing URLs;
 never autosaves**, so the real game can't be overwritten. Current set:
 `grow`, `starve`, `settler`, `rich`, `tech`, `era`; (M4) `combat`,
 `fortified`, `walls`, `army`, `army-in-city`, `capture`, `victory`,
-`defeat`; (M5) `first-contact`, `peace`, `demand`, `tech-trade`, `ai-war`.
+`defeat`; (M5) `first-contact`, `peace`, `demand`, `tech-trade`, `ai-war`;
+(round 6) `mixed-stack`.
 The combat ones start from `FAIR_DICE` (first roll about 0.48), because
 `makeState`'s default RNG state rolls 0.98 first and would make every
 first attack lose. A rule that happens on a dice roll at End Turn (a
@@ -212,8 +214,9 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   tech; Walls' `defenseBonusPct`; AI building order), `techs.ts` (eras,
   the 50 techs with prereqs/era/tier/description, the tech cost formula,
   AI research priority), `wonders.ts` (empty shape for M7), `civs.ts`
-  (civs, leaders, colors, city names, and each leader's `aggression` and
-  `tradeWillingness`, 1–5), rule constants (`rules.ts`: growth, focus
+  (civs, leaders, colors, city names, each leader's `aggression` and
+  `tradeWillingness`, 1–5, and message grammar: `article: 'the'` and
+  `plural` for names like "the Franks"), rule constants (`rules.ts`: growth, focus
   weights, rush-buy formula, science rate, `RULES.combat` (fortify/veteran/
   city bonuses, army size and multiplier, veteran chance, AI attack
   threshold), `RULES.diplomacy` (treaty length, grace period, opinion
@@ -222,7 +225,9 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   force, gold reserve)). A tech's unlocks are the `requires` fields on
   units/buildings/wonders, so adding a unit never touches `techs.ts`.
 - `src/game/`: pure rules. `types.ts` (state + `STATE_VERSION`), `rng.ts`,
-  `grid.ts`, `mapgen.ts`, `newGame.ts`, `movement.ts`, `city.ts`
+  `grid.ts`, `mapgen.ts`, `newGame.ts`, `movement.ts`, `stack.ts` (what's
+  on a tile: mixed stacks, the unit peeking out behind, army candidates of
+  any type), `city.ts`
   (founding), `yields.ts` (tile yields, automatic worked tiles, trade
   split), `production.ts` (build/focus/rate/rush-buy actions, the
   tech-gated build list, and the end-of-turn city update), `tech.ts`
@@ -230,7 +235,8 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   choice, `learnTech`), `combat.ts` (odds with named modifiers,
   `winChance` = the one formula, attack (a win over a city's last defender
   captures it), fortify, armies), `conquest.ts` (city capture,
-  elimination), `war.ts` (the `atWar` table), `diplomacy.ts` (contact,
+  elimination, and the civ-name helpers every message uses: `civName`
+  mid-sentence, `CivName` to start one, `civPossessive`, `civVerb`), `war.ts` (the `atWar` table), `diplomacy.ts` (contact,
   declare war, peace and `peaceDesire`, opinions/attitude, tech trades and
   prices, gifts, AI offers to the human and `answerOffer`, and
   `runAiDiplomacy`: the AI's war, peace, demand, and trade choices),
@@ -242,10 +248,13 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   (serialize/deserialize with version check and migrations), and
   `actions.ts` (the single `applyAction` entry point the UI uses).
 - `src/render/`: `camera.ts` and `renderer.ts` (Canvas 2D; read-only on
-  state).
+  state). A unit's look is drawn only in `drawGlyph` (letters now, icons
+  next), so the icon swap touches just that.
 - `src/dev/`: dev/test only, never in the production build. `build.ts`
-  (hand-made state builder shared by tests and scenarios) and
-  `scenarios.ts`.
+  (hand-made state builder shared by tests and scenarios), `scenarios.ts`,
+  and `sim.ts` (all-AI simulation: era turns, techs over time, wars; used
+  by `tests/pace.test.ts` and `scripts/pace-report.sim.ts` / `npm run sim`,
+  whose config is `vitest.sim.config.ts`).
 - `src/ui/`: `app.ts` (view state, HUD, city panel, tech screen,
   diplomacy screen, notice panels for first contact / war / AI offers,
   menu, dev scenario banner, dispatch),
@@ -255,6 +264,9 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
 - `tests/`: Vitest suites. `helpers.ts` re-exports `src/dev/build.ts`.
 - `scripts/check-dist.mjs`: post-build check that no dev code shipped
   (takes the folder as an argument; `build:play` checks `dist-play/`).
+- `docs/icon-candidates.html` + `docs/icon-candidates/`: round 6's unit
+  icon candidates (game-icons.net, CC BY 3.0; `SOURCES.md` has each
+  author) for Dan to pick from. Not used by the game yet.
 - A player's `id` always equals its index in `state.players`.
 
 ## Hub integration (how Dan's games are deployed)
@@ -308,14 +320,14 @@ what was pushed.
 - Going live in the hub is deferred by Dan. Until then, the epoch repo is
   pushed to GitHub every round.
 
-**The current objective is Round 6:**
-- **Part A:** icon *candidates* from game-icons.net on a preview page for
-  Dan to pick from. Nothing is wired in yet.
-- **Part B:** a first research-pace speed-up, to era targets.
-- **Part C:** a mixed-stack indicator (Dan's feedback), and a
-  message-grammar fix.
-
-See items 0, A1–A3, B1–B4, and C0–C1 in TODO.md.
+**Round 6 is done by the coding agent (2026-09-24)**; the report is in
+TODO.md under Completed Tasks. Waiting on Dan:
+- **Part A:** he picks icons from `docs/icon-candidates.html` (e.g.
+  "Legion: B"). Nothing is wired in yet.
+- **Part B:** research is faster, on the era targets in the all-AI sim.
+- **Part C:** mixed stacks now show a second disc and a full list in the
+  unit panel (`mixed-stack` scenario), and plural civ names read
+  properly ("The Franks declared war on you!").
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.

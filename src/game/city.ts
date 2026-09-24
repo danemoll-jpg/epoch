@@ -3,6 +3,7 @@
 // with nothing chosen to build.
 
 import { CIVS } from '../data/civs';
+import { CivName } from './conquest';
 import { RULES } from '../data/rules';
 import { TERRAIN } from '../data/terrain';
 import { UNITS } from '../data/units';
@@ -66,7 +67,6 @@ export function foundCity(state: GameState, unitId: number): ActionResult & { ci
   refreshWorkedTiles(state);
   updateExplored(state, unit.owner);
   updateContacts(state);
-  const civName = CIVS.find((c) => c.id === player.civId)?.name ?? 'A civ';
-  addLog(state, unit.owner, `${civName} founded ${city.name}`, city);
+  addLog(state, unit.owner, `${CivName(state, unit.owner)} founded ${city.name}`, city);
   return { ok: true, city };
 }

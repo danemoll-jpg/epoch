@@ -16,7 +16,7 @@ import { BUILDINGS } from '../data/buildings';
 import { RULES } from '../data/rules';
 import { TERRAIN } from '../data/terrain';
 import { UNITS } from '../data/units';
-import { captureCity, checkEliminations, civAdjective, civName } from './conquest';
+import { captureCity, checkEliminations, civAdjective, CivName, civName } from './conquest';
 import { recordLoss } from './diplomacy';
 import { distance, tileAt } from './grid';
 import { addLog } from './log';
@@ -243,6 +243,6 @@ export function formArmy(state: GameState, unitId: number): ActionResult {
   unit.fortified = false;
   const gone = new Set(partners.map((u) => u.id));
   state.units = state.units.filter((u) => !gone.has(u.id));
-  addLog(state, unit.owner, `${civName(state, unit.owner)} formed an army of ${RULES.combat.armySize} ${UNITS[unit.type].name} units`, unit);
+  addLog(state, unit.owner, `${CivName(state, unit.owner)} formed an army of ${RULES.combat.armySize} ${UNITS[unit.type].name} units`, unit);
   return { ok: true };
 }

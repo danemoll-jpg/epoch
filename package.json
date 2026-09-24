@@ -13,7 +13,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "sim": "vitest run --config vitest.sim.config.ts"
   },
   "devDependencies": {
     "typescript": "^7.0.2",

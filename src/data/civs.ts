@@ -4,7 +4,15 @@
 
 export interface CivDef {
   id: string;
+  /** Bare name, for labels and lists ("Franks"). */
   name: string;
+  /**
+   * Grammar for messages. `article: 'the'` for names that read as a people ("the Franks
+   * declared war on you!"); `plural` picks "have"/"were" and the possessive "the Franks'".
+   * Messages use civ names (with these) rather than leader names; offers name the leader.
+   */
+  article?: 'the';
+  plural?: boolean;
   adjective: string;
   leader: string;
   /** Placeholder owner color until the art pass. */
@@ -33,11 +41,11 @@ export const CIVS: CivDef[] = [
     cityNames: ['Niani', 'Timbuktu', 'Djenné', 'Gao', 'Walata', 'Kangaba', 'Koumbi Saleh', 'Tadmekka', 'Kaba', 'Mema'],
   },
   {
-    id: 'inca', name: 'Inca', adjective: 'Incan', leader: 'Pachacuti', color: '#40b070', aggression: 4, tradeWillingness: 2,
+    id: 'inca', name: 'Inca', article: 'the', plural: true, adjective: 'Incan', leader: 'Pachacuti', color: '#40b070', aggression: 4, tradeWillingness: 2,
     cityNames: ['Cusco', 'Machu Picchu', 'Quito', 'Ollantaytambo', 'Vilcabamba', 'Tumebamba', 'Cajamarca', 'Huánuco Pampa', 'Pisac', 'Tambo Colorado'],
   },
   {
-    id: 'franks', name: 'Franks', adjective: 'Frankish', leader: 'Charlemagne', color: '#a060d0', aggression: 5, tradeWillingness: 2,
+    id: 'franks', name: 'Franks', article: 'the', plural: true, adjective: 'Frankish', leader: 'Charlemagne', color: '#a060d0', aggression: 5, tradeWillingness: 2,
     cityNames: ['Aachen', 'Paris', 'Reims', 'Tours', 'Orléans', 'Metz', 'Soissons', 'Lyon', 'Rouen', 'Worms'],
   },
 ];

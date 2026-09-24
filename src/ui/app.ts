@@ -9,8 +9,8 @@ import { TERRAIN } from '../data/terrain';
 import { UNITS } from '../data/units';
 import { applyAction, type Action } from '../game/actions';
 import { foundCityError } from '../game/city';
-import { attackError, combatOdds, formArmyError, fortifyError, type Strength } from '../game/combat';
-import { civAdjective, civName } from '../game/conquest';
+import { attackError, combatOdds, fortifyError, type Strength } from '../game/combat';
+import { CivName, civAdjective, civName, civVerb } from '../game/conquest';
 import {
   attitude,
   civDef,
@@ -71,6 +71,7 @@ import { playerColor, render, type ViewState } from '../render/renderer';
 import { attachMapInput } from './input';
 import { backupCurrentSave, listBackups, restoreBackup, saveToStorage } from './storage';
 import { resolveTap } from './tap';
+import { armyCandidates, isMixedStack, stackLabel, unitsOnTile } from '../game/stack';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -150,7 +151,13 @@ export class App {
     $('nextBtn').addEventListener('click', () => this.selectNext(true));
     $('deselectBtn').addEventListener('click', () => this.select(undefined));
     $('fortifyBtn').addEventListener('click', () => this.fortifySelected());
-    $('armyBtn').addEventListener('click', () => this.formArmySelected());
+    $('stackList').addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-unit]');
+      if (!btn) return;
+      const id = Number(btn.dataset.unit);
+      if (btn.dataset.act === 'army') this.formArmyOf(id);
+      else this.select(id);
+    });
     $('attackGoBtn').addEventListener('click', () => this.confirmAttack());
     $('attackCancelBtn').addEventListener('click', () => this.closeAttack());
     $('attackOverlay').addEventListener('click', (e) => {
@@ -279,8 +286,9 @@ export class App {
     }
   }
 
-  private formArmySelected(): void {
-    const u = this.selected();
+  /** Forms an army around this unit (any type on the selected unit's tile), and selects it. */
+  private formArmyOf(unitId: number): void {
+    const u = findUnit(this.state, unitId);
     if (!u) return;
     if (this.dispatch({ type: 'formArmy', unitId: u.id })) {
       this.toast(`${UNITS[u.type].name} army formed: ×${RULES.combat.armyMultiplier} attack and defense`);
@@ -422,8 +430,12 @@ export class App {
           const defense = def.defensePct ? ` · defense +${def.defensePct}%` : '';
           this.toast(`${cityText}${def.name} — food ${y.food}, production ${y.production}, trade ${y.trade}${defense}`);
           // Enemy units in sight: say what they are.
-          const enemy = this.state.units.find((u) => u.x === tx && u.y === ty && u.owner !== this.human);
-          if (enemy && this.visibleToMe(tx, ty)) this.toast(`${this.unitLabel(enemy)} · ${unitSummary(enemy.type)}`);
+          const enemies = unitsOnTile(this.state, tx, ty).filter((u) => u.owner !== this.human);
+          if (enemies.length === 1 && this.visibleToMe(tx, ty)) this.toast(`${this.unitLabel(enemies[0]!)} · ${unitSummary(enemies[0]!.type)}`);
+          // A stack: say everything in it, so a mixed stack is never mistaken for one type.
+          if (enemies.length > 1 && this.visibleToMe(tx, ty)) {
+            this.toast(`${civAdjective(this.state, enemies[0]!.owner)} ${isMixedStack(enemies) ? 'mixed stack' : 'stack'}: ${stackLabel(enemies)}`);
+          }
         }
         this.closeCity();
         this.select(undefined);
@@ -587,9 +599,7 @@ export class App {
 
     const units = this.state.units.filter((u) => u.owner === this.human && u.x === city.x && u.y === city.y);
     // Three of a kind here: offer Form Army right in the list (round 5: it was hard to find).
-    const armyTypes = new Set<string>();
-    const armyBtns = units
-      .filter((u) => !armyTypes.has(u.type) && !formArmyError(this.state, u) && armyTypes.add(u.type))
+    const armyBtns = armyCandidates(this.state, units)
       .map(
         (u) => `<button type="button" data-act="army" data-unit="${u.id}" class="armyBtn">Form ${UNITS[u.type].name} army
           <span class="sub">(${RULES.combat.armySize} → 1, ×${RULES.combat.armyMultiplier})</span></button>`,
@@ -985,7 +995,7 @@ export class App {
     const def = civDef(this.state, civ);
     this.queueNotice({
       title: 'First contact',
-      text: `You have met ${def.name}, led by ${def.leader}.`,
+      text: `You have met ${civName(this.state, civ)}, led by ${def.leader}.`,
       sub: 'You are at peace. Open Diplomacy to see them, trade techs, or declare war.',
       buttons: [
         { label: 'Diplomacy', run: () => this.openDiplo(civ) },
@@ -1155,6 +1165,8 @@ export class App {
     const me = this.state.players[this.human]!;
     const def = civDef(this.state, civ);
     const name = esc(def.name);
+    const inText = esc(civName(this.state, civ));
+    const Start = esc(CivName(this.state, civ));
     const war = atWar(this.state, this.human, civ);
     const att = attitude(this.state, civ, this.human);
     const start = this.state.diplomacy.warStart[this.human]?.[civ];
@@ -1180,7 +1192,7 @@ export class App {
     if (this.diploPage === 'confirmWar') {
       return `${head}
         <div class="label">Declare war?</div>
-        <p>Your units will be able to attack ${name}’s, and theirs yours. ${name} won’t forget it.</p>
+        <p>Your units will be able to attack ${inText}, and theirs yours. ${Start} won’t forget it.</p>
         <div class="diploActions">
           <button type="button" data-act="back" class="bigBtn">Cancel</button>
           <button type="button" data-act="warYes" class="bigBtn danger">Declare War</button>
@@ -1197,7 +1209,7 @@ export class App {
                 <span class="tmeta">worth ${techValue(this.state, this.human, t)} science to you</span></button>`,
             )
             .join('')}</div>`
-        : `<p class="sub">${name} knows nothing you could learn right now.</p>`;
+        : `<p class="sub">${Start} ${civVerb(this.state, civ, 'knows', 'know')} nothing you could learn right now.</p>`;
       let offer = '';
       if (this.tradeGet) {
         const price = techPrice(this.state, civ, this.human, this.tradeGet);
@@ -1208,7 +1220,7 @@ export class App {
                   <span class="tmeta">worth ${techValue(this.state, civ, t)} to them</span></button>`,
               )
               .join('')}</div>`
-          : `<p class="sub">You know nothing ${name} could learn right now.</p>`;
+          : `<p class="sub">You know nothing ${inText} could learn right now.</p>`;
         offer = `
           <div class="label">What will you offer for ${TECHS[this.tradeGet].name}?</div>
           <div class="diploActions">
@@ -1388,8 +1400,7 @@ export class App {
       fortifyBtn.hidden = def.canFoundCity || sel.owner !== this.human;
       fortifyBtn.disabled = fortifyError(this.state, sel) !== undefined;
       fortifyBtn.textContent = sel.fortified ? 'Fortified' : 'Fortify';
-      // Form Army only appears when it's possible (3 of a kind here).
-      $('armyBtn').hidden = sel.owner !== this.human || formArmyError(this.state, sel) !== undefined;
+      this.renderStackList(sel);
       // The city panel covers this spot; the unit comes back when the city closes.
       panel.hidden = this.openCityId !== undefined;
     } else {
@@ -1399,6 +1410,45 @@ export class App {
     const anyReady = ready.length > 0;
     $('nextBtn').hidden = !ready.some((u) => u.id !== sel?.id);
     $('endTurnBtn').classList.toggle('ready', !anyReady);
+  }
+
+  /**
+   * The unit panel's stack list (Round 6): when the selected unit shares its tile, every unit
+   * there as a button to select it (type, army, ★, 🛡, moves), and Form Army for any type
+   * with three on the tile, not just the selected one's.
+   */
+  private renderStackList(sel: Unit): void {
+    const box = $('stackList');
+    const units = unitsOnTile(this.state, sel.x, sel.y).filter((u) => u.owner === sel.owner);
+    let html = '';
+    if (units.length > 1) {
+      const mine = sel.owner === this.human;
+      const head = `<div class="label">${isMixedStack(units) ? '<span class="mixed">Mixed</span> ' : ''}${units.length} units here: ${stackLabel(units)}</div>`;
+      const items = mine
+        ? units
+            .map(
+              (u) => `<button type="button" data-unit="${u.id}" class="stackItem${u.id === sel.id ? ' on' : ''}">
+              ${UNITS[u.type].name}${u.army ? ` army ×${RULES.combat.armyMultiplier}` : ''}${u.veteran ? ' ★' : ''}${u.fortified ? ' 🛡' : ''}
+              <span class="sub">${u.movesLeft}/${UNITS[u.type].moves}</span></button>`,
+            )
+            .join('')
+        : '';
+      const armies = mine
+        ? armyCandidates(this.state, units)
+            .map(
+              (u) => `<button type="button" data-act="army" data-unit="${u.id}" class="armyBtn">Form ${UNITS[u.type].name} army
+              <span class="sub">(${RULES.combat.armySize} → 1, ×${RULES.combat.armyMultiplier})</span></button>`,
+            )
+            .join('')
+        : '';
+      html = `${head}<div class="stackItems">${items}</div>${armies}`;
+    }
+    // Only touch the DOM when it changes, so a tap in progress isn't lost to a re-render.
+    if (box.dataset.html !== html) {
+      box.innerHTML = html;
+      box.dataset.html = html;
+    }
+    box.hidden = html === '';
   }
 
   private toast(text: string, error = false): void {

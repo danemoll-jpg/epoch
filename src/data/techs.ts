@@ -128,7 +128,7 @@ export const STARTING_TECHS: TechId[] = [];
  * little per tier so deep techs cost a bit more than early side branches bought late.
  * cost = base + perKnown*known + perKnownSq*known² + perTier*(tier-1), rounded.
  */
-export const TECH_COST = { base: 16, perKnown: 10, perKnownSq: 0.6, perTier: 4 };
+export const TECH_COST = { base: 14, perKnown: 6, perKnownSq: 0, perTier: 4 };
 
 export function techCostFor(knownCount: number, tier: number): number {
   const c = TECH_COST;

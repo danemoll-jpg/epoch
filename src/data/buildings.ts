@@ -47,8 +47,8 @@ export const BUILDINGS: Record<BuildingId, BuildingDef> = {
   },
   library: {
     id: 'library', name: 'Library', cost: 60, requires: 'writing',
-    summary: '+50% science',
-    effects: { sciencePct: 50 },
+    summary: '+100% science',
+    effects: { sciencePct: 100 },
   },
   marketplace: {
     id: 'marketplace', name: 'Marketplace', cost: 60, requires: 'currency',

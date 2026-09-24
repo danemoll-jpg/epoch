@@ -435,9 +435,77 @@ Steps, Technical Notes.
     - Grammar with plural civ names ("Franks declared war on you!") reads
       a little oddly. Leader names are used in the offer panels.
 
+* **Round 6 — Icon candidates, research pace, mixed stacks, message
+  grammar — done by the coding agent (2026-09-24).** Waiting on Dan: icon
+  picks, and iPad checks (b) and (c).
+  - **Result:** 241 unit tests passing (10 new). Type-check and production
+    build are clean, and the dev-code leak check passes. Preview-verified
+    on desktop and in iPad-sized emulation (1024×768 landscape, 768×1024
+    portrait). No save change: `STATE_VERSION` stays 5, and saved games
+    pick up the new numbers as they are.
+  - **Per-item status (coding round 6):**
+
+    | # | Item | Status | Verified by |
+    |---|------|--------|-------------|
+    | 0 | Commit docs first | Done (`d9c99c7`), then re-read both. Nothing from last round's report was dropped | n/a |
+    | A1 | Icon candidates | Done. **43 icons from game-icons.net**, 3 per unit, except Chariot and Catapult (2 each; nothing else fit). Picked for bold shapes that read at 22–31 px, and so no two unit types look alike. SVG text was fetched from the site's GitHub source (`game-icons/icons`) | Each icon fetched and checked to be a real single-shape SVG |
+    | A2 | Preview page | Done: **`docs/icon-candidates.html`** (142 KB, one self-contained file; nothing loads from the web). One section per unit, candidates labeled **A / B / C**. Each one is shown large (96 px), and at real map size on grass tiles: the 31 px open-field disc and the 22 px in-city disc, in blue (Babylon) and purple (Franks). Each has its icon name and "by <author> · game-icons.net · CC BY 3.0" under it, with an overview strip of all candidates at the end. Light and dark mode, no sideways scroll on phone or iPad width. The SVGs are kept in `docs/icon-candidates/` (`<unit>-<letter>.svg`) with `SOURCES.md` (file, icon, author, source URL, license). **Watch-outs when picking:** Musketman A and Rifleman B are both long guns and look alike small, so don't pick both. Horseman A looks like a chess knight | Every icon reference resolves in the page, and only plain credit links point to the web. Viewed in the preview browser at tablet width |
+    | A3 | Stop there | Done. No icons are wired into the game. The renderer now draws every unit mark through one `drawGlyph` function (C0), so next round's icon swap touches only that | n/a |
+    | B1 | Pace targets | **Done: on target.** Numbers below | `npm run sim` (5 seeds, 300 turns) |
+    | B2 | Data levers | Done, data only; no rule changes. **(1) Tech cost** `16 + 10·k + 0.6·k² + 4·(tier−1)` → **`14 + 6·k + 4·(tier−1)`** (k = techs known). The squared term was the main problem: income levels off by mid-game (cities stop at about size 4–5 in a radius-1 work area), so a quadratic cost made late techs take 20+ turns. Tech 50 now costs about 320, down from about 2,000. **(2) City center trade** +1 → **+2**, which speeds up the early game, when there are few citizens. **(3) Library** +50% → **+100% science**, so libraries matter more once cities stop growing. Not touched: terrain yields, growth, the science rate | unit-tested (cost formula); sim |
+    | B3 | AI wars stay sensible | Done. By turn 120 (per game, average of 5 seeds): **2.6 wars declared, 1.0 peace treaties, 0 eliminations**, against round 5's 2.4 / 1.4 / 0.2. Faster research doesn't cause constant wars or early eliminations | sim |
+    | B4 | Tests | Done. Tests that hard-coded tech costs or trade now read them from data (`tech.test.ts`, `cities.test.ts`), with one test that fixes the round 6 numbers. **New `tests/pace.test.ts`:** 3 seeds × 260 turns (about 4 s). It checks the median era turns loosely (Medieval 45–80, Industrial 95–160, Modern 165–235), that someone finishes the tree by turn 260 in every game, and at most 1 elimination per game by turn 120. `npm run sim` prints the full report (`scripts/pace-report.sim.ts`, kept out of `npm test`) | `npm test` |
+    | C0 | Mixed stacks | Done. **Map:** when a tile holds more than one unit type (yours, or a rival's in sight), a **second, smaller disc of another type peeks out behind** the top one (upper left; straight up in a city), with its own letters, next to the count badge. The one behind is the strongest other defender. **Unit panel:** when the selected unit shares its tile, it shows "**Mixed** 4 units here: 1 Warrior, 3 Legions", a button for **every unit** (type, army ×3, ★, 🛡, moves; the selected one is outlined; tap to select), and a **Form <Type> army** button for **every type with 3 on the tile**, not just the selected unit's type (the old single Form Army button is gone). The city panel uses the same rule. **Tapping a rival stack** says what's in it: "Mauryan mixed stack: 1 Spearman, 1 Archer". It works with icons later: the unit's look is drawn only in `drawGlyph`. New scenario **`mixed-stack`** (Dan's case: a Warrior on top of 3 Legions, and a rival Spearman + Archer). Pure helpers in `src/game/stack.ts` | unit-tested (`tests/stack.test.ts`, `mixed-stack` outcome); preview-verified on desktop and in 1024×768 / 768×1024 emulation: both discs drawn, the list selects units, Form Legion army worked with the Warrior selected, the rival tap listed both units |
+    | C1 | Plural civ names | Done. **Style: the civ's proper form**, not the leader, because era, capture, and elimination news reads oddly with a person's name. "**The Franks declared war on you!**", "The Inca have been eliminated", "You refused the Franks' demand", "Charlemagne of the Franks demands…", and "You have met the Franks, led by Charlemagne". Singular names stay as they were ("Babylon declared war on you!"). Data: `article: 'the'` and `plural: true` on Franks and Inca in `civs.ts`. Helpers in `conquest.ts`: `civName` (mid-sentence), `CivName` (starts a sentence), `civPossessive`, `civVerb` (has/have, is/are). Every message and dialog line that names a civ uses them. Labels and lists keep the bare name ("Franks") | unit-tested (3 new tests: war news for all three viewers, offer text and the possessive, a plural elimination) |
+
+  - **B1 numbers** (all-AI simulation, 5 civs, seeds 8/13/21/33/42):
+
+    | | Before (round 5 data) | After | Target |
+    |---|---|---|---|
+    | Medieval era, median civ | turn 102 | **turn 67** (first: 58) | 50–70 |
+    | Industrial era, median civ | not reached by 250 (first: 208) | **turn 115** (first: 106) | 120–150 |
+    | Modern era, median civ | never | **turn 207** (first: 167) | 180–220 |
+    | First civ to finish the tree | never (best: 27 of 50 techs at 250) | **turns 210, 219, 219, 230, 292** (median 219) | ~250 |
+    | Average techs at turns 25 / 50 / 100 / 150 / 200 / 250 | 1.9 / 4.6 / 9.9 / 14.4 / 17.6 / 20.1 | 3.0 / 7.3 / 18.2 / 28.2 / 35.8 / 41.0 | |
+    | Wars / peace treaties / eliminations by turn 120, per game | 2.4 / 1.4 / 0.2 | 2.6 / 1.0 / 0 | |
+
+    Industrial comes about 5 turns early, and Modern is on target. I
+    couldn't make Industrial later without also delaying the finish: the
+    AI researches the shallowest techs first, so eras follow the tech
+    count, and income levels off late. Seed 33 finishes the tree late (292),
+    with a boxed-in, low-trade civ. I left both for the M9 balance pass.
+  - **Decisions worth reviewing:**
+    - Tech cost has no squared term any more. Each tech costs 6 more than
+      the last (plus 4 per tier of depth). Tech-trade gold prices follow
+      the cost, so they're lower too.
+    - Library +100% science (Civ Rev's Library is +50%; ours is higher
+      because our cities stay small).
+    - Civ names in messages rather than leader names (C1).
+    - The second disc shows another *type* only. Two Legions and a Legion
+      army count as one type on the map, but the panel lists them
+      separately ("1 Legion army, 2 Legions").
+  - **Also changed:**
+    - `src/dev/sim.ts`: an all-AI simulation (era turns, techs over time,
+      wars, peace, eliminations), used by the pace test and `npm run sim`.
+    - The `army-in-city` note now says to use the city panel's Form Legion
+      army button.
+  - **Observed, not fixed:**
+    - AIs pile up gold they never spend: 1,000–2,600 by turn 250, with the
+      science rate fixed at 60%. An AI that raised its science rate or spent
+      more would research faster. That's an AI behavior change, not data,
+      so I left it for the balance pass.
+    - City growth levels off around size 4–5 (a radius-1 work area, and
+      grassland only feeds its own worker). It's the main brake on late
+      income.
+  - **Pushed** to `origin/main` at the end of the round, and the play server
+    was restarted with this build at http://10.0.0.224:4173/.
+
 ## Current Objective (Focus Area)
 
 ### Round 6 — Icon candidates + mixed stacks + a first research-pace pass
+**Status: done by the coding agent (2026-09-24); see Completed Tasks.
+Waiting on Dan's icon picks and iPad checks.**
+
 **Goal:**
 - Put unit icon candidates in front of Dan so he can pick them. He approves
   before anything goes in.
@@ -640,8 +708,9 @@ milestone before it. None has been decided against.
   hard-to-reach rules on the iPad, and new milestones should add scenarios
   for their own hard-to-reach rules.
 - **Balance numbers are placeholders until Milestone 6+.** Keep them in data
-  so tuning later is cheap. **Known issue:** research pace and AI expansion
-  are far too slow for a 2–3 hour game (see the round 3 report, and Q7).
+  so tuning later is cheap. Research pace got a first pass in round 6 (era
+  targets met in the all-AI sim; `npm run sim` prints the numbers, and
+  `tests/pace.test.ts` guards them loosely).
 - **Real games are played on `play:lan` (from round 4), not `dev:lan`.** The
   dev server live-reloads with half-finished code, which is what wiped
   Dan's M2 test game.

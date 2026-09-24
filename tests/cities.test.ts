@@ -235,16 +235,16 @@ describe('settlers cost population', () => {
 
 describe('trade, science, and gold', () => {
   it('splits trade by the empire-wide rate', () => {
-    // Coast all round: plains center trade 1+1 = 2, works one coast (2) → 4 trade.
+    // Coast all round: plains center trade 1+2 = 3, works one coast (2) → 5 trade.
     const s = makeState(['ccc', 'cpc', 'ccc']);
     const c = addCity(s, 0, 1, 1, { focus: 'trade' });
     refreshWorkedTiles(s);
-    expect(cityYields(s, c).trade).toBe(4);
-    expect(cityScienceGold(s, c)).toEqual({ science: 2, gold: 2 }); // 60% of 4 rounds to 2
+    expect(cityYields(s, c).trade).toBe(5);
+    expect(cityScienceGold(s, c)).toEqual({ science: 3, gold: 2 }); // 60% of 5 = 3
     setScienceRate(s, 100);
-    expect(cityScienceGold(s, c)).toEqual({ science: 4, gold: 0 });
+    expect(cityScienceGold(s, c)).toEqual({ science: 5, gold: 0 });
     setScienceRate(s, 0);
-    expect(cityScienceGold(s, c)).toEqual({ science: 0, gold: 4 });
+    expect(cityScienceGold(s, c)).toEqual({ science: 0, gold: 5 });
   });
 
   it('rates move in 10% steps only', () => {
@@ -259,11 +259,11 @@ describe('trade, science, and gold', () => {
     const s = makeState(['ccc', 'cpc', 'ccc']);
     const c = addCity(s, 0, 1, 1, { size: 4, focus: 'trade' });
     refreshWorkedTiles(s);
-    setScienceRate(s, 50);
-    const base = cityScienceGold(s, c); // trade 2 + 8 = 10 → 5 / 5
-    expect(base).toEqual({ science: 5, gold: 5 });
+    setScienceRate(s, 40);
+    const base = cityScienceGold(s, c); // trade 3 + 8 = 11 → 4 / 7
+    expect(base).toEqual({ science: 4, gold: 7 });
     c.buildings.push('library', 'marketplace');
-    expect(cityScienceGold(s, c)).toEqual({ science: 7, gold: 7 }); // +50% rounded down
+    expect(cityScienceGold(s, c)).toEqual({ science: 8, gold: 10 }); // Library +100%, Marketplace +50% rounded down
   });
 
   it('end of turn adds science and gold to the empire', () => {

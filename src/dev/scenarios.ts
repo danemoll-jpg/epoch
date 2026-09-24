@@ -13,6 +13,7 @@ import type { TerrainId } from '../data/terrain';
 import { UNITS } from '../data/units';
 import { applyAction } from '../game/actions';
 import { combatOdds } from '../game/combat';
+import { CivName, civName, civVerb } from '../game/conquest';
 import { civDef, peaceDesire } from '../game/diplomacy';
 import { tileIndex } from '../game/grid';
 import { techCost } from '../game/tech';
@@ -157,6 +158,19 @@ function armyInCityScenario(): GameState {
   return state;
 }
 
+/**
+ * Dan's round 5 case: three Legions and a Warrior on one tile looked like a lone Warrior. The
+ * Warrior is the oldest, so it's the one drawn on top. A rival mixed stack sits next to it.
+ */
+function mixedStackScenario(): GameState {
+  const state = battlefield();
+  addUnit(state, 'warrior', 0, FRONT.x, FRONT.y);
+  for (let i = 0; i < 3; i++) addUnit(state, 'legion', 0, FRONT.x, FRONT.y);
+  addUnit(state, 'spearman', 1, FRONT.x + 1, FRONT.y - 1, { fortified: true });
+  addUnit(state, 'archer', 1, FRONT.x + 1, FRONT.y - 1);
+  return state;
+}
+
 function captureScenario(): GameState {
   // Here the rival's capital is the city next to you, walled, with one Warrior; its second
   // city is in the corner so it survives the loss.
@@ -195,7 +209,7 @@ function victoryScenario(): GameState {
 const RIVAL = 1;
 
 function rivalName(state: GameState): string {
-  return civDef(state, RIVAL).name;
+  return civName(state, RIVAL);
 }
 
 /** A two-civ game at peace, both met (unless `met` is false), past the early grace period. */
@@ -396,8 +410,14 @@ export const SCENARIOS: Scenario[] = [
   {
     id: 'army-in-city',
     title: 'Army inside a city',
-    note: `Three Legions are inside ${CAPITAL}. Tap ${CAPITAL}, then tap one of the Legions under “Units here”: the city closes and the Legion’s buttons show. Tap Form Army: the three become one army (attack 12, defense 6).`,
+    note: `Three Legions are inside ${CAPITAL}. Tap ${CAPITAL}: “Units here” lists them with a Form Legion army button. Tap it: the three become one army (attack 12, defense 6).`,
     build: armyInCityScenario,
+  },
+  {
+    id: 'mixed-stack',
+    title: 'Mixed stack',
+    note: `East of ${CAPITAL}, your Warrior has a second disc peeking out behind it and a 4 badge: the tile holds more than one type. Tap it: the unit panel says “Mixed · 4 units here: 1 Warrior, 3 Legions”, lists each one to tap, and offers Form Legion army even with the Warrior selected. Tap that: the Legions become one army (attack 12). The rival tile to the north-east is mixed too; tap it with nothing selected to hear what's in it.`,
+    build: mixedStackScenario,
   },
   {
     id: 'capture',
@@ -438,7 +458,7 @@ export const SCENARIOS: Scenario[] = [
   {
     id: 'tech-trade',
     title: 'Trade techs',
-    note: `${rivalName(techTradeScenario())} is friendly and knows Pottery. Open 🤝 Diplomacy, pick them, tap Trade Techs, and swap your Bronze Working for their Pottery. They agree, and Granary appears in ${CAPITAL}'s build list.`,
+    note: `${CivName(techTradeScenario(), RIVAL)} ${civVerb(techTradeScenario(), RIVAL, 'is', 'are')} friendly and knows Pottery. Open 🤝 Diplomacy, pick them, tap Trade Techs, and swap your Bronze Working for their Pottery. They agree, and Granary appears in ${CAPITAL}'s build list.`,
     build: techTradeScenario,
   },
   {

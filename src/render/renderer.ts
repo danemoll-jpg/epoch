@@ -7,6 +7,7 @@ import { CIVS } from '../data/civs';
 import { RULES } from '../data/rules';
 import type { TerrainId } from '../data/terrain';
 import { UNITS } from '../data/units';
+import { behindUnit } from '../game/stack';
 import { visibleTiles } from '../game/fog';
 import { tileIndex } from '../game/grid';
 import type { Coord, GameState, Unit } from '../game/types';
@@ -103,11 +104,31 @@ function drawUnit(
   s: number,
   selected: boolean,
   inCity: boolean,
+  behind?: Unit,
 ): void {
   // In a city the disc shrinks into the lower-left corner so the city's size stays readable.
   const cx = inCity ? x + s * 0.27 : x + s / 2;
   const cy = inCity ? y + s * 0.73 : y + s / 2;
   const r = inCity ? s * 0.21 : s * 0.3;
+  // Mixed stack: a second, smaller disc of another unit type peeks out behind (upper left),
+  // so a different unit on the tile is never hidden.
+  if (behind) {
+    // Offset far enough that the selection ring doesn't hide it; in a city, straight up so
+    // it stays on the tile.
+    const br = r * 0.78;
+    const bx = inCity ? cx + r * 0.1 : cx - r * 0.85;
+    const by = cy - r * (inCity ? 1.0 : 0.85);
+    ctx.fillStyle = playerColor(state, behind.owner);
+    ctx.strokeStyle = '#111111';
+    ctx.lineWidth = Math.max(1.5, s * 0.04);
+    ctx.beginPath();
+    ctx.arc(bx, by, br, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.globalAlpha = 0.9;
+    drawGlyph(ctx, behind, bx - (inCity ? 0 : br * 0.2), by - br * 0.2, br * 0.8);
+    ctx.globalAlpha = 1;
+  }
   if (selected) {
     ctx.strokeStyle = '#ffe066';
     ctx.lineWidth = Math.max(2, s * 0.07);
@@ -122,12 +143,7 @@ function drawUnit(
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
-  ctx.fillStyle = '#ffffff';
-  const glyph = UNITS[unit.type].glyph;
-  ctx.font = `700 ${Math.round(r * (glyph.length > 1 ? 0.8 : 1.07))}px system-ui, sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(glyph, cx, cy + s * 0.01);
+  drawGlyph(ctx, unit, cx, cy + s * 0.01, r);
   if (unit.army) {
     ctx.strokeStyle = '#e6b73f';
     ctx.lineWidth = Math.max(2.5, s * 0.075);
@@ -154,6 +170,19 @@ function drawUnit(
     ctx.font = `700 ${Math.round(s * 0.18)}px system-ui, sans-serif`;
     ctx.fillText(String(stackCount), bx, by + s * 0.01);
   }
+}
+
+/**
+ * The unit's mark inside its disc (radius `r`): its letters for now. The only place a unit's
+ * look is drawn, so the icons (next round) replace just this.
+ */
+function drawGlyph(ctx: CanvasRenderingContext2D, unit: Unit, cx: number, cy: number, r: number): void {
+  ctx.fillStyle = '#ffffff';
+  const glyph = UNITS[unit.type].glyph;
+  ctx.font = `700 ${Math.round(r * (glyph.length > 1 ? 0.8 : 1.07))}px system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(glyph, cx, cy);
 }
 
 /** Small shield (fortified), centered on (x, y), `h` tall. */
@@ -296,7 +325,8 @@ export function render(
     }
   }
 
-  // Units: only where the viewer can currently see. One disc per tile; badge for stacks.
+  // Units: only where the viewer can currently see. One disc per tile, a count badge for
+  // stacks, and a second disc peeking out behind when the stack has more than one type.
   const byTile = new Map<number, Unit[]>();
   for (const u of state.units) {
     const i = tileIndex(map, u.x, u.y);
@@ -309,7 +339,7 @@ export function render(
     const shown = list.find((u) => u.id === view.selectedUnitId) ?? list.find((u) => u.movesLeft > 0) ?? list[0]!;
     const p = pos(shown.x, shown.y);
     const inCity = state.cities.some((c) => c.x === shown.x && c.y === shown.y);
-    drawUnit(ctx, state, shown, list.length, p.x, p.y, s, shown.id === view.selectedUnitId, inCity);
+    drawUnit(ctx, state, shown, list.length, p.x, p.y, s, shown.id === view.selectedUnitId, inCity, behindUnit(list, shown));
   }
 
   // Tiles the selected unit can attack.

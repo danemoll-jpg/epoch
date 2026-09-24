@@ -14,6 +14,7 @@ import { deserializeGame, serializeGame } from '../src/game/save';
 import { playerEra } from '../src/game/tech';
 import type { City, GameState } from '../src/game/types';
 import { foodSurplus, tileYields } from '../src/game/yields';
+import { armyCandidates, behindUnit, isMixedStack, stackLabel, unitsOnTile } from '../src/game/stack';
 
 const capital = (s: GameState): City => s.cities.find((c) => c.owner === 0)!;
 const FRONT = { x: 9, y: 5 };
@@ -130,6 +131,27 @@ const OUTCOMES: Record<string, (s: GameState) => void> = {
     expect(attackStrength(army[0]!).total).toBe(12);
     expect(defenseStrength(s, army[0]!).base).toBe(6);
     expect(noteOf('army-in-city')).toContain('attack 12, defense 6');
+  },
+  'mixed-stack': (s) => {
+    const stack = unitsOnTile(s, FRONT.x, FRONT.y);
+    expect(stack.map((u) => u.type)).toEqual(['warrior', 'legion', 'legion', 'legion']);
+    expect(isMixedStack(stack)).toBe(true);
+    expect(stackLabel(stack)).toBe('1 Warrior, 3 Legions');
+    // The Warrior is drawn on top; a Legion peeks out behind it.
+    expect(behindUnit(stack, stack[0]!)?.type).toBe('legion');
+    // Form Army is offered for the Legions even though the Warrior is the selected unit.
+    expect(formArmyError(s, stack[0]!)).toBeDefined();
+    const [candidate] = armyCandidates(s, stack);
+    expect(candidate?.type).toBe('legion');
+    expect(applyAction(s, { type: 'formArmy', unitId: candidate!.id }).ok).toBe(true);
+    const after = unitsOnTile(s, FRONT.x, FRONT.y);
+    expect(after.map((u) => [u.type, u.army])).toEqual([['warrior', false], ['legion', true]]);
+    expect(attackStrength(after[1]!).total).toBe(12);
+    expect(noteOf('mixed-stack')).toContain('1 Warrior, 3 Legions');
+    // The rival's tile is mixed too.
+    const theirs = unitsOnTile(s, FRONT.x + 1, FRONT.y - 1);
+    expect(isMixedStack(theirs)).toBe(true);
+    expect(stackLabel(theirs)).toBe('1 Spearman, 1 Archer');
   },
   capture: (s) => {
     const rivalCapital = s.cities.find((c) => c.x === ENEMY.x && c.y === ENEMY.y)!;

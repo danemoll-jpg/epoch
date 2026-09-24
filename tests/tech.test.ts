@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BUILDINGS, BUILDING_IDS } from '../src/data/buildings';
-import { ERAS, FINAL_TECH, TECHS, TECH_IDS, TECH_LIST, techCostFor, type TechId } from '../src/data/techs';
+import { ERAS, FINAL_TECH, TECHS, TECH_COST, TECH_IDS, TECH_LIST, techCostFor, type TechId } from '../src/data/techs';
+
 import { UNITS, UNIT_IDS } from '../src/data/units';
 import { WONDERS } from '../src/data/wonders';
 import { applyAction } from '../src/game/actions';
@@ -26,6 +27,9 @@ import { empireIncome } from '../src/game/yields';
 import { addCity, makeState } from './helpers';
 
 const names = (items: BuildItem[]) => items.map((i) => i.id);
+
+/** The first tech's cost (nothing known, tier 1). */
+const FIRST = techCostFor(0, 1);
 
 describe('tech tree data', () => {
   it('has 40–50 techs across the four eras, with unique ids and names', () => {
@@ -120,14 +124,17 @@ describe('research', () => {
   });
 
   it('cost rises with the number of techs known (formula in data)', () => {
-    expect(techCostFor(0, 1)).toBe(16);
-    expect(techCostFor(1, 1)).toBe(27); // 16 + 10 + 0.6
-    expect(techCostFor(10, 1)).toBe(176); // 16 + 100 + 60
-    expect(techCostFor(10, 3)).toBe(184); // + 4 per tier above 1
+    const c = TECH_COST;
+    expect(techCostFor(0, 1)).toBe(c.base);
+    expect(techCostFor(1, 1)).toBe(Math.round(c.base + c.perKnown + c.perKnownSq));
+    expect(techCostFor(10, 1)).toBe(Math.round(c.base + 10 * c.perKnown + 100 * c.perKnownSq));
+    expect(techCostFor(10, 3) - techCostFor(10, 1)).toBe(2 * c.perTier); // per tier above 1
+    // Round 6 numbers: 14 + 6 per tech known + 4 per tier above 1.
+    expect([techCostFor(0, 1), techCostFor(1, 1), techCostFor(10, 1), techCostFor(10, 3)]).toEqual([14, 20, 74, 82]);
     const p = makeState(['g']).players[0]!;
-    expect(techCost(p, 'alphabet')).toBe(16);
+    expect(techCost(p, 'alphabet')).toBe(techCostFor(0, 1));
     p.techs.push('bronze_working');
-    expect(techCost(p, 'alphabet')).toBe(27);
+    expect(techCost(p, 'alphabet')).toBe(techCostFor(1, 1));
     let last = 0;
     for (let k = 0; k < TECH_LIST.length; k++) {
       const c = techCostFor(k, 1);
@@ -140,10 +147,10 @@ describe('research', () => {
     const s = makeState(['g']);
     const p = s.players[0]!;
     p.researching = 'pottery';
-    p.science = 15; // one short
+    p.science = FIRST - 1; // one short
     processResearch(s, 0);
     expect(p.techs).toEqual([]);
-    p.science = 16 + 7;
+    p.science = FIRST + 7;
     processResearch(s, 0);
     expect(p.techs).toEqual(['pottery']);
     expect(p.science).toBe(7);
@@ -160,14 +167,14 @@ describe('research', () => {
       earned += empireIncome(s, 0).science;
       endTurn(s);
     }
-    expect(earned).toBeGreaterThan(16);
+    expect(earned).toBeGreaterThan(FIRST);
     expect(p.techs).toEqual([]);
     expect(p.science).toBe(earned); // nothing spent
     setResearch(s, 'alphabet');
     earned += empireIncome(s, 0).science;
     endTurn(s);
     expect(p.techs).toEqual(['alphabet']);
-    expect(p.science).toBe(earned - 16);
+    expect(p.science).toBe(earned - FIRST);
   });
 
   it('learns at most one tech per turn even with a big pool', () => {
@@ -180,7 +187,7 @@ describe('research', () => {
     expect(p.researching).toBeNull();
     endTurn(s);
     expect(p.techs).toEqual(['alphabet']); // waits for a choice
-    expect(p.science).toBe(1000 - 16);
+    expect(p.science).toBe(1000 - FIRST);
   });
 
   it('switching research keeps the pool', () => {
@@ -199,10 +206,10 @@ describe('research', () => {
     const p = s.players[0]!;
     const perTurn = empireIncome(s, 0).science; // 2 at 60%
     expect(perTurn).toBe(2);
-    expect(turnsToLearn(s, 0, 'alphabet')).toBe(8); // 16 / 2
-    p.science = 15;
+    expect(turnsToLearn(s, 0, 'alphabet')).toBe(Math.ceil(FIRST / 2));
+    p.science = FIRST - 1;
     expect(turnsToLearn(s, 0, 'alphabet')).toBe(1);
-    p.science = 30;
+    p.science = FIRST * 2;
     expect(turnsToLearn(s, 0, 'alphabet')).toBe(1); // already covered: next end of turn
     p.scienceRate = 0;
     p.science = 0;

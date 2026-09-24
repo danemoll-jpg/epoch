@@ -20,7 +20,7 @@ import {
 } from '../data/techs';
 import { UNITS, UNIT_IDS, type UnitTypeId } from '../data/units';
 import { WONDERS, type WonderDef } from '../data/wonders';
-import { civName } from './conquest';
+import { CivName } from './conquest';
 import { addLog } from './log';
 import type { ActionResult, GameState, Player } from './types';
 import { empireIncome } from './yields';
@@ -129,7 +129,7 @@ export function learnTech(state: GameState, playerId: number, tech: TechId, text
   if (eraAfter !== eraBefore) {
     const era = eraName(eraAfter);
     addLog(state, playerId, `Entered the ${era} era`, undefined, undefined, {
-      publicText: `${civName(state, playerId)} entered the ${era} era`,
+      publicText: `${CivName(state, playerId)} entered the ${era} era`,
       kind: 'era',
     });
   }

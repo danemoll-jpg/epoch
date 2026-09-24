@@ -28,7 +28,7 @@ export const RULES = {
   /** Chebyshev radius of tiles a city can work. 1 = the 8 surrounding tiles. */
   cityWorkRadius: 1,
   /** Extra yield on the city's own center tile, on top of its terrain. */
-  cityCenterBonus: { food: 1, production: 2, trade: 1 } as Yields,
+  cityCenterBonus: { food: 1, production: 2, trade: 2 } as Yields,
   /** Citizens with no free tile to work still eat; they yield this instead. */
   specialistYields: { food: 0, production: 0, trade: 1 } as Yields,
   foodPerCitizen: 2,

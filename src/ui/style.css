@@ -726,11 +726,6 @@ button.danger {
   background: #3d4f63;
 }
 
-#armyBtn {
-  background: #6b5320;
-  border-color: #e6b73f;
-}
-
 /* ---- attack odds panel ---- */
 
 #attackPanel {
@@ -1050,6 +1045,59 @@ button.bigBtn {
 /* ---- city panel: form an army from the units list ---- */
 
 .unitList .armyBtn {
+  background: #6b5320;
+  border-color: #e6b73f;
+}
+
+/* ---- unit panel: everything on the selected unit's tile (Round 6) ---- */
+
+#stackList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#stackList[hidden] {
+  display: none;
+}
+
+#stackList .label {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+#stackList .mixed {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: #e6b73f;
+  color: #1b1405;
+  font-weight: 800;
+}
+
+.stackItems {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.stackItem {
+  min-height: 44px;
+  text-align: left;
+}
+
+.stackItem.on {
+  border-color: #ffe066;
+  box-shadow: inset 0 0 0 1px #ffe066;
+}
+
+.stackItem .sub {
+  color: var(--muted);
+  font-size: 12px;
+  margin-left: 4px;
+}
+
+#stackList .armyBtn {
   background: #6b5320;
   border-color: #e6b73f;
 }

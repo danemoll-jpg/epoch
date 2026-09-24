@@ -17,9 +17,35 @@ import { atWar } from './war';
 import { refreshWorkedTiles } from './yields';
 import type { City, Coord, GameState, Unit } from './types';
 
-export function civName(state: GameState, playerId: number): string {
+// Civ names in messages. "the Franks" mid-sentence, "The Franks" to start one; Babylon stays
+// Babylon. The grammar fields live with the civ in data (civs.ts).
+
+function civOf(state: GameState, playerId: number) {
   const civId = state.players[playerId]?.civId;
-  return CIVS.find((c) => c.id === civId)?.name ?? 'A civ';
+  return CIVS.find((c) => c.id === civId);
+}
+
+/** The civ's name as it reads mid-sentence: "the Franks", "Babylon". */
+export function civName(state: GameState, playerId: number): string {
+  const civ = civOf(state, playerId);
+  if (!civ) return 'a rival';
+  return civ.article ? `${civ.article} ${civ.name}` : civ.name;
+}
+
+/** The civ's name to start a sentence: "The Franks", "Babylon". */
+export function CivName(state: GameState, playerId: number): string {
+  const n = civName(state, playerId);
+  return n.charAt(0).toUpperCase() + n.slice(1);
+}
+
+/** Possessive: "the Franks'", "Babylon's". */
+export function civPossessive(state: GameState, playerId: number): string {
+  return civOf(state, playerId)?.plural ? `${civName(state, playerId)}'` : `${civName(state, playerId)}'s`;
+}
+
+/** Picks the verb form that agrees with the civ's name: civVerb(s, id, 'has', 'have'). */
+export function civVerb(state: GameState, playerId: number, singular: string, plural: string): string {
+  return civOf(state, playerId)?.plural ? plural : singular;
 }
 
 export function civAdjective(state: GameState, playerId: number): string {
@@ -49,7 +75,7 @@ export function captureCity(state: GameState, city: City, newOwner: number): voi
   updateExplored(state, newOwner);
   recordLoss(state, oldOwner, newOwner, RULES.diplomacy.cityLossWeight);
   updateContacts(state);
-  const who = civName(state, newOwner);
+  const who = CivName(state, newOwner);
   const text =
     city.capitalOf === oldOwner
       ? `${who} captured ${city.name}, the ${civAdjective(state, oldOwner)} capital!`
@@ -70,7 +96,7 @@ export function checkEliminations(state: GameState, by: number, at: Coord): void
     state.diplomacy.offers = state.diplomacy.offers.filter((o) => o.from !== p.id && o.to !== p.id);
     state.aiPlans[p.id] = null;
     for (let i = 0; i < state.aiPlans.length; i++) if (state.aiPlans[i]?.target === p.id) state.aiPlans[i] = null;
-    const text = `${civName(state, p.id)} has been eliminated`;
+    const text = `${CivName(state, p.id)} ${civVerb(state, p.id, 'has', 'have')} been eliminated`;
     addLog(state, p.id, text, at, by, { publicText: text });
   }
 }

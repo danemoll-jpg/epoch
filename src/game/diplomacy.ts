@@ -24,7 +24,7 @@ import { CIVS, type CivDef } from '../data/civs';
 import { RULES } from '../data/rules';
 import { TECHS, type TechId } from '../data/techs';
 import { UNITS } from '../data/units';
-import { civName } from './conquest';
+import { CivName, civName, civPossessive, civVerb } from './conquest';
 import { visibleTiles } from './fog';
 import { distance, tileIndex } from './grid';
 import { addLog } from './log';
@@ -195,11 +195,10 @@ export function declareWar(state: GameState, a: number, b: number): ActionResult
   state.diplomacy.warLosses[b]![a] = 0;
   changeOpinion(state, b, a, D.declaredOnOpinion);
   dropOffersBetween(state, a, b);
-  const A = civName(state, a);
   const B = civName(state, b);
   addLog(state, a, `You declared war on ${B}`, undefined, b, {
-    otherText: `${A} declared war on you!`,
-    publicText: `${A} declared war on ${B}`,
+    otherText: `${CivName(state, a)} declared war on you!`,
+    publicText: `${CivName(state, a)} declared war on ${B}`,
     kind: 'war',
   });
   return { ok: true };
@@ -221,7 +220,7 @@ export function makePeace(state: GameState, a: number, b: number): void {
   const B = civName(state, b);
   addLog(state, a, `Peace with ${B}`, undefined, b, {
     otherText: `Peace with ${A}`,
-    publicText: `${A} and ${B} made peace`,
+    publicText: `${CivName(state, a)} and ${B} made peace`,
     kind: 'peace',
   });
 }
@@ -344,8 +343,8 @@ function doSwap(state: GameState, a: number, b: number, aGets: TechId, bGets: Te
   changeOpinion(state, a, b, D.tradeOpinion);
   changeOpinion(state, b, a, D.tradeOpinion);
   addLog(state, a, `You traded ${what} with ${B}`, undefined, b, {
-    otherText: `${A} traded ${what} with you`,
-    publicText: `${A} and ${B} traded knowledge`,
+    otherText: `${CivName(state, a)} traded ${what} with you`,
+    publicText: `${CivName(state, a)} and ${B} traded knowledge`,
     kind: 'trade',
   });
 }
@@ -359,7 +358,7 @@ export function tradeTech(state: GameState, partner: number, get: TechId, give: 
   if (err) return { ok: false, reason: err };
   const me = state.currentPlayer;
   if (!TECHS[get] || !tradeableTechs(state, partner, me).includes(get)) {
-    return { ok: false, reason: `${civName(state, partner)} can't teach you that` };
+    return { ok: false, reason: `${CivName(state, partner)} can't teach you that` };
   }
   if (give !== null && (!TECHS[give] || !tradeableTechs(state, me, partner).includes(give))) {
     return { ok: false, reason: `You can't teach them that` };
@@ -392,9 +391,8 @@ export function giveGold(state: GameState, to: number, amount: number): ActionRe
   state.players[from]!.gold -= amount;
   state.players[to]!.gold += amount;
   changeOpinion(state, to, from, Math.min(D.giftOpinionMax, amount / D.goldPerOpinion));
-  const A = civName(state, from);
   const B = civName(state, to);
-  addLog(state, from, `You gave ${amount} gold to ${B}`, undefined, to, { otherText: `${A} gave you ${amount} gold`, kind: 'gift' });
+  addLog(state, from, `You gave ${amount} gold to ${B}`, undefined, to, { otherText: `${CivName(state, from)} gave you ${amount} gold`, kind: 'gift' });
   return answered(true, atWar(state, from, to) ? 'Gold will not end this war, but we will take it.' : 'A generous gift. We will remember it.');
 }
 
@@ -402,7 +400,7 @@ export function giveGold(state: GameState, to: number, amount: number): ActionRe
 
 export function offerText(state: GameState, o: Offer): string {
   const def = civDef(state, o.from);
-  const who = `${def.leader} of ${def.name}`;
+  const who = `${def.leader} of ${civName(state, o.from)}`;
   if (o.kind === 'peace') return `${who} offers peace.`;
   const what = o.tech ? `your knowledge of ${TECHS[o.tech].name}` : `${o.gold} gold`;
   return `${who} demands ${what} as tribute.`;
@@ -437,8 +435,8 @@ export function answerOffer(state: GameState, offerId: number, accept: boolean):
   }
   if (!accept) {
     changeOpinion(state, o.from, o.to, D.demandRefusedOpinion);
-    addLog(state, o.to, `You refused ${A}'s demand`, undefined, o.from, { otherText: `${civName(state, o.to)} refused our demand`, kind: 'demand' });
-    return answered(false, `${A} will not forget this.`);
+    addLog(state, o.to, `You refused ${civPossessive(state, o.from)} demand`, undefined, o.from, { otherText: `${CivName(state, o.to)} refused our demand`, kind: 'demand' });
+    return answered(false, `${CivName(state, o.from)} will not forget this.`);
   }
   if (o.tech) learnTech(state, o.from, o.tech, `Tribute from ${civName(state, o.to)}: learned ${TECHS[o.tech].name}`);
   if (o.gold) {
@@ -447,8 +445,8 @@ export function answerOffer(state: GameState, offerId: number, accept: boolean):
   }
   changeOpinion(state, o.from, o.to, D.demandPaidOpinion);
   const what = o.tech ? TECHS[o.tech].name : `${o.gold} gold`;
-  addLog(state, o.to, `You paid ${A} ${what} in tribute`, undefined, o.from, { otherText: `${civName(state, o.to)} paid us ${what}`, kind: 'demand' });
-  return answered(true, `${A} is satisfied, for now.`);
+  addLog(state, o.to, `You paid ${A} ${what} in tribute`, undefined, o.from, { otherText: `${CivName(state, o.to)} paid us ${what}`, kind: 'demand' });
+  return answered(true, `${CivName(state, o.from)} ${civVerb(state, o.from, 'is', 'are')} satisfied, for now.`);
 }
 
 /** At the end of the human's turn, offers left unanswered count as refused. */

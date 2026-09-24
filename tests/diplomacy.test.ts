@@ -7,9 +7,12 @@ import { applyAction } from '../src/game/actions';
 import { aiCityTarget, isMilitary, runAiTurn } from '../src/game/ai';
 import { attackError } from '../src/game/combat';
 import {
+  answerOffer,
   canDemand,
+  declareWar,
   declareWarError,
   hasMet,
+  offerText,
   peaceDesire,
   runAiDiplomacy,
   techPrice,
@@ -25,6 +28,7 @@ import { deserializeGame, serializeGame } from '../src/game/save';
 import { endTurn } from '../src/game/turn';
 import { STATE_VERSION, type GameState } from '../src/game/types';
 import { atWar } from '../src/game/war';
+import { CivName, checkEliminations, civName, civPossessive } from '../src/game/conquest';
 import { addCity, addUnit, makeState } from './helpers';
 
 const D = RULES.diplomacy;
@@ -463,5 +467,36 @@ describe('save migration v4 → v5', () => {
     for (const p of raw.state.players) delete p.techs;
     const res = deserializeGame(JSON.stringify(raw));
     expect(res.kind).toBe('ok');
+  });
+});
+
+describe('civ names in messages (Round 6)', () => {
+  it('plural civs read with "the" and agree: "The Franks declared war on you!"', () => {
+    const s = twoCivs({ civ: 'franks' });
+    expect([civName(s, 1), CivName(s, 1), civPossessive(s, 1)]).toEqual(['the Franks', 'The Franks', "the Franks'"]);
+    expect([civName(s, 0), CivName(s, 0), civPossessive(s, 0)]).toEqual(['Babylon', 'Babylon', "Babylon's"]);
+    declareWar(s, 1, 0);
+    const entry = s.log.find((e) => e.kind === 'war')!;
+    expect(entryText(entry, 0)).toBe('The Franks declared war on you!');
+    expect(entryText(entry, 1)).toBe('You declared war on Babylon');
+    expect(entry.publicText).toBe('The Franks declared war on Babylon');
+  });
+
+  it('offers name the leader of the civ, and answers use the right forms', () => {
+    const s = twoCivs({ civ: 'franks' });
+    s.players[0]!.gold = 100;
+    s.diplomacy.offers.push({ id: 1, from: 1, to: 0, kind: 'demand', gold: 30, turn: s.turn });
+    expect(offerText(s, s.diplomacy.offers[0]!)).toBe('Charlemagne of the Franks demands 30 gold as tribute.');
+    const res = answerOffer(s, 1, false);
+    expect(res.ok).toBe(true);
+    expect(s.log.at(-1)!.text).toBe("You refused the Franks' demand");
+  });
+
+  it('an eliminated plural civ "have been eliminated"', () => {
+    const s = twoCivs({ civ: 'inca' });
+    s.cities = s.cities.filter((c) => c.owner !== 1);
+    s.units = s.units.filter((u) => u.owner !== 1);
+    checkEliminations(s, 0, { x: 8, y: 2 });
+    expect(s.log.at(-1)!.publicText).toBe('The Inca have been eliminated');
   });
 });
