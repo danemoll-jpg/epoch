@@ -723,6 +723,40 @@ Steps, Technical Notes.
     attacker scouted by sea, shipped its force (a Catapult army among
     them), and landed next to the enemy city in 3 of 4 (one sea battle on
     the way: an Incan Frigate sank a Frankish Galley at 80%).
+  - **Dan's ship and aircraft icon picks (2026-09-24), from the picker
+    page.** Files are `docs/ship-air-icon-candidates/<unit>-<letter>.svg`;
+    authors are in that folder's `SOURCES.md`. **Not wired in yet:** Round
+    9 Part A wires in the 9 ships, Round 10 the 5 aircraft (both with
+    credits in `src/data/icons.ts`, `CREDITS.md`, and About / Credits).
+
+    | Unit | Pick | Icon (author) |
+    |---|---|---|
+    | Galley | C | Drakkar (Delapouite) |
+    | Caravel | A | Caravel (Delapouite) |
+    | Frigate | B | Schooner Sailboat (Pierre Leducq) |
+    | Ironclad | B | Paddle Steamer (Delapouite) |
+    | Transport | A | Cargo Ship (Delapouite) |
+    | Destroyer | B | Speed Boat (Delapouite) |
+    | Battleship | A | Battleship (Cathelineau) |
+    | Submarine | A | Submarine (Delapouite) |
+    | Carrier | A | Carrier (Cathelineau) |
+    | Fighter | B | Biplane (Quoting) |
+    | Bomber | B | Carpet Bombing (Skoll) |
+    | Jet Fighter | A | Jet Fighter (Delapouite) |
+    | Stealth Bomber | A | Stealth Bomber (Delapouite) |
+    | Helicopter | A | Helicopter (Delapouite) |
+
+    **Watch-outs from the picker page, for Dan to confirm or swap:**
+    - **Battleship A and Carrier A** are from the same set (a ship over wave
+      lines) and look nearly identical at 22 px; the carrier's small plane
+      is the only difference. Battleship B (Dreadnought) would avoid it, and
+      its old conflict (a smoke plume like Ironclad A) is gone, since
+      Ironclad is B.
+    - **Bomber B (Carpet Bombing):** its bomb dots disappear at 22 px, so
+      it may read as a plain plane shape at map size.
+    - **Fighter B (Biplane)** gets busy when small.
+    - Submarine A (flat cigar) was flagged as looking like Fighter A, but
+      Fighter is B, so that's fine.
   - **Dan's checks for this round:**
     - (a) On the iPad, open **http://10.0.0.224:4173/docs/ship-air-icon-candidates.html**
       (the play server now also serves the picker pages; the Netlify build
@@ -1028,8 +1062,9 @@ milestone before it. None has been decided against.
   - **Great People:** they add culture and can speed up wonders.
   - **Exploration huts.**
   - Possibly culture borders and city flipping.
-- **Round 9, Part A:** wire in Dan's ship icon picks (from round 8's
-  picker page).
+- **Round 9, Part A:** wire in Dan's ship icon picks (recorded under Round
+  8 in Completed Tasks, 2026-09-24; two watch-outs there for Dan to
+  confirm first).
 - **Round 10 — Air:** (the aircraft icons were picked in round 8)
   - **Flight finally unlocks something:** a Fighter (Flight), a Bomber
     (Flight, or a new **Advanced Flight** tech), a Jet Fighter (Advanced
