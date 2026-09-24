@@ -245,6 +245,15 @@ publish `dist`, SPA redirect.
 TODO item says to. Never add a hub card with a guessed URL, and never let a
 hub push happen before Epoch's Netlify site exists.
 
+## ⚠️ End every round by restarting the play server
+From round 5 on, **at the end of every round** (after tests pass and the
+docs are committed), (re)start `npm run play:lan` so
+`http://<PC-IP>:4173/` serves the latest build. Dan plays there on his iPad
+and never runs a command himself.
+- Don't restart it mid-round.
+- Report that it's running, with the exact LAN address.
+- If it can't stay running after your session ends, say so plainly.
+
 ## Reporting back (every round)
 When you finish a round of work, update `TODO.md` and this file, and commit
 them with your code. The planning session reads these files back from the
@@ -261,19 +270,25 @@ the local commits waiting. Then wait for Dan to say "push."
 ## Where things stand
 **Always check `TODO.md` for the current objective before starting work.**
 
-- **Milestone 1** (playable skeleton): done and CONFIRMED on Dan's iPad.
-- **Milestone 2** (cities, economy, autosave): done and CONFIRMED on the
-  iPad.
-- **Round 3** (Milestone 3, the tech tree, plus dev scenarios): done and
-  approved by Dan after iPad testing. The hub reset (A1) is left to Dan and
-  is optional.
-- **Round 4** (save safety + Milestone 4, combat and armies): coding done,
-  all items (0, A1–A3, B1–B15). Waiting for Dan's iPad checks: `play:lan`,
-  the six combat scenarios, and a real fight. Not pushed.
+- **Milestones 1–4:** done and tested by Dan on the iPad. That covers the
+  skeleton, cities and economy, the tech tree, combat and armies, and save
+  safety.
 - Going live in the hub is deferred by Dan.
 
-The per-item report is under Completed Tasks in TODO.md; the next round's
-objective comes from the planning session.
+**The current objective is Round 5:**
+- **Part A, Dan's round 4 feedback:**
+  - keep the play server current at the end of each round;
+  - winning the last fight at a city captures it;
+  - fix Legions (units in a city) not being able to form an army;
+  - add a victory scenario.
+- **Part B, Milestone 5:**
+  - 5 civs by default;
+  - meeting civs, war and peace, and a diplomacy screen;
+  - tech trading and AI demands;
+  - a more competent AI (faster expansion, capped defenders, real war
+    plans).
+
+See items 0, A1–A4, and B1–B12 in TODO.md.
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.

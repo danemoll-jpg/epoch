@@ -235,8 +235,13 @@ Steps, Technical Notes.
     and AIs stop at 4 cities), not just the cost formula. Both are in data.
     Tune in the balance pass, or sooner if Dan finds it slow.
 
-* **Round 4 — Save safety + Milestone 4 (combat and armies) — coding done
-  (2026-09-23). Waiting for Dan's iPad checks (a)–(c).**
+* **Round 4 — Save safety + Milestone 4 (combat and armies) — done. Dan
+  tested on iPad (2026-09-24): scenarios and attacking verified.**
+  - **Feedback, handled in round 5:**
+    - winning the last fight at a city should capture it (A2);
+    - Legions couldn't form an army in his real game (A3);
+    - he wants a play server he doesn't have to start (A1).
+  - The Victory panel still hasn't been seen on screen (A4).
   - **Result:** 187 unit tests passing (65 new). Type-check and production
     build are clean, and the dev-code leak check passes on both `dist/` and
     `dist-play/`. Preview-verified on desktop and in iPad-sized touch
@@ -299,6 +304,10 @@ Steps, Technical Notes.
       +100%, not ×2.25).
     - The attacker never moves into the tile it attacked. Taking a city with
       one defender needs a second unit, or a second turn.
+      **→ CHANGED by Dan (2026-09-23): when an attack kills the last
+      defender in an enemy city, the winning unit advances into the city
+      and captures it right away.** Open-field wins still stay put. This is
+      queued for the next round.
     - Fortifying works at once and ends the unit's turn. There's no "takes
       a turn to dig in".
     - A city on hills gets both bonuses (hills +50% and city +25%).
@@ -339,213 +348,210 @@ Steps, Technical Notes.
 
 ## Current Objective (Focus Area)
 
-### Round 4 — Save safety + Milestone 4 (combat and armies)
-**Status (coding round 4):** all items done (0, A1–A3, B1–B15). See the
-report under Completed Tasks. **Waiting for Dan's iPad checks (a)–(c).**
-Nothing pushed.
-
+### Round 5 — Combat follow-ups + Milestone 5 (full AI roster and diplomacy)
 **Goal:**
-- Make it impossible to lose a game by accident, and give Dan a stable way
-  to play on the iPad that doesn't reload while code is changing.
-- Add combat in the Civ Rev 1 spirit: simple odds shown up front, terrain
-  and veteran bonuses, fortifying, Walls, **armies of 3**, and capturing
-  cities.
+- Apply Dan's feedback from round 4.
+- Keep an always-current play server running for him.
+- Turn the everyone-at-war placeholder into real relations with 4 AI
+  rivals: meeting civs, war and peace, tech trading, and AI demands, as in
+  Civ Rev 1. Make the AI a competent rival.
 - Placeholder art only.
 
 **Items for the coding agent. Report status on each one individually:**
 
-**Part A — Save safety**
+**Part A — Follow-ups from Dan's round 4 testing**
 
 0. **Commit the updated docs first:** `CLAUDE.md` and `TODO.md` as their own
    commit, then re-read them.
 
-A1. **A stable "play" build for the iPad:**
-    - add `npm run play:lan`, which builds, then serves the built game with
-      `vite preview --host` on its own port (e.g. 4173);
-    - it doesn't change or reload while code is being edited, and Dan uses
-      it for real games;
-    - `dev:lan` stays for quick checks of work in progress;
-    - note that a different port means a different saved-game slot in
-      Safari, since saves are per address. That's intended: dev reloads
-      can't touch the play save. Say this in CLAUDE.md and in the report;
-    - scenarios stay dev-only, so they won't be in `play:lan`. That's
-      expected.
+A1. **Standing rule, from this round on (also in CLAUDE.md): keep the play
+    server current.**
+    - at the **end of every round**, after tests pass and docs are
+      committed, (re)start `npm run play:lan` so
+      `http://<PC-IP>:4173/` serves the latest build;
+    - Dan never has to run a command; he just opens that address on the
+      iPad;
+    - restart it **only at the end of a round**, never mid-round;
+    - a new build may upgrade his save on load, which is fine because
+      backups are kept;
+    - report that it's running and give the exact LAN address;
+    - if the server can't be kept running after your session ends (e.g.
+      the process dies when the session closes), say so plainly in the
+      report and suggest the simplest fix. Don't leave Dan with a dead
+      address and no explanation.
 
-A2. **Never throw a save away:**
-    - before the game discards a save for any reason (an incompatible
-      version, corrupt data, a failed migration, an exception while
-      loading), copy it to a **backup** key, e.g. `epoch.autosave.backup.N`;
-    - keep the last 3 backups, each with a timestamp and version;
-    - the on-screen notice says a backup was kept;
-    - add a ☰ menu → **"Restore a backup"** list, in the production build
-      too, since it's the safety net. Each entry shows its turn, date, and
-      version, and it restores only if it can be loaded or migrated. If it
-      can't, say so plainly;
-    - tests: every discard path writes a backup, the backup count is
-      capped, and a restore round-trips.
+A2. **Winning an attack on a city captures it (DECIDED by Dan):**
+    - when an attack kills the **last defender in an enemy city**, the
+      winning unit **moves into the city and captures it** right away,
+      with the same capture rules as before (owner change, −1 population,
+      Walls destroyed, and so on);
+    - only land units with attack > 0 can capture, and the unit's turn
+      still ends;
+    - an open-field win still leaves the attacker in place;
+    - update the `capture` scenario's note (one unit is now enough), and
+      the AI's capture logic;
+    - tests.
 
-A3. **What wiped Dan's M2 game (low priority; Dan's just curious):** during
-    round 3, Dan's iPad was on `dev:lan` and his game restarted at turn 1
-    without him touching it. Likely cause: a live reload loaded the
-    version 3 code before the M2→M3 migration existed, so the save was
-    treated as incompatible and replaced. Check the commit order and the
-    code path and report in a few sentences. Don't spend long on it. A1
-    and A2 prevent it from happening again either way.
+A3. **"Legions can't form an army"** (Dan tried in a real game):
+    - the rules allow Legions. The likely cause is that the three were **in
+      a city**: the unit panel (which holds Form Army and Fortify) is hidden
+      while the city panel is open, and tapping a city tile opens the city
+      panel;
+    - reproduce it first. If that's the cause, make Form Army (and Fortify)
+      reachable for units inside a city. For example, when a unit is
+      tapped in the city panel's unit list, close the city panel and show
+      the unit panel with its buttons. Or put the actions on the unit rows;
+    - if the cause is something else, report what it was;
+    - add a dev scenario `army-in-city` (3 Legions inside your city) with a
+      note;
+    - tests where the logic is testable.
 
-**Part B — Milestone 4: Combat and armies**
+A4. **`victory` dev scenario:** one rival with one weak city next to your
+    army. Take it, and the Victory panel shows. The panel has only been
+    checked in tests so far.
 
-These are default rules, in the spirit of Civ Rev 1. All numbers are in
-data and are placeholders.
+**Part B — Milestone 5: Full AI roster and diplomacy (Civ Rev 1 spirit)**
 
-B1. **Who fights whom:** with no diplomacy until M5, **every civ is at war
-    with every other civ** by default. The setting lives in state so M5 can
-    add peace. Barbarians come in M7.
+These are default rules, and all numbers are in data.
 
-B2. **Combat resolution:**
-    - the attacker's strength is its attack value, and the defender's
-      strength is its defense value, each after modifiers (B3);
-    - one fight gives one result: the attacker wins with probability
-      `A / (A + D)`, using the seeded RNG;
-    - **the loser is destroyed**, and there are no hit points;
-    - the winner has a chance to become a veteran (the chance is in data);
-    - attacking ends the attacking unit's turn;
-    - units with 0 attack (Settlers) can't attack;
-    - if Dan remembers Civ Rev 1 resolving combat differently, it gets
-      revisited, so keep the formula in one function.
+B1. **5 civs by default:** new games have Dan plus 4 AI rivals. `?players=`
+    still works on the dev server.
 
-B3. **Modifiers, all in data:**
-    - defending in terrain: hills +50%, forest +25%;
-    - fortified +50%;
-    - veteran +50%, for either side;
-    - **Walls** +100% when defending a city against land units;
-    - a city tile gives the defender a small bonus (e.g. +25%);
-    - show the modifier list in the odds panel (B5) so it's visible, not
-      hidden math.
+B2. **Meeting civs:**
+    - two civs have **met** once either one's unit or city sees the other's
+      unit or city (or, later, trades or messages);
+    - track it per pair in state;
+    - on first contact, show a short **"You have met the <Civ> — led by
+      <Leader>"** panel;
+    - unmet civs don't appear in diplomacy;
+    - finish the M2 event rule: rival events show if the tile is visible
+      **or you've met that civ**, for civ-level news like "Babylon entered
+      the Medieval era." Map-level news still needs visibility.
 
-B4. **Stacks:** when a tile holding several units is attacked, **the best
-    defender** (the highest effective defense) fights. If it loses, only it
-    dies, and the rest of the stack stays. This is less harsh than
-    whole-stack loss and closer to Civ Rev.
+B3. **War and peace, replacing "everyone at war":**
+    - newly met civs start at **peace**;
+    - at peace, units can't attack each other or enter each other's cities;
+    - **declaring war** is an explicit action with an on-screen confirm for
+      Dan;
+    - **peace** can be proposed and accepted or refused;
+    - after a peace treaty there's a minimum number of turns before war can
+      be declared again (in data);
+    - the AI declares war or proposes peace based on relative military
+      strength, its personality, and how the war is going (below);
+    - log and announce declarations.
 
-B5. **Attack flow on touch:**
-    - with a unit selected, tapping an adjacent enemy opens an **odds
-      panel**. It shows your unit versus their best defender, the win
-      chance as a %, the modifiers on each side, and big **Attack** and
-      **Cancel** buttons;
-    - no attack happens without that confirm;
-    - after the fight, show a clear result (a short flash on the tile plus
-      a toast, e.g. "Your Legion defeated the Spearman (62%)").
+B4. **AI personalities, light:**
+    - each leader in `src/data/civs.ts` gets an **aggression** value and a
+      **trade willingness** value;
+    - these feed war and peace, demands, and trade acceptance;
+    - leader-specific bonuses stay in M8.
 
-B6. **Fortify:**
-    - a Fortify button on the unit panel;
-    - a fortified unit stays fortified until it moves;
-    - its state is shown on the map, e.g. a small shield mark.
+B5. **Diplomacy screen, touch-first:**
+    - open it from the top bar;
+    - it lists met civs with the leader name, civ color, relation (war or
+      peace), attitude (friendly / neutral / hostile, derived from recent
+      events), city count, and known strength (rough);
+    - actions per civ:
+      - Declare War / Propose Peace;
+      - **Trade Techs** (swap one of yours for one of theirs, or ask for one
+        in exchange for gold);
+      - **Give Gold**;
+    - every action gets a clear accept or refuse answer with a one-line
+      reason in our own words;
+    - it works in portrait and landscape, with a large close button.
 
-B7. **Armies of 3, Civ Rev's signature mechanic:**
-    - when **3 units of the same type** are on one tile, a **Form Army**
-      button appears;
-    - the army is one unit with **3× the attack and defense** of its type
-      (the multiplier is in data), the same moves, and veteran if any
-      member was a veteran;
-    - armies can't be split;
-    - if an army loses a fight, the whole army is destroyed (placeholder);
-    - show armies distinctly on the map, e.g. a bold ring or "×3".
+B6. **AI demands, a Civ Rev flavor:**
+    - occasionally a stronger, aggressive AI **demands** tribute from Dan,
+      either gold or a tech;
+    - Dan gets an on-screen panel with **Give** or **Refuse**, and refusing
+      raises the chance of war;
+    - it's rare and capped (e.g. at most once per N turns per civ, in data).
 
-B8. **Capturing cities:**
-    - when a city has no defenders left, a land unit with attack > 0 can
-      move in and **capture** it;
-    - the city changes owner, loses 1 population (it never goes below 1,
-      and it's never destroyed in M4), keeps its buildings except Walls
-      (destroyed), and its production is reset;
-    - track **capitals**: a civ's first city is its capital. Capturing a
-      capital is logged as a big event. Domination victory uses this in
-      M6.
+B7. **Tech trading rules:**
+    - AIs only trade techs they have for techs they lack;
+    - they won't give a tech to someone they're hostile with;
+    - a traded tech is learned instantly by the receiver and doesn't cost
+      the giver;
+    - AIs also trade with each other occasionally (logged, shown if met).
 
-B9. **Elimination:**
-    - a civ with no cities and no units is eliminated;
-    - if Dan is eliminated, show a simple on-screen **"Defeated"** panel
-      with a New Game button;
-    - if every rival is eliminated, show a simple **"Victory"** panel;
-    - these are placeholders; proper victory screens come in M6.
+B8. **AI competence, from the round 3 and round 4 observations:**
+    - **expand faster:** the city target scales with map room, not a fixed
+      4, and early Settlers are prioritized;
+    - **stop piling up defenders:** cap the defenders per city (in data),
+      and once buildings run out, build Settlers, offense, or
+      rush-buy-worthy items instead of endless Spearmen;
+    - **go to war on purpose:** pick a target civ (the weakest nearby, or
+      the one at war), gather an attack force (armies when possible), move
+      it toward a target city, and attack with the odds rule;
+    - keep defenders home;
+    - make peace when losing;
+    - it stays deterministic;
+    - report the before and after numbers from your simulation, e.g. cities
+      per AI at turns 50 and 100, units per AI at turn 120, and wars
+      declared.
 
-B10. **Barracks:** units built in a city with Barracks start as veterans.
-     This was stored in M2, and now it counts.
+B9. **Early-game fairness:** with peace-on-meeting, early raids now require
+    a war declaration. Also keep a short **grace period** at the start
+    (in data, e.g. the first 20 turns) where AIs won't declare war on Dan.
 
-B11. **AI combat (simple; smarter war logic is M5):**
-     - the AI attacks when its win chance is at least 60% (in data);
-     - it fortifies city defenders;
-     - it forms an army when it happens to have 3 of a kind together;
-     - it can capture an undefended city next to its units;
-     - it never suicides Settlers;
-     - it stays deterministic and uses the same actions as the player.
+B10. **Save migration v4 → v5:**
+     - pairs who can currently see each other's units or cities count as
+       met;
+     - existing relations carry over as they are (at war stays at war),
+       so Dan's game doesn't suddenly change;
+     - backups are kept as usual.
 
-B12. **Rival events and fog:** combat Dan's units are in always shows. Other
-     combat follows the M2 rule (show only if the tile is visible).
+B11. **Dev scenarios:**
+     - `first-contact`: move one tile to meet a civ;
+     - `peace`: at war and losing, propose peace, and it's accepted;
+     - `demand`: an AI demand arrives at End Turn;
+     - `tech-trade`: a friendly AI with a tech you lack. Trade for it;
+     - `ai-war`: watch an AI declare war and march on a city over a few
+       turns;
+     - each has a note.
 
-B13. **Save migration v3 → v4:** migrate Dan's saves forward: fortify and
-     army flags default to off, and each civ's first city becomes its
-     capital. Same approach as B8 last round, and A2's backup still
-     applies.
-
-B14. **Dev scenarios:**
-     - `combat`: your Legion next to an enemy Spearman on grassland, with
-       a known win chance in the note;
-     - `fortified`: attacking a fortified veteran on hills, to show the
-       modifiers stack up;
-     - `walls`: attacking a walled city;
-     - `army`: 3 Archers on one tile ready to Form Army;
-     - `capture`: an enemy city with one weak defender next to 2 of your
-       units;
-     - `defeat`: Dan's last city about to fall at End Turn, to show the
-       Defeated panel;
-     - each has a note saying what to do and what should happen.
-
-B15. **Unit tests:**
-     - the odds formula and every modifier;
-     - best-defender selection;
-     - the loser is destroyed and the stack survives;
-     - the veteran chance, using a fixed seed;
-     - fortify is cleared by moving;
-     - army forming (only 3 of the same type) and army strength;
-     - city capture: owner change, population, Walls removed, capital
-       flag;
-     - elimination for the player and for all rivals;
-     - Barracks veterans;
-     - the AI attack threshold, deterministic;
-     - the v3 → v4 migration;
+B12. **Unit tests:**
+     - contact detection;
+     - peace blocks attacks and city entry;
+     - declaring war;
+     - the peace duration rule;
+     - AI war and peace choices (deterministic, and both ways);
+     - demand frequency caps;
+     - tech trade rules;
+     - event visibility with "met";
+     - the AI city count and defender cap in a simulation;
+     - the v4 → v5 migration;
      - every new scenario.
 
 **Done means:**
-- every item (0, A1–A3, B1–B15) is reported individually;
+- every item (0, A1–A4, B1–B12) is reported individually;
 - tests pass;
-- it's preview-verified on desktop and in iPad-sized touch emulation.
+- it's preview-verified on desktop and in iPad-sized touch emulation;
+- the play server is running on 4173 with this build (A1).
 
 Dan then confirms on the iPad:
-- (a) `play:lan` works, and his game survives while code changes;
-- (b) the combat, army, capture, and defeat scenarios behave as their notes
-  say;
-- (c) a fight in a real game feels right, with the odds shown before
-  attacking.
+- (a) the play address works without him running anything;
+- (b) the new scenarios behave as their notes say;
+- (c) in a real 5-civ game, meeting a civ, the diplomacy screen, and at
+  least one trade or peace deal feel right.
 
 Nothing gets pushed without Dan saying so.
 
-**Dan's action outside the agent:** the hub still has the two local
-commits from round 3's blocked item A1. They cancel out, so it's harmless.
-To clean up, run this in `C:\Users\danmo\game-hub`:
-`git reset --hard origin/main`. Or leave it; a hub push would just publish
-an add+undo pair.
+**Dan's optional action outside the agent:** the two hub commits that cancel
+out are still there. Run `git reset --hard origin/main` in
+`C:\Users\danmo\game-hub` if you want them gone. It's harmless either way.
 
 **Open questions (defaults in bold; the coding agent proceeds on the default
 unless Dan decides otherwise):**
 - **Q1 — Working title:** **"Epoch" as a codename for now.**
 - **Q5 — Starting techs:** **none.**
-- **Q6 — Combat model:** **one fight means one loser destroyed, with no hit
-  points**, using the odds `A/(A+D)`. If Dan remembers Civ Rev 1 working
-  differently (e.g. damaged winners), say so and it changes.
-- **Q7 — Research pace:** the round 3 report says research is **far too
-  slow** for a 2–3 hour game (about 10 of 50 techs by turn 100). **Default:
-  leave it for the balance pass** unless Dan finds it slow in play. Then
-  a first-pass speed-up (more science, cheaper techs) comes next round.
+- **Q6 — Combat model:** **one loser destroyed, no hit points.** Dan tested
+  attacking and it seemed fine.
+- **Q7 — Research pace:** it's far too slow for a 2–3 hour game. **Default:
+  leave it for the balance pass** unless Dan finds it slow.
+- **Q8 — Starting relations:** **peace when civs first meet**, with the AI
+  deciding on war from there. The alternative is to start at war, as in
+  M4.
 
 ## Next Steps (Do Not Start Yet)
 
@@ -563,11 +569,6 @@ milestone before it. None has been decided against.
   3. Add the Epoch card to `game-hub/games.js` with the **real** URL, then
      commit, and push the hub when Dan says. The hub must not be pushed
      before the Netlify site exists.
-- **Milestone 5 — Full AI roster and basic diplomacy:**
-  - scale up to all 4 AI rivals by default;
-  - smarter AI expansion, building choices, and war/peace decisions;
-  - simple diplomacy such as peace, war, and tech trading;
-  - "met civs" tracking, which also feeds the event-message rule.
 - **Milestone 6 — Victory conditions:**
   - Domination: capture all enemy capitals.
   - Culture: reach a culture threshold or build enough wonders.
