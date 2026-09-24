@@ -226,19 +226,22 @@ the local commits waiting. Then wait for Dan to say "push."
 ## Where things stand
 **Always check `TODO.md` for the current objective before starting work.**
 
-**Milestone 1 (playable skeleton) is done and CONFIRMED by Dan on his iPad**
-over the local network. Going live in the hub is deferred by Dan.
+- **Milestone 1** (playable skeleton): done and CONFIRMED on Dan's iPad.
+- **Milestone 2** (cities, economy, autosave): done and CONFIRMED on the
+  iPad.
+- **Round 3** (Milestone 3, the tech tree, plus dev scenarios): done and
+  approved by Dan after iPad testing. The hub reset (A1) is left to Dan and
+  is optional.
+- Going live in the hub is deferred by Dan.
 
-**Milestone 2 (cities, economy, and autosave) is coded and tested by Dan on
-the iPad.** Growth and starvation can now be seen on demand through the dev
-scenarios; a Safari-reload check of autosave is still pending.
+**The current objective is Round 4:**
+- **Part A, save safety:** a stable `play:lan` build for real games, save
+  backups that are never discarded, and a short look at what wiped Dan's
+  test game.
+- **Part B, Milestone 4:** combat, fortify, armies of 3, city capture, and
+  elimination.
 
-**Round 3 (M2 wrap-up + Milestone 3, the tech tree) is coded (2026-09-23):
-122 tests passing,** preview-verified on desktop and in iPad-sized touch
-emulation. **Waiting for Dan's iPad checks** (a)–(c) in TODO.md. Item A1
-(dropping the two local hub commits) was **not done**: the command was
-blocked by a permission check, so Dan needs to run it or allow it. Nothing
-has been pushed. Per-item status is in TODO.md.
+See items 0, A1–A3, and B1–B15 in TODO.md.
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.

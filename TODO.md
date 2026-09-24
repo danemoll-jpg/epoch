@@ -106,13 +106,12 @@ Steps, Technical Notes.
       reported. It was never pushed. It was reverted in M2, and the two
       commits get dropped in Round 3 item A1.
 
-* **Milestone 2 — Cities, economy, and autosave — coding done (2026-09-23).
-  Tested by Dan on his iPad (2026-09-23): everything he tried works.**
-  - **Growth and starvation are not confirmed by play.** Growth is slow to
-    reach, and the starvation guard makes starvation nearly impossible to
-    trigger by hand. Both are unit-tested. Round 3 item A2 adds dev
-    scenarios so Dan can see them happen on the iPad.
-  - **Autosave surviving a Safari reload:** not yet explicitly confirmed.
+* **Milestone 2 — Cities, economy, and autosave — done. CONFIRMED by Dan
+  on iPad (2026-09-23)**, including growth and starvation through the
+  round 3 dev scenarios.
+  - Dan's M2 test game was wiped during round 3. It was a throwaway, and
+    Dan doesn't mind. The likely cause was a dev-server live reload, which
+    led to round 4's save-safety items.
   - "Empire HUD" means the top status bar. Plain-language names are used
     with Dan from now on.
   - Nothing pushed.
@@ -170,8 +169,11 @@ Steps, Technical Notes.
     AI by turn 40. Production is low, and the first Settler takes ~15 turns.
     Fine for M2; revisit in the balance pass or M5.
 
-* **Round 3 — M2 wrap-up + Milestone 3 (tech tree) — coding done
-  (2026-09-23). Waiting for Dan's iPad checks (a)–(c) below.**
+* **Round 3 — M2 wrap-up + Milestone 3 (tech tree) — done. APPROVED by
+  Dan after testing on iPad (2026-09-23)**, including the dev scenarios.
+  - **A1 (hub reset) was blocked by the agent's permission check.** It's
+    left as an optional Dan action (see Current Objective). It's harmless:
+    two local commits that cancel out, never pushed.
   - **Result:** 122 unit tests passing (38 new). Type-check and production
     build are clean, and the build now ends with a dev-code leak check.
     Preview-verified on desktop and in iPad-sized touch emulation (768×1024
@@ -235,161 +237,209 @@ Steps, Technical Notes.
 
 ## Current Objective (Focus Area)
 
-### Round 3 — Milestone 2 wrap-up + Milestone 3 (tech tree)
-**Status (coding round 3):** all items done **except A1** (hub reset
-blocked by a permission check; Dan to run it or allow it). See the report
-under Completed Tasks. **Waiting for Dan's iPad checks (a)–(c).**
-
-**Goal:** close out M2's loose ends, and give Dan a way to see
-hard-to-reach rules (like starvation) on the iPad on demand. Then add the
-tech tree, so the science from M2 buys something. Placeholder art only.
+### Round 4 — Save safety + Milestone 4 (combat and armies)
+**Goal:**
+- Make it impossible to lose a game by accident, and give Dan a stable way
+  to play on the iPad that doesn't reload while code is changing.
+- Add combat in the Civ Rev 1 spirit: simple odds shown up front, terrain
+  and veteran bonuses, fortifying, Walls, **armies of 3**, and capturing
+  cities.
+- Placeholder art only.
 
 **Items for the coding agent. Report status on each one individually:**
 
-**Part A — M2 wrap-up**
+**Part A — Save safety**
 
 0. **Commit the updated docs first:** `CLAUDE.md` and `TODO.md` as their own
    commit, then re-read them.
 
-A1. **Hub repo: drop the two local commits** (the placeholder card
-    `00d47a9` and its revert `298b281`):
-    - first confirm the hub is *only* those two commits ahead of
-      `origin/main` and the working tree is clean;
-    - if so, run `git reset --hard origin/main` in the hub;
-    - if anything else is there, stop and report instead;
-    - don't push the hub.
+A1. **A stable "play" build for the iPad:**
+    - add `npm run play:lan`, which builds, then serves the built game with
+      `vite preview --host` on its own port (e.g. 4173);
+    - it doesn't change or reload while code is being edited, and Dan uses
+      it for real games;
+    - `dev:lan` stays for quick checks of work in progress;
+    - note that a different port means a different saved-game slot in
+      Safari, since saves are per address. That's intended: dev reloads
+      can't touch the play save. Say this in CLAUDE.md and in the report;
+    - scenarios stay dev-only, so they won't be in `play:lan`. That's
+      expected.
 
-    (Decided by Claude on Dan's behalf. The net change is zero either way,
-    and this keeps the hub history clean.)
+A2. **Never throw a save away:**
+    - before the game discards a save for any reason (an incompatible
+      version, corrupt data, a failed migration, an exception while
+      loading), copy it to a **backup** key, e.g. `epoch.autosave.backup.N`;
+    - keep the last 3 backups, each with a timestamp and version;
+    - the on-screen notice says a backup was kept;
+    - add a ☰ menu → **"Restore a backup"** list, in the production build
+      too, since it's the safety net. Each entry shows its turn, date, and
+      version, and it restores only if it can be loaded or migrated. If it
+      can't, say so plainly;
+    - tests: every discard path writes a backup, the backup count is
+      capped, and a restore round-trips.
 
-A2. **Dev test scenarios, loaded by URL**, e.g. `?scenario=grow`:
-    - **dev server only.** They must be ignored or compiled out in the
-      production build (`import.meta.env.DEV`), so they can never show up
-      in the hub version. Add a test or build check that proves it;
-    - **a scenario must never overwrite Dan's real autosave.** Either don't
-      autosave while a scenario is loaded, or use a separate save key.
-      Removing `?scenario` from the URL goes back to his real game;
-    - also list the scenarios in the ☰ menu (dev only), so Dan can pick one
-      by tapping on the iPad without typing URLs;
-    - scenarios are built in code from hand-made states, the same way
-      `tests/helpers.ts` does, and the tests should reuse them so the
-      scenario and the test agree;
-    - the starter set:
-      - `grow`: a city that grows by 1 at the next End Turn;
-      - `starve`: a size-3 city on poor land (e.g. desert, hills, and
-        mountains) with a food deficit, whose food box is empty enough that
-        it shrinks at the next End Turn. The starvation guard should be
-        doing its best and still fail;
-      - `settler`: a size-2 city finishing a Settler at the next End Turn,
-        which drops to size 1;
-      - `rich`: plenty of gold, to try rush-buying;
-      - `tech`: research one turn from finishing (see B2);
-    - each scenario shows a short on-screen note saying what to do and what
-      should happen, e.g. "Tap End Turn. Rome should shrink from 3 to 2."
+A3. **What wiped Dan's M2 game (low priority; Dan's just curious):** during
+    round 3, Dan's iPad was on `dev:lan` and his game restarted at turn 1
+    without him touching it. Likely cause: a live reload loaded the
+    version 3 code before the M2→M3 migration existed, so the save was
+    treated as incompatible and replaced. Check the commit order and the
+    code path and report in a few sentences. Don't spend long on it. A1
+    and A2 prevent it from happening again either way.
 
-A3. **Keep an easy way to add scenarios.** Future milestones will add more,
-    e.g. combat odds in M4. Document how in CLAUDE.md.
+**Part B — Milestone 4: Combat and armies**
 
-**Part B — Milestone 3: Tech tree**
+These are default rules, in the spirit of Civ Rev 1. All numbers are in
+data and are placeholders.
 
-B1. **Tech data** in `src/data/techs.ts`:
-    - about 40–50 techs across **four eras**: Ancient, Medieval,
-      Industrial, and Modern. That's roughly Civ Rev 1's scale;
-    - each tech has prerequisites, an era, a cost tier, and what it
-      unlocks;
-    - use common historical tech names (Bronze Working, Writing, and so
-      on). They're generic and fine to use;
-    - write our own short descriptions, not Civ Rev's text;
-    - the tree ends at a tech that will later unlock the spaceship, for
+B1. **Who fights whom:** with no diplomacy until M5, **every civ is at war
+    with every other civ** by default. The setting lives in state so M5 can
+    add peace. Barbarians come in M7.
+
+B2. **Combat resolution:**
+    - the attacker's strength is its attack value, and the defender's
+      strength is its defense value, each after modifiers (B3);
+    - one fight gives one result: the attacker wins with probability
+      `A / (A + D)`, using the seeded RNG;
+    - **the loser is destroyed**, and there are no hit points;
+    - the winner has a chance to become a veteran (the chance is in data);
+    - attacking ends the attacking unit's turn;
+    - units with 0 attack (Settlers) can't attack;
+    - if Dan remembers Civ Rev 1 resolving combat differently, it gets
+      revisited, so keep the formula in one function.
+
+B3. **Modifiers, all in data:**
+    - defending in terrain: hills +50%, forest +25%;
+    - fortified +50%;
+    - veteran +50%, for either side;
+    - **Walls** +100% when defending a city against land units;
+    - a city tile gives the defender a small bonus (e.g. +25%);
+    - show the modifier list in the odds panel (B5) so it's visible, not
+      hidden math.
+
+B4. **Stacks:** when a tile holding several units is attacked, **the best
+    defender** (the highest effective defense) fights. If it loses, only it
+    dies, and the rest of the stack stays. This is less harsh than
+    whole-stack loss and closer to Civ Rev.
+
+B5. **Attack flow on touch:**
+    - with a unit selected, tapping an adjacent enemy opens an **odds
+      panel**. It shows your unit versus their best defender, the win
+      chance as a %, the modifiers on each side, and big **Attack** and
+      **Cancel** buttons;
+    - no attack happens without that confirm;
+    - after the fight, show a clear result (a short flash on the tile plus
+      a toast, e.g. "Your Legion defeated the Spearman (62%)").
+
+B6. **Fortify:**
+    - a Fortify button on the unit panel;
+    - a fortified unit stays fortified until it moves;
+    - its state is shown on the map, e.g. a small shield mark.
+
+B7. **Armies of 3, Civ Rev's signature mechanic:**
+    - when **3 units of the same type** are on one tile, a **Form Army**
+      button appears;
+    - the army is one unit with **3× the attack and defense** of its type
+      (the multiplier is in data), the same moves, and veteran if any
+      member was a veteran;
+    - armies can't be split;
+    - if an army loses a fight, the whole army is destroyed (placeholder);
+    - show armies distinctly on the map, e.g. a bold ring or "×3".
+
+B8. **Capturing cities:**
+    - when a city has no defenders left, a land unit with attack > 0 can
+      move in and **capture** it;
+    - the city changes owner, loses 1 population (it never goes below 1,
+      and it's never destroyed in M4), keeps its buildings except Walls
+      (destroyed), and its production is reset;
+    - track **capitals**: a civ's first city is its capital. Capturing a
+      capital is logged as a big event. Domination victory uses this in
       M6.
 
-B2. **Research:**
-    - the player picks a current tech from the ones whose prerequisites
-      are met;
-    - science each turn goes into it, and overflow carries over;
-    - cost rises with the number of techs known (formula in data, a
-      placeholder toward a 2–3 hour game);
-    - when a tech finishes, the player gets an on-screen prompt to pick the
-      next one. If none is picked, science banks until one is;
-    - no starting techs, unless the data says otherwise.
+B9. **Elimination:**
+    - a civ with no cities and no units is eliminated;
+    - if Dan is eliminated, show a simple on-screen **"Defeated"** panel
+      with a New Game button;
+    - if every rival is eliminated, show a simple **"Victory"** panel;
+    - these are placeholders; proper victory screens come in M6.
 
-B3. **Unlocks:**
-    - M2's buildings get tech requirements in data, e.g. Granary ←
-      Pottery, Library ← Writing, Marketplace ← Currency, Barracks ← Bronze
-      Working, Walls ← Masonry, Temple ← Ceremonial Burial. Pick sensibly;
-    - add a first wave of **units** as unlocks, with attack, defense, and
-      moves values stored in data now: e.g. Archer, Spearman/Pikeman,
-      Horseman, Catapult, Knight, Musketman, and Cannon, up through a few
-      Industrial/Modern ones;
-    - these units can be built and moved, but **combat stays in M4**. Show
-      their attack and defense values in the build list so Dan can see
-      them;
-    - the build list only offers what's unlocked;
-    - wonders are **not** in M3 (they're M7). Leave a place in the data
-      shape for them.
+B10. **Barracks:** units built in a city with Barracks start as veterans.
+     This was stored in M2, and now it counts.
 
-B4. **Era:** each player has a current era, the highest era among their
-    known techs. Show it in the HUD (the top bar) and announce reaching a
-    new era with a toast. Era has no other effects yet.
+B11. **AI combat (simple; smarter war logic is M5):**
+     - the AI attacks when its win chance is at least 60% (in data);
+     - it fortifies city defenders;
+     - it forms an army when it happens to have 3 of a kind together;
+     - it can capture an undefended city next to its units;
+     - it never suicides Settlers;
+     - it stays deterministic and uses the same actions as the player.
 
-B5. **Tech screen, touch-first:**
-    - open it from the HUD (tap the science readout, or add a button);
-    - it shows the tree grouped by era, with each tech marked
-      known / available / locked;
-    - tapping a tech shows what it unlocks and its prerequisites, plus a
-      "Research this" button when it's available;
-    - it shows turns to complete at the current science rate;
-    - it works in iPad portrait and landscape, only the panel scrolls, and
-      it has a large close button.
+B12. **Rival events and fog:** combat Dan's units are in always shows. Other
+     combat follows the M2 rule (show only if the tile is visible).
 
-B6. **HUD:** show the current research and its turns left, e.g. "Writing
-    (6)". Tapping it opens the tech screen.
+B13. **Save migration v3 → v4:** migrate Dan's saves forward: fortify and
+     army flags default to off, and each civ's first city becomes its
+     capital. Same approach as B8 last round, and A2's backup still
+     applies.
 
-B7. **AI research:** simple priorities in data. For example, techs that
-    unlock buildings the AI wants and a defensive unit first, then a steady
-    push up the tree. It must be deterministic and use the same actions as
-    the player.
+B14. **Dev scenarios:**
+     - `combat`: your Legion next to an enemy Spearman on grassland, with
+       a known win chance in the note;
+     - `fortified`: attacking a fortified veteran on hills, to show the
+       modifiers stack up;
+     - `walls`: attacking a walled city;
+     - `army`: 3 Archers on one tile ready to Form Army;
+     - `capture`: an enemy city with one weak defender next to 2 of your
+       units;
+     - `defeat`: Dan's last city about to fall at End Turn, to show the
+       Defeated panel;
+     - each has a note saying what to do and what should happen.
 
-B8. **Don't wipe Dan's current game:** M3 changes the state shape, so bump
-    `STATE_VERSION`, but **migrate** M2 saves forward (no techs known, no
-    current research) instead of discarding them, if that's straightforward.
-    If migration isn't reasonable, say why. The fallback is the existing
-    "new game" notice.
+B15. **Unit tests:**
+     - the odds formula and every modifier;
+     - best-defender selection;
+     - the loser is destroyed and the stack survives;
+     - the veteran chance, using a fixed seed;
+     - fortify is cleared by moving;
+     - army forming (only 3 of the same type) and army strength;
+     - city capture: owner change, population, Walls removed, capital
+       flag;
+     - elimination for the player and for all rivals;
+     - Barracks veterans;
+     - the AI attack threshold, deterministic;
+     - the v3 → v4 migration;
+     - every new scenario.
 
-B9. **Unit tests:**
-    - prerequisites are enforced;
-    - the cost formula;
-    - overflow and banking;
-    - unlocks gate the build list, and buildings that need a tech can't be
-      built without it;
-    - the era calculation;
-    - AI research is deterministic;
-    - migrating an M2 save;
-    - the tech tree is valid: every prerequisite exists, there are no
-      cycles, and every tech is reachable.
+**Done means:**
+- every item (0, A1–A3, B1–B15) is reported individually;
+- tests pass;
+- it's preview-verified on desktop and in iPad-sized touch emulation.
 
-**Done means:** every item (0, A1–A3, B1–B9) is reported individually and
-tests pass. It must be preview-verified on desktop and in iPad-sized touch
-emulation. **Dan then confirms on the iPad:**
-- (a) the `grow`, `starve`, and `settler` scenarios behave as their
-  on-screen notes say. This finishes confirming M2;
-- (b) autosave survives a Safari tab reload, if not already confirmed;
-- (c) he can pick research, finish a tech, and see a newly unlocked
-  building in a city's build list.
+Dan then confirms on the iPad:
+- (a) `play:lan` works, and his game survives while code changes;
+- (b) the combat, army, capture, and defeat scenarios behave as their notes
+  say;
+- (c) a fight in a real game feels right, with the odds shown before
+  attacking.
 
 Nothing gets pushed without Dan saying so.
+
+**Dan's action outside the agent:** the hub still has the two local
+commits from round 3's blocked item A1. They cancel out, so it's harmless.
+To clean up, run this in `C:\Users\danmo\game-hub`:
+`git reset --hard origin/main`. Or leave it; a hub push would just publish
+an add+undo pair.
 
 **Open questions (defaults in bold; the coding agent proceeds on the default
 unless Dan decides otherwise):**
 - **Q1 — Working title:** **"Epoch" as a codename for now.**
-- **Q2 — Rival event messages:** **show only what the player can see.**
-  (Built in M2.)
-- **Q3 — Tile management:** **automatic with a city focus.** (Built in M2.)
-- **Q4 — Science/gold split:** **one empire-wide rate** (placeholder). (Built
-  in M2.)
-- **Q5 — Starting techs:** **none**; everyone starts from scratch. Civ-style
-  games sometimes give each civ one or two starting techs, and that could
-  come with the leader bonuses in M8.
+- **Q5 — Starting techs:** **none.**
+- **Q6 — Combat model:** **one fight means one loser destroyed, with no hit
+  points**, using the odds `A/(A+D)`. If Dan remembers Civ Rev 1 working
+  differently (e.g. damaged winners), say so and it changes.
+- **Q7 — Research pace:** the round 3 report says research is **far too
+  slow** for a 2–3 hour game (about 10 of 50 techs by turn 100). **Default:
+  leave it for the balance pass** unless Dan finds it slow in play. Then
+  a first-pass speed-up (more science, cheaper techs) comes next round.
 
 ## Next Steps (Do Not Start Yet)
 
@@ -407,14 +457,6 @@ milestone before it. None has been decided against.
   3. Add the Epoch card to `game-hub/games.js` with the **real** URL, then
      commit, and push the hub when Dan says. The hub must not be pushed
      before the Netlify site exists.
-- **Milestone 4 — Combat:**
-  - attack vs. defense values with terrain, fortification, and veteran
-    bonuses;
-  - Barracks and Walls effects from M2 come into use;
-  - combat odds shown before attacking;
-  - **Armies:** stacking 3 identical units into one army, a signature Civ
-    Rev mechanic;
-  - capturing cities.
 - **Milestone 5 — Full AI roster and basic diplomacy:**
   - scale up to all 4 AI rivals by default;
   - smarter AI expansion, building choices, and war/peace decisions;
@@ -475,4 +517,8 @@ milestone before it. None has been decided against.
   hard-to-reach rules on the iPad, and new milestones should add scenarios
   for their own hard-to-reach rules.
 - **Balance numbers are placeholders until Milestone 6+.** Keep them in data
-  so tuning later is cheap.
+  so tuning later is cheap. **Known issue:** research pace and AI expansion
+  are far too slow for a 2–3 hour game (see the round 3 report, and Q7).
+- **Real games are played on `play:lan` (from round 4), not `dev:lan`.** The
+  dev server live-reloads with half-finished code, which is what wiped
+  Dan's M2 test game.
