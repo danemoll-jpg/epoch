@@ -3,11 +3,13 @@
 //
 // - Ships move only on water, and can dock in their own coastal cities. A Galley can't
 //   leave the coast (it can't enter deep ocean).
-// - A ship carries up to `cargo` land units (an army counts as one). Cargo stands on the
+// - A ship carries up to `cargo` land units (an army counts as one). Three ships of one type
+//   can merge into a fleet (Dan's call, after Round 8): ×3 strength, ×3 cargo. Cargo stands on the
 //   ship's tile with `carriedBy` set, moves with it, can't attack, and dies with it.
 // - Only coastal cities (next to water) build ships and Harbors.
 
 import { BUILDINGS, type BuildingId } from '../data/buildings';
+import { RULES } from '../data/rules';
 import { TERRAIN } from '../data/terrain';
 import { UNITS, type UnitTypeId } from '../data/units';
 import { neighbors, tileAt } from './grid';
@@ -64,9 +66,19 @@ export function cargoOf(state: GameState, ship: Unit): Unit[] {
   return state.units.filter((u) => u.carriedBy === ship.id);
 }
 
+/** How many land units this ship can carry: a fleet (a naval army, Dan's call) carries three ships' worth. */
+export function cargoCapacity(ship: Unit): number {
+  return UNITS[ship.type].cargo * (ship.army ? RULES.combat.armySize : 1);
+}
+
 /** Free cargo places on this ship. */
 export function cargoRoom(state: GameState, ship: Unit): number {
-  return UNITS[ship.type].cargo - cargoOf(state, ship).length;
+  return cargoCapacity(ship) - cargoOf(state, ship).length;
+}
+
+/** What three of a kind merged into one are called: a fleet at sea, an army on land. */
+export function armyWord(type: UnitTypeId): 'fleet' | 'army' {
+  return isShipType(type) ? 'fleet' : 'army';
 }
 
 /** The owner's ship on this tile with room for one more (oldest first), if any. */

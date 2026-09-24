@@ -130,6 +130,17 @@ const OUTCOMES: Record<string, (s: GameState) => void> = {
     const city = s.cities.find((c) => c.owner === 1 && landmassAt(s.map, c) !== home)!;
     expect(s.units.some((u) => u.owner === 1 && u.type === 'warrior' && distance(u, city) <= 1)).toBe(true);
   },
+  fleet: (s) => {
+    const first = s.units.find((u) => u.owner === 0 && u.type === 'frigate')!;
+    const before = Math.round(combatOdds(s, first, { x: 8, y: 5 })!.chance * 100);
+    expect(applyAction(s, { type: 'formArmy', unitId: first.id }).ok).toBe(true);
+    expect(s.units.filter((u) => u.owner === 0 && u.type === 'frigate')).toHaveLength(1);
+    expect(cargoOf(s, first)).toHaveLength(1);
+    const after = Math.round(combatOdds(s, first, { x: 8, y: 5 })!.chance * 100);
+    expect(after).toBeGreaterThan(before);
+    expect(noteOf('fleet')).toContain(`from ${before}% for one Frigate to ${after}%`);
+    expect(applyAction(s, { type: 'attack', unitId: first.id, at: { x: 8, y: 5 } }).combat!.attackerWon).toBe(true);
+  },
   'all-ships': (s) => {
     const ships = UNIT_IDS.filter((id) => UNITS[id].domain === 'sea');
     for (const id of ships) expect(s.units.some((u) => u.owner === 0 && u.type === id)).toBe(true);

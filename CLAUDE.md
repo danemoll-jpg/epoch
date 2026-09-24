@@ -194,7 +194,7 @@ never autosaves**, so the real game can't be overwritten. Current set:
 `win-domination`, `win-culture`, `win-economic`, `win-space`, `lose-space`,
 `stop-launch`, `near-win-warning`; (round 8) `board-unload`, `galley-coast`,
 `naval-battle`, `bombard`, `ship-sunk-cargo`, `amphibious-capture`,
-`harbor`, `ai-overseas`, `all-ships`. The naval ones use `seaState()` (your
+`harbor`, `ai-overseas`, `all-ships`, `fleet`. The naval ones use `seaState()` (your
 island plus an eastern landmass across a coast channel or open ocean).
 The combat ones start from `FAIR_DICE` (first roll about 0.48), because
 `makeState`'s default RNG state rolls 0.98 first and would make every
@@ -271,8 +271,8 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   (research action, end-of-turn research, eras, unlocks, AI research
   choice, `learnTech`), `combat.ts` (odds with named modifiers,
   `winChance` = the one formula, attack (a win over a city's last defender
-  captures it; ships bombard and never capture), fortify, armies (land
-  only)), `conquest.ts` (city capture,
+  captures it; ships bombard and never capture), fortify, armies (three
+  ships make a "fleet": ×3 strength and ×3 cargo)), `conquest.ts` (city capture,
   elimination, and the civ-name helpers every message uses: `civName`
   mid-sentence, `CivName` to start one, `civPossessive`, `civVerb`), `war.ts` (the `atWar` table), `diplomacy.ts` (contact,
   declare war, peace and `peaceDesire`, opinions/attitude, tech trades and
@@ -315,8 +315,10 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   15 picks in `src/assets/icons/`.
 - `docs/ship-air-icon-candidates.html` + `docs/ship-air-icon-candidates/`:
   round 8's candidates for the 9 ships and 5 aircraft (35 icons, same
-  picker; `SOURCES.md` has each author). Nothing is wired in until Dan
-  picks.
+  picker; `SOURCES.md` has each author). Dan's picks are recorded under
+  Round 8 in TODO.md; the Carrier uses `carrier-a-trimmed.svg` (waves
+  removed so it doesn't look like the Battleship; compare in
+  `docs/carrier-trim-candidates.html`).
 - The version shown on the About screen comes from `package.json`
   (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.8.0 for
   round 8.

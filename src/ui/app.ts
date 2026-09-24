@@ -30,7 +30,7 @@ import {
 } from '../game/diplomacy';
 import { neighbors, tileAt } from '../game/grid';
 import { unitVisibleTo } from '../game/fog';
-import { cargoOf, isShip, isWaterAt } from '../game/naval';
+import { armyWord, cargoCapacity, cargoOf, isShip, isWaterAt } from '../game/naval';
 import { entryText, eventsVisibleTo } from '../game/log';
 import { findUnit, reachableThisTurn } from '../game/movement';
 import { migrationSummary } from '../game/save';
@@ -330,7 +330,7 @@ export class App {
     const u = findUnit(this.state, unitId);
     if (!u) return;
     if (this.dispatch({ type: 'formArmy', unitId: u.id })) {
-      this.toast(`${UNITS[u.type].name} army formed: ×${RULES.combat.armyMultiplier} attack and defense`);
+      this.toast(`${UNITS[u.type].name} ${armyWord(u.type)} formed: ×${RULES.combat.armyMultiplier} attack and defense${isShip(u) && UNITS[u.type].cargo ? `, carries ${cargoCapacity(u)}` : ''}`);
       this.select(u.id);
     }
   }
@@ -602,7 +602,7 @@ export class App {
     } else if (act === 'army') {
       const u = findUnit(this.state, Number(btn.dataset.unit));
       if (u && this.dispatch({ type: 'formArmy', unitId: u.id })) {
-        this.toast(`${UNITS[u.type].name} army formed: ×${RULES.combat.armyMultiplier} attack and defense`);
+        this.toast(`${UNITS[u.type].name} ${armyWord(u.type)} formed: ×${RULES.combat.armyMultiplier} attack and defense${isShip(u) && UNITS[u.type].cargo ? `, carries ${cargoCapacity(u)}` : ''}`);
       }
     }
   }
@@ -688,7 +688,7 @@ export class App {
     // Three of a kind here: offer Form Army right in the list (round 5: it was hard to find).
     const armyBtns = armyCandidates(this.state, units)
       .map(
-        (u) => `<button type="button" data-act="army" data-unit="${u.id}" class="armyBtn">Form ${UNITS[u.type].name} army
+        (u) => `<button type="button" data-act="army" data-unit="${u.id}" class="armyBtn">Form ${UNITS[u.type].name} ${armyWord(u.type)}
           <span class="sub">(${RULES.combat.armySize} → 1, ×${RULES.combat.armyMultiplier})</span></button>`,
       )
       .join('');
@@ -696,8 +696,8 @@ export class App {
       ? units
           .map(
             (u) => `<button type="button" data-act="unit" data-unit="${u.id}" class="unitItem">
-            ${this.badge(u.type, u.owner)}${UNITS[u.type].name}${u.army ? ` army ×${RULES.combat.armyMultiplier}` : ''}${u.veteran ? ' ★' : ''}${u.fortified && !isShip(u) ? ' 🛡' : ''}${u.carriedBy !== null ? ' ⚓ aboard' : ''}
-            <span class="sub">moves ${u.movesLeft}/${UNITS[u.type].moves}${isShip(u) && UNITS[u.type].cargo ? ` · cargo ${cargoOf(this.state, u).length}/${UNITS[u.type].cargo}` : ''} · tap to select</span></button>`,
+            ${this.badge(u.type, u.owner)}${UNITS[u.type].name}${u.army ? ` ${armyWord(u.type)} ×${RULES.combat.armyMultiplier}` : ''}${u.veteran ? ' ★' : ''}${u.fortified && !isShip(u) ? ' 🛡' : ''}${u.carriedBy !== null ? ' ⚓ aboard' : ''}
+            <span class="sub">moves ${u.movesLeft}/${UNITS[u.type].moves}${isShip(u) && UNITS[u.type].cargo ? ` · cargo ${cargoOf(this.state, u).length}/${cargoCapacity(u)}` : ''} · tap to select</span></button>`,
           )
           .join('') + armyBtns
       : '<span class="sub">None</span>';
@@ -937,8 +937,8 @@ export class App {
 
   private reportCombat(c: CombatReport): void {
     const pct = Math.round(c.chance * 100);
-    const mine = `${UNITS[c.attackerType].name}${c.attackerArmy ? ' army' : ''}`;
-    const theirs = `${UNITS[c.defenderType].name}${c.defenderArmy ? ' army' : ''}`;
+    const mine = `${UNITS[c.attackerType].name}${c.attackerArmy ? ` ${armyWord(c.attackerType)}` : ''}`;
+    const theirs = `${UNITS[c.defenderType].name}${c.defenderArmy ? ` ${armyWord(c.defenderType)}` : ''}`;
     let text = c.attackerWon
       ? `Your ${mine} defeated the ${theirs} (${pct}%)`
       : `Your ${mine} was destroyed by the ${theirs} (${pct}%)`;
@@ -960,7 +960,7 @@ export class App {
   }
 
   private unitName(u: Unit): string {
-    return `${UNITS[u.type].name}${u.army ? ' army' : ''}${u.veteran ? ' ★' : ''}`;
+    return `${UNITS[u.type].name}${u.army ? ` ${armyWord(u.type)}` : ''}${u.veteran ? ' ★' : ''}`;
   }
 
   /** "Malian Spearman ★", or "Your Warrior". */
@@ -1655,12 +1655,12 @@ export class App {
       const def = UNITS[sel.type];
       const terrain = TERRAIN[tileAt(this.state.map, sel.x, sel.y)!.terrain].name;
       const vet = sel.veteran ? ' ★ veteran' : '';
-      const army = sel.army ? ` army ×${RULES.combat.armyMultiplier}` : '';
+      const army = sel.army ? ` ${armyWord(sel.type)} ×${RULES.combat.armyMultiplier}` : '';
       const mult = sel.army ? RULES.combat.armyMultiplier : 1;
       const fort = sel.fortified ? (isShip(sel) ? ' · staying put' : ' · 🛡 fortified') : '';
       const carrier = sel.carriedBy !== null ? findUnit(this.state, sel.carriedBy) : undefined;
       const naval = isShip(sel)
-        ? ` · cargo ${cargoOf(this.state, sel).length}/${def.cargo}${def.coastOnly ? ' · coast only' : ''}`
+        ? ` · cargo ${cargoOf(this.state, sel).length}/${cargoCapacity(sel)}${def.coastOnly ? ' · coast only' : ''}`
         : carrier
           ? ` · ⚓ aboard the ${UNITS[carrier.type].name}`
           : '';
@@ -1706,12 +1706,12 @@ export class App {
       .filter((s) => UNITS[s.type].cargo > 0)
       .map((s) => {
         const c = cargoOf(this.state, s);
-        return `<div class="label">⚓ ${UNITS[s.type].name} cargo ${c.length}/${UNITS[s.type].cargo}${c.length ? `: ${stackLabel(c)}` : ''}</div>`;
+        return `<div class="label">⚓ ${UNITS[s.type].name} cargo ${c.length}/${cargoCapacity(s)}${c.length ? `: ${stackLabel(c)}` : ''}</div>`;
       })
       .join('');
     let navalBtns = '';
     if (mine && !isShip(sel) && sel.carriedBy === null) {
-      const ship = ships.find((s) => cargoOf(this.state, s).length < UNITS[s.type].cargo);
+      const ship = ships.find((s) => cargoOf(this.state, s).length < cargoCapacity(s));
       if (ship) navalBtns += `<button type="button" data-act="board" data-unit="${sel.id}" data-ship="${ship.id}" class="navalBtn">⚓ Board the ${UNITS[ship.type].name}</button>`;
     }
     if (mine && sel.carriedBy !== null && !isWaterAt(this.state, sel.x, sel.y)) {
@@ -1727,7 +1727,7 @@ export class App {
         ? units
             .map(
               (u) => `<button type="button" data-unit="${u.id}" class="stackItem${u.id === sel.id ? ' on' : ''}">
-              ${this.badge(u.type, u.owner)}${UNITS[u.type].name}${u.army ? ` army ×${RULES.combat.armyMultiplier}` : ''}${u.veteran ? ' ★' : ''}${u.fortified && !isShip(u) ? ' 🛡' : ''}${u.carriedBy !== null ? ' ⚓' : ''}
+              ${this.badge(u.type, u.owner)}${UNITS[u.type].name}${u.army ? ` ${armyWord(u.type)} ×${RULES.combat.armyMultiplier}` : ''}${u.veteran ? ' ★' : ''}${u.fortified && !isShip(u) ? ' 🛡' : ''}${u.carriedBy !== null ? ' ⚓' : ''}
               <span class="sub">${u.movesLeft}/${UNITS[u.type].moves}${u.carriedBy !== null ? ' · aboard' : ''}</span></button>`,
             )
             .join('')
@@ -1735,7 +1735,7 @@ export class App {
       const armies = mine
         ? armyCandidates(this.state, units)
             .map(
-              (u) => `<button type="button" data-act="army" data-unit="${u.id}" class="armyBtn">Form ${UNITS[u.type].name} army
+              (u) => `<button type="button" data-act="army" data-unit="${u.id}" class="armyBtn">Form ${UNITS[u.type].name} ${armyWord(u.type)}
               <span class="sub">(${RULES.combat.armySize} → 1, ×${RULES.combat.armyMultiplier})</span></button>`,
             )
             .join('')

@@ -635,6 +635,25 @@ function allShipsScenario(): GameState {
   return state;
 }
 
+/** Three of your Frigates at sea (one carrying a Warrior), next to a Mauryan Frigate. */
+function fleetScenario(): GameState {
+  const state = seaState(10, 2);
+  eastRival(state);
+  const ships = [0, 1, 2].map(() => addUnit(state, 'frigate', 0, 7, 5));
+  addUnit(state, 'warrior', 0, 7, 5, { carriedBy: ships[1]!.id });
+  addUnit(state, 'frigate', 1, 8, 5);
+  state.rngState = FAIR_DICE;
+  return state;
+}
+
+/** The fleet scenario's odds before and after forming the fleet (whole percent). */
+function fleetOdds(): [number, number] {
+  const s = fleetScenario();
+  const before = oddsAt(s, { x: 7, y: 5 }, { x: 8, y: 5 });
+  applyAction(s, { type: 'formArmy', unitId: s.units.find((u) => u.owner === 0 && u.type === 'frigate')!.id });
+  return [before, oddsAt(s, { x: 7, y: 5 }, { x: 8, y: 5 })];
+}
+
 /** The win chance (whole percent) of your unit at `from` attacking `at`, for the notes. */
 function oddsAt(state: GameState, from: { x: number; y: number }, at: { x: number; y: number }): number {
   const u = state.units.find((x) => x.owner === 0 && x.x === from.x && x.y === from.y && x.carriedBy === null)!;
@@ -899,6 +918,12 @@ export const SCENARIOS: Scenario[] = [
     title: 'Ships: AI settles overseas',
     note: `Maurya is boxed in on the little island to the west, with a Galley, a Settler, and a Warrior. Keep tapping End Turn (about 4 times): the Warrior and the Settler board the Galley, it sails over, they land next to your fortified Warrior at (${aiOverseasScenario().units.find((u) => u.owner === 0)!.x}, ${aiOverseasScenario().units.find((u) => u.owner === 0)!.y}), and Maurya founds a city on your landmass.`,
     build: aiOverseasScenario,
+  },
+  {
+    id: 'fleet',
+    title: 'Ships: form a fleet',
+    note: `Three Frigates share a tile (one carries a Warrior). Tap them, then “Form Frigate fleet”: one Frigate fleet ×3 with the gold ring, cargo 1/6 (the Warrior stays aboard). Tap the Mauryan Frigate next to it: the odds go from ${fleetOdds()[0]}% for one Frigate to ${fleetOdds()[1]}% for the fleet.`,
+    build: fleetScenario,
   },
   {
     id: 'all-ships',

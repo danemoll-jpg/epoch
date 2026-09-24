@@ -4,6 +4,7 @@
 
 import { UNITS, type UnitTypeId } from '../data/units';
 import { formArmyError } from './combat';
+import { armyWord } from './naval';
 import type { GameState, Unit } from './types';
 
 /** The unit types on a tile, each once, in the order they first appear. */
@@ -30,7 +31,7 @@ export function behindUnit(units: Unit[], shown: Unit): Unit | undefined {
 export function stackLabel(units: Unit[]): string {
   const kinds: { name: string; n: number }[] = [];
   for (const u of units) {
-    const name = `${UNITS[u.type].name}${u.army ? ' army' : ''}`;
+    const name = `${UNITS[u.type].name}${u.army ? ` ${armyWord(u.type)}` : ''}`;
     const k = kinds.find((x) => x.name === name);
     if (k) k.n++;
     else kinds.push({ name, n: 1 });

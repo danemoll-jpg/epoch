@@ -17,7 +17,7 @@ import { distance, inBounds, neighbors, tileAt } from './grid';
 import { civName } from './conquest';
 import { updateContacts } from './diplomacy';
 import { updateExplored } from './fog';
-import { cargoOf, cargoRoom, isShip, isWaterAt, shipTerrainError, shipWithRoom, terrainAllows } from './naval';
+import { cargoCapacity, cargoOf, cargoRoom, isShip, isWaterAt, shipTerrainError, shipWithRoom, terrainAllows } from './naval';
 import { atWar } from './war';
 import type { ActionResult, Coord, GameState, Unit } from './types';
 
@@ -66,7 +66,7 @@ function stepKind(state: GameState, unit: Unit, to: Coord): StepKind | string {
     const ship = shipWithRoom(state, unit.owner, to.x, to.y, unit.carriedBy ?? undefined);
     if (ship) return { kind: 'board', shipId: ship.id };
     const own = state.units.find((u) => u.x === to.x && u.y === to.y && u.owner === unit.owner && isShip(u));
-    if (own) return `The ${UNITS[own.type].name} is full (${UNITS[own.type].cargo}/${UNITS[own.type].cargo})`;
+    if (own) return `The ${UNITS[own.type].name} is full (${cargoCapacity(own)}/${cargoCapacity(own)})`;
     return unit.carriedBy !== null ? 'Unload onto land' : 'Land units need a ship to cross water';
   }
   return unit.carriedBy !== null ? { kind: 'ashore' } : { kind: 'move' };

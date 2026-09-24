@@ -16,7 +16,8 @@
 // adjacent land tile: if it wins, the defender dies but the ship never moves in or captures;
 // if it loses, the ship sinks. A sunk ship takes its cargo with it. Land units can't attack
 // ships at sea, cargo can't attack from a ship, ships in port don't defend their city, and
-// Walls count only against land attacks. There are no naval armies.
+// Walls count only against land attacks. Three ships of one type can form a fleet (a naval
+// army: Dan decided yes to Q11); it carries all three ships' cargo.
 
 import { BUILDINGS } from '../data/buildings';
 import { RULES } from '../data/rules';
@@ -30,7 +31,7 @@ import { findUnit } from './movement';
 import { updateExplored } from './fog';
 import { nextFloat } from './rng';
 import { atWar } from './war';
-import { defendsTile, isShip, isWaterAt, removeUnit } from './naval';
+import { armyWord, defendsTile, isShip, isWaterAt, removeUnit } from './naval';
 import type { ActionResult, Coord, GameState, Unit } from './types';
 
 export interface Modifier {
@@ -154,7 +155,7 @@ export function attack(state: GameState, unitId: number, at: Coord): ActionResul
   unit.movesLeft = 0;
   unit.fortified = false;
 
-  const name = (u: Unit) => `${civAdjective(state, u.owner)} ${UNITS[u.type].name}${u.army ? ' army' : ''}`;
+  const name = (u: Unit) => `${civAdjective(state, u.owner)} ${UNITS[u.type].name}${u.army ? ` ${armyWord(u.type)}` : ''}`;
   const pct = Math.round(chance * 100);
   const text = attackerWon
     ? `${name(unit)} defeated ${name(defender)} (${pct}% odds)`
@@ -230,9 +231,7 @@ export function armyPartners(state: GameState, unit: Unit): Unit[] | string {
   if (state.currentPlayer !== unit.owner) return 'Not your turn';
   const def = UNITS[unit.type];
   if (def.canFoundCity || (def.attack <= 0 && def.defense <= 0)) return `A ${def.name} can’t join an army`;
-  // Armies are a land-only mechanic (Q11): no fleets.
-  if (isShip(unit)) return 'Ships can’t form armies';
-  if (unit.army) return 'Already an army';
+  if (unit.army) return `Already ${armyWord(unit.type) === 'fleet' ? 'a fleet' : 'an army'}`;
   if (unit.carriedBy !== null) return 'Unload first to form an army';
   const need = RULES.combat.armySize;
   const same = state.units.filter(
@@ -262,8 +261,10 @@ export function formArmy(state: GameState, unitId: number): ActionResult {
   unit.veteran = members.some((u) => u.veteran);
   unit.movesLeft = Math.min(...members.map((u) => u.movesLeft));
   unit.fortified = false;
+  // A fleet takes over its ships' cargo.
+  for (const p of partners) for (const c of state.units) if (c.carriedBy === p.id) c.carriedBy = unit.id;
   const gone = new Set(partners.map((u) => u.id));
   state.units = state.units.filter((u) => !gone.has(u.id));
-  addLog(state, unit.owner, `${CivName(state, unit.owner)} formed an army of ${RULES.combat.armySize} ${UNITS[unit.type].name} units`, unit);
+  addLog(state, unit.owner, `${CivName(state, unit.owner)} formed ${armyWord(unit.type) === 'fleet' ? 'a fleet' : 'an army'} of ${RULES.combat.armySize} ${UNITS[unit.type].name} units`, unit);
   return { ok: true };
 }

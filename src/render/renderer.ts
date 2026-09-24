@@ -167,9 +167,9 @@ function drawUnit(
   }
   if (unit.fortified) drawShield(ctx, cx - r * 0.95, cy + r * 0.2, s * 0.2);
   if (cargo > 0) {
-    // Units aboard: a teal badge at the lower right.
-    const bx = cx + r * 0.85;
-    const by = cy + r * 0.85;
+    // Units aboard: a teal badge at the lower right (a bit higher on a fleet, clear of its ×3 tag).
+    const bx = cx + r * (unit.army ? 1.05 : 0.85);
+    const by = cy + r * (unit.army ? 0.35 : 0.85);
     ctx.fillStyle = '#1aa39a';
     ctx.strokeStyle = '#0b1f22';
     ctx.lineWidth = Math.max(1, s * 0.03);

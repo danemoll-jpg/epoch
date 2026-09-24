@@ -675,7 +675,7 @@ Steps, Technical Notes.
     | B2 | Ship units | Done, 9 ships (numbers below), with attack, defense, moves, sight, and **cargo** in `units.ts` (new fields `domain`, `cargo`, `coastOnly`, `stealth`) | unit-tested |
     | B3 | Where ships go | Done. Ships move only on water, 1 move per tile; **a Galley only on coast tiles** ("A Galley can’t leave the coast"); a ship can dock in its own **coastal** city (not an enemy's). **Only coastal cities build ships and Harbors**; the build list hides them elsewhere and `setBuild` says "Needs a coastal city" | unit-tested; preview-verified (`galley-coast`: highlights are coast only) |
     | B4 | Carrying land units, touch-first | Done. **Boarding:** select a land unit and tap a friendly ship next to it with room (it can also walk several tiles and board at the end), or in a city use the unit panel's **⚓ Board the Galley** button. Boarding uses up the unit's move. **Cargo moves with the ship.** The ship's disc gets a **teal cargo badge** (the black stack badge no longer counts cargo); its panel says "cargo 2/2" and lists the cargo (⚓ aboard; tap to select). **Unloading:** select a cargo unit (tap the ship's tile again to cycle to it) and tap an adjacent land tile; it costs the unit's move. In port there's a **Go ashore here** button. No unloading onto enemy units; **no attacking from a ship**; unloading into an empty enemy city at war captures it. **A sunk ship takes its cargo with it** (message says so); **ships and cargo in a captured city are lost** (logged). Next Unit and the End Turn pulse skip cargo | unit-tested; preview-verified with real taps on desktop (board both, sail, badge, unload the Settler) |
-    | B5 | Naval combat | Done. Ships attack ships with the normal odds rule (no terrain bonus at sea). **Bombard:** a ship attacks a land unit or city next to it; win = the defender dies but **the ship never moves in or captures**; lose = the ship sinks. **Walls don't count against ships** (they were already "against land attacks"). Land units can't attack ships at sea. **Ships in a city don't defend it**: a city with only ships in port counts as empty. **No naval armies** ("Ships can’t form armies"). I wasn't certain whether Civ Rev 1 allowed fleets, so I kept Q11's default. The odds panel explains bombarding and warns when a ship carries units | unit-tested; preview-verified (`bombard`: 76%, Warrior destroyed, Frigate stayed, Taxila still Mauryan) |
+    | B5 | Naval combat | Done. Ships attack ships with the normal odds rule (no terrain bonus at sea). **Bombard:** a ship attacks a land unit or city next to it; win = the defender dies but **the ship never moves in or captures**; lose = the ship sinks. **Walls don't count against ships** (they were already "against land attacks"). Land units can't attack ships at sea. **Ships in a city don't defend it**: a city with only ships in port counts as empty. **No naval armies** ("Ships can’t form armies"). I wasn't certain whether Civ Rev 1 allowed fleets, so I kept Q11's default. **→ Changed by Dan the same day: naval armies ("fleets") are in; see below.** The odds panel explains bombarding and warns when a ship carries units | unit-tested; preview-verified (`bombard`: 76%, Warrior destroyed, Frigate stayed, Taxila still Mauryan) |
     | B6 | Harbor | Done. Needs Seafaring, coastal cities only, cost 60, **+1 food on every water tile the city works** (and the automatic tile picker counts it). **Water yields checked and left as they are:** coast 1/0/2, ocean 1/0/1. Without a Harbor a water tile doesn't feed its worker; with one, coast (2/0/2) beats grassland (2/0/1) and ocean equals it, so the Harbor is what makes a coastal city grow. The AI builds it after the Library | unit-tested; preview-verified (`harbor`: food +0 → +3) |
     | B7 | Several landmasses | Done, and **it needed tuning.** Before: in **76 of 100 seeds all 5 civs started on one continent**, no seed gave every civ its own landmass, and only 22% had an empty island. **Change (data in `RULES.map`):** water channels are cut along the lines halfway between 3–4 random continent centers, and no civ starts on a landmass under 20 tiles. After (100 seeds): **all on one continent 6%**; start landmasses 1/2/3/4/5 distinct = 6/33/46/15/0 seeds, so **most games put civs on 2–3 landmasses, some shared**; **every civ alone: 0%** (5 civs rarely each get their own continent on a 32×24 map); **an empty island with room for a city in 58% of seeds** (room for 2+ cities in 33%). Fairness: every civ's home landmass has at least 20 land tiles, and the 10th-percentile civ has 27 city-site tiles | unit-tested (40 seeds: ≤ 20% all-together, ≥ 30% empty island); `npm run sim` prints it |
     | B8 | AI uses the sea | Done, in new **`src/game/aiNaval.ts`**. **Boxed in** (below its city target with no site it can walk to; open sites now count per landmass): research the sea techs, build a boat in its first port, explore the coast. **Settling overseas:** once it knows a good site on another landmass its ship can reach, the port builds a Settler, the Settler and an **escort** board, the ship sails next to the site, they land, and the city is founded. **Invading:** when its war target is on a landmass where it has no city, its force gathers at a port, boards (**armies count as one**), sails next to the target, and lands next to it (or straight into it if empty); a log line "The Inca landed troops near Metz!" (you always see it when it's your city). A civ at war with no target in sight sends a boat to look. **Coastal defense:** once a met rival has ships, it keeps up to 2 warships in port, attacking enemy ships (or bombarding) nearby at ≥ 60% odds. Voyages may be planned through unexplored water, like land paths. Still deterministic. Sim numbers below | unit-tested (ferry founds overseas, identical twice; boxed-in research; ships only in ports); `ai-overseas` preview-verified; sim |
@@ -746,17 +746,33 @@ Steps, Technical Notes.
     | Stealth Bomber | A | Stealth Bomber (Delapouite) |
     | Helicopter | A | Helicopter (Delapouite) |
 
-    **Watch-outs from the picker page, for Dan to confirm or swap:**
-    - **Battleship A and Carrier A** are from the same set (a ship over wave
-      lines) and look nearly identical at 22 px; the carrier's small plane
-      is the only difference. Battleship B (Dreadnought) would avoid it, and
-      its old conflict (a smoke plume like Ironclad A) is gone, since
-      Ironclad is B.
+    **Watch-outs from the picker page:**
+    - **Battleship A and Carrier A** look nearly identical at 22 px. Dan
+      kept both (the B options are worse) and chose to **edit the Carrier**
+      (2026-09-24): `docs/ship-air-icon-candidates/carrier-a-trimmed.svg`
+      drops the wave lines and is cropped a little larger, so it reads as a
+      flat deck with a plane while the Battleship keeps its three waves.
+      Comparison at map size: `docs/carrier-trim-candidates.html`
+      (**http://10.0.0.224:4173/docs/carrier-trim-candidates.html**). **Use
+      the trimmed file when wiring in the Carrier**, credited as "modified"
+      (CC BY 3.0 allows it; say so in `CREDITS.md` and About / Credits).
+      Waiting for Dan's OK on the trimmed look.
     - **Bomber B (Carpet Bombing):** its bomb dots disappear at 22 px, so
       it may read as a plain plane shape at map size.
     - **Fighter B (Biplane)** gets busy when small.
     - Submarine A (flat cigar) was flagged as looking like Fighter A, but
       Fighter is B, so that's fine.
+  - **Naval armies — DECIDED by Dan (2026-09-24, Q11 → yes), done the same
+    day:** three ships of one type on a tile form a **fleet**, exactly like a
+    land army: ×3 attack and defense, the gold ring and ×3 tag, one unit
+    that can't split and sinks whole. **A fleet carries three ships' worth
+    of cargo** (e.g. 3 Galleys → 6), and it takes over whatever the three
+    ships were carrying. Messages and buttons say "fleet" for ships ("Form
+    Frigate fleet", "Frigate fleet ×3"). The AI forms fleets the same way
+    (three of a kind on a tile). New scenario **`fleet`** (odds 57% → 80%).
+    Unit-tested (fleet strength, cargo kept and ×3 capacity; the scenario);
+    preview-verified on desktop (Form Frigate fleet → "attack 12 · defense
+    9 · cargo 1/6"). 357 tests pass.
   - **Dan's checks for this round:**
     - (a) On the iPad, open **http://10.0.0.224:4173/docs/ship-air-icon-candidates.html**
       (the play server now also serves the picker pages; the Netlify build
@@ -995,8 +1011,8 @@ Dan then:
 **Open questions (defaults in bold; the coding agent proceeds on the default
 unless Dan decides otherwise):**
 - **Q1 — Working title:** **"Epoch" as a codename for now.**
-- **Q11 — Naval armies:** **no**, since armies are land-only, unless Civ Rev
-  1 had them.
+- **Q11 — Naval armies: DECIDED by Dan (2026-09-24): yes** ("fleets"; done
+  after the round, see Round 8 in Completed Tasks).
 - **Q12 — Unit icon style:** **white icon on the owner's colored disc** (as
   built in round 7, matching the picker page Dan chose from).
 

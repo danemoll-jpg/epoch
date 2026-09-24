@@ -14,7 +14,7 @@ import { capturableCity } from '../src/game/conquest';
 import { unitVisibleTo } from '../src/game/fog';
 import { landmassAt } from '../src/game/mapgen';
 import { findPath, reachableThisTurn } from '../src/game/movement';
-import { cargoOf, isCoastal } from '../src/game/naval';
+import { cargoCapacity, cargoOf, isCoastal } from '../src/game/naval';
 import { buildOptions } from '../src/game/production';
 import { deserializeGame, serializeGame } from '../src/game/save';
 import { chooseAiResearch } from '../src/game/tech';
@@ -271,10 +271,26 @@ describe('naval combat', () => {
     expect(legion.carriedBy).toBeNull();
   });
 
-  it('no naval armies, and ships only "stay" (no fortify bonus)', () => {
+  it('three ships of a type form a fleet: ×3 strength, ×3 cargo, and it keeps their cargo', () => {
+    const s = makeState(OPEN_SEA);
+    const ships = [0, 1, 2].map(() => addUnit(s, 'galley', 0, 2, 1));
+    addUnit(s, 'warrior', 0, 2, 1, { carriedBy: ships[1]!.id });
+    addUnit(s, 'settler', 0, 2, 1, { carriedBy: ships[2]!.id });
+    expect(formArmyError(s, ships[0]!)).toBeUndefined();
+    expect(applyAction(s, { type: 'formArmy', unitId: ships[0]!.id }).ok).toBe(true);
+    const fleet = ships[0]!;
+    expect(fleet.army).toBe(true);
+    expect(s.units.filter((u) => u.type === 'galley')).toHaveLength(1);
+    expect(cargoOf(s, fleet)).toHaveLength(2);
+    expect(cargoCapacity(fleet)).toBe(6);
+    const enemy = addUnit(s, 'frigate', 1, 3, 1);
+    expect(combatOdds(s, enemy, fleet)!.defense.base).toBe(3);
+    expect(s.log.some((e) => e.text.includes('formed a fleet'))).toBe(true);
+  });
+
+  it('ships only "stay" (no fortify bonus)', () => {
     const s = makeState(OPEN_SEA);
     const ships = [0, 1, 2].map(() => addUnit(s, 'frigate', 0, 5, 2));
-    expect(formArmyError(s, ships[0]!)).toBe('Ships can’t form armies');
     expect(fortifyError(s, ships[0]!)).toBeUndefined();
     applyAction(s, { type: 'fortify', unitId: ships[0]!.id });
     const enemy = addUnit(s, 'frigate', 1, 6, 2);
