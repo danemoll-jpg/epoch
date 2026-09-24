@@ -6,7 +6,7 @@ import type { TechId } from '../data/techs';
 import { foundCity } from './city';
 import { attack, formArmy, fortify } from './combat';
 import { answerOffer, declareWar, giveGold, proposePeace, tradeTech } from './diplomacy';
-import { moveUnitToward } from './movement';
+import { boardShip, moveUnitToward, unloadHere } from './movement';
 import { rushBuy, setBuild, setFocus, setScienceRate } from './production';
 import { setResearch } from './tech';
 import { endHumanTurn } from './turn';
@@ -19,6 +19,10 @@ export type Action =
   | { type: 'attack'; unitId: number; at: Coord }
   | { type: 'fortify'; unitId: number }
   | { type: 'formArmy'; unitId: number }
+  /** Board a ship docked on the unit's own tile (in a city). At sea, boarding is a move onto the ship. */
+  | { type: 'board'; unitId: number; shipId: number }
+  /** Go ashore from a ship docked in a city, into the city. Elsewhere, unloading is a move onto land. */
+  | { type: 'unload'; unitId: number }
   | { type: 'setBuild'; cityId: number; item: BuildItem }
   | { type: 'setFocus'; cityId: number; focus: CityFocus }
   | { type: 'rushBuy'; cityId: number }
@@ -53,6 +57,10 @@ function runAction(state: GameState, action: Action): ActionResult {
       return fortify(state, action.unitId);
     case 'formArmy':
       return formArmy(state, action.unitId);
+    case 'board':
+      return boardShip(state, action.unitId, action.shipId);
+    case 'unload':
+      return unloadHere(state, action.unitId);
     case 'setBuild':
       return setBuild(state, action.cityId, action.item);
     case 'setFocus':

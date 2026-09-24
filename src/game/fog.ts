@@ -3,8 +3,8 @@
 
 import { RULES } from '../data/rules';
 import { UNITS } from '../data/units';
-import { tileIndex, tilesInRadius } from './grid';
-import type { GameState } from './types';
+import { distance, tileIndex, tilesInRadius } from './grid';
+import type { GameState, Unit } from './types';
 
 export function visibleTiles(state: GameState, playerId: number): boolean[] {
   const vis = new Array<boolean>(state.map.tiles.length).fill(false);
@@ -22,6 +22,22 @@ export function updateExplored(state: GameState, playerId: number): void {
   if (!player) return;
   const vis = visibleTiles(state, playerId);
   for (let i = 0; i < vis.length; i++) if (vis[i]) player.explored[i] = 1;
+}
+
+/**
+ * Can `viewer` see this unit? Their own always; others where the viewer can see the tile.
+ * A stealthy unit (the Submarine, Round 8) only when one of the viewer's units or cities is
+ * right next to it. `vis` is the viewer's visibleTiles, if already computed.
+ */
+export function unitVisibleTo(state: GameState, viewer: number, u: Unit, vis?: boolean[]): boolean {
+  if (u.owner === viewer) return true;
+  if (UNITS[u.type].stealth) {
+    return (
+      state.units.some((o) => o.owner === viewer && distance(o, u) <= 1) ||
+      state.cities.some((c) => c.owner === viewer && distance(c, u) <= 1)
+    );
+  }
+  return (vis ?? visibleTiles(state, viewer))[tileIndex(state.map, u.x, u.y)] === true;
 }
 
 export function isExplored(state: GameState, playerId: number, x: number, y: number): boolean {

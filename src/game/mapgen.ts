@@ -1,7 +1,9 @@
 // Seeded map generation: layered value noise for elevation and moisture, an edge falloff so
 // the map reads as continents in an ocean, then percentile thresholds so land share and
-// terrain mix are stable from seed to seed.
+// terrain mix are stable from seed to seed. Round 8: water channels are cut between 3–4
+// continent centers (RULES.map), so most games have several landmasses and ships matter.
 
+import { RULES } from '../data/rules';
 import { TERRAIN, yieldScore, type TerrainId } from '../data/terrain';
 import { distance, inBounds, neighbors, tileIndex, tilesInRadius } from './grid';
 import { nextFloat, type RngHolder } from './rng';
@@ -12,6 +14,34 @@ export interface MapGenOptions {
   height: number;
   /** Fraction of tiles that are land (before coast marking). */
   landShare?: number;
+  /** Map-shape rules (continents and the channels between them); RULES.map by default. */
+  shape?: typeof RULES.map;
+}
+
+/**
+ * Round 8: continent centers, spread out. The channels cut between them are what make
+ * several landmasses (the noise alone made one big continent in most seeds).
+ */
+function continentCenters(rng: RngHolder, w: number, h: number, shape: typeof RULES.map): Coord[] {
+  const count = shape.continentsMin + Math.floor(nextFloat(rng) * (shape.continentsMax - shape.continentsMin + 1));
+  const centers: Coord[] = [];
+  for (let tries = 0; centers.length < count && tries < 200; tries++) {
+    const c = { x: 3 + nextFloat(rng) * (w - 6), y: 3 + nextFloat(rng) * (h - 6) };
+    if (centers.every((o) => Math.hypot(o.x - c.x, o.y - c.y) >= shape.continentSpacing)) centers.push(c);
+  }
+  return centers;
+}
+
+/** Lowers the elevation along the lines halfway between continent centers (water channels). */
+function cutChannels(elevation: number[], w: number, h: number, centers: Coord[], shape: typeof RULES.map): void {
+  if (centers.length < 2) return;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const d = centers.map((c) => Math.hypot(c.x - x, c.y - y)).sort((a, b) => a - b);
+      const gap = d[1]! - d[0]!;
+      if (gap < shape.channelWidth) elevation[y * w + x]! -= ((shape.channelWidth - gap) / shape.channelWidth) * shape.channelDepth;
+    }
+  }
 }
 
 function valueNoiseLayer(rng: RngHolder, w: number, h: number, spacing: number): number[] {
@@ -60,9 +90,11 @@ function percentile(values: number[], fraction: number): number {
 
 export function generateMap(rng: RngHolder, opts: MapGenOptions): GameMap {
   const { width: w, height: h } = opts;
-  const landShare = opts.landShare ?? 0.45;
+  const shape = opts.shape ?? RULES.map;
+  const landShare = opts.landShare ?? shape.landShare;
   const elevation = fractalNoise(rng, w, h);
   const moisture = fractalNoise(rng, w, h);
+  cutChannels(elevation, w, h, continentCenters(rng, w, h, shape), shape);
 
   // Edge falloff: push the border toward ocean so land doesn't run off the map.
   for (let y = 0; y < h; y++) {
@@ -116,6 +148,41 @@ export function generateMap(rng: RngHolder, opts: MapGenOptions): GameMap {
   return map;
 }
 
+const regionCache = new WeakMap<GameMap, number[]>();
+
+/**
+ * Which landmass each tile is on: the id of its land-passable connected region, or -1 for
+ * water and mountains. Terrain never changes, so it's cached per map.
+ */
+export function landRegionIds(map: GameMap): number[] {
+  const cached = regionCache.get(map);
+  if (cached) return cached;
+  const ids = new Array<number>(map.tiles.length).fill(-1);
+  let next = 0;
+  for (let start = 0; start < map.tiles.length; start++) {
+    if (ids[start] !== -1 || !TERRAIN[map.tiles[start]!.terrain].landPassable) continue;
+    const stack = [start];
+    ids[start] = next;
+    while (stack.length) {
+      const i = stack.pop()!;
+      for (const n of neighbors(map, { x: i % map.width, y: Math.floor(i / map.width) })) {
+        const j = tileIndex(map, n.x, n.y);
+        if (ids[j] !== -1 || !TERRAIN[map.tiles[j]!.terrain].landPassable) continue;
+        ids[j] = next;
+        stack.push(j);
+      }
+    }
+    next++;
+  }
+  regionCache.set(map, ids);
+  return ids;
+}
+
+/** The landmass id of a tile (-1 for water and mountains). */
+export function landmassAt(map: GameMap, c: Coord): number {
+  return landRegionIds(map)[tileIndex(map, c.x, c.y)] ?? -1;
+}
+
 /** Size of each land-passable connected region, keyed by tile index. */
 export function landRegionSizes(map: GameMap): number[] {
   const sizes = new Array<number>(map.tiles.length).fill(0);
@@ -151,8 +218,6 @@ export function siteScore(map: GameMap, c: Coord): number {
   return score;
 }
 
-const MIN_START_REGION = 15;
-
 /**
  * Picks up to `count` start positions, spread out as far as the land allows. Returns fewer
  * than `count` only if the map truly has too few usable tiles; callers regenerate then.
@@ -170,7 +235,7 @@ export function findStartPositions(
       const i = tileIndex(map, x, y);
       const t = map.tiles[i]!.terrain;
       if (t !== 'grassland' && t !== 'plains' && t !== 'hills') continue;
-      if (regionSizes[i]! < MIN_START_REGION) continue;
+      if (regionSizes[i]! < RULES.map.minStartLandmass) continue;
       candidates.push({ c: { x, y }, score: siteScore(map, { x, y }) + nextFloat(rng) * 4 });
     }
   }

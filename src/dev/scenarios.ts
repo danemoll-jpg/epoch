@@ -7,6 +7,7 @@
 // To add one: append an entry to SCENARIOS below, and add its expected outcome to
 // tests/scenarios.test.ts (the test also fails if a scenario has no outcome check).
 
+import { BUILDINGS } from '../data/buildings';
 import { growthThreshold } from '../data/rules';
 import { TECHS, TECH_LIST, type TechId } from '../data/techs';
 import type { TerrainId } from '../data/terrain';
@@ -17,7 +18,9 @@ import { applyAction } from '../game/actions';
 import { combatOdds } from '../game/combat';
 import { CivName, civName, civVerb } from '../game/conquest';
 import { civDef, peaceDesire } from '../game/diplomacy';
+import { findOverseasSite } from '../game/aiNaval';
 import { tileIndex } from '../game/grid';
+import { foodSurplus } from '../game/yields';
 import { techCost } from '../game/tech';
 import type { City, GameState } from '../game/types';
 import { addCity, addUnit, makeState } from './build';
@@ -320,7 +323,7 @@ function allUnitsScenario(): GameState {
   const { state } = withCapital(undefined, {}, 2);
   state.atWar = [[false, false], [false, false]];
   // Row 1 (y = 3) and row 2 (y = 7): every type in table order, left to right.
-  UNIT_IDS.forEach((id, i) => {
+  UNIT_IDS.filter((id) => UNITS[id].domain === 'land').forEach((id, i) => {
     const x = 2 + (i % 12);
     const y = i < 12 ? 3 : 7;
     addUnit(state, id, 0, x, y);
@@ -464,6 +467,180 @@ function oneTurnFromLearning(state: GameState, known: TechId[], tech: TechId): v
   p.science = techCost(p, tech) - 1;
 }
 
+// ---- naval scenarios (Round 8) -------------------------------------------------------------
+// A 16×12 sea: your island in the west, another landmass to the east. Water next to land is
+// coast (light blue; a Galley can go there), water farther out is ocean (dark blue).
+
+/** `land(x, y)` gives the terrain letter of each land tile; everything else is water. */
+function seaMap(land: (x: number, y: number) => string | undefined): string[] {
+  const W = 16;
+  const H = 12;
+  const at = (x: number, y: number) => (x >= 0 && y >= 0 && x < W && y < H ? land(x, y) : undefined);
+  const rows: string[] = [];
+  for (let y = 0; y < H; y++) {
+    let row = '';
+    for (let x = 0; x < W; x++) {
+      const t = at(x, y);
+      if (t) {
+        row += t;
+        continue;
+      }
+      let coast = false;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (at(x + dx, y + dy)) coast = true;
+      row += coast ? 'c' : 'o';
+    }
+    rows.push(row);
+  }
+  return rows;
+}
+
+/** A little variety on the islands, the same every time. */
+function islandTerrain(x: number, y: number): string {
+  const k = (x * 7 + y * 3) % 11;
+  return k === 0 ? 'f' : k === 5 ? 'p' : k === 8 ? 'h' : 'g';
+}
+
+const WEST = { x0: 1, x1: 5, y0: 2, y1: 9 };
+/** Your capital: on the east shore of your island, so it's a port. */
+const PORT = { x: 5, y: 5 };
+
+/**
+ * Your island plus an eastern landmass starting at column `eastX`: 8 leaves a two-tile coast
+ * channel (a Galley can cross), 10 leaves open ocean in between (it can't).
+ */
+function seaState(eastX: number, players = 1, opts: { peace?: boolean } = {}): GameState {
+  const inside = (x: number, y: number, r: { x0: number; x1: number; y0: number; y1: number }) => x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1;
+  const state = makeState(
+    seaMap((x, y) => (inside(x, y, WEST) || inside(x, y, { x0: eastX, x1: 14, y0: 2, y1: 9 }) ? islandTerrain(x, y) : undefined)),
+    { players, peace: opts.peace },
+  );
+  addCity(state, 0, PORT.x, PORT.y, { name: CAPITAL, capitalOf: 0, size: 2, build: { kind: 'unit', id: 'warrior' } });
+  state.players[0]!.citiesFounded = 1;
+  state.players[0]!.techs = ['alphabet', 'map_making'];
+  return state;
+}
+
+/** A rival capital on the eastern landmass, with a Warrior at home. */
+function eastRival(state: GameState, x = 13, y = 7): City {
+  const city = addCity(state, 1, x, y, { name: RIVAL_CAPITAL, capitalOf: 1, build: { kind: 'unit', id: 'warrior' } });
+  addUnit(state, 'warrior', 1, x, y, { fortified: true });
+  state.players[1]!.citiesFounded = 1;
+  return city;
+}
+
+function boardUnloadScenario(): GameState {
+  const state = seaState(8);
+  addUnit(state, 'galley', 0, PORT.x, PORT.y);
+  addUnit(state, 'settler', 0, PORT.x, PORT.y);
+  addUnit(state, 'warrior', 0, PORT.x, PORT.y);
+  return state;
+}
+
+function galleyCoastScenario(): GameState {
+  const state = seaState(10);
+  addUnit(state, 'galley', 0, 6, 5);
+  addUnit(state, 'caravel', 0, 6, 6);
+  state.players[0]!.techs.push('navigation');
+  return state;
+}
+
+function navalBattleScenario(): GameState {
+  const state = seaState(10, 2);
+  eastRival(state);
+  addUnit(state, 'frigate', 0, 7, 5);
+  addUnit(state, 'frigate', 1, 8, 5);
+  state.rngState = FAIR_DICE;
+  return state;
+}
+
+/** Your Frigate off the coast, next to their city at (8, 5) with one Warrior inside. */
+function bombardScenario(): GameState {
+  const state = seaState(8, 2);
+  eastRival(state);
+  addCity(state, 1, 8, 5, { name: 'Taxila', build: { kind: 'unit', id: 'warrior' } });
+  addUnit(state, 'warrior', 1, 8, 5);
+  addUnit(state, 'frigate', 0, 7, 5);
+  state.rngState = FAIR_DICE;
+  return state;
+}
+
+/** Your Galley with a Settler and a Warrior aboard, next to their Frigate. */
+function shipSunkBase(): GameState {
+  const state = seaState(10, 2);
+  eastRival(state);
+  const galley = addUnit(state, 'galley', 0, 6, 4);
+  addUnit(state, 'settler', 0, 6, 4, { carriedBy: galley.id });
+  addUnit(state, 'warrior', 0, 6, 4, { carriedBy: galley.id });
+  addUnit(state, 'frigate', 1, 7, 4);
+  return state;
+}
+
+/** Your Galley with a Legion aboard, next to their empty city at (8, 5). */
+function amphibiousScenario(): GameState {
+  const state = seaState(8, 2);
+  eastRival(state);
+  addCity(state, 1, 8, 5, { name: 'Taxila', build: { kind: 'unit', id: 'warrior' } });
+  const galley = addUnit(state, 'galley', 0, 7, 5);
+  addUnit(state, 'legion', 0, 7, 5, { carriedBy: galley.id });
+  return state;
+}
+
+/** Your capital on a spit of land in a lagoon: it works water tiles; the Harbor is one turn from done. */
+function harborScenario(): GameState {
+  const { state, city } = withCapital(['ccc', 'cgc', 'ccc'], { size: 3, build: { kind: 'building', id: 'harbor' } });
+  state.players[0]!.techs = ['alphabet', 'pottery', 'map_making', 'seafaring'];
+  city.production = BUILDINGS.harbor.cost - 1;
+  return state;
+}
+
+/**
+ * Maurya (player 1) is boxed in on a 3×3 island with a Galley in port, a Settler, and a Warrior
+ * outside the city (a free escort); a good empty site lies across a coast channel on the
+ * landmass where your capital is. Your Warrior stands next to that site, so you'll see them land.
+ */
+function aiOverseasScenario(): GameState {
+  const AI_ISLAND = { x0: 1, x1: 3, y0: 4, y1: 6 };
+  const HOME = { x0: 6, x1: 13, y0: 2, y1: 9 };
+  const inside = (x: number, y: number, r: typeof HOME) => x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1;
+  const state = makeState(seaMap((x, y) => (inside(x, y, AI_ISLAND) || inside(x, y, HOME) ? islandTerrain(x, y) : undefined)), { players: 2, peace: true });
+  addCity(state, 0, 11, 5, { name: CAPITAL, capitalOf: 0, size: 2, build: { kind: 'unit', id: 'warrior' } });
+  state.players[0]!.citiesFounded = 1;
+  addCity(state, 1, 3, 5, { name: RIVAL_CAPITAL, capitalOf: 1, size: 2, build: { kind: 'building', id: 'granary' } });
+  addUnit(state, 'warrior', 1, 3, 5, { fortified: true });
+  addUnit(state, 'galley', 1, 3, 5);
+  addUnit(state, 'settler', 1, 3, 5);
+  addUnit(state, 'warrior', 1, 2, 5);
+  state.players[1]!.citiesFounded = 1;
+  state.players[1]!.techs = ['alphabet', 'map_making', 'pottery'];
+  state.players[1]!.researching = 'writing';
+  // Where they'll go, so your Warrior can watch from next door.
+  const site = findOverseasSite(state, 1, 'galley')!;
+  addUnit(state, 'warrior', 0, site.target.x + 1, site.target.y, { fortified: true });
+  return state;
+}
+
+/** One of each ship around your island, a Galley with two units aboard (cargo badge), and a rival Frigate. */
+function allShipsScenario(): GameState {
+  const { state } = withCapital(undefined, {}, 2);
+  state.atWar = [[false, false], [false, false]];
+  // The coast ring: row 1 across the top, then down the east side.
+  const ships = UNIT_IDS.filter((id) => UNITS[id].domain === 'sea');
+  ships.forEach((id, i) => addUnit(state, id, 0, 3 + i, 1));
+  const galley = addUnit(state, 'galley', 0, 14, 4);
+  addUnit(state, 'settler', 0, 14, 4, { carriedBy: galley.id });
+  addUnit(state, 'warrior', 0, 14, 4, { carriedBy: galley.id });
+  addUnit(state, 'frigate', 1, 14, 5);
+  addCity(state, 1, 12, 8, { name: RIVAL_CAPITAL, capitalOf: 1, build: { kind: 'unit', id: 'warrior' } });
+  state.players[1]!.citiesFounded = 1;
+  return state;
+}
+
+/** The win chance (whole percent) of your unit at `from` attacking `at`, for the notes. */
+function oddsAt(state: GameState, from: { x: number; y: number }, at: { x: number; y: number }): number {
+  const u = state.units.find((x) => x.owner === 0 && x.x === from.x && x.y === from.y && x.carriedBy === null)!;
+  return Math.round(combatOdds(state, u, at)!.chance * 100);
+}
+
 export const SCENARIOS: Scenario[] = [
   {
     id: 'grow',
@@ -587,7 +764,7 @@ export const SCENARIOS: Scenario[] = [
   {
     id: 'all-units',
     title: 'All unit icons',
-    note: `One of each unit type (${UNIT_IDS.length}) in two rows north and south of ${CAPITAL}, in table order: Settler, Warrior, Archer … Tank. South row also has a Legion army (gold ring, ×3), a veteran Spearman (★ in its panel), a fortified Pikeman (shield), and a mixed stack (a Musketman with two Archers peeking out behind, badge 3). Rival units along the south coast show their color. Pinch-zoom in and out: the icons should stay sharp. Tap any unit to see its icon in the unit panel.`,
+    note: `One of each land unit type (${UNIT_IDS.filter((id) => UNITS[id].domain === 'land').length}) in two rows north and south of ${CAPITAL}, in table order: Settler, Warrior, Archer … Tank. South row also has a Legion army (gold ring, ×3), a veteran Spearman (★ in its panel), a fortified Pikeman (shield), and a mixed stack (a Musketman with two Archers peeking out behind, badge 3). Rival units along the south coast show their color. Pinch-zoom in and out: the icons should stay sharp. Tap any unit to see its icon in the unit panel.`,
     build: allUnitsScenario,
   },
   {
@@ -673,6 +850,61 @@ export const SCENARIOS: Scenario[] = [
     title: 'AI declares war',
     note: `Tap End Turn. The Franks declare war on you (a panel says so). Keep tapping End Turn: their Legion army marches from Aachen toward ${CAPITAL} and attacks within a few turns.`,
     build: () => withDice(aiWarBase, (s) => s.atWar[0]![RIVAL] === true),
+  },
+  // ---- Round 8: ships ----
+  {
+    id: 'board-unload',
+    title: 'Ships: board, sail, unload',
+    note: `A Galley is docked in ${CAPITAL} with a Settler and a Warrior. Tap ${CAPITAL}, tap the Settler, then “⚓ Board the Galley”; do the same for the Warrior (the Galley shows a teal “2”). Select the Galley and tap the coast tile 2 east of ${CAPITAL}. End Turn. Then tap the Galley's tile, pick the Settler (⚓ aboard) and tap the land just east of the ship: it goes ashore. Same for the Warrior. End Turn, and the Settler can found a city on the new landmass.`,
+    build: boardUnloadScenario,
+  },
+  {
+    id: 'galley-coast',
+    title: 'Ships: Galley stays on the coast',
+    note: 'Your Galley and Caravel sit on the light-blue coast east of your island; dark-blue ocean lies beyond. Select the Galley and tap the ocean just east of it: “A Galley can’t leave the coast”. Its highlighted tiles are all coast. Now select the Caravel: it can sail across the ocean to the far shore.',
+    build: galleyCoastScenario,
+  },
+  {
+    id: 'naval-battle',
+    title: 'Ships: naval battle',
+    note: `Your Frigate faces a Mauryan Frigate at sea. Select yours and tap theirs: the odds panel shows ${oddsAt(navalBattleScenario(), { x: 7, y: 5 }, { x: 8, y: 5 })}% (Frigate attack 4 against defense 3, no terrain bonus at sea). Attack: the loser sinks.`,
+    build: navalBattleScenario,
+  },
+  {
+    id: 'bombard',
+    title: 'Ships: bombard the coast',
+    note: `Your Frigate is off the coast next to Taxila, held by one Warrior. Select the Frigate and tap Taxila: the odds panel shows ${oddsAt(bombardScenario(), { x: 7, y: 5 }, { x: 8, y: 5 })}% and says ships never move in (Walls wouldn't count: they only stop land attacks). Attack: the Warrior is destroyed, but the Frigate stays at sea and Taxila stays Mauryan (empty).`,
+    build: bombardScenario,
+  },
+  {
+    id: 'ship-sunk-cargo',
+    title: 'Ships: cargo sinks with the ship',
+    note: 'Your Galley carries a Settler and a Warrior (teal “2”), right next to a Mauryan Frigate. Tap End Turn: the Frigate attacks and sinks the Galley, and a message says the 2 units aboard went down with it. All three are gone.',
+    build: () => withDice(shipSunkBase, (s) => !s.units.some((u) => u.owner === 0 && u.type === 'galley')),
+  },
+  {
+    id: 'amphibious-capture',
+    title: 'Ships: land and capture',
+    note: 'Your Galley carries a Legion, next to Taxila, a Mauryan city with no defenders. Tap the Galley, pick the Legion (⚓ aboard) in its panel, and tap Taxila: the Legion goes ashore straight into the city and captures it.',
+    build: amphibiousScenario,
+  },
+  {
+    id: 'harbor',
+    title: 'Harbor: more food from the sea',
+    note: `${CAPITAL} sits in a lagoon and works 3 coast tiles (1 food each). Tap End Turn: it finishes a Harbor, and each water tile it works gives +${BUILDINGS.harbor.effects.waterFood} food, so ${CAPITAL}'s food surplus goes from ${foodSurplus(harborScenario(), harborScenario().cities[0]!)} to +3. Tap ${CAPITAL} to see it.`,
+    build: harborScenario,
+  },
+  {
+    id: 'ai-overseas',
+    title: 'Ships: AI settles overseas',
+    note: `Maurya is boxed in on the little island to the west, with a Galley, a Settler, and a Warrior. Keep tapping End Turn (about 4 times): the Warrior and the Settler board the Galley, it sails over, they land next to your fortified Warrior at (${aiOverseasScenario().units.find((u) => u.owner === 0)!.x}, ${aiOverseasScenario().units.find((u) => u.owner === 0)!.y}), and Maurya founds a city on your landmass.`,
+    build: aiOverseasScenario,
+  },
+  {
+    id: 'all-ships',
+    title: 'All ships',
+    note: `One of each ship (${UNIT_IDS.filter((id) => UNITS[id].domain === 'sea').length}) along the north coast in table order: Galley, Caravel, Frigate, Ironclad, Transport, Destroyer, Battleship, Submarine, Carrier. They show letters until you pick their icons. A Galley on the east coast carries two units (teal “2” badge), and a Mauryan Frigate sits right below it (you are at peace). Tap any ship for its stats.`,
+    build: allShipsScenario,
   },
 ];
 

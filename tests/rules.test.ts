@@ -229,10 +229,12 @@ describe('minimal AI', () => {
   it('founds a city and explores using normal actions', () => {
     const s = createGame({ seed: 5 });
     const aiWarrior = s.units.find((u) => u.owner === 1 && u.type === 'warrior')!;
+    const aiSettler = s.units.find((u) => u.owner === 1 && u.type === 'settler')!;
     const before = s.players[1]!.explored.filter((v) => v === 1).length;
     for (let t = 0; t < 10; t++) applyAction(s, { type: 'endTurn' });
     expect(s.cities.some((c) => c.owner === 1)).toBe(true);
-    expect(s.units.some((u) => u.owner === 1 && u.type === 'settler')).toBe(false);
+    // The starting settler founded the capital (a new one may already be on its way).
+    expect(s.units.some((u) => u.id === aiSettler.id)).toBe(false);
     expect(s.players[1]!.explored.filter((v) => v === 1).length).toBeGreaterThan(before + 10);
     expect(s.units.find((u) => u.id === aiWarrior.id)).toBeDefined();
   });

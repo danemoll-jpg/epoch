@@ -655,9 +655,138 @@ Steps, Technical Notes.
       were done by measuring the page (overflow, sizes, tap targets) rather
       than by eye. The map icons were seen on screen.
 
+* **Round 8 — Naval (ships, sea techs, transports) + ship and aircraft icon
+  candidates — done by the coding agent (2026-09-24). Waiting for Dan's
+  checks (a)–(c) below.**
+  - **Result:** 354 unit tests passing (46 new). Type-check and production
+    build are clean, and the dev-code leak check passes. Preview-verified on
+    desktop and in iPad-sized touch emulation (768×1024). **Save format 7**
+    (a v6 game is upgraded, with the original kept as a backup). Package
+    version 0.8.0.
+  - **Per-item status (coding round 8):**
+
+    | # | Item | Status | Verified by |
+    |---|------|--------|-------------|
+    | 0 | Commit docs first | Done (`ca262d8`), then re-read both. Nothing from last round's report was dropped (the lines removed were the old Round 7 task list) | n/a |
+    | A1 | Ship and aircraft icon candidates | Done. **35 candidates from game-icons.net** for the 14 types: Galley, Caravel, Destroyer, Submarine, Fighter, Bomber, and Stealth Bomber have 3; Frigate, Ironclad, Transport, Battleship, Carrier, Jet Fighter, and Helicopter have 2 (the site has few ship and plane icons; Carrier B and Helicopter B are stand-ins, see the page's notes). Authors: Delapouite, Cathelineau, Lorc, Skoll, Pierre Leducq, Quoting | Each file checked to be one `currentColor` shape; page checked below |
+    | A2 | Picker page | Done: **`docs/ship-air-icon-candidates.html`** (about 156 KB, self-contained), built like the round 6 page: A/B/C labels, each candidate large (96 px) and at map size **white on the owner's disc** (31 px and 22 px, blue and purple). **Ships sit on ocean-colored tiles, aircraft on grass and ocean.** Author credit under each; tap to pick (tap again to undo), picks remembered on the device (its own key, so the old page's picks stay); "n of 14 picked", **Next unpicked**, **Copy my picks** ("Galley: B (Trireme)"), **Share**. A "Watch out" note under each unit, and an overview strip that also shows the 15 land icons in use for comparison. SVGs in `docs/ship-air-icon-candidates/` with `SOURCES.md` | Viewed in a preview browser (by a helper agent): picking, undo, saved picks, copied text; no sideways scroll at 375 and 550 px; bar buttons 44 px. Every candidate file is on the page |
+    | A3 | Ships use letters until Dan picks | Done. Ships have no `icon` yet, so the map and panels draw their letters (Ga, Cv, Fr, Ic, Tr, De, Bs, Su, Cr). Nothing from the page is wired in. The icon test now covers land units only, and checks that no ship has an icon yet | unit-tested; preview-verified (`all-ships`) |
+    | B1 | Sea techs | Done. **Map Making** (Ancient, tier 2, needs Alphabet), **Seafaring** (Medieval, tier 3, Pottery + Map Making), **Navigation** (Medieval, tier 4, Seafaring + Astronomy), **Magnetism** (Medieval, tier 5, Navigation + Iron Working), with our own descriptions. **54 techs now.** The later ship techs already existed (Steam Engine, Industrialization, Combustion, Automobile, Flight), so nothing else was added. A boxed-in AI researches Map Making, Seafaring, and Navigation first. Pace before/after below | unit-tested (tree valid, tiers = depth); `npm run sim` |
+    | B2 | Ship units | Done, 9 ships (numbers below), with attack, defense, moves, sight, and **cargo** in `units.ts` (new fields `domain`, `cargo`, `coastOnly`, `stealth`) | unit-tested |
+    | B3 | Where ships go | Done. Ships move only on water, 1 move per tile; **a Galley only on coast tiles** ("A Galley can’t leave the coast"); a ship can dock in its own **coastal** city (not an enemy's). **Only coastal cities build ships and Harbors**; the build list hides them elsewhere and `setBuild` says "Needs a coastal city" | unit-tested; preview-verified (`galley-coast`: highlights are coast only) |
+    | B4 | Carrying land units, touch-first | Done. **Boarding:** select a land unit and tap a friendly ship next to it with room (it can also walk several tiles and board at the end), or in a city use the unit panel's **⚓ Board the Galley** button. Boarding uses up the unit's move. **Cargo moves with the ship.** The ship's disc gets a **teal cargo badge** (the black stack badge no longer counts cargo); its panel says "cargo 2/2" and lists the cargo (⚓ aboard; tap to select). **Unloading:** select a cargo unit (tap the ship's tile again to cycle to it) and tap an adjacent land tile; it costs the unit's move. In port there's a **Go ashore here** button. No unloading onto enemy units; **no attacking from a ship**; unloading into an empty enemy city at war captures it. **A sunk ship takes its cargo with it** (message says so); **ships and cargo in a captured city are lost** (logged). Next Unit and the End Turn pulse skip cargo | unit-tested; preview-verified with real taps on desktop (board both, sail, badge, unload the Settler) |
+    | B5 | Naval combat | Done. Ships attack ships with the normal odds rule (no terrain bonus at sea). **Bombard:** a ship attacks a land unit or city next to it; win = the defender dies but **the ship never moves in or captures**; lose = the ship sinks. **Walls don't count against ships** (they were already "against land attacks"). Land units can't attack ships at sea. **Ships in a city don't defend it**: a city with only ships in port counts as empty. **No naval armies** ("Ships can’t form armies"). I wasn't certain whether Civ Rev 1 allowed fleets, so I kept Q11's default. The odds panel explains bombarding and warns when a ship carries units | unit-tested; preview-verified (`bombard`: 76%, Warrior destroyed, Frigate stayed, Taxila still Mauryan) |
+    | B6 | Harbor | Done. Needs Seafaring, coastal cities only, cost 60, **+1 food on every water tile the city works** (and the automatic tile picker counts it). **Water yields checked and left as they are:** coast 1/0/2, ocean 1/0/1. Without a Harbor a water tile doesn't feed its worker; with one, coast (2/0/2) beats grassland (2/0/1) and ocean equals it, so the Harbor is what makes a coastal city grow. The AI builds it after the Library | unit-tested; preview-verified (`harbor`: food +0 → +3) |
+    | B7 | Several landmasses | Done, and **it needed tuning.** Before: in **76 of 100 seeds all 5 civs started on one continent**, no seed gave every civ its own landmass, and only 22% had an empty island. **Change (data in `RULES.map`):** water channels are cut along the lines halfway between 3–4 random continent centers, and no civ starts on a landmass under 20 tiles. After (100 seeds): **all on one continent 6%**; start landmasses 1/2/3/4/5 distinct = 6/33/46/15/0 seeds, so **most games put civs on 2–3 landmasses, some shared**; **every civ alone: 0%** (5 civs rarely each get their own continent on a 32×24 map); **an empty island with room for a city in 58% of seeds** (room for 2+ cities in 33%). Fairness: every civ's home landmass has at least 20 land tiles, and the 10th-percentile civ has 27 city-site tiles | unit-tested (40 seeds: ≤ 20% all-together, ≥ 30% empty island); `npm run sim` prints it |
+    | B8 | AI uses the sea | Done, in new **`src/game/aiNaval.ts`**. **Boxed in** (below its city target with no site it can walk to; open sites now count per landmass): research the sea techs, build a boat in its first port, explore the coast. **Settling overseas:** once it knows a good site on another landmass its ship can reach, the port builds a Settler, the Settler and an **escort** board, the ship sails next to the site, they land, and the city is founded. **Invading:** when its war target is on a landmass where it has no city, its force gathers at a port, boards (**armies count as one**), sails next to the target, and lands next to it (or straight into it if empty); a log line "The Inca landed troops near Metz!" (you always see it when it's your city). A civ at war with no target in sight sends a boat to look. **Coastal defense:** once a met rival has ships, it keeps up to 2 warships in port, attacking enemy ships (or bombarding) nearby at ≥ 60% odds. Voyages may be planned through unexplored water, like land paths. Still deterministic. Sim numbers below | unit-tested (ferry founds overseas, identical twice; boxed-in research; ships only in ports); `ai-overseas` preview-verified; sim |
+    | B9 | Save migration v6 → v7 | Done. `STATE_VERSION` 7: no unit is aboard a ship (`carriedBy: null`), no AI has a sea plan (`aiFerries`), the new techs are simply unknown. v2–v5 saves chain through. The pre-upgrade save is kept as a backup as usual; the notice says "updated for ships and the sea" | unit-tested (v6 → v7, v2 → v7) |
+    | B10 | Dev scenarios | Done, all 9: `board-unload`, `galley-coast`, `naval-battle` (57%), `bombard` (76%), `ship-sunk-cargo`, `amphibious-capture`, `harbor`, `ai-overseas`, `all-ships`. Odds and food numbers in the notes are computed. `all-units` now shows the 15 land units only (ships have `all-ships`) | unit-tested (each outcome); preview-verified: `board-unload`, `bombard`, `all-ships`, `ai-overseas`, `harbor` (the others through their tests only) |
+    | B11 | Unit tests | Done: 46 new, 354 total. New **`tests/naval.test.ts`** (27): sea techs and tree, ship data, water-only movement, the Galley rule, docking, coastal-only building, boarding (adjacent, by walking, in port), cargo moving and capacity, unloading and its limits, no attacking from a ship, land can't attack ships, tapping selects the ship first, naval combat with cargo lost, bombard (no capture, no Walls), a lost bombard, ships lost with a captured city, amphibious capture, no naval armies, submarine visibility, the Harbor, the landmass stats, the AI ferrying a settler (deterministic), boxed-in research, ships only in ports, v6 → v7 and v2 → v7. `tests/scenarios.test.ts`: the 9 new scenarios. **`pace.test.ts` still passes.** Three older tests changed: the tech count range (40–50 → 40–60); the M1 AI test now checks the *starting* Settler founded a city (on the new map the AI builds a second Settler by turn 10); `all-units` expects land units only | `npm test` |
+
+  - **Ship stats** (placeholders, all in `units.ts`):
+
+    | Ship | Tech | Cost | Att | Def | Moves | Sight | Cargo | Notes |
+    |---|---|---|---|---|---|---|---|---|
+    | Galley | Map Making | 30 | 1 | 1 | 3 | 1 | 2 | coast only |
+    | Caravel | Navigation | 40 | 1 | 2 | 3 | 2 | 3 | open ocean |
+    | Frigate | Magnetism | 50 | 4 | 3 | 4 | 2 | 2 | fights and carries |
+    | Ironclad | Steam Engine | 60 | 7 | 5 | 4 | 1 | 0 | strong attacker for its era (bombarding coasts) |
+    | Transport | Industrialization | 50 | 0 | 4 | 5 | 1 | 8 | no attack |
+    | Destroyer | Combustion | 60 | 8 | 6 | 6 | 2 | 0 | fast |
+    | Battleship | Automobile | 120 | 16 | 12 | 4 | 2 | 0 | strong |
+    | Submarine | Combustion | 70 | 14 | 3 | 4 | 2 | 0 | seen only from next to it |
+    | Carrier | Flight | 100 | 2 | 14 | 4 | 2 | 0 | strong defense; carries planes in round 10 |
+
+  - **B1 pace, before → after** (`npm run sim`, all-AI, 5 civs, seeds
+    8/13/21/33/42, 300 turns):
+
+    | | Before (round 7) | After (round 8) | Target |
+    |---|---|---|---|
+    | Medieval era, median civ | 69 | **63** (first: 39) | 50–70 |
+    | Industrial era, median civ | 122 | **119** | 120–150 |
+    | Modern era, median civ | 198 | **185** | 180–220 |
+    | First to finish the tree, per seed | 193, 194, 191, 215, 212 (50 techs) | 196, 195, 169, 195, 197 (54 techs) | ~250 |
+    | Winners | turns 179–246 (Tech ×2, Econ ×2, Culture) | **turns 201–232** (Tech ×4, Econ ×1) | none before 150 |
+    | Wars / peace / eliminations by turn 120, per game | 2.0 / 0.6 / 0.2 | 1.8 / 1.4 / 0 | |
+
+    Medians stay on target (Industrial one turn early). The first civ to
+    enter the Medieval era is earlier (39): a boxed-in civ now goes for
+    Seafaring, a cheap Medieval tech. The new maps give a little more
+    growth (Harbors, overseas cities), which offsets the 4 extra techs.
+  - **B8 simulation** (same runs): **overseas cities founded: 1.6 per
+    game** (8 in 5 games: Maurya 3, Franks 3, Babylon 1, Mali 1); **naval
+    invasions: 0.2 per game** (1 landing in 5 games); **ships per civ: 0.4
+    at turn 100 (max 1), 1.6 at turn 200 (max 3)**. **Domination wins: still
+    none** (Technology ×4, Economic ×1). Invasions are rare because AI wars
+    are rare (about 2 per game) and mostly between neighbors on the same
+    landmass. When I forced an overseas war at turn 130 in 4 seeds, the
+    attacker scouted by sea, shipped its force (a Catapult army among
+    them), and landed next to the enemy city in 3 of 4 (one sea battle on
+    the way: an Incan Frigate sank a Frankish Galley at 80%).
+  - **Dan's checks for this round:**
+    - (a) On the iPad, open **http://10.0.0.224:4173/docs/ship-air-icon-candidates.html**
+      (the play server now also serves the picker pages; the Netlify build
+      never gets them). Pick one per unit, then Copy my picks or Share and
+      paste the list into the chat.
+    - (b) On `dev:lan`: ☰ → Dev scenarios → the nine **Ships: …** /
+      **Harbor** / **All ships** scenarios; each should do what its note says.
+    - (c) In a real game on `play:lan`: research Map Making, build a Galley
+      in a coastal city, and carry a Settler to another landmass.
+  - **Decisions worth reviewing:**
+    - **Boarding and going ashore each use up the unit's move**, so a unit
+      that boards can't land the same turn. A ship can sail the turn its
+      cargo boards.
+    - **Ships can "Stay"** (the Fortify button reads Stay for ships): Next
+      Unit skips them until they move. There's no defense bonus for ships.
+    - Units aboard a ship docked in a city **don't defend the city**, and
+      they're lost with the ships if it falls.
+    - **The Galley's sea is the coast:** it can cross narrow channels (all
+      coast) but not open ocean. The map's channels are often narrow enough
+      for a Galley.
+    - **Ironclad isn't coast-only.** I read "coast-heavy" as "strong at
+      bombarding coasts" and gave it a high attack for its era; making it
+      coast-only is one field (`coastOnly: true`).
+    - **Water tile yields unchanged** (coast 1/0/2, ocean 1/0/1); the Harbor
+      is what makes them worth working.
+    - **Landmass = land you can walk across.** Mountains are impassable, so
+      two areas joined only by mountains count as two landmasses.
+    - An AI settles overseas only on a landmass where it has no city yet;
+      after that, that island's own city builds Settlers for it.
+    - The AI's "could I take a city" war check (bestAttack) now counts land
+      units only, since ships can't capture.
+    - A submarine hidden from you also doesn't count for first contact.
+  - **Also changed:**
+    - New files: `src/game/naval.ts` (ship rules), `src/game/aiNaval.ts`
+      (the AI at sea), `src/dev/landmass.ts` (B7 stats), `tests/naval.test.ts`,
+      `docs/ship-air-icon-candidates.html` and its folder.
+    - `findPath`, `reachableThisTurn`, and the AI's exploration are
+      unit-aware (ships path over water). New actions `board` and `unload`.
+    - `npm run sim` also prints overseas cities, landings, ships per civ, and
+      the landmass stats.
+    - Log entries have a new kind, `landing`.
+    - `build:play` also copies the picker pages (`docs/*-candidates.html`)
+      into `dist-play/docs/` (`scripts/copy-pickers.mjs`), so the play server
+      serves them to the iPad.
+  - **Observed, not fixed:**
+    - **Domination still never wins in the sim**, and AI wars are rare and
+      local, so naval invasions are rare in all-AI games (0.2 per game).
+      Worth a look in the balance pass: more wars or a keener conquest AI
+      would use the new invasion code more.
+    - The preview pane's screenshots were drawn in one corner again under
+      iPad emulation, so taps there missed. The iPad-size checks were done
+      by measuring (no sideways overflow, all unit-panel buttons 44 px) and
+      by pressing the real buttons from the page; the full tap-by-tap
+      boarding check was done at desktop size.
+
 ## Current Objective (Focus Area)
 
 ### Round 8 — Naval (ships, sea techs, and transports) + icon candidates for ships and planes
+
+**Status: done by the coding agent (2026-09-24).** Per-item report under
+"Round 8" in Completed Tasks. Waiting for Dan's checks (a)–(c), especially
+**his ship and aircraft icon picks** (Round 9 Part A wires the ship icons
+in). The item list below is kept as it was assigned.
+
 **Goal:**
 - Close the gap Dan found: the game has an ocean but nothing can cross it.
 - Add the missing sea techs and a full set of ships, with transports that
@@ -865,7 +994,7 @@ milestone before it. None has been decided against.
      commit, and push the hub when Dan says. The hub must not be pushed
      before the Netlify site exists.
 - **Order after round 7 — DECIDED by Dan (2026-09-24):**
-  - **Round 8:** Naval (now the current objective).
+  - **Round 8:** Naval — done (see Completed Tasks).
   - **Round 9, M7:** barbarians, villages, artifacts, resources, Great
     People, and huts.
   - **Round 10:** Air.

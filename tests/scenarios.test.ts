@@ -17,6 +17,9 @@ import { cityCulture, cityYields, foodSurplus, tileYields } from '../src/game/yi
 import { WONDERS } from '../src/data/wonders';
 import { eventsVisibleTo } from '../src/game/log';
 import { armyCandidates, behindUnit, isMixedStack, stackLabel, unitsOnTile } from '../src/game/stack';
+import { cargoOf, isWaterAt } from '../src/game/naval';
+import { landmassAt } from '../src/game/mapgen';
+import { reachableThisTurn } from '../src/game/movement';
 
 const capital = (s: GameState): City => s.cities.find((c) => c.owner === 0)!;
 const FRONT = { x: 9, y: 5 };
@@ -42,6 +45,101 @@ function endTurn(s: GameState): void {
 
 /** What each scenario's note promises. A new scenario without an entry here fails the suite. */
 const OUTCOMES: Record<string, (s: GameState) => void> = {
+  // ---- Round 8: ships ----
+  'board-unload': (s) => {
+    const at = (t: string) => s.units.find((u) => u.owner === 0 && u.type === t)!;
+    const galley = at('galley');
+    expect(applyAction(s, { type: 'board', unitId: at('settler').id, shipId: galley.id }).ok).toBe(true);
+    expect(applyAction(s, { type: 'board', unitId: at('warrior').id, shipId: galley.id }).ok).toBe(true);
+    expect(cargoOf(s, galley)).toHaveLength(2);
+    expect(applyAction(s, { type: 'move', unitId: galley.id, to: { x: 7, y: 5 } }).ok).toBe(true);
+    // The cargo sailed with it.
+    expect(at('settler')).toMatchObject({ x: 7, y: 5 });
+    endTurn(s);
+    expect(applyAction(s, { type: 'move', unitId: at('settler').id, to: { x: 8, y: 5 } }).ok).toBe(true);
+    expect(applyAction(s, { type: 'move', unitId: at('warrior').id, to: { x: 8, y: 4 } }).ok).toBe(true);
+    expect(at('settler').carriedBy).toBeNull();
+    expect(cargoOf(s, galley)).toHaveLength(0);
+    endTurn(s);
+    expect(applyAction(s, { type: 'foundCity', unitId: at('settler').id }).ok).toBe(true);
+    const city = s.cities.find((c) => c.x === 8 && c.y === 5)!;
+    expect(landmassAt(s.map, city)).not.toBe(landmassAt(s.map, capital(s)));
+    expect(noteOf('board-unload')).toContain('Board the Galley');
+  },
+  'galley-coast': (s) => {
+    const galley = s.units.find((u) => u.type === 'galley')!;
+    const caravel = s.units.find((u) => u.type === 'caravel')!;
+    expect(s.map.tiles[7 + 5 * s.map.width]!.terrain).toBe('ocean');
+    expect(applyAction(s, { type: 'move', unitId: galley.id, to: { x: 7, y: 5 } }).reason).toBe('A Galley can’t leave the coast');
+    expect(reachableThisTurn(s, galley).every((c) => s.map.tiles[c.x + c.y * s.map.width]!.terrain === 'coast' || s.cities.some((x) => x.x === c.x && x.y === c.y))).toBe(true);
+    expect(applyAction(s, { type: 'move', unitId: caravel.id, to: { x: 9, y: 6 } }).ok).toBe(true);
+    expect(caravel).toMatchObject({ x: 9, y: 6 });
+  },
+  'naval-battle': (s) => {
+    const mine = s.units.find((u) => u.owner === 0 && u.type === 'frigate')!;
+    const odds = combatOdds(s, mine, { x: 8, y: 5 })!;
+    expect(odds.chance).toBeCloseTo(4 / 7);
+    expect(noteOf('naval-battle')).toContain(`${Math.round(odds.chance * 100)}%`);
+    const res = applyAction(s, { type: 'attack', unitId: mine.id, at: { x: 8, y: 5 } });
+    expect(res.ok).toBe(true);
+    expect(s.units.filter((u) => u.type === 'frigate')).toHaveLength(1);
+  },
+  bombard: (s) => {
+    const frigate = s.units.find((u) => u.owner === 0 && u.type === 'frigate')!;
+    const odds = combatOdds(s, frigate, { x: 8, y: 5 })!;
+    expect(odds.defense.mods.map((m) => m.label)).toEqual(['In a city']);
+    expect(noteOf('bombard')).toContain(`${Math.round(odds.chance * 100)}%`);
+    const res = applyAction(s, { type: 'attack', unitId: frigate.id, at: { x: 8, y: 5 } });
+    expect(res.combat).toMatchObject({ attackerWon: true, bombard: true });
+    expect(res.combat!.capturedCityId).toBeUndefined();
+    expect(frigate).toMatchObject({ x: 7, y: 5 });
+    expect(s.cities.find((c) => c.x === 8 && c.y === 5)!.owner).toBe(1);
+    expect(s.units.some((u) => u.x === 8 && u.y === 5)).toBe(false);
+  },
+  'ship-sunk-cargo': (s) => {
+    expect(s.units.filter((u) => u.owner === 0 && u.carriedBy !== null)).toHaveLength(2);
+    endTurn(s);
+    expect(s.units.filter((u) => u.owner === 0 && (u.type === 'galley' || u.type === 'settler'))).toHaveLength(0);
+    expect(s.units.filter((u) => u.owner === 0 && u.carriedBy !== null)).toHaveLength(0);
+    expect(eventsVisibleTo(s, 0, s.log).some((e) => e.text.includes('went down with it'))).toBe(true);
+  },
+  'amphibious-capture': (s) => {
+    const legion = s.units.find((u) => u.type === 'legion')!;
+    expect(legion.carriedBy).not.toBeNull();
+    expect(applyAction(s, { type: 'move', unitId: legion.id, to: { x: 8, y: 5 } }).ok).toBe(true);
+    expect(s.cities.find((c) => c.x === 8 && c.y === 5)!.owner).toBe(0);
+    expect(legion).toMatchObject({ x: 8, y: 5, carriedBy: null });
+  },
+  harbor: (s) => {
+    const before = foodSurplus(s, capital(s));
+    const water = capital(s).worked.length;
+    endTurn(s);
+    expect(capital(s).buildings).toContain('harbor');
+    expect(foodSurplus(s, capital(s))).toBe(before + water);
+    expect(noteOf('harbor')).toContain(`from ${before} to +${before + water}`);
+  },
+  'ai-overseas': (s) => {
+    const home = landmassAt(s.map, s.cities.find((c) => c.owner === 1)!);
+    let founded = false;
+    for (let i = 0; i < 6 && !founded; i++) {
+      endTurn(s);
+      founded = s.cities.some((c) => c.owner === 1 && landmassAt(s.map, c) !== home);
+    }
+    expect(founded).toBe(true);
+    // It took its escort along.
+    const city = s.cities.find((c) => c.owner === 1 && landmassAt(s.map, c) !== home)!;
+    expect(s.units.some((u) => u.owner === 1 && u.type === 'warrior' && distance(u, city) <= 1)).toBe(true);
+  },
+  'all-ships': (s) => {
+    const ships = UNIT_IDS.filter((id) => UNITS[id].domain === 'sea');
+    for (const id of ships) expect(s.units.some((u) => u.owner === 0 && u.type === id)).toBe(true);
+    // Every ship is on water, and they show letters until their icons are picked.
+    for (const u of s.units.filter((x) => UNITS[x.type].domain === 'sea')) {
+      expect(isWaterAt(s, u.x, u.y)).toBe(true);
+      expect(UNITS[u.type].icon).toBeUndefined();
+    }
+    expect(s.units.filter((u) => u.carriedBy !== null)).toHaveLength(2);
+  },
   wonder: (s) => {
     const c = capital(s);
     const before = cityYields(s, c).production;
@@ -115,7 +213,9 @@ const OUTCOMES: Record<string, (s: GameState) => void> = {
   },
   'all-units': (s) => {
     const mine = s.units.filter((u) => u.owner === 0);
-    expect(new Set(mine.map((u) => u.type))).toEqual(new Set(UNIT_IDS));
+    // Land units only; ships have their own scenario (all-ships).
+    const land = UNIT_IDS.filter((id) => UNITS[id].domain === 'land');
+    expect(new Set(mine.map((u) => u.type))).toEqual(new Set(land));
     expect(mine.some((u) => u.army)).toBe(true);
     expect(mine.some((u) => u.veteran)).toBe(true);
     expect(mine.some((u) => u.fortified)).toBe(true);
@@ -123,7 +223,7 @@ const OUTCOMES: Record<string, (s: GameState) => void> = {
     expect(s.units.some((u) => u.owner === 1)).toBe(true);
     // Nothing on the map is at war, so looking around is safe.
     expect(atWar(s, 0, 1)).toBe(false);
-    expect(noteOf('all-units')).toContain(String(UNIT_IDS.length));
+    expect(noteOf('all-units')).toContain(String(land.length));
   },
   grow: (s) => {
     expect(capital(s).size).toBe(2);

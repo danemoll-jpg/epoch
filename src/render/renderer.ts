@@ -1,14 +1,16 @@
 // Canvas 2D renderer. Reads game state and view state; never changes game state.
 // Placeholder art: colored tiles, simple terrain marks, unit discs with icons, city squares
 // with the size number. Armies get a thick gold ring and "×3"; fortified units a small
-// shield; capitals a star; tiles the selected unit can attack a red outline.
+// shield; capitals a star; tiles the selected unit can attack a red outline. A ship carrying
+// units (Round 8) gets a teal cargo badge; cargo isn't counted in the stack badge.
 
 import { CIVS } from '../data/civs';
 import { RULES } from '../data/rules';
 import type { TerrainId } from '../data/terrain';
 import { UNITS } from '../data/units';
 import { behindUnit } from '../game/stack';
-import { visibleTiles } from '../game/fog';
+import { unitVisibleTo, visibleTiles } from '../game/fog';
+import { cargoOf } from '../game/naval';
 import { tileIndex } from '../game/grid';
 import type { Coord, GameState, Unit } from '../game/types';
 import { worldToScreen, type Camera } from './camera';
@@ -109,6 +111,7 @@ function drawUnit(
   inCity: boolean,
   behind?: Unit,
   onIconReady?: () => void,
+  cargo = 0,
 ): void {
   // In a city the disc shrinks into the lower-left corner so the city's size stays readable.
   const cx = inCity ? x + s * 0.27 : x + s / 2;
@@ -163,6 +166,23 @@ function drawUnit(
     ctx.fillText(`×${RULES.combat.armyMultiplier}`, lx, ly + s * 0.005);
   }
   if (unit.fortified) drawShield(ctx, cx - r * 0.95, cy + r * 0.2, s * 0.2);
+  if (cargo > 0) {
+    // Units aboard: a teal badge at the lower right.
+    const bx = cx + r * 0.85;
+    const by = cy + r * 0.85;
+    ctx.fillStyle = '#1aa39a';
+    ctx.strokeStyle = '#0b1f22';
+    ctx.lineWidth = Math.max(1, s * 0.03);
+    ctx.beginPath();
+    ctx.arc(bx, by, s * 0.13, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.font = `800 ${Math.round(s * 0.17)}px system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(cargo), bx, by + s * 0.01);
+  }
   if (stackCount > 1) {
     const bx = cx + r * 0.85;
     const by = cy - r * 0.85;
@@ -187,7 +207,8 @@ function drawGlyph(ctx: CanvasRenderingContext2D, unit: Unit, cx: number, cy: nu
   // Icon box: the same share of the disc as on the picker page (20 px in a 29 px disc).
   const box = r * 1.38;
   const scale = ctx.getTransform().a || 1;
-  const bmp = iconBitmap(def.icon, '#ffffff', box * scale, onReady ?? (() => {}));
+  // Ships have no icon yet (Round 8: Dan picks them next), so they show their letters.
+  const bmp = def.icon ? iconBitmap(def.icon, '#ffffff', box * scale, onReady ?? (() => {})) : undefined;
   if (bmp) {
     ctx.drawImage(bmp, cx - box / 2, cy - box / 2, box, box);
     return;
@@ -340,21 +361,28 @@ export function render(
     }
   }
 
-  // Units: only where the viewer can currently see. One disc per tile, a count badge for
-  // stacks, and a second disc peeking out behind when the stack has more than one type.
+  // Units: only where the viewer can currently see (a submarine only from next to it). One disc
+  // per tile, a count badge for stacks, and a second disc peeking out behind when the stack
+  // has more than one type.
   const byTile = new Map<number, Unit[]>();
   for (const u of state.units) {
     const i = tileIndex(map, u.x, u.y);
-    if (!visible[i]) continue;
+    if (!unitVisibleTo(state, view.viewer, u, visible)) continue;
     const list = byTile.get(i) ?? [];
     list.push(u);
     byTile.set(i, list);
   }
   for (const [, list] of byTile) {
-    const shown = list.find((u) => u.id === view.selectedUnitId) ?? list.find((u) => u.movesLeft > 0) ?? list[0]!;
+    // Cargo rides inside its ship: the ship is drawn (with a cargo badge) unless a unit aboard
+    // is the one selected.
+    const outside = list.filter((u) => u.carriedBy === null);
+    const shown =
+      list.find((u) => u.id === view.selectedUnitId) ?? outside.find((u) => u.movesLeft > 0) ?? outside[0] ?? list[0]!;
     const p = pos(shown.x, shown.y);
     const inCity = state.cities.some((c) => c.x === shown.x && c.y === shown.y);
-    drawUnit(ctx, state, shown, list.length, p.x, p.y, s, shown.id === view.selectedUnitId, inCity, behindUnit(list, shown), view.onIconReady);
+    const others = shown.carriedBy === null ? outside : list;
+    const aboard = shown.carriedBy === null ? cargoOf(state, shown).length : 0;
+    drawUnit(ctx, state, shown, others.length, p.x, p.y, s, shown.id === view.selectedUnitId, inCity, behindUnit(others, shown), view.onIconReady, aboard);
   }
 
   // Tiles the selected unit can attack.

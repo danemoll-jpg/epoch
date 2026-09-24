@@ -57,6 +57,7 @@ export function makeState(
     atWar: opts.peace || opts.met === false ? noWars(players) : allAtWar(players),
     diplomacy: { ...newDiplomacy(players), met: opts.met === false ? table(players, false) : allAtWar(players) },
     aiPlans: Array.from({ length: players }, () => null),
+    aiFerries: Array.from({ length: players }, () => null),
     log: [],
     victory: null,
     keepPlaying: false,
@@ -74,7 +75,7 @@ export function addUnit(
 ): Unit {
   const unit: Unit = {
     id: state.nextId++, type, owner, x, y,
-    movesLeft: UNITS[type].moves, veteran: false, fortified: false, army: false,
+    movesLeft: UNITS[type].moves, veteran: false, fortified: false, army: false, carriedBy: null,
     ...extra,
   };
   state.units.push(unit);

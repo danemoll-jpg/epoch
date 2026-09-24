@@ -25,7 +25,7 @@ import { RULES } from '../data/rules';
 import { TECHS, type TechId } from '../data/techs';
 import { UNITS } from '../data/units';
 import { CivName, civName, civPossessive, civVerb } from './conquest';
-import { visibleTiles } from './fog';
+import { unitVisibleTo, visibleTiles } from './fog';
 import { distance, tileIndex } from './grid';
 import { aiVictoryGoal } from './aiGoals';
 import { addLog } from './log';
@@ -94,7 +94,7 @@ export function updateContacts(state: GameState): [number, number][] {
   const sees = (viewer: number, owner: number) => {
     const v = visOf(viewer);
     return (
-      state.units.some((u) => u.owner === owner && v[tileIndex(state.map, u.x, u.y)]) ||
+      state.units.some((u) => u.owner === owner && unitVisibleTo(state, viewer, u, v)) ||
       state.cities.some((c) => c.owner === owner && v[tileIndex(state.map, c.x, c.y)])
     );
   };
@@ -499,15 +499,18 @@ export function warScore(state: GameState, ai: number, target: number): number {
   );
 }
 
-/** The strongest attack `p` could bring: its best attacking unit type it has or can build, as an army. */
+/**
+ * The strongest attack `p` could bring against a city: its best land attacker it has or can
+ * build, as an army. Ships don't count: they can't take a city.
+ */
 export function bestAttack(state: GameState, p: number): number {
   const player = state.players[p]!;
   let best = 0;
   for (const def of Object.values(UNITS)) {
-    if (def.canFoundCity || !hasTech(player, def.requires)) continue;
+    if (def.canFoundCity || def.domain !== 'land' || !hasTech(player, def.requires)) continue;
     best = Math.max(best, def.attack * RULES.combat.armyMultiplier);
   }
-  for (const u of state.units) if (u.owner === p) best = Math.max(best, attackStrength(u).total);
+  for (const u of state.units) if (u.owner === p && UNITS[u.type].domain === 'land') best = Math.max(best, attackStrength(u).total);
   return best;
 }
 
@@ -515,7 +518,7 @@ export function bestAttack(state: GameState, p: number): number {
 export function bestCityDefense(state: GameState, p: number): number {
   let best = 0;
   for (const u of state.units) {
-    if (u.owner !== p || UNITS[u.type].canFoundCity) continue;
+    if (u.owner !== p || UNITS[u.type].canFoundCity || UNITS[u.type].domain !== 'land') continue;
     const mult = (u.army ? RULES.combat.armyMultiplier : 1) * (u.veteran ? 1 + RULES.combat.veteranPct / 100 : 1);
     best = Math.max(best, UNITS[u.type].defense * mult);
   }

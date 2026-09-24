@@ -19,7 +19,7 @@ export function iconSvg(icon: string): string | undefined {
 /** The unit type's icon as inline HTML (inherits the text color), or its letters if missing. */
 export function unitIconHtml(type: UnitTypeId, cls = 'uicon'): string {
   const def = UNITS[type];
-  const svg = def && iconSvg(def.icon);
+  const svg = def?.icon ? iconSvg(def.icon) : undefined;
   if (!svg) return `<span class="${cls} uglyph" aria-hidden="true">${def?.glyph ?? '?'}</span>`;
   // Drop the credit comment and size the SVG by CSS.
   return `<span class="${cls}" aria-hidden="true">${svg.replace(/<!--.*?-->/g, '').replace('<svg ', '<svg focusable="false" ')}</span>`;

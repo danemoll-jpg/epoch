@@ -116,7 +116,7 @@ npm run dev      # start local dev server
 npm test         # run unit tests (Vitest, tests/**/*.test.ts)
 npm run build    # type-check + production build into dist/
 npm run lint     # type-check only (tsc --noEmit); no ESLint yet
-npm run sim      # pace/war/victory report: all-AI games on 5 seeds (not part of npm test)
+npm run sim      # pace/war/victory/naval report on 5 all-AI seeds + landmass stats (not part of npm test)
 ```
 **iPad over the local network:**
 ```
@@ -131,7 +131,11 @@ the firewall; allow it on private networks.
   touches it), runs the dev-code leak check on it, then serves it with
   `vite preview --host --port 4173`. The page has no live reload, so code
   edits change nothing until Dan restarts `play:lan`. `npm run play` is the
-  same, localhost only. Dev scenarios aren't in it.
+  same, localhost only. Dev scenarios aren't in it. It also copies the icon
+  picker pages (`docs/*-candidates.html`) into `dist-play/docs/`
+  (`scripts/copy-pickers.mjs`), so the iPad opens them at
+  `http://10.0.0.224:4173/docs/<page>.html`; the Netlify build (`dist/`)
+  never gets them.
 - **Each address has its own saved game.** Safari keeps `localStorage` per
   host and port, so `play:lan` (:4173) and `dev:lan` (:5173) never share or
   overwrite each other's save. That's intended.
@@ -152,16 +156,17 @@ debugging, including from Safari's Web Inspector on the iPad.
 completes inside Safari's `pagehide`). Saved after every successful action
 (including End Turn), on `visibilitychange` → hidden, and on `pagehide`.
 The save carries `saveVersion` (= `STATE_VERSION` in `src/game/types.ts`,
-currently 6). **Bump `STATE_VERSION` whenever the state shape changes, and
+currently 7). **Bump `STATE_VERSION` whenever the state shape changes, and
 add a migration** to `MIGRATIONS` in `src/game/save.ts` (keyed by the
 version it upgrades from), plus a line in `MIGRATION_NOTES` for the notice,
 so Dan's game carries forward. Migrated so far: 2 → 3 (M3: no techs,
 science kept as banked, tech-locked builds go back to "choose"), 3 → 4
 (M4: fortify/army off, everyone at war, each civ's first city becomes its
 capital), 4 → 5 (M5: pairs who can see each other now count as met,
-wars carry over as they are, no treaties/opinions/offers/plans yet), and
+wars carry over as they are, no treaties/opinions/offers/plans yet),
 5 → 6 (M6: culture 0, no wonders, no spaceship, nobody has won, no
-warnings given).
+warnings given), and 6 → 7 (Round 8: no unit aboard a ship, no AI sea
+plans; the four sea techs are simply unknown).
 
 **Backups: a save is never thrown away.** All startup and replace logic
 is in `src/ui/storage.ts` (`loadOrStart`, `backupCurrentSave`,
@@ -187,7 +192,10 @@ never autosaves**, so the real game can't be overwritten. Current set:
 `defeat`; (M5) `first-contact`, `peace`, `demand`, `tech-trade`, `ai-war`;
 (round 6) `mixed-stack`; (round 7) `all-units`, `wonder`, `wonder-race`,
 `win-domination`, `win-culture`, `win-economic`, `win-space`, `lose-space`,
-`stop-launch`, `near-win-warning`.
+`stop-launch`, `near-win-warning`; (round 8) `board-unload`, `galley-coast`,
+`naval-battle`, `bombard`, `ship-sunk-cargo`, `amphibious-capture`,
+`harbor`, `ai-overseas`, `all-ships`. The naval ones use `seaState()` (your
+island plus an eastern landmass across a coast channel or open ocean).
 The combat ones start from `FAIR_DICE` (first roll about 0.48), because
 `makeState`'s default RNG state rolls 0.98 first and would make every
 first attack lose. A rule that happens on a dice roll at End Turn (a
@@ -214,11 +222,13 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
 
 ## Code layout
 - `src/data/`: terrain (yields, move cost, `defensePct`), units (cost,
-  `popCost`, attack/defense/moves, `requires` tech, `glyph` letters and
-  `icon` file name), `icons.ts` (each used icon's CC BY 3.0 credit),
-  buildings (`requires` tech; Walls' `defenseBonusPct`; Temple culture; AI
-  building order), `techs.ts` (eras,
-  the 50 techs with prereqs/era/tier/description, the tech cost formula,
+  `popCost`, attack/defense/moves/sight, `requires` tech, `glyph` letters,
+  `icon` file name (ships have none yet), and Round 8's `domain`
+  ('land'/'sea'), `cargo`, `coastOnly` (Galley), `stealth` (Submarine); 15
+  land units and 9 ships), `icons.ts` (each used icon's CC BY 3.0 credit),
+  buildings (`requires` tech; Walls' `defenseBonusPct`; Temple culture;
+  Harbor `coastal` + `waterFood`; AI building order), `techs.ts` (eras,
+  the 54 techs with prereqs/era/tier/description, the tech cost formula,
   AI research priority), `wonders.ts` (13 wonders + the 2 victory wonders:
   cost, tech, city/empire effects, free building, `victory`), `victory.ts`
   (culture and gold goals, spaceship parts/cost/travel turns, warning line,
@@ -228,15 +238,23 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   `plural` for names like "the Franks"), rule constants (`rules.ts`: growth, focus
   weights, rush-buy formula, science rate, `RULES.combat` (fortify/veteran/
   city bonuses, army size and multiplier, veteran chance, AI attack
-  threshold), `RULES.diplomacy` (treaty length, grace period, opinion
+  threshold), `RULES.map` (land share, 3–4 continents and the water
+  channels cut between them, minimum start landmass), `RULES.diplomacy` (treaty length, grace period, opinion
   events, AI war/peace weights, demand caps, tech prices), and `RULES.ai`
   (city target, settlers at once, defenders per city, unit caps, attack
   force, gold reserve, and `victory`: goal weights, war bonus, science-rate
-  and gold-spending thresholds, each goal's first building)). A tech's
+  and gold-spending thresholds, each goal's first building), and `naval`:
+  overseas site score, plan timeouts, escort and invasion waits, warships
+  kept)). A tech's
   unlocks are the `requires` fields on units/buildings/wonders, so adding a
   unit never touches `techs.ts`.
 - `src/game/`: pure rules. `types.ts` (state + `STATE_VERSION`), `rng.ts`,
-  `grid.ts`, `mapgen.ts`, `newGame.ts`, `movement.ts`, `stack.ts` (what's
+  `grid.ts`, `mapgen.ts` (continents; `landRegionIds`/`landmassAt`: which
+  landmass a tile is on), `newGame.ts`, `movement.ts` (land and sea moves,
+  boarding by stepping onto your ship, going ashore by stepping onto land,
+  cargo moving with its ship; `boardShip`/`unloadHere` for ships in port),
+  `naval.ts` (ship rules: where ships may go, coastal cities, cargo, who
+  defends a tile, `removeUnit` taking cargo down with a ship), `stack.ts` (what's
   on a tile: mixed stacks, the unit peeking out behind, army candidates of
   any type), `city.ts`
   (founding), `yields.ts` (tile yields, automatic worked tiles, trade
@@ -247,11 +265,14 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   `victory.ts` (the four victories, one function each; `checkVictory`,
   called after every action and every player's turn; spaceship
   launch/loss; Keep playing; progress and near-win warnings),
-  `aiGoals.ts` (which victory each AI leans toward), `tech.ts`
+  `aiGoals.ts` (which victory each AI leans toward), `aiNaval.ts` (the AI at
+  sea: boxed-in exploring, sea plans in `state.aiFerries` to settle
+  overseas or invade, warships in port), `tech.ts`
   (research action, end-of-turn research, eras, unlocks, AI research
   choice, `learnTech`), `combat.ts` (odds with named modifiers,
   `winChance` = the one formula, attack (a win over a city's last defender
-  captures it), fortify, armies), `conquest.ts` (city capture,
+  captures it; ships bombard and never capture), fortify, armies (land
+  only)), `conquest.ts` (city capture,
   elimination, and the civ-name helpers every message uses: `civName`
   mid-sentence, `CivName` to start one, `civPossessive`, `civVerb`), `war.ts` (the `atWar` table), `diplomacy.ts` (contact,
   declare war, peace and `peaceDesire`, opinions/attitude, tech trades and
@@ -275,7 +296,9 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   (hand-made state builder shared by tests and scenarios), `scenarios.ts`,
   and `sim.ts` (all-AI simulation: era turns, techs over time, wars; used
   by `tests/pace.test.ts` and `scripts/pace-report.sim.ts` / `npm run sim`,
-  whose config is `vitest.sim.config.ts`).
+  whose config is `vitest.sim.config.ts`; it also counts overseas cities,
+  landings, and ships), and `landmass.ts` (how often civs share or get their
+  own landmass, and empty islands; Round 8's B7 check).
 - `src/ui/`: `app.ts` (view state, HUD, city panel, tech screen,
   diplomacy screen, 🏆 victory progress screen, victory/defeat screens,
   notice panels for first contact / war / AI offers / near-win warnings,
@@ -290,9 +313,13 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   icon candidates (game-icons.net, CC BY 3.0; `SOURCES.md` has each
   author), with the picker Dan used. The game uses its own copies of the
   15 picks in `src/assets/icons/`.
+- `docs/ship-air-icon-candidates.html` + `docs/ship-air-icon-candidates/`:
+  round 8's candidates for the 9 ships and 5 aircraft (35 icons, same
+  picker; `SOURCES.md` has each author). Nothing is wired in until Dan
+  picks.
 - The version shown on the About screen comes from `package.json`
-  (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.7.0 for
-  round 7.
+  (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.8.0 for
+  round 8.
 - A player's `id` always equals its index in `state.players`.
 
 ## Hub integration (how Dan's games are deployed)
@@ -341,23 +368,19 @@ what was pushed.
 - **Milestones 1–6** are done: the skeleton, cities, the tech tree, combat
   and armies, save safety, 5 civs and diplomacy, unit icons, wonders,
   culture, and the four victories.
+- **Round 8 (naval) is done:** sea techs, 9 ships, transports, naval combat
+  and bombarding, Harbors, maps with several landmasses, and an AI that
+  settles and invades overseas. Ships show letters until Dan picks their
+  icons from the candidates page.
 - **The play server:** http://10.0.0.224:4173/.
 - The epoch repo is pushed every round until Netlify is set up.
 
-**The current objective is Round 8:**
-- **Part A:** ship and aircraft icon *candidates* on a picker page for Dan.
-  Nothing is wired in.
-- **Part B, naval:**
-  - sea techs (Map Making, Seafaring, Navigation, Magnetism);
-  - 9 ships;
-  - transports carrying land units;
-  - naval combat and bombarding;
-  - Harbors and coastal-only building;
-  - a map-landmass check;
-  - the AI settling and invading overseas.
-
-See items 0, A1–A3, and B1–B11 in TODO.md. Rounds 9 (barbarians,
-resources, and Great People) and 10 (air) are queued in Next Steps.
+**Round 8 is done by the coding agent (report in TODO.md).** Waiting for
+Dan's checks, especially his ship and aircraft icon picks (the picker is at
+`http://10.0.0.224:4173/docs/ship-air-icon-candidates.html`). The next
+objective comes from the planning session: Round 9 (wire in the ship icons;
+barbarians, resources, and Great People) and Round 10 (air) are queued in
+Next Steps.
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.

@@ -27,6 +27,13 @@
 // Victory (Milestone 6, aiGoals.ts): each AI leans toward one victory, which picks its first
 // building, whether wonders come before or after the other buildings, how keen it is on war,
 // and whether it saves gold (economic) or spends it.
+//
+// The sea (Round 8, aiNaval.ts): open city sites are counted per landmass, so a city only
+// builds Settlers for sites its Settlers can walk to. Boxed in, the AI researches Map Making,
+// builds a boat, explores the coast, and ferries a Settler and an escort to a site overseas.
+// A war on another landmass is carried there by ship. Warships guard the ports once rivals
+// have ships. Everything here that says "units" means land units; ships are played by
+// aiNaval.ts, and cargo moves only with its ship.
 
 import { AI_BUILDING_ORDER, type BuildingId } from '../data/buildings';
 import { RULES } from '../data/rules';
@@ -37,22 +44,25 @@ import { TERRAIN } from '../data/terrain';
 import { UNITS, UNIT_IDS, type UnitTypeId } from '../data/units';
 import { distance, neighbors, tileIndex } from './grid';
 import { foundCity, foundCityError } from './city';
-import { siteScore } from './mapgen';
+import { landmassAt, siteScore } from './mapgen';
+import { navalBuild, playShip, runFerry, updateFerry } from './aiNaval';
+import { isShip } from './naval';
 import { attack, attackError, combatOdds, defenseStrength, fortify, formArmy, formArmyError } from './combat';
 import { capturableCity } from './conquest';
 import { runAiDiplomacy } from './diplomacy';
-import { findUnit, isEnterable, moveUnit, moveUnitToward } from './movement';
+import { canEnter, findUnit, isEnterable, moveUnit, moveUnitToward } from './movement';
 import { buildChoiceError, buyCost, buyError, clearBuild, rushBuy, sameItem, setBuild, setFocus, setScienceRate } from './production';
 import { launchError, launchSpaceship, victoryWonder } from './victory';
 import { cityYields } from './yields';
 import { nextFloat } from './rng';
 import { chooseAiResearch, setResearch } from './tech';
+import type { TechId } from '../data/techs';
 import { atWar } from './war';
 import type { AiPlan, BuildItem, City, Coord, GameState, Unit } from './types';
 
 const AI = RULES.ai;
 
-/** Breadth-first step distances over explored, enterable tiles. */
+/** Breadth-first step distances over explored tiles the unit can enter (water for a ship). */
 function reachable(state: GameState, unit: Unit, maxSteps: number): Map<number, number> {
   const { map } = state;
   const explored = state.players[unit.owner]!.explored;
@@ -65,7 +75,7 @@ function reachable(state: GameState, unit: Unit, maxSteps: number): Map<number, 
     for (const n of neighbors(map, cur)) {
       const k = tileIndex(map, n.x, n.y);
       if (dist.has(k) || explored[k] !== 1) continue;
-      if (!isEnterable(state, unit.owner, n.x, n.y)) continue;
+      if (!canEnter(state, unit, n.x, n.y)) continue;
       dist.set(k, d + 1);
       queue.push(n);
     }
@@ -77,7 +87,7 @@ function coordOf(state: GameState, k: number): Coord {
   return { x: k % state.map.width, y: Math.floor(k / state.map.width) };
 }
 
-function isValidCitySite(state: GameState, c: Coord): boolean {
+export function isValidCitySite(state: GameState, c: Coord): boolean {
   const t = state.map.tiles[tileIndex(state.map, c.x, c.y)]!;
   if (!TERRAIN[t.terrain].canFoundCity) return false;
   return state.cities.every((city) => distance(city, c) >= RULES.minCityDistance);
@@ -120,15 +130,17 @@ function cityAt(state: GameState, x: number, y: number): City | undefined {
   return state.cities.find((c) => c.x === x && c.y === y);
 }
 
+/** A land fighting unit (ships are the navy's, in aiNaval.ts). */
 export function isMilitary(u: Unit): boolean {
-  return UNITS[u.type].defense > 0 && !UNITS[u.type].canFoundCity;
+  return UNITS[u.type].defense > 0 && !UNITS[u.type].canFoundCity && UNITS[u.type].domain === 'land';
 }
 
+/** The land units guarding a city (not ships in port, and not cargo aboard them). */
 function defendersIn(state: GameState, city: City): Unit[] {
-  return state.units.filter((u) => u.owner === city.owner && u.x === city.x && u.y === city.y && isMilitary(u));
+  return state.units.filter((u) => u.owner === city.owner && u.x === city.x && u.y === city.y && isMilitary(u) && u.carriedBy === null);
 }
 
-function citiesOf(state: GameState, playerId: number): City[] {
+export function citiesOf(state: GameState, playerId: number): City[] {
   return state.cities.filter((c) => c.owner === playerId).sort((a, b) => a.id - b.id);
 }
 
@@ -150,7 +162,7 @@ function bestUnit(state: GameState, city: City, score: (d: (typeof UNITS)[UnitTy
   let best: UnitTypeId = 'warrior';
   for (const id of UNIT_IDS) {
     const def = UNITS[id];
-    if (def.canFoundCity || buildChoiceError(state, city, { kind: 'unit', id })) continue;
+    if (def.canFoundCity || def.domain !== 'land' || buildChoiceError(state, city, { kind: 'unit', id })) continue;
     const cur = UNITS[best];
     if (score(def) > score(cur) || (score(def) === score(cur) && def.cost < cur.cost)) best = id;
   }
@@ -164,26 +176,33 @@ export function aiCityTarget(state: GameState): number {
   return Math.max(AI.minTargetCities, Math.min(AI.maxTargetCities, Math.floor(land / civs / AI.landTilesPerCity)));
 }
 
-/** Is there a valid city site the AI has seen within reach (8 tiles) of one of its cities or settlers? */
-function hasOpenSite(state: GameState, playerId: number): boolean {
+/**
+ * The landmasses where the AI has seen a valid city site within reach (8 tiles) of one of its
+ * cities or settlers on the same landmass: where a Settler could walk to one (Round 8).
+ */
+function openSiteLandmasses(state: GameState, playerId: number): Set<number> {
   const explored = state.players[playerId]!.explored;
   const anchors: Coord[] = [
     ...citiesOf(state, playerId),
-    ...state.units.filter((u) => u.owner === playerId && UNITS[u.type].canFoundCity),
+    ...state.units.filter((u) => u.owner === playerId && UNITS[u.type].canFoundCity && u.carriedBy === null),
   ];
+  const open = new Set<number>();
   const r = 8;
   for (const a of anchors) {
-    for (let y = a.y - r; y <= a.y + r; y++) {
+    const land = landmassAt(state.map, a);
+    if (land < 0 || open.has(land)) continue;
+    search: for (let y = a.y - r; y <= a.y + r; y++) {
       for (let x = a.x - r; x <= a.x + r; x++) {
         if (x < 0 || y < 0 || x >= state.map.width || y >= state.map.height) continue;
-        if (explored[tileIndex(state.map, x, y)] !== 1) continue;
+        if (explored[tileIndex(state.map, x, y)] !== 1 || landmassAt(state.map, { x, y }) !== land) continue;
         if (isValidCitySite(state, { x, y }) && !state.units.some((u) => u.x === x && u.y === y && u.owner !== playerId)) {
-          return true;
+          open.add(land);
+          break search;
         }
       }
     }
   }
-  return false;
+  return open;
 }
 
 /** An enemy (at war) city within RULES.ai.borderDistance of this city? */
@@ -200,16 +219,23 @@ export function defendersWanted(state: GameState, city: City, expanding: boolean
 /** Facts about an AI's empire that every city's build choice uses (computed once per turn). */
 export interface BuildContext {
   target: number;
-  openSite: boolean;
+  /** Landmasses with a known open city site (a Settler built there can walk to it). */
+  openSites: Set<number>;
+  /** Below its city target with no open site anywhere it can walk: time to look overseas. */
+  boxedIn: boolean;
   atWar: boolean;
   /** The victory this AI is going for. */
   goal: VictoryKind;
 }
 
 export function buildContext(state: GameState, playerId: number): BuildContext {
+  const target = aiCityTarget(state);
+  const openSites = openSiteLandmasses(state, playerId);
+  const cities = citiesOf(state, playerId).length;
   return {
-    target: aiCityTarget(state),
-    openSite: hasOpenSite(state, playerId),
+    target,
+    openSites,
+    boxedIn: openSites.size === 0 && cities > 0 && cities < target,
     atWar: atWarWithAnyone(state, playerId),
     goal: aiVictoryGoal(state, playerId),
   };
@@ -253,16 +279,19 @@ function isSettlerBuild(c: City): boolean {
 }
 
 function isMilitaryBuild(c: City): boolean {
-  return c.build?.kind === 'unit' && !UNITS[c.build.id].canFoundCity;
+  return c.build?.kind === 'unit' && !UNITS[c.build.id].canFoundCity && UNITS[c.build.id].domain === 'land';
 }
 
 /**
  * Build rules, first match wins:
  * 1. No defender at home → the best unlocked defender.
  * 2. Room to expand (fewer cities, counting settlers out and in production, than the target,
- *    and a known open site) → Settler, with only a few settlers under way at once. A size-1
- *    city switches to Food focus so the Settler can finish. (At war, step 3 comes first.)
- * 3. Fewer defenders than this city keeps → a defender.
+ *    and a known open site on this city's landmass, or this is the port of a plan to settle
+ *    overseas) → Settler, with only a few settlers under way at once. A size-1 city switches
+ *    to Food focus so the Settler can finish. (At war, step 3 comes first.)
+ * 3. Fewer defenders than this city keeps → a defender. Then a ship the navy wants here
+ *    (aiNaval.ts): the sea plan's ship, or an explorer boat when boxed in; a warship comes
+ *    before the other items at war, and before buildings in peacetime.
  * 4. A victory wonder it can build (in its wonder city) → that; a spaceship part it can build
  *    (in its capital) → that.
  * 5. At war and fewer fighting units than the wartime cap → the best attacker.
@@ -284,12 +313,22 @@ export function chooseBuild(state: GameState, city: City, ctx: BuildContext = bu
   const settlerBuilds = others.filter(isSettlerBuild).length;
   const underWay = settlersOut + settlerBuilds;
   const atOnce = mine.length <= 1 ? AI.settlersAtOnceFirst : AI.settlersAtOnce;
-  const expanding = mine.length + underWay < ctx.target && ctx.openSite;
+  const ferry = state.aiFerries[owner];
+  const overseasPort = ferry?.kind === 'settle' && ferry.portCityId === city.id;
+  const room = mine.length + underWay < ctx.target;
+  const expanding = room && ctx.openSites.size > 0;
+  const settleHere = room && (ctx.openSites.has(landmassAt(state.map, city)) || overseasPort);
   const wanted = defendersWanted(state, city, expanding);
   // At war, a city tops up its defenders before sending out settlers.
   if (ctx.atWar && home < wanted) return defender;
-  if (expanding && underWay < atOnce) return { kind: 'unit', id: 'settler' };
+  // Overseas, one Settler at a time.
+  const settlerCap = overseasPort && !ctx.openSites.has(landmassAt(state.map, city)) ? 1 : atOnce;
+  if (settleHere && underWay < settlerCap) return { kind: 'unit', id: 'settler' };
   if (home < wanted) return defender;
+  // A boat to look for land (boxed in) or for the enemy (at war with no city in sight to attack).
+  const navy = navalBuild(state, city, ctx.boxedIn || (ctx.atWar && !state.aiPlans[owner]));
+  if (navy.boat) return { kind: 'unit', id: navy.boat };
+  if (navy.warship && ctx.atWar) return { kind: 'unit', id: navy.warship };
 
   const wonderHere = aiWonderCity(state, owner)?.id === city.id;
   const wonder = wonderHere ? pickWonder(state, city, ctx.goal) : undefined;
@@ -303,6 +342,7 @@ export function chooseBuild(state: GameState, city: City, ctx: BuildContext = bu
   if (ctx.atWar && military < kept + Math.ceil(mine.length * AI.offensePerCityWar)) return attacker;
 
   if (wonder && ctx.goal === 'culture') return { kind: 'wonder', id: wonder };
+  if (navy.warship) return { kind: 'unit', id: navy.warship };
   const next = buildingOrder(ctx.goal).find((b) => !buildChoiceError(state, city, { kind: 'building', id: b }));
   if (next) return { kind: 'building', id: next };
   if (wonder) return { kind: 'wonder', id: wonder };
@@ -403,7 +443,7 @@ function explore(state: GameState, unit: Unit, wander = true): boolean {
   if (best) return moveUnitToward(state, unit.id, coordOf(state, best.k)).ok;
   if (!wander) return false;
   // Nothing left to explore nearby: wander to a random passable neighbor.
-  const options = neighbors(map, unit).filter((n) => isEnterable(state, unit.owner, n.x, n.y));
+  const options = neighbors(map, unit).filter((n) => canEnter(state, unit, n.x, n.y));
   if (options.length) {
     const choice = options[Math.floor(nextFloat(state) * options.length)]!;
     return moveUnitToward(state, unit.id, choice).ok;
@@ -480,8 +520,10 @@ function hold(state: GameState, unit: Unit): void {
 
 export function runAiTurn(state: GameState, playerId: number): void {
   const player = state.players[playerId]!;
+  let ctx = buildContext(state, playerId);
   if (!player.researching) {
-    const tech = chooseAiResearch(player);
+    // Boxed in on its landmass: the sea techs come first (Round 8).
+    const tech = chooseAiResearch(player, ctx.boxedIn ? SEA_TECHS : []);
     if (tech) setResearch(state, tech);
   }
   // A finished spaceship goes up at once.
@@ -490,10 +532,13 @@ export function runAiTurn(state: GameState, playerId: number): void {
   runAiDiplomacy(state, playerId);
   formArmies(state, playerId);
   const plan = updatePlan(state, playerId);
-  const ctx = buildContext(state, playerId);
-  const expanding = citiesOf(state, playerId).length < ctx.target && ctx.openSite;
+  updateFerry(state, playerId, ctx.boxedIn, plan);
+  ctx = buildContext(state, playerId);
+  const expanding = citiesOf(state, playerId).length < ctx.target && ctx.openSites.size > 0;
 
-  // Roles: each city keeps its strongest units at home, up to what it wants.
+  // Roles: each city keeps its strongest units at home, up to what it wants (not a settling
+  // trip's escort, which is waiting to board).
+  const escortId = state.aiFerries[playerId]?.escortId;
   const guards = new Set<number>();
   const short: City[] = [];
   for (const city of citiesOf(state, playerId)) {
@@ -501,29 +546,38 @@ export function runAiTurn(state: GameState, playerId: number): void {
     // Armies are for the war plan (one guards only a city with nothing else), and among the
     // rest the defensive units are kept before attack-minded ones.
     const guardScore = (u: Unit) => defenseStrength(state, u).total - UNITS[u.type].attack / 2;
-    const all = defendersIn(state, city);
+    const all = defendersIn(state, city).filter((u) => u.id !== escortId);
     const here = all.filter((u) => !u.army).sort((a, b) => guardScore(b) - guardScore(a) || a.id - b.id);
     if (here.length === 0 && all.length > 0) here.push(all.sort((a, b) => a.id - b.id)[0]!);
     for (const u of here.slice(0, want)) guards.add(u.id);
     if (here.length < want) short.push(city);
   }
 
+  // The sea plan moves its ship, its cargo, and the units walking to the port to board.
+  const reserved = runFerry(state, playerId, guards);
+
   // The war plan: enough gathered at the staging city? Then march.
   const staging = plan?.stagingCityId != null ? state.cities.find((c) => c.id === plan.stagingCityId) : undefined;
   const targetCity = plan ? state.cities.find((c) => c.id === plan.cityId) : undefined;
-  const free = state.units.filter((u) => u.owner === playerId && isMilitary(u) && !guards.has(u.id));
-  if (plan && staging && plan.phase === 'gather') {
+  const free = state.units.filter((u) => u.owner === playerId && isMilitary(u) && !guards.has(u.id) && u.carriedBy === null);
+  // A war overseas marches only once the sea plan has landed the force.
+  const overseas = state.aiFerries[playerId]?.kind === 'invade';
+  if (plan && staging && plan.phase === 'gather' && !overseas) {
     const gathered = free.filter((u) => distance(u, staging) <= 1).reduce((s, u) => s + unitWeight(u), 0);
     if (gathered >= AI.minAttackForce) plan.phase = 'march';
   } else if (plan && plan.phase === 'march' && free.length === 0) {
     plan.phase = 'gather';
   }
 
-  let explorer = expanding || !plan ? free.map((u) => u.id).sort((a, b) => a - b)[0] : undefined;
+  let explorer = expanding || !plan ? free.filter((u) => !reserved.has(u.id)).map((u) => u.id).sort((a, b) => a - b)[0] : undefined;
   const ids = state.units.filter((u) => u.owner === playerId).map((u) => u.id);
   for (const id of ids) {
     const unit = findUnit(state, id);
-    if (!unit || unit.movesLeft <= 0) continue;
+    if (!unit || unit.movesLeft <= 0 || reserved.has(id) || unit.carriedBy !== null) continue;
+    if (isShip(unit)) {
+      playShip(state, unit, (u, wander) => explore(state, u, wander), ctx.boxedIn || (ctx.atWar && !plan));
+      continue;
+    }
     if (UNITS[unit.type].canFoundCity) {
       playSettler(state, unit);
       continue;
@@ -557,7 +611,7 @@ export function runAiTurn(state: GameState, playerId: number): void {
       hold(state, unit);
       continue;
     }
-    const home = nearestCity(citiesOf(state, playerId), unit);
+    const home = nearestCity(citiesOf(state, playerId).filter((c) => landmassAt(state.map, c) === landmassAt(state.map, unit)), unit);
     if (home && goHome(state, unit, home)) continue;
     if (!home && explore(state, unit)) continue;
     hold(state, unit);
@@ -565,3 +619,6 @@ export function runAiTurn(state: GameState, playerId: number): void {
   // After moving, so a city founded this turn gets its first build choice right away.
   manageCities(state, playerId);
 }
+
+/** Researched first when an AI is boxed in on its landmass (Round 8). */
+const SEA_TECHS: TechId[] = ['map_making', 'seafaring', 'navigation'];

@@ -117,6 +117,12 @@ const MIGRATIONS: Record<number, (s: Raw) => void> = {
     s.keepPlaying = false;
     s.warned = [];
   },
+  // Milestone 6 → Round 8: ships. Nobody has a ship yet, so no unit is aboard one, and the AIs
+  // have no sea plans. The four new sea techs are simply unknown (research picks them up).
+  6: (s) => {
+    for (const u of s.units as Raw[]) u.carriedBy = null;
+    s.aiFerries = (s.players as Raw[]).map(() => null);
+  },
 };
 
 /** What each migration brought, for the "your game was updated" notice. Keyed like MIGRATIONS. */
@@ -125,6 +131,7 @@ export const MIGRATION_NOTES: Record<number, string> = {
   3: 'combat and armies',
   4: 'diplomacy',
   5: 'wonders, culture, and victory',
+  6: 'ships and the sea',
 };
 
 /** "the tech tree and combat and armies" for a save upgraded from version `from`. */
@@ -156,6 +163,8 @@ function shapeError(s: Record<string, unknown>): string | undefined {
   if (!s.players.every((p) => isObject(p) && typeof p.culture === 'number' && isObject(p.space))) return 'missing culture';
   if (!Array.isArray(s.cities) || !s.cities.every((c) => isObject(c) && Array.isArray(c.wonders))) return 'missing wonders';
   if (!Array.isArray(s.warned) || typeof s.keepPlaying !== 'boolean') return 'missing victory';
+  if (!Array.isArray(s.aiFerries) || s.aiFerries.length !== s.players.length) return 'missing sea plans';
+  if (!s.units.every((u) => isObject(u) && (u.carriedBy === null || typeof u.carriedBy === 'number'))) return 'missing cargo';
   return undefined;
 }
 

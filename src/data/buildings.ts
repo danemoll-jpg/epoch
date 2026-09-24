@@ -3,7 +3,7 @@
 
 import type { TechId } from './techs';
 
-export type BuildingId = 'granary' | 'barracks' | 'walls' | 'library' | 'marketplace' | 'temple';
+export type BuildingId = 'granary' | 'barracks' | 'walls' | 'library' | 'marketplace' | 'temple' | 'harbor';
 
 export interface BuildingEffects {
   /** Percent of the food box kept after the city grows. */
@@ -16,6 +16,8 @@ export interface BuildingEffects {
   goldPct?: number;
   /** Culture per turn (Milestone 6): it adds up toward the culture victory. */
   culture?: number;
+  /** Extra food on every water tile the city works (the Harbor, Round 8). */
+  waterFood?: number;
 }
 
 export interface BuildingDef {
@@ -27,6 +29,8 @@ export interface BuildingDef {
   effects: BuildingEffects;
   /** Tech needed to build it. */
   requires?: TechId;
+  /** Only a coastal city (next to water) can build it. */
+  coastal?: boolean;
 }
 
 export const BUILDINGS: Record<BuildingId, BuildingDef> = {
@@ -60,10 +64,15 @@ export const BUILDINGS: Record<BuildingId, BuildingDef> = {
     summary: '1 culture per turn',
     effects: { culture: 1 },
   },
+  harbor: {
+    id: 'harbor', name: 'Harbor', cost: 60, requires: 'seafaring', coastal: true,
+    summary: '+1 food on every water tile the city works (coastal cities only)',
+    effects: { waterFood: 1 },
+  },
 };
 
 export const BUILDING_IDS = Object.keys(BUILDINGS) as BuildingId[];
 
 /** Order the AI works through buildings once its cities are defended and it has expanded. */
-export const AI_BUILDING_ORDER: BuildingId[] = ['granary', 'library', 'marketplace', 'temple', 'barracks', 'walls'];
+export const AI_BUILDING_ORDER: BuildingId[] = ['granary', 'library', 'harbor', 'marketplace', 'temple', 'barracks', 'walls'];
 

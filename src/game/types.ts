@@ -76,6 +76,11 @@ export interface Unit {
   fortified: boolean;
   /** Three units of one type merged into one (combat strength × RULES.combat.armyMultiplier). */
   army: boolean;
+  /**
+   * The ship this land unit is aboard (Round 8), or null. Cargo stands on its ship's tile and
+   * moves with it; it dies if the ship is sunk.
+   */
+  carriedBy: number | null;
 }
 
 export type BuildItem =
@@ -120,8 +125,9 @@ export interface City {
  * 3 = Milestone 3 (techs, research). 4 = Milestone 4 (combat: war, fortify, armies, capitals).
  * 5 = Milestone 5 (diplomacy: contact, peace treaties, opinions, offers, AI war plans).
  * 6 = Milestone 6 (culture, wonders, spaceship, victory).
+ * 7 = Round 8 (ships: cargo, and the AI's sea plans).
  */
-export const STATE_VERSION = 6;
+export const STATE_VERSION = 7;
 
 export interface GameState {
   version: number;
@@ -142,6 +148,8 @@ export interface GameState {
   diplomacy: Diplomacy;
   /** Each AI's current war plan (indexed by player id), or null. Always null for humans. */
   aiPlans: (AiPlan | null)[];
+  /** Each AI's current sea plan (indexed by player id): a ship ferrying settlers or troops overseas. */
+  aiFerries: (AiFerry | null)[];
   /** Short human-readable event log (newest last); the UI shows recent entries. */
   log: LogEntry[];
   /** The first win (Milestone 6), or null. Kept after "Keep playing" so the record stays. */
@@ -206,6 +214,27 @@ export interface AiPlan {
   since: number;
 }
 
+/**
+ * An AI's sea plan (Round 8): load a ship at `portCityId`, sail it to `landing` (a water tile
+ * next to `target`), and put the cargo ashore. 'settle' carries a Settler and an escort to
+ * found a city at `target`; 'invade' carries an attack force to the enemy city at `target`.
+ */
+export interface AiFerry {
+  kind: 'settle' | 'invade';
+  portCityId: number;
+  /** The ship doing it, once one is in port (null while one is being built). */
+  shipId: number | null;
+  target: Coord;
+  /** The water tile the ship unloads from. */
+  landing: Coord;
+  phase: 'load' | 'sail';
+  since: number;
+  /** The turn the ship finished loading enough to leave (it waits a little for more). */
+  loadedSince?: number;
+  /** A settling trip's escort, once picked (so its city doesn't keep it home as a guard). */
+  escortId?: number;
+}
+
 export interface LogEntry {
   turn: number;
   player: number;
@@ -222,7 +251,7 @@ export interface LogEntry {
    */
   publicText?: string;
   /** What kind of event, so the UI can give some of them their own panel. */
-  kind?: 'contact' | 'war' | 'peace' | 'trade' | 'demand' | 'gift' | 'era' | 'wonder' | 'space' | 'victory' | 'warning';
+  kind?: 'contact' | 'war' | 'peace' | 'trade' | 'demand' | 'gift' | 'era' | 'wonder' | 'space' | 'victory' | 'warning' | 'landing';
   /** Where it happened, so the UI can hide rival events the viewer can't see. */
   x?: number;
   y?: number;
@@ -254,4 +283,8 @@ export interface CombatReport {
   promoted: boolean;
   /** The attack killed a city's last defender, so the attacker moved in and took this city. */
   capturedCityId?: number;
+  /** A ship attacked a land tile (it never moves in). */
+  bombard?: boolean;
+  /** Units that went down with a sunk ship. */
+  cargoLost?: number;
 }

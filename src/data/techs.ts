@@ -1,4 +1,4 @@
-// Tech tree (Milestone 3). Four eras, 50 techs, each with prerequisites, an era, and a
+// Tech tree (Milestone 3). Four eras, 54 techs (Round 8 added four sea techs), each with prerequisites, an era, and a
 // cost tier (its depth in the tree). What a tech unlocks is declared on the thing it unlocks
 // (`requires` on units, buildings, and wonders), so adding a unit never touches this file.
 // Names are common historical terms; the descriptions are our own.
@@ -24,11 +24,11 @@ export type TechId =
   // Ancient
   | 'alphabet' | 'bronze_working' | 'ceremonial_burial' | 'horseback_riding' | 'masonry'
   | 'pottery' | 'archery' | 'writing' | 'code_of_laws' | 'currency' | 'iron_working'
-  | 'the_wheel' | 'mathematics' | 'mysticism'
+  | 'the_wheel' | 'mathematics' | 'mysticism' | 'map_making'
   // Medieval
   | 'monarchy' | 'literacy' | 'philosophy' | 'construction' | 'feudalism' | 'chivalry'
   | 'engineering' | 'trade' | 'astronomy' | 'monotheism' | 'banking' | 'university'
-  | 'invention'
+  | 'invention' | 'seafaring' | 'navigation' | 'magnetism'
   // Industrial
   | 'gunpowder' | 'physics' | 'theory_of_gravity' | 'metallurgy' | 'democracy'
   | 'economics' | 'chemistry' | 'steam_engine' | 'railroad' | 'electricity' | 'conscription'
@@ -69,12 +69,15 @@ export const TECH_LIST: TechDef[] = [
   tech('the_wheel', 'The Wheel', 'ancient', 2, ['horseback_riding'], 'Axles and wheels haul heavy loads.'),
   tech('mathematics', 'Mathematics', 'ancient', 2, ['alphabet', 'masonry'], 'Counting and measuring for builders and engineers.'),
   tech('mysticism', 'Mysticism', 'ancient', 2, ['ceremonial_burial', 'alphabet'], 'Stories of the heavens and the unseen.'),
+  tech('map_making', 'Map Making', 'ancient', 2, ['alphabet'], 'Coastlines drawn on hide, so sailors can find their way home.'),
 
   // ---- Medieval ----
   tech('monarchy', 'Monarchy', 'medieval', 3, ['ceremonial_burial', 'code_of_laws'], 'One ruler, one crown, one realm.'),
   tech('literacy', 'Literacy', 'medieval', 3, ['writing', 'code_of_laws'], 'Reading spreads beyond a few scribes.'),
   tech('construction', 'Construction', 'medieval', 3, ['masonry', 'currency'], 'Large public works with mortar and planning.'),
   tech('astronomy', 'Astronomy', 'medieval', 3, ['mysticism', 'mathematics'], 'Charting the stars and the seasons.'),
+  tech('seafaring', 'Seafaring', 'medieval', 3, ['pottery', 'map_making'], 'Sheltered harbors and fishing fleets feed coastal towns.'),
+  tech('navigation', 'Navigation', 'medieval', 4, ['seafaring', 'astronomy'], 'Steering by the stars, far out of sight of land.'),
   tech('philosophy', 'Philosophy', 'medieval', 4, ['mysticism', 'literacy'], 'Asking why, and arguing about the answers.'),
   tech('feudalism', 'Feudalism', 'medieval', 4, ['monarchy', 'iron_working'], 'Land in exchange for loyalty and service.'),
   tech('engineering', 'Engineering', 'medieval', 4, ['the_wheel', 'construction'], 'Bridges, gears, and machines that multiply effort.'),
@@ -84,6 +87,7 @@ export const TECH_LIST: TechDef[] = [
   tech('banking', 'Banking', 'medieval', 5, ['trade', 'monarchy'], 'Loans and ledgers put money to work.'),
   tech('university', 'University', 'medieval', 5, ['astronomy', 'philosophy'], 'Scholars gather to teach and to question.'),
   tech('invention', 'Invention', 'medieval', 5, ['engineering', 'literacy'], 'New devices from careful tinkering.'),
+  tech('magnetism', 'Magnetism', 'medieval', 5, ['navigation', 'iron_working'], 'A needle that always points north, in any weather.'),
 
   // ---- Industrial ----
   tech('gunpowder', 'Gunpowder', 'industrial', 6, ['invention', 'iron_working'], 'A powder that burns fast enough to throw lead.'),

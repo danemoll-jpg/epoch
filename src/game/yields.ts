@@ -15,6 +15,15 @@ export function tileYields(state: GameState, index: number): Yields {
   return { ...TERRAIN[t.terrain].yields };
 }
 
+/** What a tile gives when this city works it: its terrain, plus the Harbor's food on water (Round 8). */
+export function workedTileYields(state: GameState, city: City, index: number): Yields {
+  const y = tileYields(state, index);
+  if (TERRAIN[state.map.tiles[index]!.terrain].isWater) {
+    for (const b of city.buildings) y.food += BUILDINGS[b].effects.waterFood ?? 0;
+  }
+  return y;
+}
+
 export function centerYields(state: GameState, city: City): Yields {
   const y = tileYields(state, tileIndex(state.map, city.x, city.y));
   const b = RULES.cityCenterBonus;
@@ -55,13 +64,13 @@ export function refreshWorkedTiles(state: GameState): void {
       let best: { k: number; score: number } | undefined;
       for (const k of workRadiusTiles(state, c)) {
         if (taken.has(k)) continue;
-        const score = tileScore(tileYields(state, k), c, food.get(c.id)!, c.worked.length);
+        const score = tileScore(workedTileYields(state, c, k), c, food.get(c.id)!, c.worked.length);
         if (!best || score > best.score) best = { k, score };
       }
       if (!best) continue;
       taken.add(best.k);
       c.worked.push(best.k);
-      food.set(c.id, food.get(c.id)! + tileYields(state, best.k).food);
+      food.set(c.id, food.get(c.id)! + workedTileYields(state, c, best.k).food);
       placing = true;
     }
   }
@@ -76,7 +85,7 @@ export function specialists(city: City): number {
 export function cityYields(state: GameState, city: City): Yields {
   const total = centerYields(state, city);
   for (const k of city.worked) {
-    const y = tileYields(state, k);
+    const y = workedTileYields(state, city, k);
     total.food += y.food;
     total.production += y.production;
     total.trade += y.trade;

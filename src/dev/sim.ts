@@ -9,6 +9,8 @@ import { endTurn } from '../game/turn';
 import type { GameState, Victory } from '../game/types';
 import type { VictoryKind } from '../data/victory';
 import { aiVictoryGoal } from '../game/aiGoals';
+import { landmassAt } from '../game/mapgen';
+import { isShip } from '../game/naval';
 
 export interface CivPace {
   civId: string;
@@ -20,6 +22,10 @@ export interface CivPace {
   techsAt: Record<number, number>;
   cities: number;
   alive: boolean;
+  /** Cities it founded on a landmass other than its capital's (Round 8). */
+  overseasCities: number;
+  /** Ships it had at the end of each listed turn. */
+  shipsAt: Record<number, number>;
 }
 
 export interface SimResult {
@@ -34,6 +40,8 @@ export interface SimResult {
   victory: Victory | null;
   /** Each civ's victory goal at the end. */
   goals: VictoryKind[];
+  /** Troops put ashore next to an enemy city (Round 8). */
+  landings: number;
   state: GameState;
 }
 
@@ -41,7 +49,11 @@ export interface SimResult {
 export function simulate(seed: number, turns: number, countUntil = 120, checkpoints = [25, 50, 100, 150, 200, 250]): SimResult {
   const s = createGame({ seed, playerCount: 5 });
   for (const p of s.players) p.kind = 'ai';
-  const civs: CivPace[] = s.players.map((p) => ({ civId: p.civId, eraTurn: { ancient: 1 }, techsAt: {}, cities: 0, alive: true }));
+  const civs: CivPace[] = s.players.map((p) => ({ civId: p.civId, eraTurn: { ancient: 1 }, techsAt: {}, cities: 0, alive: true, overseasCities: 0, shipsAt: {} }));
+  const seenCities = new Set<number>();
+  // The log drops old entries, so landings are counted as they happen.
+  const seenLog = new WeakSet<object>();
+  let landings = 0;
   let warsDeclared = 0;
   let peaceTreaties = 0;
   const n = s.players.length;
@@ -51,6 +63,18 @@ export function simulate(seed: number, turns: number, countUntil = 120, checkpoi
     const p = s.players[s.currentPlayer]!;
     if (p.alive) runAiTurn(s, p.id);
     endTurn(s);
+    for (const e of s.log) {
+      if (seenLog.has(e)) continue;
+      seenLog.add(e);
+      if (e.kind === 'landing') landings++;
+    }
+    // New cities (captures keep their id): founded overseas if not on the capital's landmass.
+    for (const c of s.cities) {
+      if (seenCities.has(c.id)) continue;
+      seenCities.add(c.id);
+      const capital = s.cities.find((x) => x.capitalOf === c.owner);
+      if (capital && capital.id !== c.id && landmassAt(s.map, c) !== landmassAt(s.map, capital)) civs[c.owner]!.overseasCities++;
+    }
     // Record after each player's turn, stamped with the turn it happened in.
     for (const q of s.players) {
       const era = playerEra(q);
@@ -72,7 +96,10 @@ export function simulate(seed: number, turns: number, countUntil = 120, checkpoi
     if (s.turn !== turn) {
       // The turn just wrapped.
       for (const q of s.players) {
-        if (checkpoints.includes(turn)) civs[q.id]!.techsAt[turn] = q.techs.length;
+        if (checkpoints.includes(turn)) {
+          civs[q.id]!.techsAt[turn] = q.techs.length;
+          civs[q.id]!.shipsAt[turn] = s.units.filter((u) => u.owner === q.id && isShip(u)).length;
+        }
       }
       if (turn === countUntil) {
         for (const q of s.players) civs[q.id]!.alive = q.alive;
@@ -86,7 +113,7 @@ export function simulate(seed: number, turns: number, countUntil = 120, checkpoi
   }
   const eliminated = civs.filter((c) => !c.alive).length;
   const goals = s.players.map((q) => aiVictoryGoal(s, q.id));
-  return { seed, turns, civs, warsDeclared, peaceTreaties, eliminated, victory: s.victory, goals, state: s };
+  return { seed, turns, civs, warsDeclared, peaceTreaties, eliminated, victory: s.victory, goals, landings, state: s };
 }
 
 /** Median of the defined values (undefined counts as "later than any"). */

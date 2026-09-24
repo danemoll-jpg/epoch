@@ -29,7 +29,8 @@ import {
   treatyLockedUntil,
 } from '../game/diplomacy';
 import { neighbors, tileAt } from '../game/grid';
-import { visibleTiles } from '../game/fog';
+import { unitVisibleTo } from '../game/fog';
+import { cargoOf, isShip, isWaterAt } from '../game/naval';
 import { entryText, eventsVisibleTo } from '../game/log';
 import { findUnit, reachableThisTurn } from '../game/movement';
 import { migrationSummary } from '../game/save';
@@ -164,6 +165,8 @@ export class App {
       if (!btn) return;
       const id = Number(btn.dataset.unit);
       if (btn.dataset.act === 'army') this.formArmyOf(id);
+      else if (btn.dataset.act === 'board') this.boardShip(id, Number(btn.dataset.ship));
+      else if (btn.dataset.act === 'unload') this.unloadHere(id);
       else this.select(id);
     });
     $('attackGoBtn').addEventListener('click', () => this.confirmAttack());
@@ -313,7 +316,11 @@ export class App {
     const u = this.selected();
     if (!u) return;
     if (this.dispatch({ type: 'fortify', unitId: u.id })) {
-      this.toast(`${UNITS[u.type].name} fortified (+${RULES.combat.fortifiedPct}% defense until it moves)`);
+      this.toast(
+        isShip(u)
+          ? `${UNITS[u.type].name} stays put (Next Unit skips it until it moves)`
+          : `${UNITS[u.type].name} fortified (+${RULES.combat.fortifiedPct}% defense until it moves)`,
+      );
       this.selectNext(false);
     }
   }
@@ -325,6 +332,27 @@ export class App {
     if (this.dispatch({ type: 'formArmy', unitId: u.id })) {
       this.toast(`${UNITS[u.type].name} army formed: ×${RULES.combat.armyMultiplier} attack and defense`);
       this.select(u.id);
+    }
+  }
+
+  /** Boards a ship docked in the same city (Round 8). At sea, boarding is a tap on the ship. */
+  private boardShip(unitId: number, shipId: number): void {
+    const u = findUnit(this.state, unitId);
+    const ship = findUnit(this.state, shipId);
+    if (!u || !ship) return;
+    if (this.dispatch({ type: 'board', unitId, shipId })) {
+      this.toast(`${UNITS[u.type].name} boarded the ${UNITS[ship.type].name}`);
+      this.selectNext(false);
+    }
+  }
+
+  /** Goes ashore into the city the ship is docked in. */
+  private unloadHere(unitId: number): void {
+    const u = findUnit(this.state, unitId);
+    if (!u) return;
+    if (this.dispatch({ type: 'unload', unitId })) {
+      this.toast(`${UNITS[u.type].name} went ashore`);
+      this.selectNext(false);
     }
   }
 
@@ -393,9 +421,9 @@ export class App {
     return this.state.units.filter((u) => u.owner === this.human);
   }
 
-  /** Units still waiting for orders this turn (fortified units are left alone). */
+  /** Units still waiting for orders this turn (fortified units, and cargo riding aboard a ship, are left alone). */
   private readyUnits(): Unit[] {
-    return this.myUnits().filter((u) => u.movesLeft > 0 && !u.fortified);
+    return this.myUnits().filter((u) => u.movesLeft > 0 && !u.fortified && u.carriedBy === null);
   }
 
   private myCities(): City[] {
@@ -463,10 +491,10 @@ export class App {
           const defense = def.defensePct ? ` · defense +${def.defensePct}%` : '';
           this.toast(`${cityText}${def.name} — food ${y.food}, production ${y.production}, trade ${y.trade}${defense}`);
           // Enemy units in sight: say what they are.
-          const enemies = unitsOnTile(this.state, tx, ty).filter((u) => u.owner !== this.human);
-          if (enemies.length === 1 && this.visibleToMe(tx, ty)) this.toast(`${this.unitLabel(enemies[0]!)} · ${unitSummary(enemies[0]!.type)}`);
+          const enemies = unitsOnTile(this.state, tx, ty).filter((u) => u.owner !== this.human && unitVisibleTo(this.state, this.human, u));
+          if (enemies.length === 1) this.toast(`${this.unitLabel(enemies[0]!)} · ${unitSummary(enemies[0]!.type)}`);
           // A stack: say everything in it, so a mixed stack is never mistaken for one type.
-          if (enemies.length > 1 && this.visibleToMe(tx, ty)) {
+          if (enemies.length > 1) {
             this.toast(`${civAdjective(this.state, enemies[0]!.owner)} ${isMixedStack(enemies) ? 'mixed stack' : 'stack'}: ${stackLabel(enemies)}`);
           }
         }
@@ -668,8 +696,8 @@ export class App {
       ? units
           .map(
             (u) => `<button type="button" data-act="unit" data-unit="${u.id}" class="unitItem">
-            ${this.badge(u.type, u.owner)}${UNITS[u.type].name}${u.army ? ` army ×${RULES.combat.armyMultiplier}` : ''}${u.veteran ? ' ★' : ''}${u.fortified ? ' 🛡' : ''}
-            <span class="sub">moves ${u.movesLeft}/${UNITS[u.type].moves} · tap to select</span></button>`,
+            ${this.badge(u.type, u.owner)}${UNITS[u.type].name}${u.army ? ` army ×${RULES.combat.armyMultiplier}` : ''}${u.veteran ? ' ★' : ''}${u.fortified && !isShip(u) ? ' 🛡' : ''}${u.carriedBy !== null ? ' ⚓ aboard' : ''}
+            <span class="sub">moves ${u.movesLeft}/${UNITS[u.type].moves}${isShip(u) && UNITS[u.type].cargo ? ` · cargo ${cargoOf(this.state, u).length}/${UNITS[u.type].cargo}` : ''} · tap to select</span></button>`,
           )
           .join('') + armyBtns
       : '<span class="sub">None</span>';
@@ -775,7 +803,7 @@ export class App {
 
   /** ☰ → About / Credits (every build): the game's name and version, and the icon credits the license asks for. */
   private renderAbout(): void {
-    const used = UNIT_IDS.map((id) => ({ id, icon: UNITS[id].icon, credit: ICON_CREDITS[UNITS[id].icon] }));
+    const used = UNIT_IDS.filter((id) => UNITS[id].icon).map((id) => ({ id, icon: UNITS[id].icon!, credit: ICON_CREDITS[UNITS[id].icon!] }));
     const rows = used
       .map(
         (u) => `<li>${this.badge(u.id, this.human)}<span><b>${UNITS[u.id].name}</b>: “${esc(u.credit?.title ?? u.icon)}” by ${esc(u.credit?.author ?? 'unknown')}
@@ -862,7 +890,18 @@ export class App {
     const others = this.state.units.filter((u) => u.x === at.x && u.y === at.y && u.id !== odds.defender.id).length;
     const stackNote = others > 0 ? `<p class="sub">Their best defender fights. If it loses, the other ${plural(others, 'unit')} on that tile stay.</p>` : '';
     const city = this.state.cities.find((c) => c.x === at.x && c.y === at.y);
-    const takeNote = city && others === 0 ? `<p class="sub">It’s ${esc(city.name)}’s last defender: if you win, your ${esc(UNITS[unit.type].name)} moves in and takes the city.</p>` : '';
+    const bombard = isShip(unit) && !isWaterAt(this.state, at.x, at.y);
+    const takeNote =
+      city && others === 0 && !bombard
+        ? `<p class="sub">It’s ${esc(city.name)}’s last defender: if you win, your ${esc(UNITS[unit.type].name)} moves in and takes the city.</p>`
+        : '';
+    const bombardNote = bombard
+      ? `<p class="sub">Bombarding: if you win, the defender is destroyed but your ${esc(UNITS[unit.type].name)} stays at sea (ships never capture). If you lose, it sinks.</p>`
+      : '';
+    const aboard = (u: Unit) => cargoOf(this.state, u).length;
+    const cargoNote =
+      (aboard(odds.defender) ? `<p class="sub">If their ${esc(UNITS[odds.defender.type].name)} sinks, the ${plural(aboard(odds.defender), 'unit')} aboard go down with it.</p>` : '') +
+      (aboard(unit) ? `<p class="sub">If your ${esc(UNITS[unit.type].name)} sinks, the ${plural(aboard(unit), 'unit')} aboard go down with it.</p>` : '');
     $('attackBody').innerHTML = `
       <h2>Attack?</h2>
       <div class="odds ${pct >= 60 ? 'good' : pct >= 40 ? 'even' : 'bad'}"><b>${pct}%</b><span>chance to win</span></div>
@@ -870,7 +909,7 @@ export class App {
         ${sideHtml(this.badge(odds.attacker.type, odds.attacker.owner), `Your ${this.unitName(odds.attacker)}`, 'Attack', odds.attack)}
         ${sideHtml(this.badge(odds.defender.type, odds.defender.owner), this.unitLabel(odds.defender), 'Defense', odds.defense)}
       </div>
-      ${stackNote}${takeNote}
+      ${stackNote}${takeNote}${bombardNote}${cargoNote}
       <p class="sub">The loser is destroyed. Attacking uses up your unit’s turn.</p>`;
     $('attackOverlay').hidden = false;
     $<HTMLButtonElement>('attackGoBtn').focus({ preventScroll: true });
@@ -903,7 +942,9 @@ export class App {
     let text = c.attackerWon
       ? `Your ${mine} defeated the ${theirs} (${pct}%)`
       : `Your ${mine} was destroyed by the ${theirs} (${pct}%)`;
+    if (c.bombard && c.attackerWon) text = `Your ${mine} bombarded and destroyed the ${theirs} (${pct}%). It stays at sea`;
     if (c.promoted && c.attackerWon) text += `. Your ${mine} is now a veteran ★`;
+    if (c.cargoLost) text += `. ${plural(c.cargoLost, 'unit')} aboard went down with the ship`;
     this.toast(text, !c.attackerWon);
     this.showFlash(c.x, c.y, c.attackerWon);
   }
@@ -930,10 +971,6 @@ export class App {
   /** The unit type's icon on its owner's color, as on the map (Round 7). */
   private badge(type: UnitTypeId, owner: number): string {
     return `<span class="udisc" style="background:${playerColor(this.state, owner)}">${unitIconHtml(type)}</span>`;
-  }
-
-  private visibleToMe(x: number, y: number): boolean {
-    return visibleTiles(this.state, this.human)[y * this.state.map.width + x] === true;
   }
 
   /** Adjacent tiles the selected unit could attack right now (outlined in red). */
@@ -1620,10 +1657,16 @@ export class App {
       const vet = sel.veteran ? ' ★ veteran' : '';
       const army = sel.army ? ` army ×${RULES.combat.armyMultiplier}` : '';
       const mult = sel.army ? RULES.combat.armyMultiplier : 1;
-      const fort = sel.fortified ? ' · 🛡 fortified' : '';
+      const fort = sel.fortified ? (isShip(sel) ? ' · staying put' : ' · 🛡 fortified') : '';
+      const carrier = sel.carriedBy !== null ? findUnit(this.state, sel.carriedBy) : undefined;
+      const naval = isShip(sel)
+        ? ` · cargo ${cargoOf(this.state, sel).length}/${def.cargo}${def.coastOnly ? ' · coast only' : ''}`
+        : carrier
+          ? ` · ⚓ aboard the ${UNITS[carrier.type].name}`
+          : '';
       $('unitInfo').innerHTML = `${this.badge(sel.type, sel.owner)}${def.name}${army}${vet}${fort} <span class="sub">· attack ${def.attack * mult} · defense ${
         def.defense * mult
-      } · moves ${sel.movesLeft}/${def.moves} · ${terrain}</span>`;
+      } · moves ${sel.movesLeft}/${def.moves}${naval} · ${terrain}</span>`;
       foundBtn.hidden = !def.canFoundCity;
       const err = foundCityError(this.state, sel.id);
       foundBtn.disabled = err !== undefined;
@@ -1631,7 +1674,9 @@ export class App {
       const fortifyBtn = $<HTMLButtonElement>('fortifyBtn');
       fortifyBtn.hidden = def.canFoundCity || sel.owner !== this.human;
       fortifyBtn.disabled = fortifyError(this.state, sel) !== undefined;
-      fortifyBtn.textContent = sel.fortified ? 'Fortified' : 'Fortify';
+      // Ships don't dig in; "Stay" just leaves them out of Next Unit until they move.
+      fortifyBtn.textContent = isShip(sel) ? (sel.fortified ? 'Staying' : 'Stay') : sel.fortified ? 'Fortified' : 'Fortify';
+      fortifyBtn.hidden = fortifyBtn.hidden || sel.carriedBy !== null;
       this.renderStackList(sel);
       // The city panel covers this spot; the unit comes back when the city closes.
       panel.hidden = this.openCityId !== undefined;
@@ -1651,17 +1696,39 @@ export class App {
    */
   private renderStackList(sel: Unit): void {
     const box = $('stackList');
-    const units = unitsOnTile(this.state, sel.x, sel.y).filter((u) => u.owner === sel.owner);
+    const units = unitsOnTile(this.state, sel.x, sel.y)
+      .filter((u) => u.owner === sel.owner)
+      .sort((a, b) => Number(a.carriedBy !== null) - Number(b.carriedBy !== null) || a.id - b.id);
+    const mine = sel.owner === this.human;
+    // Ships (Round 8): what's aboard, and boarding a ship docked here / going ashore in port.
+    const ships = units.filter((u) => isShip(u));
+    const cargoHead = ships
+      .filter((s) => UNITS[s.type].cargo > 0)
+      .map((s) => {
+        const c = cargoOf(this.state, s);
+        return `<div class="label">⚓ ${UNITS[s.type].name} cargo ${c.length}/${UNITS[s.type].cargo}${c.length ? `: ${stackLabel(c)}` : ''}</div>`;
+      })
+      .join('');
+    let navalBtns = '';
+    if (mine && !isShip(sel) && sel.carriedBy === null) {
+      const ship = ships.find((s) => cargoOf(this.state, s).length < UNITS[s.type].cargo);
+      if (ship) navalBtns += `<button type="button" data-act="board" data-unit="${sel.id}" data-ship="${ship.id}" class="navalBtn">⚓ Board the ${UNITS[ship.type].name}</button>`;
+    }
+    if (mine && sel.carriedBy !== null && !isWaterAt(this.state, sel.x, sel.y)) {
+      navalBtns += `<button type="button" data-act="unload" data-unit="${sel.id}" class="navalBtn">Go ashore here</button>`;
+    }
+    if (mine && sel.carriedBy !== null && isWaterAt(this.state, sel.x, sel.y)) {
+      navalBtns += '<div class="label">Tap a land tile next to the ship to go ashore there.</div>';
+    }
     let html = '';
     if (units.length > 1) {
-      const mine = sel.owner === this.human;
       const head = `<div class="label">${isMixedStack(units) ? '<span class="mixed">Mixed</span> ' : ''}${units.length} units here: ${stackLabel(units)}</div>`;
       const items = mine
         ? units
             .map(
               (u) => `<button type="button" data-unit="${u.id}" class="stackItem${u.id === sel.id ? ' on' : ''}">
-              ${this.badge(u.type, u.owner)}${UNITS[u.type].name}${u.army ? ` army ×${RULES.combat.armyMultiplier}` : ''}${u.veteran ? ' ★' : ''}${u.fortified ? ' 🛡' : ''}
-              <span class="sub">${u.movesLeft}/${UNITS[u.type].moves}</span></button>`,
+              ${this.badge(u.type, u.owner)}${UNITS[u.type].name}${u.army ? ` army ×${RULES.combat.armyMultiplier}` : ''}${u.veteran ? ' ★' : ''}${u.fortified && !isShip(u) ? ' 🛡' : ''}${u.carriedBy !== null ? ' ⚓' : ''}
+              <span class="sub">${u.movesLeft}/${UNITS[u.type].moves}${u.carriedBy !== null ? ' · aboard' : ''}</span></button>`,
             )
             .join('')
         : '';
@@ -1673,7 +1740,9 @@ export class App {
             )
             .join('')
         : '';
-      html = `${head}<div class="stackItems">${items}</div>${armies}`;
+      html = `${head}${cargoHead}<div class="stackItems">${items}</div>${armies}${navalBtns}`;
+    } else if (navalBtns || cargoHead) {
+      html = `${cargoHead}${navalBtns}`;
     }
     // Only touch the DOM when it changes, so a tap in progress isn't lost to a re-render.
     if (box.dataset.html !== html) {
@@ -1760,6 +1829,11 @@ function unitSummary(id: BuildItem['id']): string {
   const def = UNITS[id as keyof typeof UNITS];
   if (!def) return '';
   const parts = [`attack ${def.attack} · defense ${def.defense} · moves ${def.moves}`];
+  if (def.domain === 'sea') {
+    parts.push(def.cargo ? `ship, carries ${def.cargo}` : 'ship');
+    if (def.coastOnly) parts.push('coast only');
+    if (def.stealth) parts.push('seen only from next to it');
+  }
   if (def.canFoundCity) parts.push('founds a city');
   if (def.popCost > 0) parts.push(`costs ${def.popCost} population`);
   return parts.join(' · ');

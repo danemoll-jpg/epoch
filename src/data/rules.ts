@@ -24,6 +24,25 @@ export const RULES = {
   /** Oldest event-log entries are dropped past this many, so saves stay small. */
   maxLogEntries: 200,
 
+  // ---- map shape (Round 8: several landmasses, so ships matter) ----
+  map: {
+    /** Share of tiles that are land. */
+    landShare: 0.45,
+    /**
+     * The map is split into this many continents (a random number in the range): water
+     * channels are cut along the lines halfway between continent centers.
+     */
+    continentsMin: 3,
+    continentsMax: 4,
+    /** Continent centers are at least this many tiles apart. */
+    continentSpacing: 9,
+    /** How wide (in tiles) the cut between two continents is, and how deep (elevation). */
+    channelWidth: 2.5,
+    channelDepth: 0.5,
+    /** A civ never starts on a landmass smaller than this many (walkable) tiles. */
+    minStartLandmass: 20,
+  },
+
   // ---- cities (Milestone 2) ----
   /** Chebyshev radius of tiles a city can work. 1 = the 8 surrounding tiles. */
   cityWorkRadius: 1,
@@ -191,6 +210,24 @@ export const RULES = {
     minAttackForce: 3,
     /** Gold the AI keeps before rush-buying settlers and buildings. */
     goldReserve: 40,
+
+    // ---- the sea (Round 8; see src/game/aiNaval.ts) ----
+    naval: {
+      /** An overseas city site must score at least this (siteScore; the AI's home sites use 20 too). */
+      minSiteScore: 20,
+      /** A site's value drops this much per tile the ship must sail. */
+      sitePerStep: 1.5,
+      /** Sea plans are dropped after this many turns (a stuck ship). */
+      maxPlanTurns: 40,
+      /** A ship with a Settler aboard waits this many turns for its escort before sailing alone. */
+      escortWaitTurns: 2,
+      /** An invasion sails when it carries RULES.ai.minAttackForce (an army counts 3), is full, or has waited this long. */
+      invadeWaitTurns: 4,
+      /** Warships kept for coastal defense once a met rival has ships (never more than its coastal cities). */
+      warships: 2,
+      /** A warship goes after an enemy ship this close to it. */
+      huntDistance: 5,
+    },
 
     // ---- victory (Milestone 6; see src/game/aiGoals.ts) ----
     victory: {

@@ -148,11 +148,11 @@ export function turnsToLearn(state: GameState, playerId: number, tech: TechId): 
   return perTurn > 0 ? Math.ceil(remaining / perTurn) : undefined;
 }
 
-/** AI research choice: the first available tech in AI_TECH_PRIORITY, else the shallowest available. */
-export function chooseAiResearch(player: Player): TechId | undefined {
+/** AI research choice: the first available tech in `first` (urgent picks), then AI_TECH_PRIORITY, else the shallowest available. */
+export function chooseAiResearch(player: Player, first: TechId[] = []): TechId | undefined {
   const available = availableTechs(player);
   if (available.length === 0) return undefined;
-  const preferred = AI_TECH_PRIORITY.find((t) => available.includes(t));
+  const preferred = [...first, ...AI_TECH_PRIORITY].find((t) => available.includes(t));
   if (preferred) return preferred;
   // TECH_IDS order breaks ties, and the sort is stable.
   return [...available].sort((a, b) => TECHS[a].tier - TECHS[b].tier)[0];

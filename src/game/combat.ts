@@ -11,6 +11,12 @@
 // Bonuses are percentages that add up: terrain (hills, forest), fortified, veteran (either
 // side), in a city, and Walls (in a city, against land attacks). They're listed in the
 // odds so the player sees where the numbers come from. All values are in data.
+//
+// Ships (Round 8): ships fight ships with the same odds rule. A ship can also bombard an
+// adjacent land tile: if it wins, the defender dies but the ship never moves in or captures;
+// if it loses, the ship sinks. A sunk ship takes its cargo with it. Land units can't attack
+// ships at sea, cargo can't attack from a ship, ships in port don't defend their city, and
+// Walls count only against land attacks. There are no naval armies.
 
 import { BUILDINGS } from '../data/buildings';
 import { RULES } from '../data/rules';
@@ -24,6 +30,7 @@ import { findUnit } from './movement';
 import { updateExplored } from './fog';
 import { nextFloat } from './rng';
 import { atWar } from './war';
+import { defendsTile, isShip, isWaterAt, removeUnit } from './naval';
 import type { ActionResult, Coord, GameState, Unit } from './types';
 
 export interface Modifier {
@@ -85,7 +92,8 @@ export function defenseStrength(state: GameState, u: Unit, attackerIsLand = true
       }
     }
   }
-  if (u.fortified) mods.push({ label: 'Fortified', pct: RULES.combat.fortifiedPct });
+  // A ship told to stay put (Round 8) is marked fortified, but only land units dig in.
+  if (u.fortified && !isShip(u)) mods.push({ label: 'Fortified', pct: RULES.combat.fortifiedPct });
   if (u.veteran) mods.push({ label: 'Veteran', pct: RULES.combat.veteranPct });
   return strength(UNITS[u.type].defense * armyFactor(u), mods);
 }
@@ -94,7 +102,7 @@ export function defenseStrength(state: GameState, u: Unit, attackerIsLand = true
 export function pickDefender(state: GameState, at: Coord, attackerOwner: number): Unit | undefined {
   let best: { u: Unit; d: number } | undefined;
   for (const u of state.units) {
-    if (u.x !== at.x || u.y !== at.y || u.owner === attackerOwner) continue;
+    if (u.x !== at.x || u.y !== at.y || u.owner === attackerOwner || !defendsTile(state, u)) continue;
     const d = defenseStrength(state, u).total;
     if (!best || d > best.d || (d === best.d && u.id < best.u.id)) best = { u, d };
   }
@@ -106,8 +114,10 @@ export function attackError(state: GameState, unit: Unit, at: Coord): string | u
   if (state.currentPlayer !== unit.owner) return 'Not your turn';
   const def = UNITS[unit.type];
   if (def.attack <= 0) return `A ${def.name} can't attack`;
+  if (unit.carriedBy !== null) return 'Units can’t attack from a ship. Unload onto land first';
   if (unit.movesLeft <= 0) return 'No moves left';
   if (distance(unit, at) !== 1) return 'Move next to it first to attack';
+  if (!isShip(unit) && isWaterAt(state, at.x, at.y)) return 'Land units can’t attack ships at sea';
   const defender = pickDefender(state, at, unit.owner);
   if (!defender) return 'Nothing to attack there';
   if (!atWar(state, unit.owner, defender.owner)) return `You are at peace with ${civName(state, defender.owner)}. Declare war in Diplomacy first`;
@@ -119,7 +129,7 @@ export function combatOdds(state: GameState, unit: Unit, at: Coord): CombatOdds 
   const defender = pickDefender(state, at, unit.owner);
   if (!defender) return undefined;
   const attack = attackStrength(unit);
-  const defense = defenseStrength(state, defender);
+  const defense = defenseStrength(state, defender, !isShip(unit));
   return { attacker: unit, defender, attack, defense, chance: winChance(attack.total, defense.total) };
 }
 
@@ -134,7 +144,8 @@ export function attack(state: GameState, unitId: number, at: Coord): ActionResul
   const attackerWon = nextFloat(state) < chance;
   const winner = attackerWon ? unit : defender;
   const loser = attackerWon ? defender : unit;
-  state.units = state.units.filter((u) => u.id !== loser.id);
+  // A sunk ship takes its cargo down with it.
+  const cargoLost = removeUnit(state, loser.id).length - 1;
   let promoted = false;
   if (!winner.veteran && nextFloat(state) * 100 < RULES.combat.veteranChancePct) {
     winner.veteran = true;
@@ -149,12 +160,15 @@ export function attack(state: GameState, unitId: number, at: Coord): ActionResul
     ? `${name(unit)} defeated ${name(defender)} (${pct}% odds)`
     : `${name(unit)} was destroyed attacking ${name(defender)} (${pct}% odds)`;
   addLog(state, unit.owner, text, at, defender.owner);
-  recordLoss(state, loser.owner, winner.owner, loser.army ? RULES.combat.armySize : 1);
+  if (cargoLost > 0) addLog(state, loser.owner, `${cargoLost} unit${cargoLost === 1 ? '' : 's'} aboard the ${UNITS[loser.type].name} went down with it`, at, winner.owner);
+  recordLoss(state, loser.owner, winner.owner, (loser.army ? RULES.combat.armySize : 1) + cargoLost);
 
-  // The last defender of an enemy city fell: the winner moves in and takes the city.
+  // The last defender of an enemy city fell: the winner moves in and takes the city. A ship
+  // bombarding never moves in.
   let captured: number | undefined;
   const city = state.cities.find((c) => c.x === at.x && c.y === at.y && c.owner === defender.owner);
-  if (attackerWon && city && !state.units.some((u) => u.x === at.x && u.y === at.y)) {
+  const defenders = state.units.some((u) => u.x === at.x && u.y === at.y && u.owner !== unit.owner && defendsTile(state, u));
+  if (attackerWon && city && !defenders && !isShip(unit)) {
     unit.x = at.x;
     unit.y = at.y;
     updateExplored(state, unit.owner);
@@ -178,6 +192,8 @@ export function attack(state: GameState, unitId: number, at: Coord): ActionResul
       y: at.y,
       promoted,
       capturedCityId: captured,
+      bombard: isShip(unit) && !isWaterAt(state, at.x, at.y),
+      cargoLost,
     },
   };
 }
@@ -187,13 +203,15 @@ export function attack(state: GameState, unitId: number, at: Coord): ActionResul
 export function fortifyError(state: GameState, unit: Unit): string | undefined {
   if (state.currentPlayer !== unit.owner) return 'Not your turn';
   if (UNITS[unit.type].canFoundCity) return 'Settlers can’t fortify';
+  if (unit.carriedBy !== null) return 'Can’t fortify aboard a ship';
   if (unit.fortified) return 'Already fortified';
   return undefined;
 }
 
 /**
  * Digs the unit in: +50% defense until it moves or attacks. Fortifying ends the unit's
- * turn, and "next unit" skips fortified units from then on.
+ * turn, and "next unit" skips fortified units from then on. A ship can be told to stay put
+ * the same way ("Stay"), but gets no defense bonus.
  */
 export function fortify(state: GameState, unitId: number): ActionResult {
   const unit = findUnit(state, unitId);
@@ -212,10 +230,13 @@ export function armyPartners(state: GameState, unit: Unit): Unit[] | string {
   if (state.currentPlayer !== unit.owner) return 'Not your turn';
   const def = UNITS[unit.type];
   if (def.canFoundCity || (def.attack <= 0 && def.defense <= 0)) return `A ${def.name} can’t join an army`;
+  // Armies are a land-only mechanic (Q11): no fleets.
+  if (isShip(unit)) return 'Ships can’t form armies';
   if (unit.army) return 'Already an army';
+  if (unit.carriedBy !== null) return 'Unload first to form an army';
   const need = RULES.combat.armySize;
   const same = state.units.filter(
-    (u) => u.id !== unit.id && u.owner === unit.owner && u.type === unit.type && !u.army && u.x === unit.x && u.y === unit.y,
+    (u) => u.id !== unit.id && u.owner === unit.owner && u.type === unit.type && !u.army && u.carriedBy === null && u.x === unit.x && u.y === unit.y,
   );
   if (same.length < need - 1) return `Needs ${need} ${def.name} units on one tile`;
   return same.sort((a, b) => a.id - b.id).slice(0, need - 1);

@@ -32,9 +32,10 @@ const names = (items: BuildItem[]) => items.map((i) => i.id);
 const FIRST = techCostFor(0, 1);
 
 describe('tech tree data', () => {
-  it('has 40–50 techs across the four eras, with unique ids and names', () => {
+  it('has 40–60 techs across the four eras, with unique ids and names', () => {
+    // 50 in Milestone 3, plus the four sea techs in Round 8.
     expect(TECH_LIST.length).toBeGreaterThanOrEqual(40);
-    expect(TECH_LIST.length).toBeLessThanOrEqual(50);
+    expect(TECH_LIST.length).toBeLessThanOrEqual(60);
     expect(new Set(TECH_IDS).size).toBe(TECH_LIST.length);
     expect(new Set(TECH_LIST.map((t) => t.name)).size).toBe(TECH_LIST.length);
     for (const era of ERAS) expect(TECH_LIST.filter((t) => t.era === era.id).length).toBeGreaterThanOrEqual(8);

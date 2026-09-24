@@ -10,7 +10,8 @@
 //      into an adjacent enemy city with nobody in it, which captures it).
 // 2. You tap the selected unit's own tile, or nothing movable is selected:
 //    - your own city → open the city (its panel lists the units inside to pick from);
-//    - your own units → select one; tapping the same stack again cycles through it;
+//    - your own units → select one (a ship before its cargo); tapping the same stack again
+//      cycles through it;
 //    - anything else → inspect the tile (show its terrain and yields) and deselect.
 
 import { distance } from '../game/grid';
@@ -46,7 +47,10 @@ export function resolveTap(
 
   if (myCity) return { kind: 'openCity', cityId: myCity.id };
 
-  const mine = state.units.filter((u) => u.owner === viewer && u.x === tx && u.y === ty);
+  // Ships and units on their own feet first, cargo after (Round 8).
+  const mine = state.units
+    .filter((u) => u.owner === viewer && u.x === tx && u.y === ty)
+    .sort((a, b) => Number(a.carriedBy !== null) - Number(b.carriedBy !== null));
   if (mine.length > 0) {
     const i = mine.findIndex((u) => u.id === selectedUnitId);
     return { kind: 'select', unitId: mine[(i + 1) % mine.length]!.id };

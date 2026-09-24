@@ -73,6 +73,7 @@ export function createGame(opts: NewGameOptions): GameState {
     atWar: noWars(playerCount),
     diplomacy: newDiplomacy(playerCount),
     aiPlans: players.map(() => null),
+    aiFerries: players.map(() => null),
     log: [],
     victory: null,
     keepPlaying: false,
@@ -92,6 +93,7 @@ export function createGame(opts: NewGameOptions): GameState {
         veteran: false,
         fortified: false,
         army: false,
+        carriedBy: null,
       };
       state.units.push(unit);
     }

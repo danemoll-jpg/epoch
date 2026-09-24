@@ -1,7 +1,7 @@
 {
   "name": "epoch",
   "private": true,
-  "version": "0.7.0",
+  "version": "0.8.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,7 +9,7 @@
     "play": "npm run build:play && vite preview --outDir dist-play --port 4173 --strictPort",
     "play:lan": "npm run build:play && vite preview --outDir dist-play --host --port 4173 --strictPort",
     "build": "tsc --noEmit && vite build && node scripts/check-dist.mjs",
-    "build:play": "tsc --noEmit && vite build --outDir dist-play --emptyOutDir && node scripts/check-dist.mjs dist-play",
+    "build:play": "tsc --noEmit && vite build --outDir dist-play --emptyOutDir && node scripts/check-dist.mjs dist-play && node scripts/copy-pickers.mjs dist-play",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",

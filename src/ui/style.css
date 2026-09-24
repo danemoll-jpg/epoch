@@ -1097,6 +1097,13 @@ button.bigBtn {
   margin-left: 4px;
 }
 
+/* Ships (Round 8): board a ship docked here, or go ashore in port. */
+#stackList .navalBtn {
+  min-height: 44px;
+  background: #144e4a;
+  border-color: #1aa39a;
+}
+
 #stackList .armyBtn {
   background: #6b5320;
   border-color: #e6b73f;
