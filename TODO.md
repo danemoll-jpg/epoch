@@ -436,8 +436,10 @@ Steps, Technical Notes.
       a little oddly. Leader names are used in the offer panels.
 
 * **Round 6 — Icon candidates, research pace, mixed stacks, message
-  grammar — done by the coding agent (2026-09-24).** Dan has picked the
-  icons (below). His iPad checks (b) and (c) are still open.
+  grammar — done (2026-09-24).** Dan picked the icons (below), and
+  **verified mixed stacks on the iPad.** Research pace is checked by the
+  simulation, not by Dan (it's hard to judge by hand). He can glance at
+  the era in the top bar: Medieval should come around turn 60–70.
   - **Result:** 241 unit tests passing (10 new). Type-check and production
     build are clean, and the dev-code leak check passes. Preview-verified
     on desktop and in iPad-sized emulation (1024×768 landscape, 768×1024
@@ -540,131 +542,180 @@ Steps, Technical Notes.
 
 ## Current Objective (Focus Area)
 
-### Round 6 — Icon candidates + mixed stacks + a first research-pace pass
-**Status: done by the coding agent (2026-09-24); see Completed Tasks.
-Icons picked by Dan (a). Still open: iPad checks (b) and (c). Dan will
-decide on the next step after reviewing this file.**
-
+### Round 7 — Unit icons in the game + Milestone 6 (wonders, culture, and victory)
 **Goal:**
-- Put unit icon candidates in front of Dan so he can pick them. He approves
-  before anything goes in.
-- Make mixed stacks obvious (Dan's feedback).
-- Speed up research enough that the game can move through its eras, since
-  slow research is now holding back AI wars too.
-- Everything else stays placeholder art until M9.
+- Put Dan's chosen icons into the game, with credits.
+- Give the game its four ways to win, as in Civ Rev 1: domination, culture,
+  economic, and technology.
+- Wonders and culture are pulled forward from M7, because two of the
+  victories need them. Great People, barbarians, and huts stay in M7.
+- Terrain and cities are still placeholder art.
 
 **Items for the coding agent. Report status on each one individually:**
 
 0. **Commit the updated docs first:** `CLAUDE.md` and `TODO.md` as their own
    commit, then re-read them.
 
-**Part A — Unit icons, step 1: Dan picks them (DECIDED by Dan,
-2026-09-24: game-icons.net, and Dan approves the icons before they go in)**
+**Part A — Unit icons, step 2: implement Dan's picks**
 
-A1. **Icon candidates, no game changes yet:**
-    - from **game-icons.net** (license **CC BY 3.0**: free use with credit
-      to each icon's author), choose **2–3 candidate icons per unit type**:
-      Settler, Warrior, Archer, Spearman, Horseman, Chariot, Legion,
-      Catapult, Pikeman, Knight, Musketman, Cannon, Rifleman, Artillery,
-      and Tank;
-    - pick icons that would be easy to tell apart at small sizes.
+A1. **Wire in the 15 picked icons** (the table under Round 6 in Completed
+    Tasks):
+    - copy them from `docs/icon-candidates/` into `src/assets/icons/`, so
+      they're bundled in the build and never loaded from the web;
+    - add an `icon` field per unit in `units.ts`.
 
-A2. **A preview page for Dan to choose from:**
-    - make one **self-contained HTML file**, `docs/icon-candidates.html`,
-      with the SVGs inlined and nothing loaded from the web. The planning
-      session will publish it as a private page Dan can open on his iPad;
-    - one row per unit type, showing each candidate labeled **A / B / C**;
-    - show each candidate twice: **large**, and **at real map size** on a
-      colored unit disc in two civ colors;
-    - the author credit under each icon;
-    - keep the candidate SVG files in `docs/icon-candidates/` for next
-      round.
+A2. **Map drawing:**
+    - draw each icon in the owner's color on the unit disc, via
+      `drawGlyph`, with each icon rasterized once per color and size and
+      cached;
+    - keep the army ring and ×3, the ★, the 🛡, the count badge, and the
+      mixed-stack second disc (drawn with its icon);
+    - fall back to letters if an icon is missing.
 
-A3. **Stop there for icons.** Don't wire any icons into the game this
-    round. Dan picks (e.g. "Legion: B"), and the next round implements the
-    chosen set, plus the About / Credits screen and `CREDITS.md`.
+A3. **UI:** use the same icons in the unit panel and stack list, the build
+    list, the city's "Units here", the odds panel (both sides), the tech
+    screen's unlocks, and the diplomacy military summary if it shows
+    units.
 
-**Part B — Research pace, first pass (Q7)**
+A4. **Credits, which the license requires:**
+    - a `CREDITS.md` listing each **used** icon, its author, the license
+      (CC BY 3.0), and the source link;
+    - a ☰ → **About / Credits** screen in the production build with the
+      same attribution, plus the game's codename and version.
 
-B1. **Target:**
-    - in the all-AI simulation (5 civs, the same seeds as round 5), a
-      typical civ reaches the **Medieval era by about turn 50–70**, the
-      **Industrial era by about turn 120–150**, and **Modern by about turn
-      180–220**;
-    - a full game (someone finishing the tree) should fit in roughly
-      **250 turns**. That's our assumption for a 2–3 hour game at fast Civ
-      Rev turn speed;
-    - report before and after numbers.
+A5. **Verify:** add a dev scenario `all-units` showing one of each unit type
+    (plus an army, a veteran, a fortified unit, and a mixed stack) at map
+    size, for Dan's iPad check.
 
-B2. **How to hit the target:** tune the data only (science income, tech
-    costs, Library, trade yields, city growth if it's the bottleneck). Don't
-    change the rules. Say which levers you pulled and why.
+**Part B — Milestone 6: Wonders, culture, and victory (Civ Rev 1 spirit)**
 
-B3. **Keep AI wars sensible:** check that faster research doesn't cause
-    constant wars or early eliminations. Report wars declared, peace
-    treaties, and eliminations by turn 120, compared with round 5.
+These are default rules. All numbers are in data and are placeholders,
+tuned toward about 250 turns.
 
-B4. **Tests:** update any tests that hard-code costs or pace. Add a
-    simulation test that asserts the era-timing ranges loosely, so future
-    changes that break pacing get caught.
+B1. **Culture:**
+    - each city produces **culture** per turn from buildings (the Temple
+      finally gets its effect) and wonders;
+    - culture adds up per civ;
+    - show the civ's culture total and its per-turn gain somewhere sensible,
+      e.g. the diplomacy or victory screen, not the crowded top bar;
+    - culture borders and flipping cities are **not** in this round.
 
-**Part C — Small fixes**
+B2. **Wonders, a first set of about 12:**
+    - spread across the four eras. Each is **one per world**, built in a
+      city like a building, and unlocked by a tech;
+    - effects are simple and data-driven: +culture, +science %, +gold %,
+      +production, a free building, veteran units, and so on;
+    - use **our own names and descriptions**, and don't copy Civ Rev's
+      wonder list or text. Common historical names like "Great Library" or
+      "Colossus" are fine;
+    - when a rival completes a wonder you're building, your city's
+      production is kept and it asks for a new choice;
+    - wonder completions are world news (shown to everyone who has met the
+      builder);
+    - fill the `wonders.ts` table that round 3 prepared.
 
-C0. **Show what's in a mixed stack (Dan's feedback).** Dan had 3 Legions on
-    a tile with another unit type, and the map showed only one unit, so he
-    didn't realize a different unit was there (the real reason Form Army
-    wasn't offered):
-    - when a tile holds **more than one unit type** (yours or a visible
-      enemy's), show a clear indicator on the map. For example, a small
-      second glyph behind the top one, or a "mixed" badge next to the
-      count;
-    - tapping your stack should make the contents obvious. For example, the
-      unit panel lists every unit on the tile (type, ★, 🛡, army) and lets
-      Dan tap one to select it;
-    - Form Army should appear whenever 3 of any one type are present, not
-      only for the selected unit's type;
-    - it works with letters now, and must keep working when icons arrive;
-    - add a dev scenario `mixed-stack` with a note;
-    - tests where the logic is testable.
+B3. **The four victories. Keep each rule in one function, so they can be
+    changed:**
+    - **Domination:** you hold every rival's **original capital** (using
+      `capitalOf`). Eliminating a civ also counts for its capital.
+    - **Culture:** reach a culture total (in data), then build the
+      **culture victory wonder** (our own name, e.g. "World Council").
+    - **Economic:** reach a gold total (in data), then build the **economic
+      victory wonder** (our own name, e.g. "Global Exchange"). It costs gold
+      or production (say which you chose).
+    - **Technology:**
+      - learn Space Flight;
+      - build the **spaceship** in your capital as a few parts (e.g. 3
+        parts, in data);
+      - launch it;
+      - it **arrives after N turns** (in data), and you win on arrival;
+      - if the launching civ's capital is captured before arrival, the ship
+        is lost;
+      - the launch is world news.
+    - **First to meet any condition wins.** If a rival wins, Dan loses.
+    - The old "every rival eliminated" rule stays, as a form of domination.
 
-C1. **Plural civ names in messages:** "Franks declared war on you!" reads
-    oddly. Use the civ's proper form, e.g. "the Franks declared war on you!",
-    or the leader's name, e.g. "Charlemagne declared war on you!". Pick one
-    style and use it consistently. Keep the civ names in data with whatever
-    grammar fields they need.
+B4. **Victory progress screen, touch-first:**
+    - a screen (from the top bar or ☰) showing, for Dan and each met civ,
+      progress toward all four victories. For example: capitals held
+      (2/5); culture as current/goal; gold as current/goal; and spaceship
+      status (not started / building n/3 / launched, arrives turn N);
+    - unmet civs show as "unknown";
+    - this is Civ Rev's "who's close to winning?" view.
+
+B5. **Real victory and defeat screens**, replacing the M4 placeholders:
+    - they say which victory, which civ, and the turn, with a short stats
+      summary (cities, techs, wonders, culture, gold);
+    - buttons: **New Game** and **Keep playing**. Keep playing dismisses it
+      and stops checking for victory.
+
+B6. **Warnings before someone wins:** show a clear on-screen alert when any
+    met civ gets close. For example, a spaceship launched, gold or culture
+    past 75% of the goal, or holding all but one capital. That gives Dan a
+    chance to react.
+
+B7. **The AI goes for victories (simple):**
+    - each AI leans toward one victory type, based on its personality and
+      its position, and builds toward it: wonders, gold, tech, and the
+      spaceship, or conquest;
+    - it builds wonders when it can;
+    - **fix gold hoarding (round 6 finding):** AIs spend spare gold by
+      rush-buying and raise their science rate when gold piles up;
+    - it stays deterministic;
+    - report from the simulation: which victory ends each game, on what
+      turn, and whether any game ends before turn 150, which would be too
+      early.
+
+B8. **Save migration v5 → v6:** culture starts at 0, there are no wonders,
+    and there's no spaceship. Backups are kept as usual.
+
+B9. **Dev scenarios, each with a note:**
+    - `wonder`: finishes next turn;
+    - `wonder-race`: a rival completes the wonder you're building;
+    - `win-domination`: take the last capital;
+    - `win-culture`: build the culture wonder next turn;
+    - `win-economic`: the same, for the economic wonder;
+    - `win-space`: the ship arrives next turn;
+    - `lose-space`: a rival's ship arrives;
+    - `stop-launch`: capture a rival capital to stop their ship;
+    - `near-win-warning`.
+
+B10. **Unit tests:**
+     - culture adding up;
+     - wonder uniqueness and the race rule;
+     - each victory condition, both ways;
+     - spaceship arrival and loss;
+     - warning thresholds;
+     - Keep playing;
+     - AI victory choice (deterministic);
+     - gold spending;
+     - the v5 → v6 migration;
+     - every new scenario;
+     - keep `pace.test.ts` passing, and update it if victories now end sim
+       games.
 
 **Done means:**
-- every item (0, A1–A3, B1–B4, C0–C1) is reported individually;
+- every item (0, A1–A5, B1–B10) is reported individually;
 - tests pass;
-- it's preview-verified;
-- the play server is restarted with this build (standing rule).
+- it's preview-verified on desktop and in iPad emulation;
+- the epoch repo is **pushed**, and the play server is **restarted**
+  (standing rules).
 
-- **the `epoch` repo is pushed to GitHub** at the end of the round (Dan's
-  standing instruction; see Technical Notes).
-
-Dan then:
-- (a) picks icons from the preview page. **Done (2026-09-24)**, using the
-  page's picker; see "Dan's icon picks" under Round 6 in Completed Tasks;
-- (b) confirms mixed stacks are obvious on the map and easy to pick from;
-- (c) confirms research feels noticeably faster in a real game.
-
-**Dan's optional actions outside the agent:**
-- **Your current play game was migrated from version 4, so it's at war
-  with every civ** (the M4 rule), whether you've met them or not. To try
-  peace-on-meeting and diplomacy properly, start a **New Game** on the
-  play server. Your old game is kept as a backup.
-- The two hub commits that cancel out are still there
-  (`git reset --hard origin/main` in `C:\Users\danmo\game-hub` if you want
-  them gone). It's harmless either way.
+Dan then confirms on the iPad:
+- (a) the `all-units` scenario, and that icons read well in a real game;
+- (b) the victory scenarios and the progress screen;
+- (c) the About / Credits screen.
 
 **Open questions (defaults in bold; the coding agent proceeds on the default
 unless Dan decides otherwise):**
 - **Q1 — Working title:** **"Epoch" as a codename for now.**
 - **Q5 — Starting techs:** **none.**
 - **Q6 — Combat model:** **one loser destroyed, no hit points.**
-- **Q7 — Research pace:** **first-pass speed-up in this round** (Part B),
-  to the targets above. The full balance pass stays in M9.
-- **Q8 — Starting relations:** **peace on meeting** (built in round 5).
+- **Q8 — Starting relations:** **peace on meeting.**
+- **Q9 — Victory wonder names:** **our own names**, e.g. "World Council"
+  and "Global Exchange", not Civ Rev's. Dan can rename them any time;
+  they're just data.
+- **Q10 — Keep playing after a win:** **allowed** (a Keep playing button).
 
 ## Next Steps (Do Not Start Yet)
 
@@ -693,16 +744,75 @@ milestone before it. None has been decided against.
   3. Add the Epoch card to `game-hub/games.js` with the **real** URL, then
      commit, and push the hub when Dan says. The hub must not be pushed
      before the Netlify site exists.
-- **Milestone 6 — Victory conditions:**
-  - Domination: capture all enemy capitals.
-  - Culture: reach a culture threshold or build enough wonders.
-  - Economic: stockpile gold and build the economic wonder.
-  - Technology: build and launch the spaceship.
-
-  Add a victory and defeat screen. Tune thresholds toward a 2–3 hour game.
-- **Milestone 7 — Flavor systems:** Great People, wonders, barbarians, and
-  exploration huts. The Temple and culture effects get filled in here or in
-  M6.
+- **Order after round 7 — DECIDED by Dan (2026-09-24):**
+  - **Round 8:** Naval.
+  - **Round 9, M7:** barbarians, villages, artifacts, resources, Great
+    People, and huts.
+  - **Round 10:** Air.
+  - **Then:** M8 and M9.
+- **Round 8 — Naval (gap found by Dan: the game has no ships or aircraft).**
+  The M3 unit list was land-only. Ocean is on the map, but nothing can cross
+  it, which is why AIs got boxed in on small landmasses (round 5). **The
+  tech tree (51 techs) has no naval techs**, while Flight and Rocketry exist
+  but unlock nothing that flies.
+  - **New techs:** Map Making (Ancient), Seafaring (Ancient or Medieval),
+    Navigation (Medieval), and Magnetism (Medieval), with sensible
+    prerequisites. Keep the tree valid and the era pacing near the round 6
+    targets (`pace.test.ts`, `npm run sim`).
+  - **Ships across the eras:** e.g. Galley (Map Making, coast-only, carries
+    2 land units), Caravel (Navigation), Frigate (Magnetism), Ironclad
+    (Steam Engine), Transport, Destroyer (Combustion), Battleship,
+    Submarine, and Carrier (Flight, ready for round 10).
+  - Ships move on ocean and coast only, and early ships are coast-only.
+    **Board** a ship by moving onto it, and **unload** by moving to land.
+    The carrying capacity is in data.
+  - Naval combat, and ships bombarding coastal units and cities.
+  - A **Harbor** building (e.g. +food on ocean tiles). Only coastal cities
+    build ships.
+  - The AI uses ships to settle other landmasses and to invade.
+  - **Icons:** Dan picks them from game-icons.net candidates first (the
+    picker page), then they're wired in.
+- **Round 9 — Milestone 7: barbarians, villages, artifacts, resources,
+  Great People, and huts** (the barbarian part is Dan's spec, 2026-09-24):
+  - **Villages:** barbarians live in **stationary villages**. A village
+    gains **flags** over time, and **at 4 flags it sends a unit out** and
+    resets. Barbarians stay near home or attack from their village, and
+    occasionally go after nearby civ units or **unguarded cities**. They're
+    relatively weak, even at higher difficulties.
+  - **Taking a village, Dan's rule:** the player **chooses**:
+    - **Destroy it for a random reward**: most often gold (30, 40, or
+      50); occasionally a Horseman, a Settler, a Galley (coastal villages
+      only), or a free tech. It also **reveals a resource** on that tile;
+    - **or settle it** as a **new city at population 1**.
+  - **Ancient artifacts (Dan's generic version, not Civ Rev's named
+    relics):**
+    - when taking a village, **with either choice (confirmed by Dan)**,
+      there's a random chance to find an ancient artifact;
+    - it grants **free technology**: usually 1 tech, and rarely a leap of
+      2–3, possibly advanced depending on the era;
+    - odds and counts are in data, and the names are generic ones of our
+      own (e.g. "Ancient Tablets", "Lost Library Scrolls", "Forgotten Star
+      Chart").
+  - **Map resources (new system):** special tiles with a yield bonus, e.g.
+    Iron or Aluminum on hills, Rubber or Game in forests, Wheat, Fish,
+    Gold, and so on, all in data. Some are visible from the start, and some
+    stay **hidden until revealed** (e.g. by destroying a village). Worked
+    tiles use the bonus, and the AI tile choice accounts for it.
+  - **Great People:** they add culture and can speed up wonders.
+  - **Exploration huts.**
+  - Possibly culture borders and city flipping.
+- **Round 10 — Air:**
+  - **Flight finally unlocks something:** a Fighter (Flight), a Bomber
+    (Flight, or a new **Advanced Flight** tech), a Jet Fighter (Advanced
+    Flight), and a Stealth Bomber or similar (a late tech). Maybe a
+    Helicopter.
+  - Air units are range-based: each must end its move in a friendly city
+    or on a Carrier.
+  - Fighters intercept. Bombers attack but **can't capture** cities.
+  - An **Airport** building.
+  - The AI uses air units.
+  - Dan picks the icons first.
+  - Nuclear weapons: **not planned** unless Dan asks.
 - **Leader portraits (Dan may make these with AI image tools).** Plan
   for them in M8: each leader gets an optional `portrait` image path in
   the data, with a placeholder (initials on the civ color) until Dan

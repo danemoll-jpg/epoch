@@ -312,24 +312,25 @@ what was pushed.
 ## Where things stand
 **Always check `TODO.md` for the current objective before starting work.**
 
-- **Milestones 1–5:** done and tested by Dan on the iPad. That covers the
-  skeleton, cities and economy, the tech tree, combat and armies, save
-  safety, 5 civs, and diplomacy.
+- **Milestones 1–5 and round 6:** done and tested by Dan on the iPad. That
+  covers the skeleton, cities and economy, the tech tree, combat and
+  armies, save safety, 5 civs and diplomacy, mixed stacks, the research
+  pace, and icon picks.
 - **The play server** is reached from the iPad at
   **http://10.0.0.224:4173/**.
-- Going live in the hub is deferred by Dan. Until then, the epoch repo is
-  pushed to GitHub every round.
+- The epoch repo is pushed to GitHub every round until Netlify is set up.
 
-**Round 6 is done by the coding agent (2026-09-24)**; the report is in
-TODO.md under Completed Tasks. Dan will decide on the next step after
-reviewing it.
-- **Part A:** Dan has picked his 15 icons (with the page's tap-to-pick
-  selector); they're recorded in TODO.md. Nothing is wired in yet. That's
-  proposed for the next round, in Next Steps.
-- **Part B:** research is faster, on the era targets in the all-AI sim.
-- **Part C:** mixed stacks now show a second disc and a full list in the
-  unit panel (`mixed-stack` scenario), and plural civ names read
-  properly ("The Franks declared war on you!").
+**The current objective is Round 7:**
+- **Part A:** wire in Dan's 15 chosen unit icons, plus About / Credits.
+- **Part B, Milestone 6:**
+  - culture and a first set of wonders;
+  - the four victories (domination, culture, economic, technology with a
+    spaceship);
+  - a victory-progress screen and near-win warnings;
+  - real victory and defeat screens;
+  - the AI pursuing victories and spending its gold.
+
+See items 0, A1–A5, and B1–B10 in TODO.md.
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.
