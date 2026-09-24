@@ -338,28 +338,26 @@ what was pushed.
 ## Where things stand
 **Always check `TODO.md` for the current objective before starting work.**
 
-- **Milestones 1–5 and round 6:** done and tested by Dan on the iPad. That
-  covers the skeleton, cities and economy, the tech tree, combat and
-  armies, save safety, 5 civs and diplomacy, mixed stacks, the research
-  pace, and icon picks.
-- **Round 7 (unit icons + Milestone 6: culture, wonders, the four
-  victories):** done by the coding agent (2026-09-24), waiting for Dan's
-  iPad checks. Save format 6.
-- **The play server** is reached from the iPad at
-  **http://10.0.0.224:4173/**.
-- The epoch repo is pushed to GitHub every round until Netlify is set up.
+- **Milestones 1–6** are done: the skeleton, cities, the tech tree, combat
+  and armies, save safety, 5 civs and diplomacy, unit icons, wonders,
+  culture, and the four victories.
+- **The play server:** http://10.0.0.224:4173/.
+- The epoch repo is pushed every round until Netlify is set up.
 
-**The current objective is Round 7 (done; awaiting Dan's review):**
-- **Part A:** wire in Dan's 15 chosen unit icons, plus About / Credits.
-- **Part B, Milestone 6:**
-  - culture and a first set of wonders;
-  - the four victories (domination, culture, economic, technology with a
-    spaceship);
-  - a victory-progress screen and near-win warnings;
-  - real victory and defeat screens;
-  - the AI pursuing victories and spending its gold.
+**The current objective is Round 8:**
+- **Part A:** ship and aircraft icon *candidates* on a picker page for Dan.
+  Nothing is wired in.
+- **Part B, naval:**
+  - sea techs (Map Making, Seafaring, Navigation, Magnetism);
+  - 9 ships;
+  - transports carrying land units;
+  - naval combat and bombarding;
+  - Harbors and coastal-only building;
+  - a map-landmass check;
+  - the AI settling and invading overseas.
 
-See items 0, A1–A5, and B1–B10 in TODO.md.
+See items 0, A1–A3, and B1–B11 in TODO.md. Rounds 9 (barbarians,
+resources, and Great People) and 10 (air) are queued in Next Steps.
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.

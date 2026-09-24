@@ -541,8 +541,9 @@ Steps, Technical Notes.
       already serving this round's build).
 
 * **Round 7 — Unit icons in the game + Milestone 6 (wonders, culture, and
-  victory) — done by the coding agent (2026-09-24). Waiting for Dan's iPad
-  checks (a)–(c) below.**
+  victory) — done (2026-09-24). Dan reviewed it and moved on to round 8.**
+  He didn't report the individual checks (a)–(c); any issues he finds
+  later get their own item.
   - **Result:** 308 unit tests passing (67 new). Type-check and production
     build are clean, and the dev-code leak check passes. Preview-verified on
     desktop and in iPad-sized touch emulation (1024×768 landscape, 768×1024
@@ -656,184 +657,185 @@ Steps, Technical Notes.
 
 ## Current Objective (Focus Area)
 
-### Round 7 — Unit icons in the game + Milestone 6 (wonders, culture, and victory)
-
-**Status: done by the coding agent (2026-09-24).** Per-item report under
-"Round 7" in Completed Tasks. Waiting for Dan's iPad checks (a)–(c). The
-item list below is kept as it was assigned.
+### Round 8 — Naval (ships, sea techs, and transports) + icon candidates for ships and planes
 **Goal:**
-- Put Dan's chosen icons into the game, with credits.
-- Give the game its four ways to win, as in Civ Rev 1: domination, culture,
-  economic, and technology.
-- Wonders and culture are pulled forward from M7, because two of the
-  victories need them. Great People, barbarians, and huts stay in M7.
-- Terrain and cities are still placeholder art.
+- Close the gap Dan found: the game has an ocean but nothing can cross it.
+- Add the missing sea techs and a full set of ships, with transports that
+  carry land units, naval combat, bombarding, Harbors, and an AI that
+  settles and invades overseas.
+- Put ship **and** aircraft icon candidates in front of Dan in one picker
+  page, so both sets are chosen before they're needed.
 
 **Items for the coding agent. Report status on each one individually:**
 
 0. **Commit the updated docs first:** `CLAUDE.md` and `TODO.md` as their own
    commit, then re-read them.
 
-**Part A — Unit icons, step 2: implement Dan's picks**
+**Part A — Icon candidates for ships and aircraft (Dan approves before
+anything is wired in)**
 
-A1. **Wire in the 15 picked icons** (the table under Round 6 in Completed
-    Tasks):
-    - copy them from `docs/icon-candidates/` into `src/assets/icons/`, so
-      they're bundled in the build and never loaded from the web;
-    - add an `icon` field per unit in `units.ts`.
+A1. **Candidates:** from game-icons.net (CC BY 3.0), choose **2–3
+    candidates** for each new unit type:
+    - ships (B2): Galley, Caravel, Frigate, Ironclad, Transport, Destroyer,
+      Battleship, Submarine, and Carrier;
+    - **aircraft for round 10:** Fighter, Bomber, Jet Fighter, Stealth
+      Bomber, and Helicopter;
+    - they must be easy to tell apart at map size, from each other and from
+      the 15 land icons already in use.
 
-A2. **Map drawing:**
-    - draw each icon in the owner's color on the unit disc, via
-      `drawGlyph`, with each icon rasterized once per color and size and
-      cached;
-    - keep the army ring and ×3, the ★, the 🛡, the count badge, and the
-      mixed-stack second disc (drawn with its icon);
-    - fall back to letters if an icon is missing.
+A2. **Picker page**, `docs/ship-air-icon-candidates.html`, working like the
+    round 6 page:
+    - self-contained, with the SVGs inlined;
+    - A/B/C labels;
+    - each candidate shown large, and at map size **white on a colored
+      disc**, the way the game now draws icons;
+    - the author credit under each;
+    - tap to pick, with picks remembered on the device;
+    - "n of 14 picked", Next unpicked, and Copy my picks / Share.
 
-A3. **UI:** use the same icons in the unit panel and stack list, the build
-    list, the city's "Units here", the odds panel (both sides), the tech
-    screen's unlocks, and the diplomacy military summary if it shows
-    units.
+    Keep the SVGs in `docs/ship-air-icon-candidates/` with a `SOURCES.md`.
 
-A4. **Credits, which the license requires:**
-    - a `CREDITS.md` listing each **used** icon, its author, the license
-      (CC BY 3.0), and the source link;
-    - a ☰ → **About / Credits** screen in the production build with the
-      same attribution, plus the game's codename and version.
+A3. **Until Dan picks, ships use their letter glyphs** (the existing
+    fallback). The next round wires in the ship icons, and round 10 wires in
+    the aircraft icons.
 
-A5. **Verify:** add a dev scenario `all-units` showing one of each unit type
-    (plus an army, a veteran, a fortified unit, and a mixed stack) at map
-    size, for Dan's iPad check.
+**Part B — Naval (Civ Rev 1 spirit; all numbers in data, placeholders)**
 
-**Part B — Milestone 6: Wonders, culture, and victory (Civ Rev 1 spirit)**
+B1. **Sea techs:** add **Map Making** (Ancient), **Seafaring** (Ancient or
+    Medieval), **Navigation** (Medieval), and **Magnetism** (Medieval),
+    with sensible prerequisites and our own descriptions:
+    - keep the tree valid;
+    - check whether the Industrial/Modern ship techs you need already exist
+      (Steam Engine, Combustion, Electronics, Flight…) and add only what's
+      missing;
+    - re-run `npm run sim` and keep the era pacing near the round 6 targets.
+      Report before and after.
 
-These are default rules. All numbers are in data and are placeholders,
-tuned toward about 250 turns.
+B2. **Ship units**, with attack, defense, moves, sight, and **cargo
+    capacity** in data. For example:
+    - Galley (Map Making): **coast tiles only**, carries 2;
+    - Caravel (Navigation): open ocean, carries 3;
+    - Frigate (Magnetism): combat, carries 2;
+    - Ironclad (Steam Engine): coast-heavy combat;
+    - Transport (Industrial era): no attack, carries 8;
+    - Destroyer (Combustion): fast;
+    - Battleship (late Industrial or Modern): strong;
+    - Submarine: strong attack, weak defense, **seen only by adjacent
+      units**;
+    - Carrier (Flight): carries air units in round 10. For now it's just a
+      strong defensive ship.
 
-B1. **Culture:**
-    - each city produces **culture** per turn from buildings (the Temple
-      finally gets its effect) and wonders;
-    - culture adds up per civ;
-    - show the civ's culture total and its per-turn gain somewhere sensible,
-      e.g. the diplomacy or victory screen, not the crowded top bar;
-    - culture borders and flipping cities are **not** in this round.
+    Pick sensible stats and techs, and list them in the report.
 
-B2. **Wonders, a first set of about 12:**
-    - spread across the four eras. Each is **one per world**, built in a
-      city like a building, and unlocked by a tech;
-    - effects are simple and data-driven: +culture, +science %, +gold %,
-      +production, a free building, veteran units, and so on;
-    - use **our own names and descriptions**, and don't copy Civ Rev's
-      wonder list or text. Common historical names like "Great Library" or
-      "Colossus" are fine;
-    - when a rival completes a wonder you're building, your city's
-      production is kept and it asks for a new choice;
-    - wonder completions are world news (shown to everyone who has met the
-      builder);
-    - fill the `wonders.ts` table that round 3 prepared.
+B3. **Where ships go:**
+    - ships move only on water;
+    - **Galleys can't enter deep ocean**, only `coast` tiles, which the map
+      already has;
+    - a ship can enter a friendly coastal city, i.e. dock there;
+    - **only coastal cities** (next to water) can build ships, and the
+      build list hides ships elsewhere.
 
-B3. **The four victories. Keep each rule in one function, so they can be
-    changed:**
-    - **Domination:** you hold every rival's **original capital** (using
-      `capitalOf`). Eliminating a civ also counts for its capital.
-    - **Culture:** reach a culture total (in data), then build the
-      **culture victory wonder** (our own name, e.g. "World Council").
-    - **Economic:** reach a gold total (in data), then build the **economic
-      victory wonder** (our own name, e.g. "Global Exchange"). It costs gold
-      or production (say which you chose).
-    - **Technology:**
-      - learn Space Flight;
-      - build the **spaceship** in your capital as a few parts (e.g. 3
-        parts, in data);
-      - launch it;
-      - it **arrives after N turns** (in data), and you win on arrival;
-      - if the launching civ's capital is captured before arrival, the ship
-        is lost;
-      - the launch is world news.
-    - **First to meet any condition wins.** If a rival wins, Dan loses.
-    - The old "every rival eliminated" rule stays, as a form of domination.
+B4. **Carrying land units, touch-first:**
+    - **boarding:** select a land unit and tap an adjacent friendly ship
+      with room (or the ship in the same city). The unit boards and uses up
+      its move;
+    - **cargo moves with the ship.** The ship shows a cargo count badge,
+      and its panel lists the cargo, where tapping one selects it;
+    - **unloading:** select a cargo unit and tap an adjacent land tile. It
+      costs that unit's move;
+    - no unloading onto enemy units, and no **attacking from a ship**;
+    - unloading next to or into an **empty** enemy city captures it, if
+      you're at war (the normal capture rule);
+    - **if the ship is destroyed, its cargo dies with it;**
+    - if a docked ship's city is captured, the ships and their cargo in it
+      are destroyed.
 
-B4. **Victory progress screen, touch-first:**
-    - a screen (from the top bar or ☰) showing, for Dan and each met civ,
-      progress toward all four victories. For example: capitals held
-      (2/5); culture as current/goal; gold as current/goal; and spaceship
-      status (not started / building n/3 / launched, arrives turn N);
-    - unmet civs show as "unknown";
-    - this is Civ Rev's "who's close to winning?" view.
+B5. **Naval combat:**
+    - ships attack ships using the normal odds rule;
+    - **bombard:** a ship can attack land units or a city on an adjacent
+      coastal tile. Win: the defender dies, but the ship never moves in or
+      captures. Lose: the ship dies;
+    - land units can't attack ships at sea;
+    - ships in a city don't defend it; land units do;
+    - armies of 3 ships are **not** allowed. That's a land-only mechanic,
+      unless Civ Rev 1 had naval armies (say what you chose).
 
-B5. **Real victory and defeat screens**, replacing the M4 placeholders:
-    - they say which victory, which civ, and the turn, with a short stats
-      summary (cities, techs, wonders, culture, gold);
-    - buttons: **New Game** and **Keep playing**. Keep playing dismisses it
-      and stops checking for victory.
+B6. **Harbor building** (needs Seafaring, coastal cities only): +1 food on
+    worked water tiles. Check water tiles' base yields while you're there,
+    so coastal cities are worth founding.
 
-B6. **Warnings before someone wins:** show a clear on-screen alert when any
-    met civ gets close. For example, a spaceship launched, gold or culture
-    past 75% of the goal, or holding all but one capital. That gives Dan a
-    chance to react.
+B7. **The map needs other landmasses:**
+    - check that map generation makes **several landmasses** often enough
+      that ships matter, i.e. not one big continent every time;
+    - report what share of seeds give each civ its own landmass, what share
+      give shared continents, and whether there are small empty islands
+      worth settling;
+    - tune the data if needed, keeping every civ's start fair.
 
-B7. **The AI goes for victories (simple):**
-    - each AI leans toward one victory type, based on its personality and
-      its position, and builds toward it: wonders, gold, tech, and the
-      spaceship, or conquest;
-    - it builds wonders when it can;
-    - **fix gold hoarding (round 6 finding):** AIs spend spare gold by
-      rush-buying and raise their science rate when gold piles up;
+B8. **The AI uses the sea:**
+    - when its landmass has no good sites left, the AI builds a ship, ferries
+      a **Settler plus an escort** to a good site on another landmass, and
+      founds a city;
+    - when at war with an overseas civ, it can ship an attack force (armies
+      when possible) and land it next to a target city;
+    - it keeps a ship or two for coastal defense once rivals have ships;
     - it stays deterministic;
-    - report from the simulation: which victory ends each game, on what
-      turn, and whether any game ends before turn 150, which would be too
-      early.
+    - **report from the sim:** overseas cities founded, naval invasions,
+      ships per civ at turns 100 and 200, and whether **domination wins**
+      now happen, since they never did in round 7.
 
-B8. **Save migration v5 → v6:** culture starts at 0, there are no wonders,
-    and there's no spaceship. Backups are kept as usual.
+B9. **Save migration v6 → v7:** no ships exist, and the new techs are
+    unknown. Backups are kept as usual.
 
-B9. **Dev scenarios, each with a note:**
-    - `wonder`: finishes next turn;
-    - `wonder-race`: a rival completes the wonder you're building;
-    - `win-domination`: take the last capital;
-    - `win-culture`: build the culture wonder next turn;
-    - `win-economic`: the same, for the economic wonder;
-    - `win-space`: the ship arrives next turn;
-    - `lose-space`: a rival's ship arrives;
-    - `stop-launch`: capture a rival capital to stop their ship;
-    - `near-win-warning`.
+B10. **Dev scenarios, each with a note:**
+     - `board-unload`: load a Settler and a Warrior, sail, and unload;
+     - `galley-coast`: a Galley can't enter deep ocean;
+     - `naval-battle`: with odds;
+     - `bombard`: a ship attacks a coastal unit and doesn't move in;
+     - `ship-sunk-cargo`: cargo is lost with the ship;
+     - `amphibious-capture`: unload into an empty enemy city;
+     - `harbor`: a food change;
+     - `ai-overseas`: watch an AI ferry a settler over a few turns;
+     - `all-ships`: one of each ship, for Dan's icon check next round.
 
-B10. **Unit tests:**
-     - culture adding up;
-     - wonder uniqueness and the race rule;
-     - each victory condition, both ways;
-     - spaceship arrival and loss;
-     - warning thresholds;
-     - Keep playing;
-     - AI victory choice (deterministic);
-     - gold spending;
-     - the v5 → v6 migration;
+B11. **Unit tests:**
+     - the new techs, and the tree staying valid;
+     - water-only movement and the Galley coast rule;
+     - coastal-only building;
+     - boarding and unloading, cargo moving with the ship, and cargo
+       capacity;
+     - cargo dying with its ship;
+     - ships lost with a captured city;
+     - naval combat and bombard (no capture);
+     - no attacking from a ship;
+     - amphibious capture;
+     - the Harbor;
+     - submarine visibility;
+     - the AI ferrying settlers (deterministic);
+     - the v6 → v7 migration;
      - every new scenario;
-     - keep `pace.test.ts` passing, and update it if victories now end sim
-       games.
+     - `pace.test.ts` still passing.
 
 **Done means:**
-- every item (0, A1–A5, B1–B10) is reported individually;
+- every item (0, A1–A3, B1–B11) is reported individually;
 - tests pass;
 - it's preview-verified on desktop and in iPad emulation;
 - the epoch repo is **pushed**, and the play server is **restarted**
   (standing rules).
 
-Dan then confirms on the iPad:
-- (a) the `all-units` scenario, and that icons read well in a real game;
-- (b) the victory scenarios and the progress screen;
-- (c) the About / Credits screen.
+Dan then:
+- (a) picks ship and aircraft icons on the picker page;
+- (b) tries the naval scenarios;
+- (c) in a real game, builds a Galley or Caravel and carries a Settler to
+  another landmass.
 
 **Open questions (defaults in bold; the coding agent proceeds on the default
 unless Dan decides otherwise):**
 - **Q1 — Working title:** **"Epoch" as a codename for now.**
-- **Q5 — Starting techs:** **none.**
-- **Q6 — Combat model:** **one loser destroyed, no hit points.**
-- **Q8 — Starting relations:** **peace on meeting.**
-- **Q9 — Victory wonder names:** **our own names**, e.g. "World Council"
-  and "Global Exchange", not Civ Rev's. Dan can rename them any time;
-  they're just data.
-- **Q10 — Keep playing after a win:** **allowed** (a Keep playing button).
+- **Q11 — Naval armies:** **no**, since armies are land-only, unless Civ Rev
+  1 had them.
+- **Q12 — Unit icon style:** **white icon on the owner's colored disc** (as
+  built in round 7, matching the picker page Dan chose from).
 
 ## Next Steps (Do Not Start Yet)
 
@@ -863,33 +865,11 @@ milestone before it. None has been decided against.
      commit, and push the hub when Dan says. The hub must not be pushed
      before the Netlify site exists.
 - **Order after round 7 — DECIDED by Dan (2026-09-24):**
-  - **Round 8:** Naval.
+  - **Round 8:** Naval (now the current objective).
   - **Round 9, M7:** barbarians, villages, artifacts, resources, Great
     People, and huts.
   - **Round 10:** Air.
   - **Then:** M8 and M9.
-- **Round 8 — Naval (gap found by Dan: the game has no ships or aircraft).**
-  The M3 unit list was land-only. Ocean is on the map, but nothing can cross
-  it, which is why AIs got boxed in on small landmasses (round 5). **The
-  tech tree (51 techs) has no naval techs**, while Flight and Rocketry exist
-  but unlock nothing that flies.
-  - **New techs:** Map Making (Ancient), Seafaring (Ancient or Medieval),
-    Navigation (Medieval), and Magnetism (Medieval), with sensible
-    prerequisites. Keep the tree valid and the era pacing near the round 6
-    targets (`pace.test.ts`, `npm run sim`).
-  - **Ships across the eras:** e.g. Galley (Map Making, coast-only, carries
-    2 land units), Caravel (Navigation), Frigate (Magnetism), Ironclad
-    (Steam Engine), Transport, Destroyer (Combustion), Battleship,
-    Submarine, and Carrier (Flight, ready for round 10).
-  - Ships move on ocean and coast only, and early ships are coast-only.
-    **Board** a ship by moving onto it, and **unload** by moving to land.
-    The carrying capacity is in data.
-  - Naval combat, and ships bombarding coastal units and cities.
-  - A **Harbor** building (e.g. +food on ocean tiles). Only coastal cities
-    build ships.
-  - The AI uses ships to settle other landmasses and to invade.
-  - **Icons:** Dan picks them from game-icons.net candidates first (the
-    picker page), then they're wired in.
 - **Round 9 — Milestone 7: barbarians, villages, artifacts, resources,
   Great People, and huts** (the barbarian part is Dan's spec, 2026-09-24):
   - **Villages:** barbarians live in **stationary villages**. A village
@@ -919,7 +899,9 @@ milestone before it. None has been decided against.
   - **Great People:** they add culture and can speed up wonders.
   - **Exploration huts.**
   - Possibly culture borders and city flipping.
-- **Round 10 — Air:**
+- **Round 9, Part A:** wire in Dan's ship icon picks (from round 8's
+  picker page).
+- **Round 10 — Air:** (the aircraft icons were picked in round 8)
   - **Flight finally unlocks something:** a Fighter (Flight), a Bomber
     (Flight, or a new **Advanced Flight** tech), a Jet Fighter (Advanced
     Flight), and a Stealth Bomber or similar (a late tech). Maybe a
