@@ -708,6 +708,12 @@ button.danger {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px;
+  /* 40 scenarios don't fit on screen: the list scrolls on its own (touch too, via .scroll). */
+  max-height: min(45vh, 420px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 
 .devList button {

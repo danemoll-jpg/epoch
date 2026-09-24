@@ -1536,7 +1536,7 @@ export class App {
       const menu = $('devMenu');
       const back = scenario ? '<button type="button" data-scenario="">Back to my game</button>' : '';
       menu.innerHTML = `<div class="label">Dev scenarios (not saved)</div>
-        <div class="devList">${devScenarios
+        <div class="devList scroll">${devScenarios
           .map((s) => `<button type="button" data-scenario="${s.id}" class="${s.id === scenario?.id ? 'on' : ''}">${esc(s.title)}</button>`)
           .join('')}${back}</div>`;
       menu.hidden = false;
