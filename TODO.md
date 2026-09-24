@@ -101,14 +101,21 @@ Steps, Technical Notes.
     - **Firebase is not used by the hub.** Individual games have their own
       Firebase client code (Sole Match for online rooms and a leaderboard,
       Mexican Train for online play, Nonogram). Epoch uses none.
-    - **Loose end:** the agent added an Epoch card to `game-hub/games.js`
-      with a **placeholder URL** (`https://epoch-dan.netlify.app/`). The hub
-      commit was blocked, so that edit sits **uncommitted** in the hub's
-      working tree. Cleanup is M2 item 0b below.
+    - **Correction (found in M2 item 0b):** the placeholder hub card was
+      actually **committed locally** in the hub, not blocked as first
+      reported. It was never pushed. It was reverted in M2, and the two
+      commits get dropped in Round 3 item A1.
 
 * **Milestone 2 — Cities, economy, and autosave — coding done (2026-09-23).
-  Waiting for Dan to confirm on his iPad**, including autosave surviving a
-  Safari tab reload. Nothing pushed.
+  Tested by Dan on his iPad (2026-09-23): everything he tried works.**
+  - **Growth and starvation are not confirmed by play.** Growth is slow to
+    reach, and the starvation guard makes starvation nearly impossible to
+    trigger by hand. Both are unit-tested. Round 3 item A2 adds dev
+    scenarios so Dan can see them happen on the iPad.
+  - **Autosave surviving a Safari reload:** not yet explicitly confirmed.
+  - "Empire HUD" means the top status bar. Plain-language names are used
+    with Dan from now on.
+  - Nothing pushed.
   - **Result:** 84 unit tests passing (44 new). Type-check and production
     build are clean. Preview-verified on desktop and in iPad-sized emulation
     (768×1024 portrait and 1024×768 landscape, touch).
@@ -143,7 +150,8 @@ Steps, Technical Notes.
     origin with a net-zero diff. No other uncommitted hub changes. **Dan's
     call:** either leave it (pushing would publish an add+revert pair, which
     is harmless) or drop both local commits with
-    `git reset --hard origin/main` in the hub.
+    `git reset --hard origin/main` in the hub. **Decided by Claude (Dan
+    delegated it): drop both. Done in Round 3 item A1.**
   - **Placeholder numbers chosen (all in `src/data/`, tune later):** city
     center bonus +1 food / +2 production / +1 trade (with +1 production, a
     grassland capital took 10 turns per Warrior). Warrior 10, Settler 30,
@@ -164,149 +172,157 @@ Steps, Technical Notes.
 
 ## Current Objective (Focus Area)
 
-### Milestone 2 — Cities, economy, and autosave
-**Status (coding round 2):** all items 0–14 done. See the report under
-Completed Tasks. **Waiting for Dan to check on the iPad** (`npm run dev:lan`, then
-open the Network URL in Safari): play a few turns, reload the tab, and
-confirm the game resumes.
-
-**Goal:** cities become the heart of the game, as in Civ Rev 1. They grow
-from food, build one thing at a time, and turn trade into science and gold.
-The game survives an iPad reload. Placeholder art only.
+### Round 3 — Milestone 2 wrap-up + Milestone 3 (tech tree)
+**Goal:** close out M2's loose ends, and give Dan a way to see
+hard-to-reach rules (like starvation) on the iPad on demand. Then add the
+tech tree, so the science from M2 buys something. Placeholder art only.
 
 **Items for the coding agent. Report status on each one individually:**
+
+**Part A — M2 wrap-up**
 
 0. **Commit the updated docs first:** `CLAUDE.md` and `TODO.md` as their own
    commit, then re-read them.
 
-0b. **Clean up the hub's working tree:** revert the uncommitted Epoch card
-    edit in `game-hub/games.js` (e.g. `git checkout -- games.js` in the hub
-    repo), so a future hub push can't publish a dead link. The card gets
-    re-added at go-live with the real URL. Report exactly what you reverted.
-    If the hub has any *other* uncommitted changes, leave them alone and
-    report them.
+A1. **Hub repo: drop the two local commits** (the placeholder card
+    `00d47a9` and its revert `298b281`):
+    - first confirm the hub is *only* those two commits ahead of
+      `origin/main` and the working tree is clean;
+    - if so, run `git reset --hard origin/main` in the hub;
+    - if anything else is there, stop and report instead;
+    - don't push the hub.
 
-1. **City growth:**
-   - each city has a food box;
-   - surplus food (after each citizen eats) fills it, and when it's full the
-     city grows by 1;
-   - a food deficit empties it, and the city shrinks at 0;
-   - growth thresholds, food eaten per citizen, and the food kept after
-     growth are all in `src/data/`.
+    (Decided by Claude on Dan's behalf. The net change is zero either way,
+    and this keeps the hub history clean.)
 
-2. **Worked tiles, automatic with a city focus (Civ Rev style):**
-   - a city always works its center tile plus one tile per citizen, inside
-     its work radius;
-   - the work radius is in data, defaulting to the 8 surrounding tiles;
-   - tiles are picked automatically based on the city's **focus**:
-     Balanced (default), Food, Production, or Trade;
-   - there is no manual tile-by-tile assignment in M2;
-   - two cities never work the same tile.
+A2. **Dev test scenarios, loaded by URL**, e.g. `?scenario=grow`:
+    - **dev server only.** They must be ignored or compiled out in the
+      production build (`import.meta.env.DEV`), so they can never show up
+      in the hub version. Add a test or build check that proves it;
+    - **a scenario must never overwrite Dan's real autosave.** Either don't
+      autosave while a scenario is loaded, or use a separate save key.
+      Removing `?scenario` from the URL goes back to his real game;
+    - also list the scenarios in the ☰ menu (dev only), so Dan can pick one
+      by tapping on the iPad without typing URLs;
+    - scenarios are built in code from hand-made states, the same way
+      `tests/helpers.ts` does, and the tests should reuse them so the
+      scenario and the test agree;
+    - the starter set:
+      - `grow`: a city that grows by 1 at the next End Turn;
+      - `starve`: a size-3 city on poor land (e.g. desert, hills, and
+        mountains) with a food deficit, whose food box is empty enough that
+        it shrinks at the next End Turn. The starvation guard should be
+        doing its best and still fail;
+      - `settler`: a size-2 city finishing a Settler at the next End Turn,
+        which drops to size 1;
+      - `rich`: plenty of gold, to try rush-buying;
+      - `tech`: research one turn from finishing (see B2);
+    - each scenario shows a short on-screen note saying what to do and what
+      should happen, e.g. "Tap End Turn. Rome should shrink from 3 to 2."
 
-3. **Production:**
-   - each city builds one item at a time: a unit or a building;
-   - production accumulates each turn, and the item appears when it's paid
-     for, with overflow carried over;
-   - **rush-buy with gold**, where the cost is based on the production still
-     remaining (formula in data);
-   - when an item finishes, the city keeps the same item selected for units
-     and prompts for a new choice after a building.
+A3. **Keep an easy way to add scenarios.** Future milestones will add more,
+    e.g. combat odds in M4. Document how in CLAUDE.md.
 
-4. **Settlers cost population:** building a Settler needs city size ≥2 and
-   reduces the size by 1. (Rule in data, so it's easy to change.)
+**Part B — Milestone 3: Tech tree**
 
-5. **Trade → science and gold:**
-   - each city's trade is split into science and gold by one empire-wide
-     **science/gold rate**, in 10% steps, defaulting to 60% science;
-   - science accumulates as a number but buys nothing until M3 (the tech
-     tree);
-   - gold goes to the treasury.
+B1. **Tech data** in `src/data/techs.ts`:
+    - about 40–50 techs across **four eras**: Ancient, Medieval,
+      Industrial, and Modern. That's roughly Civ Rev 1's scale;
+    - each tech has prerequisites, an era, a cost tier, and what it
+      unlocks;
+    - use common historical tech names (Bronze Working, Writing, and so
+      on). They're generic and fine to use;
+    - write our own short descriptions, not Civ Rev's text;
+    - the tree ends at a tech that will later unlock the spaceship, for
+      M6.
 
-6. **Starter buildings, all in data, available without techs until M3:**
-   - Granary: keeps part of the food box after growth;
-   - Barracks: new units start as veterans (the flag is stored now and used
-     in M4);
-   - Walls: a defense bonus flag (used in M4);
-   - Library: +science %;
-   - Marketplace: +gold %;
-   - Temple: the effect is a placeholder for now (contentment/culture comes
-     later);
-   - costs and numbers are placeholders; no building upkeep.
+B2. **Research:**
+    - the player picks a current tech from the ones whose prerequisites
+      are met;
+    - science each turn goes into it, and overflow carries over;
+    - cost rises with the number of techs known (formula in data, a
+      placeholder toward a 2–3 hour game);
+    - when a tech finishes, the player gets an on-screen prompt to pick the
+      next one. If none is picked, science banks until one is;
+    - no starting techs, unless the data says otherwise.
 
-7. **City screen, touch-first:**
-   - tap a city to open a panel showing size, the food box and turns to
-     grow, production and turns to finish, food/production/trade totals,
-     the focus picker, the build list, and a Buy button with its cost;
-   - the panel closes with a large close button, with no keyboard needed;
-   - it works in iPad portrait and landscape.
+B3. **Unlocks:**
+    - M2's buildings get tech requirements in data, e.g. Granary ←
+      Pottery, Library ← Writing, Marketplace ← Currency, Barracks ← Bronze
+      Working, Walls ← Masonry, Temple ← Ceremonial Burial. Pick sensibly;
+    - add a first wave of **units** as unlocks, with attack, defense, and
+      moves values stored in data now: e.g. Archer, Spearman/Pikeman,
+      Horseman, Catapult, Knight, Musketman, and Cannon, up through a few
+      Industrial/Modern ones;
+    - these units can be built and moved, but **combat stays in M4**. Show
+      their attack and defense values in the build list so Dan can see
+      them;
+    - the build list only offers what's unlocked;
+    - wonders are **not** in M3 (they're M7). Leave a place in the data
+      shape for them.
 
-8. **Empire HUD:** show the turn number, gold total and change per turn,
-   science total and change per turn, and a control to change the
-   science/gold rate.
+B4. **Era:** each player has a current era, the highest era among their
+    known techs. Show it in the HUD (the top bar) and announce reaching a
+    new era with a toast. Era has no other effects yet.
 
-9. **Fix the tap-on-own-stack issue from M1:** when a unit is selected,
-   tapping a reachable tile that holds your own units **moves** the selected
-   unit there. Tapping a tile with no unit selected selects it, as before.
-   Handle a city tile that also holds units sensibly: e.g. tapping a
-   selected unit's own city opens the city, and the city panel lists the
-   units inside. Report the rule you chose.
+B5. **Tech screen, touch-first:**
+    - open it from the HUD (tap the science readout, or add a button);
+    - it shows the tree grouped by era, with each tech marked
+      known / available / locked;
+    - tapping a tech shows what it unlocks and its prerequisites, plus a
+      "Research this" button when it's available;
+    - it shows turns to complete at the current science rate;
+    - it works in iPad portrait and landscape, only the panel scrolls, and
+      it has a large close button.
 
-10. **AI uses the city systems:**
-    - AI cities pick focus and production with simple rules, e.g. warriors
-      for defense, settlers to expand to a few cities, and then buildings;
-    - the AI's new settlers find decent sites and found cities;
-    - it uses the same actions as the player.
+B6. **HUD:** show the current research and its turns left, e.g. "Writing
+    (6)". Tapping it opens the tech screen.
 
-11. **Fog-respecting event messages:** show rival events only when the
-    player can see them. The rule is: the tile is currently visible to the
-    player, or later, the player has met that civ. (Default; see open
-    question Q2.)
+B7. **AI research:** simple priorities in data. For example, techs that
+    unlock buildings the AI wants and a defensive unit first, then a steady
+    push up the tree. It must be deterministic and use the same actions as
+    the player.
 
-12. **Local autosave and resume:**
-    - save the whole state after every end of turn, and also when the page
-      is hidden (`visibilitychange`/`pagehide`), because Safari can kill
-      background tabs;
-    - on load, resume the saved game if there is one;
-    - add a **New Game** control, with an on-screen confirm rather than a
-      browser `confirm()` dialog;
-    - include a `saveVersion` field, and if a save is from an incompatible
-      version, start a new game with a notice instead of crashing;
-    - use IndexedDB or localStorage (your choice, say which); state is
-      small, so either is fine.
+B8. **Don't wipe Dan's current game:** M3 changes the state shape, so bump
+    `STATE_VERSION`, but **migrate** M2 saves forward (no techs known, no
+    current research) instead of discarding them, if that's straightforward.
+    If migration isn't reasonable, say why. The fallback is the existing
+    "new game" notice.
 
-13. **Unit tests** for:
-    - growth and starvation;
-    - tile selection by focus, and no shared tiles between cities;
-    - production completion, overflow, and rush-buy cost;
-    - the settler population rule;
-    - the trade split and building percentage bonuses;
-    - a save round-trip, and resuming from a save continuing identically;
-    - AI city behavior (deterministic);
-    - the tap rule from item 9 (as logic, if it's testable).
+B9. **Unit tests:**
+    - prerequisites are enforced;
+    - the cost formula;
+    - overflow and banking;
+    - unlocks gate the build list, and buildings that need a tech can't be
+      built without it;
+    - the era calculation;
+    - AI research is deterministic;
+    - migrating an M2 save;
+    - the tech tree is valid: every prerequisite exists, there are no
+      cycles, and every tech is reachable.
 
-14. **Document the iPad local-network dev command** in CLAUDE.md, whatever
-    Dan uses to reach the dev server from his iPad (e.g.
-    `npm run dev -- --host`). Consider adding it as an `npm run dev:lan`
-    script. Don't set Vite to listen on the network by default.
+**Done means:** every item (0, A1–A3, B1–B9) is reported individually and
+tests pass. It must be preview-verified on desktop and in iPad-sized touch
+emulation. **Dan then confirms on the iPad:**
+- (a) the `grow`, `starve`, and `settler` scenarios behave as their
+  on-screen notes say. This finishes confirming M2;
+- (b) autosave survives a Safari tab reload, if not already confirmed;
+- (c) he can pick research, finish a tech, and see a newly unlocked
+  building in a city's build list.
 
-**Done means:** items 0–14 are reported individually and tests pass. It must
-be preview-verified on desktop and in iPad-sized touch emulation, and ready
-for Dan to check on his iPad over the local network. It counts as fully done
-only when Dan confirms it on the iPad, **including autosave surviving a
-Safari tab reload**. Nothing gets pushed without Dan saying so.
+Nothing gets pushed without Dan saying so.
 
 **Open questions (defaults in bold; the coding agent proceeds on the default
 unless Dan decides otherwise):**
-- **Q1 — Working title:** **"Epoch" as a codename for now.** A real name can
-  come later, as long as it doesn't include "Civilization."
-- **Q2 — Rival event messages:** **show only what the player can see**
-  (item 11). The alternative is to keep showing all rival events as M1 did.
-- **Q3 — Tile management:** **automatic with a city focus** (item 2),
-  closest to Civ Rev 1 and easiest on a touchscreen. Manual tile-by-tile
-  assignment could be added later as an option.
-- **Q4 — Science/gold split:** **one empire-wide rate** (item 5). This is a
-  placeholder until the balance pass. If Dan remembers Civ Rev 1 handling it
-  differently, match that.
+- **Q1 — Working title:** **"Epoch" as a codename for now.**
+- **Q2 — Rival event messages:** **show only what the player can see.**
+  (Built in M2.)
+- **Q3 — Tile management:** **automatic with a city focus.** (Built in M2.)
+- **Q4 — Science/gold split:** **one empire-wide rate** (placeholder). (Built
+  in M2.)
+- **Q5 — Starting techs:** **none**; everyone starts from scratch. Civ-style
+  games sometimes give each civ one or two starting techs, and that could
+  come with the leader bonuses in M8.
 
 ## Next Steps (Do Not Start Yet)
 
@@ -324,13 +340,6 @@ milestone before it. None has been decided against.
   3. Add the Epoch card to `game-hub/games.js` with the **real** URL, then
      commit, and push the hub when Dan says. The hub must not be pushed
      before the Netlify site exists.
-- **Milestone 3 — Tech tree:**
-  - a short tree grouped into four eras (Ancient, Medieval, Industrial,
-    Modern);
-  - science from M2 buys techs;
-  - techs unlock units, buildings, and wonders, and M2's buildings get tech
-    requirements;
-  - show an era indicator.
 - **Milestone 4 — Combat:**
   - attack vs. defense values with terrain, fortification, and veteran
     bonuses;
@@ -374,9 +383,11 @@ milestone before it. None has been decided against.
   planning session and the repo. Claude always reads the coding agent's
   latest committed docs from the repo before editing, then writes the
   reconciled versions back into the repo. Git history is the backstop.
-- **The hub repo is shared and separate.** The agent's permission guard
-  blocked committing there in M1. Any hub change needs Dan's say-so, and
-  never push the hub with a card for a site that doesn't exist yet.
+- **The hub repo is shared, separate, and LIVE.** The hub is already on
+  Netlify, so **pushing the hub deploys it** to family and friends right
+  away. That's different from Epoch's own repo, where a push deploys
+  nothing until its Netlify site exists. Any hub change needs Dan's say-so,
+  and never push the hub with a card for a site that doesn't exist yet.
 - **IP guardrails:** see CLAUDE.md. The rules are no copied assets or text
   and no "Civilization" in the name. Any leader is allowed while the game is
   shared only with family and friends.
@@ -389,8 +400,12 @@ milestone before it. None has been decided against.
   iPad*. These are separate claims. For now, Dan's iPad testing is over the
   local network, which counts as iPad-confirmed. "Live in hub" is a
   separate claim that comes later.
-- **Pushing is Dan's call, never automatic.** Until the Netlify site
-  exists, a push only updates GitHub. Nothing deploys. It's still Dan's
-  call.
+- **Pushing is Dan's call, never automatic.** Until Epoch's Netlify site
+  exists, an Epoch push only updates GitHub and nothing deploys. A hub
+  push, though, deploys right away. Either way, it's Dan's call.
+- **Dev scenarios (from Round 3):** dev-only, never in the production build,
+  and never allowed to overwrite the real autosave. They're how Dan checks
+  hard-to-reach rules on the iPad, and new milestones should add scenarios
+  for their own hard-to-reach rules.
 - **Balance numbers are placeholders until Milestone 6+.** Keep them in data
   so tuning later is cheap.
