@@ -369,22 +369,23 @@ what was pushed.
 ## Where things stand
 **Always check `TODO.md` for the current objective before starting work.**
 
-- **Milestones 1–6** are done: the skeleton, cities, the tech tree, combat
-  and armies, save safety, 5 civs and diplomacy, unit icons, wonders,
-  culture, and the four victories.
-- **Round 8 (naval) is done:** sea techs, 9 ships, transports, naval combat
-  and bombarding, Harbors, maps with several landmasses, and an AI that
-  settles and invades overseas. Three ships of a type form a fleet. The
-  ships use Dan's icon picks (wired in early, 2026-09-24).
+- **Milestones 1–6 and round 8 (naval)** are done and approved: the land
+  and sea units with icons, fleets, wonders, culture, the four victories,
+  and diplomacy.
 - **The play server:** http://10.0.0.224:4173/.
 - The epoch repo is pushed every round until Netlify is set up.
 
-**Round 8 is done by the coding agent (report in TODO.md).** Waiting for
-Dan's checks, especially his ship and aircraft icon picks (the picker is at
-`http://10.0.0.224:4173/docs/ship-air-icon-candidates.html`). The next
-objective comes from the planning session: Round 9 (wire in the ship icons;
-barbarians, resources, and Great People) and Round 10 (air) are queued in
-Next Steps.
+**The current objective is Round 9 (Milestone 7):**
+- barbarian villages, built to Dan's spec: 4 flags spawn a unit, and
+  taking one means choosing to destroy it for a reward (plus a revealed
+  resource) or settle it as a size-1 city;
+- a random ancient-artifact chance on either choice, for free techs;
+- map resources (bonus yields; some hidden);
+- exploration huts;
+- Great People;
+- a picker page for the new map icons.
+
+See items 0, A1, and B1–B11 in TODO.md. Round 10 (air) is queued.
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.

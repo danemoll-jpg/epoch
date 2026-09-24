@@ -656,8 +656,9 @@ Steps, Technical Notes.
       than by eye. The map icons were seen on screen.
 
 * **Round 8 — Naval (ships, sea techs, transports) + ship and aircraft icon
-  candidates — done by the coding agent (2026-09-24). Waiting for Dan's
-  checks (a)–(c) below.**
+  candidates — done. APPROVED by Dan (2026-09-24).** Icons were picked,
+  the Carrier was trimmed, fleets were added, and the ship icons were
+  wired in early.
   - **Result:** 354 unit tests passing (46 new). Type-check and production
     build are clean, and the dev-code leak check passes. Preview-verified on
     desktop and in iPad-sized touch emulation (768×1024). **Save format 7**
@@ -830,191 +831,215 @@ Steps, Technical Notes.
 
 ## Current Objective (Focus Area)
 
-### Round 8 — Naval (ships, sea techs, and transports) + icon candidates for ships and planes
+### Round 9 — Milestone 7: barbarians, villages, artifacts, resources, huts, and Great People
+**Goal:** the flavor systems that make each game feel different:
+- barbarian villages, built to **Dan's spec**;
+- map resources;
+- exploration huts;
+- Great People.
 
-**Status: done by the coding agent (2026-09-24).** Per-item report under
-"Round 8" in Completed Tasks. Waiting for Dan's checks (a)–(c), especially
-**his ship and aircraft icon picks** (Round 9 Part A wires the ship icons
-in). The item list below is kept as it was assigned.
-
-**Goal:**
-- Close the gap Dan found: the game has an ocean but nothing can cross it.
-- Add the missing sea techs and a full set of ships, with transports that
-  carry land units, naval combat, bombarding, Harbors, and an AI that
-  settles and invades overseas.
-- Put ship **and** aircraft icon candidates in front of Dan in one picker
-  page, so both sets are chosen before they're needed.
+The ship icons were already wired in early (see Next Steps), so Part A here
+is only new-art *candidates* for Dan to approve.
 
 **Items for the coding agent. Report status on each one individually:**
 
 0. **Commit the updated docs first:** `CLAUDE.md` and `TODO.md` as their own
    commit, then re-read them.
 
-**Part A — Icon candidates for ships and aircraft (Dan approves before
-anything is wired in)**
+**Part A — Art candidates for the new map things (Dan approves art before
+it's wired in)**
 
-A1. **Candidates:** from game-icons.net (CC BY 3.0), choose **2–3
-    candidates** for each new unit type:
-    - ships (B2): Galley, Caravel, Frigate, Ironclad, Transport, Destroyer,
-      Battleship, Submarine, and Carrier;
-    - **aircraft for round 10:** Fighter, Bomber, Jet Fighter, Stealth
-      Bomber, and Helicopter;
-    - they must be easy to tell apart at map size, from each other and from
-      the 15 land icons already in use.
+A1. **One picker page**, `docs/map-icon-candidates.html`, working like the
+    round 8 page (the play server serves it at `/docs/…`). It offers 2–3
+    game-icons.net candidates for each of:
+    - the **barbarian village**;
+    - the **exploration hut**;
+    - the **barbarian unit marker**, if barbarians need something beyond
+      their color;
+    - **each resource type** (B4);
+    - **each Great Person type** (B6);
+    - an **artifact** icon for the discovery panel.
 
-A2. **Picker page**, `docs/ship-air-icon-candidates.html`, working like the
-    round 6 page:
-    - self-contained, with the SVGs inlined;
-    - A/B/C labels;
-    - each candidate shown large, and at map size **white on a colored
-      disc**, the way the game now draws icons;
-    - the author credit under each;
-    - tap to pick, with picks remembered on the device;
-    - "n of 14 picked", Next unpicked, and Copy my picks / Share.
+    Show them at map size on the terrain they'll sit on. Until Dan picks,
+    use simple placeholders (letters or shapes). Picks get wired in next
+    round.
 
-    Keep the SVGs in `docs/ship-air-icon-candidates/` with a `SOURCES.md`.
+**Part B — Barbarians and villages (Dan's spec, 2026-09-24; numbers in
+data)**
 
-A3. **Until Dan picks, ships use their letter glyphs** (the existing
-    fallback). The next round wires in the ship icons, and round 10 wires in
-    the aircraft icons.
+B1. **The barbarian faction:**
+    - a special player that's always at war with everyone;
+    - it's not in diplomacy, can't win, and isn't counted for domination
+      or elimination;
+    - it gets its own color, and its units show as barbarians.
 
-**Part B — Naval (Civ Rev 1 spirit; all numbers in data, placeholders)**
+B2. **Villages:**
+    - **stationary barbarian villages** are placed at map start on land;
+    - they're kept away from civ starts (e.g. at least 6 tiles), with a
+      count scaled to the map;
+    - a village holds a fortified defender and has a defense bonus.
 
-B1. **Sea techs:** add **Map Making** (Ancient), **Seafaring** (Ancient or
-    Medieval), **Navigation** (Medieval), and **Magnetism** (Medieval),
-    with sensible prerequisites and our own descriptions:
-    - keep the tree valid;
-    - check whether the Industrial/Modern ship techs you need already exist
-      (Steam Engine, Combustion, Electronics, Flight…) and add only what's
-      missing;
-    - re-run `npm run sim` and keep the era pacing near the round 6 targets.
-      Report before and after.
+    **Flags:**
+    - each village **gains flags over time** (e.g. 1 every N turns);
+    - **at 4 flags it sends a unit out** and resets;
+    - there are no spawns in the first ~10 turns;
+    - spawned units scale mildly with the world's era but stay **relatively
+      weak**;
+    - villages stop spawning after a late era (in data, e.g. from the
+      Industrial era).
 
-B2. **Ship units**, with attack, defense, moves, sight, and **cargo
-    capacity** in data. For example:
-    - Galley (Map Making): **coast tiles only**, carries 2;
-    - Caravel (Navigation): open ocean, carries 3;
-    - Frigate (Magnetism): combat, carries 2;
-    - Ironclad (Steam Engine): coast-heavy combat;
-    - Transport (Industrial era): no attack, carries 8;
-    - Destroyer (Combustion): fast;
-    - Battleship (late Industrial or Modern): strong;
-    - Submarine: strong attack, weak defense, **seen only by adjacent
-      units**;
-    - Carrier (Flight): carries air units in round 10. For now it's just a
-      strong defensive ship.
+    **Behavior:**
+    - barbarian units stay near their village (a radius in data);
+    - they attack adjacent civ units when the odds are decent;
+    - they occasionally head for nearby civ units or **unguarded cities**.
 
-    Pick sensible stats and techs, and list them in the report.
+    **Barbarians never capture cities.** A barbarian reaching an unguarded
+    city **raids** it instead: it steals some gold and costs 1 population
+    (never below 1), then leaves. (Default; see Q13.)
 
-B3. **Where ships go:**
-    - ships move only on water;
-    - **Galleys can't enter deep ocean**, only `coast` tiles, which the map
-      already has;
-    - a ship can enter a friendly coastal city, i.e. dock there;
-    - **only coastal cities** (next to water) can build ships, and the
-      build list hides ships elsewhere.
+B3. **Taking a village (Dan's rule):** when your unit kills the last
+    defender and moves in, or walks into an empty village, show a **choice
+    panel**:
+    - **Destroy it for a random reward.** The weights are in data: most
+      often **gold (30, 40, or 50)**; occasionally a **Horseman**, a
+      **Settler**, a **Galley** (coastal villages only, if the finder knows
+      Map Making, else re-roll), or a **free tech**. Destroying it also
+      **reveals a hidden resource** on that tile, if there is one (B4);
+    - **or settle it:** the village becomes **your new city at population
+      1**, founded on that tile with the normal city naming. Allow it even
+      if the tile is within the normal minimum city distance, and say so in
+      the report;
+    - **Ancient artifacts (either choice, confirmed by Dan):** there's a
+      random chance (data) to find an artifact. It grants **free
+      technology**: usually 1 tech, and rarely a leap of 2–3, possibly
+      advanced for the era. Use generic names of our own ("Ancient
+      Tablets", "Lost Library Scrolls", "Forgotten Star Chart", …), and show
+      a discovery panel;
+    - **the AI takes villages too,** and settles when the site is good and
+      not crowded, otherwise destroys. It's deterministic;
+    - world news: "The Franks destroyed a barbarian village" (visible if
+      met).
 
-B4. **Carrying land units, touch-first:**
-    - **boarding:** select a land unit and tap an adjacent friendly ship
-      with room (or the ship in the same city). The unit boards and uses up
-      its move;
-    - **cargo moves with the ship.** The ship shows a cargo count badge,
-      and its panel lists the cargo, where tapping one selects it;
-    - **unloading:** select a cargo unit and tap an adjacent land tile. It
-      costs that unit's move;
-    - no unloading onto enemy units, and no **attacking from a ship**;
-    - unloading next to or into an **empty** enemy city captures it, if
-      you're at war (the normal capture rule);
-    - **if the ship is destroyed, its cargo dies with it;**
-    - if a docked ship's city is captured, the ships and their cargo in it
-      are destroyed.
+**Part C — Resources, huts, and Great People**
 
-B5. **Naval combat:**
-    - ships attack ships using the normal odds rule;
-    - **bombard:** a ship can attack land units or a city on an adjacent
-      coastal tile. Win: the defender dies, but the ship never moves in or
-      captures. Lose: the ship dies;
-    - land units can't attack ships at sea;
-    - ships in a city don't defend it; land units do;
-    - armies of 3 ships are **not** allowed. That's a land-only mechanic,
-      unless Civ Rev 1 had naval armies (say what you chose).
+B4. **Map resources (a new system, all in data):**
+    - special resources on tiles with yield bonuses. For example: Iron and
+      Aluminum on hills; Rubber and Game in forest; Wheat on plains; Cattle
+      on grassland; Fish and Whales on coast/ocean; Gold and Gems on hills
+      or mountains; Oil on desert; Spices/Wine and so on. Pick about 12–16
+      with our own bonus numbers;
+    - **visible** ones are shown on the map from the start. **Hidden** ones
+      (a data flag, e.g. Iron, Aluminum, Oil, Rubber) show only once
+      revealed, by destroying a village on that tile (B3). Optionally, also
+      by learning a tech (say which you chose);
+    - worked tiles use the bonus, and the automatic tile picker and the AI
+      count it. The city panel shows it;
+    - placement is seeded and fair: every civ start has at least 1–2 food
+      or production resources nearby;
+    - **no strategic requirements** (e.g. Iron needed for Legions). That's
+      not Civ Rev 1 style, so it's bonuses only.
 
-B6. **Harbor building** (needs Seafaring, coastal cities only): +1 food on
-    worked water tiles. Check water tiles' base yields while you're there,
-    so coastal cities are worth founding.
+B5. **Exploration huts:**
+    - a few huts are scattered on land at the start, separate from
+      barbarian villages;
+    - a unit (or the AI) entering one gets a random result from data:
+      **gold** (e.g. 25–50), **map knowledge** (reveals a nearby area), a
+      **free unit** (Warrior/Horseman), a **free tech** (rare), or,
+      rarely and never before turn 20, **a few barbarians appear nearby**;
+    - there are **no artifacts from huts**. Those come only from villages
+      (Dan's rule).
 
-B7. **The map needs other landmasses:**
-    - check that map generation makes **several landmasses** often enough
-      that ships matter, i.e. not one big continent every time;
-    - report what share of seeds give each civ its own landmass, what share
-      give shared continents, and whether there are small empty islands
-      worth settling;
-    - tune the data if needed, keeping every civ's start fair.
+B6. **Great People (Civ Rev spirit, our own rules):**
+    - each civ earns a Great Person each time its **culture total** passes
+      the next threshold (rising thresholds, in data);
+    - types: **Scientist, Artist, Merchant, Engineer, and General**;
+    - Dan gets an arrival panel and chooses how to use it:
+      - **Settle it in a city** for a permanent bonus: Scientist +science %,
+        Artist +culture, Merchant +gold %, Engineer +production, General
+        (new units there are veterans and armies are stronger);
+      - **or a one-time effect:** Scientist a free tech, Artist a big
+        culture burst, Merchant a big gold sum, Engineer finishes the
+        current wonder or building, General makes every unit in one stack
+        a veteran;
+    - Great People have names from a generic list of our own, not Civ Rev's
+      exact list; historical names are fine;
+    - the AI uses them sensibly (e.g. an Engineer on a wonder) and
+      deterministically;
+    - Great People count toward culture as they do now, only through their
+      effects.
 
-B8. **The AI uses the sea:**
-    - when its landmass has no good sites left, the AI builds a ship, ferries
-      a **Settler plus an escort** to a good site on another landmass, and
-      founds a city;
-    - when at war with an overseas civ, it can ship an attack force (armies
-      when possible) and land it next to a target city;
-    - it keeps a ship or two for coastal defense once rivals have ships;
-    - it stays deterministic;
-    - **report from the sim:** overseas cities founded, naval invasions,
-      ships per civ at turns 100 and 200, and whether **domination wins**
-      now happen, since they never did in round 7.
+B7. **Culture borders and city flipping: NOT this round.** Deferred to M9
+    or later, only if Dan wants them.
 
-B9. **Save migration v6 → v7:** no ships exist, and the new techs are
-    unknown. Backups are kept as usual.
+**Part D — Wrap-up**
 
-B10. **Dev scenarios, each with a note:**
-     - `board-unload`: load a Settler and a Warrior, sail, and unload;
-     - `galley-coast`: a Galley can't enter deep ocean;
-     - `naval-battle`: with odds;
-     - `bombard`: a ship attacks a coastal unit and doesn't move in;
-     - `ship-sunk-cargo`: cargo is lost with the ship;
-     - `amphibious-capture`: unload into an empty enemy city;
-     - `harbor`: a food change;
-     - `ai-overseas`: watch an AI ferry a settler over a few turns;
-     - `all-ships`: one of each ship, for Dan's icon check next round.
+B8. **Save migration v7 → v8 (Dan's current game keeps going):**
+    - resources are generated from the seed for the whole map;
+    - **villages and huts are placed only on tiles no civ has explored
+      yet**;
+    - culture thresholds for Great People start from each civ's current
+      culture, so nobody gets a backlog at once;
+    - backups are kept as usual.
+
+B9. **Dev scenarios, each with a note:**
+    - `village-spawn`: 4 flags, and a unit comes out at End Turn;
+    - `take-village`: the choice panel, then destroy or settle;
+    - `village-artifact`: an artifact is found for certain;
+    - `village-resource`: destroying one reveals Iron;
+    - `barbarian-raid`: an unguarded city is raided, not captured;
+    - `hut`: each result, or a forced one;
+    - `great-person`: one arrives. Settle vs one-time;
+    - `engineer-wonder`: an Engineer finishes a wonder;
+    - `all-resources`: one of each resource, for Dan's icon check.
+
+B10. **Simulation report:**
+     - villages taken per game (destroyed vs settled, AI);
+     - barbarian units spawned and killed;
+     - raids;
+     - **eliminations caused by barbarians (should be 0)**;
+     - Great People per civ by turn 150;
+     - huts entered;
+     - the era pace before and after, which must stay near target given
+       the free techs;
+     - victory turns, still none before 150.
 
 B11. **Unit tests:**
-     - the new techs, and the tree staying valid;
-     - water-only movement and the Galley coast rule;
-     - coastal-only building;
-     - boarding and unloading, cargo moving with the ship, and cargo
-       capacity;
-     - cargo dying with its ship;
-     - ships lost with a captured city;
-     - naval combat and bombard (no capture);
-     - no attacking from a ship;
-     - amphibious capture;
-     - the Harbor;
-     - submarine visibility;
-     - the AI ferrying settlers (deterministic);
-     - the v6 → v7 migration;
+     - the barbarian faction rules;
+     - the flag timer and spawning at 4;
+     - the no-spawn grace period and the late-era stop;
+     - barbarians raid but never capture;
+     - the village choice: destroy rewards (weights with fixed seeds, the
+       Galley coast rule), settle founding a size-1 city, and the artifact
+       chance and tech counts with either choice;
+     - resource yields and hidden/revealed rules;
+     - start fairness;
+     - hut results;
+     - Great People thresholds, settled and one-time effects, and AI use;
+     - the v7 → v8 migration (nothing placed on explored tiles);
      - every new scenario;
      - `pace.test.ts` still passing.
 
 **Done means:**
-- every item (0, A1–A3, B1–B11) is reported individually;
+- every item (0, A1, B1–B11) is reported individually;
 - tests pass;
 - it's preview-verified on desktop and in iPad emulation;
-- the epoch repo is **pushed**, and the play server is **restarted**
-  (standing rules).
+- the epoch repo is **pushed**, and the play server is **restarted**.
 
 Dan then:
-- (a) picks ship and aircraft icons on the picker page;
-- (b) tries the naval scenarios;
-- (c) in a real game, builds a Galley or Caravel and carries a Settler to
-  another landmass.
+- (a) picks the map icons on the picker page;
+- (b) tries the village, hut, raid, and Great Person scenarios;
+- (c) in a real game, takes a barbarian village and makes the choice.
 
 **Open questions (defaults in bold; the coding agent proceeds on the default
 unless Dan decides otherwise):**
 - **Q1 — Working title:** **"Epoch" as a codename for now.**
-- **Q11 — Naval armies: DECIDED by Dan (2026-09-24): yes** ("fleets"; done
-  after the round, see Round 8 in Completed Tasks).
-- **Q12 — Unit icon style:** **white icon on the owner's colored disc** (as
-  built in round 7, matching the picker page Dan chose from).
+- **Q13 — Barbarians and cities:** **they raid (steal gold, −1 population)
+  but never capture.** The alternative is that they capture unguarded
+  cities.
+- **Q14 — Resources:** **yield bonuses only, no "needs Iron to build"
+  rules** (Civ Rev style).
+- **Q15 — Villages respawning:** **no**. Villages are placed at the start
+  only, and once they're gone, they're gone.
 
 ## Next Steps (Do Not Start Yet)
 
@@ -1045,39 +1070,10 @@ milestone before it. None has been decided against.
      before the Netlify site exists.
 - **Order after round 7 — DECIDED by Dan (2026-09-24):**
   - **Round 8:** Naval — done (see Completed Tasks).
-  - **Round 9, M7:** barbarians, villages, artifacts, resources, Great
+  - **Round 9, M7 (now the current objective):** barbarians, villages, artifacts, resources, Great
     People, and huts.
   - **Round 10:** Air.
   - **Then:** M8 and M9.
-- **Round 9 — Milestone 7: barbarians, villages, artifacts, resources,
-  Great People, and huts** (the barbarian part is Dan's spec, 2026-09-24):
-  - **Villages:** barbarians live in **stationary villages**. A village
-    gains **flags** over time, and **at 4 flags it sends a unit out** and
-    resets. Barbarians stay near home or attack from their village, and
-    occasionally go after nearby civ units or **unguarded cities**. They're
-    relatively weak, even at higher difficulties.
-  - **Taking a village, Dan's rule:** the player **chooses**:
-    - **Destroy it for a random reward**: most often gold (30, 40, or
-      50); occasionally a Horseman, a Settler, a Galley (coastal villages
-      only), or a free tech. It also **reveals a resource** on that tile;
-    - **or settle it** as a **new city at population 1**.
-  - **Ancient artifacts (Dan's generic version, not Civ Rev's named
-    relics):**
-    - when taking a village, **with either choice (confirmed by Dan)**,
-      there's a random chance to find an ancient artifact;
-    - it grants **free technology**: usually 1 tech, and rarely a leap of
-      2–3, possibly advanced depending on the era;
-    - odds and counts are in data, and the names are generic ones of our
-      own (e.g. "Ancient Tablets", "Lost Library Scrolls", "Forgotten Star
-      Chart").
-  - **Map resources (new system):** special tiles with a yield bonus, e.g.
-    Iron or Aluminum on hills, Rubber or Game in forests, Wheat, Fish,
-    Gold, and so on, all in data. Some are visible from the start, and some
-    stay **hidden until revealed** (e.g. by destroying a village). Worked
-    tiles use the bonus, and the AI tile choice accounts for it.
-  - **Great People:** they add culture and can speed up wonders.
-  - **Exploration huts.**
-  - Possibly culture borders and city flipping.
 - **Round 9, Part A — DONE EARLY (2026-09-24, after Dan asked why
   `all-ships` still showed letters):** the 9 ship icons are wired in
   (`src/assets/icons/`, `icon` on each ship in `units.ts`, credits in
