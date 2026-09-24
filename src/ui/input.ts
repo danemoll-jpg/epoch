@@ -119,8 +119,16 @@ export function preventBrowserGestures(): void {
   for (const type of ['gesturestart', 'gesturechange', 'gestureend']) {
     document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
   }
-  // Page bounce / pull-to-refresh: nothing on the page scrolls, so block all touch scrolling.
-  document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+  // Page bounce / pull-to-refresh: block touch scrolling everywhere except inside panels
+  // marked .scroll (the city panel), which scroll on their own.
+  document.addEventListener(
+    'touchmove',
+    (e) => {
+      if (e.target instanceof Element && e.target.closest('.scroll')) return;
+      e.preventDefault();
+    },
+    { passive: false },
+  );
   // Double-tap zoom fallback for older Safari that ignores touch-action.
   let lastTouchEnd = 0;
   document.addEventListener(

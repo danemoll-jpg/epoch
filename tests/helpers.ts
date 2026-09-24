@@ -2,7 +2,8 @@
 
 import type { TerrainId } from '../src/data/terrain';
 import { UNITS, type UnitTypeId } from '../src/data/units';
-import type { GameState, Unit } from '../src/game/types';
+import { refreshWorkedTiles } from '../src/game/yields';
+import { STATE_VERSION, type City, type GameState, type Unit } from '../src/game/types';
 
 const LEGEND: Record<string, TerrainId> = {
   g: 'grassland', p: 'plains', f: 'forest', h: 'hills',
@@ -17,7 +18,7 @@ export function makeState(rows: string[], opts: { players?: number; exploreAll?:
   const players = opts.players ?? 2;
   const civs = ['babylon', 'maurya', 'mali', 'inca', 'franks'];
   return {
-    version: 1,
+    version: STATE_VERSION,
     seed: 1,
     rngState: 12345,
     turn: 1,
@@ -30,6 +31,9 @@ export function makeState(rows: string[], opts: { players?: number; exploreAll?:
       explored: new Array<number>(width * height).fill(opts.exploreAll === false ? 0 : 1),
       citiesFounded: 0,
       alive: true,
+      gold: 0,
+      science: 0,
+      scienceRate: 60,
     })),
     units: [],
     cities: [],
@@ -39,7 +43,36 @@ export function makeState(rows: string[], opts: { players?: number; exploreAll?:
 }
 
 export function addUnit(state: GameState, type: UnitTypeId, owner: number, x: number, y: number): Unit {
-  const unit: Unit = { id: state.nextId++, type, owner, x, y, movesLeft: UNITS[type].moves };
+  const unit: Unit = { id: state.nextId++, type, owner, x, y, movesLeft: UNITS[type].moves, veteran: false };
   state.units.push(unit);
   return unit;
+}
+
+/** Adds a city directly (no settler needed) and reassigns worked tiles. */
+export function addCity(
+  state: GameState,
+  owner: number,
+  x: number,
+  y: number,
+  extra: Partial<City> = {},
+): City {
+  const city: City = {
+    id: state.nextId++,
+    name: extra.name ?? 'City' + state.nextId,
+    owner,
+    x,
+    y,
+    foundedTurn: state.turn,
+    size: 1,
+    food: 0,
+    production: 0,
+    build: null,
+    focus: 'balanced',
+    buildings: [],
+    worked: [],
+    ...extra,
+  };
+  state.cities.push(city);
+  refreshWorkedTiles(state);
+  return city;
 }

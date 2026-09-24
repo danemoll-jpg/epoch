@@ -7,7 +7,7 @@ import { UNITS } from '../data/units';
 import { updateExplored } from './fog';
 import { findStartPositions, generateMap } from './mapgen';
 import { hashSeed, shuffle } from './rng';
-import type { GameMap, GameState, Player, Unit, Coord } from './types';
+import { STATE_VERSION, type GameMap, type GameState, type Player, type Unit, type Coord } from './types';
 
 export interface NewGameOptions {
   seed: number;
@@ -46,10 +46,13 @@ export function createGame(opts: NewGameOptions): GameState {
     explored: new Array<number>(width * height).fill(0),
     citiesFounded: 0,
     alive: true,
+    gold: RULES.startingGold,
+    science: 0,
+    scienceRate: RULES.defaultScienceRate,
   }));
 
   const state: GameState = {
-    version: 1,
+    version: STATE_VERSION,
     seed: opts.seed,
     rngState: rng.rngState,
     turn: 1,
@@ -72,6 +75,7 @@ export function createGame(opts: NewGameOptions): GameState {
         x: start.x,
         y: start.y,
         movesLeft: UNITS[type].moves,
+        veteran: false,
       };
       state.units.push(unit);
     }

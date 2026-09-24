@@ -6,7 +6,7 @@ import { tileIndex } from '../src/game/grid';
 import { findPath, moveUnit, moveUnitToward, reachableThisTurn } from '../src/game/movement';
 import { createGame } from '../src/game/newGame';
 import { endTurn, runUntilHuman } from '../src/game/turn';
-import { addUnit, makeState } from './helpers';
+import { addCity, addUnit, makeState } from './helpers';
 
 describe('movement', () => {
   it('moves one tile (including diagonally) and spends movement', () => {
@@ -61,7 +61,7 @@ describe('movement', () => {
     addUnit(s, 'warrior', 1, 1, 0);
     expect(moveUnit(s, w.id, { x: 1, y: 0 }).reason).toBe('Tile is impassable');
     s.units = s.units.filter((u) => u.owner === 0);
-    s.cities.push({ id: 1, name: 'X', owner: 1, x: 1, y: 0, foundedTurn: 1 });
+    addCity(s, 1, 1, 0, { name: 'X' });
     expect(moveUnit(s, w.id, { x: 1, y: 0 }).ok).toBe(false);
   });
 
@@ -138,7 +138,7 @@ describe('founding cities', () => {
 
   it('cannot found too close to another city', () => {
     const s = makeState(['gggg']);
-    s.cities.push({ id: 1, name: 'X', owner: 1, x: 0, y: 0, foundedTurn: 1 });
+    addCity(s, 1, 0, 0, { name: 'X' });
     const settler = addUnit(s, 'settler', 0, 2, 0);
     expect(foundCityError(s, settler.id)).toBe('Too close to another city');
     settler.x = 3;

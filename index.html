@@ -17,10 +17,23 @@
       <canvas id="map" aria-label="Game map"></canvas>
 
       <header id="topbar">
-        <span id="title">Epoch</span>
-        <span id="civLabel"></span>
-        <span id="turnLabel"></span>
+        <div class="line">
+          <span id="title">Epoch</span>
+          <span id="civLabel"></span>
+          <span id="turnLabel"></span>
+        </div>
+        <div class="line">
+          <span id="goldLabel"></span>
+          <span id="scienceLabel"></span>
+          <span id="rateCtl">
+            <button id="rateDown" type="button" aria-label="Less science, more gold">−</button>
+            <span id="rateLabel"></span>
+            <button id="rateUp" type="button" aria-label="More science, less gold">+</button>
+          </span>
+        </div>
       </header>
+
+      <button id="menuBtn" type="button" aria-label="Game menu">☰</button>
 
       <div id="toasts" aria-live="polite"></div>
 
@@ -29,10 +42,34 @@
         <div class="row">
           <button id="foundBtn" type="button">Found City</button>
           <button id="nextBtn" type="button">Next Unit</button>
+          <button id="deselectBtn" type="button" aria-label="Deselect unit">✕</button>
         </div>
       </section>
 
+      <section id="cityPanel" class="scroll" hidden aria-label="City"></section>
+
       <button id="endTurnBtn" type="button">End Turn</button>
+
+      <div id="menuOverlay" class="overlay" hidden>
+        <div class="dialog" role="dialog" aria-modal="true">
+          <div id="menuMain">
+            <h2>Game</h2>
+            <p id="menuInfo"></p>
+            <div class="row">
+              <button id="newGameBtn" type="button">New Game</button>
+              <button id="menuCloseBtn" type="button">Close</button>
+            </div>
+          </div>
+          <div id="menuConfirm" hidden>
+            <h2>Start a new game?</h2>
+            <p>Your current game will be lost.</p>
+            <div class="row">
+              <button id="confirmNoBtn" type="button">Cancel</button>
+              <button id="confirmYesBtn" type="button" class="danger">Start New Game</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

@@ -1,5 +1,6 @@
 // Founding cities. A settler founds on a valid land tile away from other cities and is used
-// up. The name comes from the owner's civ name list in data.
+// up. The name comes from the owner's civ name list in data. A new city starts at size 1
+// with nothing chosen to build.
 
 import { CIVS } from '../data/civs';
 import { RULES } from '../data/rules';
@@ -7,7 +8,9 @@ import { TERRAIN } from '../data/terrain';
 import { UNITS } from '../data/units';
 import { distance, tileAt } from './grid';
 import { updateExplored } from './fog';
+import { addLog } from './log';
 import { findUnit } from './movement';
+import { refreshWorkedTiles } from './yields';
 import type { ActionResult, City, GameState } from './types';
 
 /** Why this unit can't found a city right now, or undefined if it can. */
@@ -46,12 +49,20 @@ export function foundCity(state: GameState, unitId: number): ActionResult & { ci
     x: unit.x,
     y: unit.y,
     foundedTurn: state.turn,
+    size: 1,
+    food: 0,
+    production: 0,
+    build: null,
+    focus: 'balanced',
+    buildings: [],
+    worked: [],
   };
   player.citiesFounded++;
   state.cities.push(city);
   state.units = state.units.filter((u) => u.id !== unitId);
+  refreshWorkedTiles(state);
   updateExplored(state, unit.owner);
   const civName = CIVS.find((c) => c.id === player.civId)?.name ?? 'A civ';
-  state.log.push({ turn: state.turn, player: unit.owner, text: `${civName} founded ${city.name}` });
+  addLog(state, unit.owner, `${civName} founded ${city.name}`, city);
   return { ok: true, city };
 }

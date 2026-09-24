@@ -1,6 +1,8 @@
 // Game state: plain, serializable data only. No classes, functions, or DOM references —
 // save/load must be JSON.stringify / JSON.parse.
 
+import type { BuildingId } from '../data/buildings';
+import type { CityFocus } from '../data/rules';
 import type { TerrainId } from '../data/terrain';
 import type { UnitTypeId } from '../data/units';
 
@@ -31,6 +33,11 @@ export interface Player {
   /** How many city names from the civ's list have been used. */
   citiesFounded: number;
   alive: boolean;
+  gold: number;
+  /** Accumulated science. Buys nothing until the tech tree (Milestone 3). */
+  science: number;
+  /** Percent of trade that becomes science (0–100, 10% steps); the rest is gold. */
+  scienceRate: number;
 }
 
 export interface Unit {
@@ -40,7 +47,13 @@ export interface Unit {
   x: number;
   y: number;
   movesLeft: number;
+  /** Built in a city with Barracks. Combat uses it from Milestone 4. */
+  veteran: boolean;
 }
+
+export type BuildItem =
+  | { kind: 'unit'; id: UnitTypeId }
+  | { kind: 'building'; id: BuildingId };
 
 export interface City {
   id: number;
@@ -49,10 +62,27 @@ export interface City {
   x: number;
   y: number;
   foundedTurn: number;
+  size: number;
+  /** Food in the box toward the next size. */
+  food: number;
+  /** Production stored toward the current item (kept when there is none). */
+  production: number;
+  /** What the city is building, or null when it needs a choice. */
+  build: BuildItem | null;
+  focus: CityFocus;
+  buildings: BuildingId[];
+  /**
+   * Tile indices worked by citizens (not including the center). Assigned automatically by
+   * refreshWorkedTiles; stored so the UI and saves see exactly what the rules used.
+   */
+  worked: number[];
 }
 
+/** Bumped whenever the state shape changes; saves from another version aren't loaded. */
+export const STATE_VERSION = 2;
+
 export interface GameState {
-  version: 1;
+  version: number;
   seed: number;
   /** Current seeded-RNG state; advances whenever game logic draws a random number. */
   rngState: number;
@@ -72,6 +102,9 @@ export interface LogEntry {
   turn: number;
   player: number;
   text: string;
+  /** Where it happened, so the UI can hide rival events the viewer can't see. */
+  x?: number;
+  y?: number;
 }
 
 export interface ActionResult {

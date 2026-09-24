@@ -1,7 +1,9 @@
 // Canvas 2D renderer. Reads game state and view state; never changes game state.
-// Placeholder art: colored tiles, simple terrain marks, lettered unit discs, city squares.
+// Placeholder art: colored tiles, simple terrain marks, lettered unit discs, city squares
+// with the size number.
 
 import { CIVS } from '../data/civs';
+import { RULES } from '../data/rules';
 import type { TerrainId } from '../data/terrain';
 import { UNITS } from '../data/units';
 import { visibleTiles } from '../game/fog';
@@ -26,6 +28,8 @@ export interface ViewState {
   viewer: number;
   selectedUnitId?: number;
   reachable: Coord[];
+  /** City whose panel is open: its worked tiles are outlined. */
+  openCityId?: number;
 }
 
 export function playerColor(state: GameState, playerId: number): string {
@@ -93,10 +97,12 @@ function drawUnit(
   y: number,
   s: number,
   selected: boolean,
+  inCity: boolean,
 ): void {
-  const cx = x + s / 2;
-  const cy = y + s / 2;
-  const r = s * 0.3;
+  // In a city the disc shrinks into the lower-left corner so the city's size stays readable.
+  const cx = inCity ? x + s * 0.27 : x + s / 2;
+  const cy = inCity ? y + s * 0.73 : y + s / 2;
+  const r = inCity ? s * 0.21 : s * 0.3;
   if (selected) {
     ctx.strokeStyle = '#ffe066';
     ctx.lineWidth = Math.max(2, s * 0.07);
@@ -112,7 +118,7 @@ function drawUnit(
   ctx.fill();
   ctx.stroke();
   ctx.fillStyle = '#ffffff';
-  ctx.font = `700 ${Math.round(s * 0.32)}px system-ui, sans-serif`;
+  ctx.font = `700 ${Math.round(r * 1.07)}px system-ui, sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(UNITS[unit.type].glyph, cx, cy + s * 0.01);
@@ -187,18 +193,52 @@ export function render(
     ctx.strokeRect(p.x + 2, p.y + 2, s - 4, s - 4);
   }
 
-  // Cities: shown wherever the viewer has explored (they don't move).
+  // Open city: outline its work radius and mark the tiles its citizens work.
+  const openCity = state.cities.find((c) => c.id === view.openCityId);
+  if (openCity) {
+    const r = RULES.cityWorkRadius;
+    const a = pos(openCity.x - r, openCity.y - r);
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.strokeRect(a.x, a.y, s * (2 * r + 1), s * (2 * r + 1));
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(255,224,102,0.9)';
+    for (const k of openCity.worked) {
+      const p = pos(k % map.width, Math.floor(k / map.width));
+      ctx.beginPath();
+      ctx.arc(p.x + s * 0.18, p.y + s * 0.18, Math.max(3, s * 0.08), 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // Cities: shown wherever the viewer has explored (they don't move). The number is the
+  // city's size; a "!" badge marks the viewer's cities with nothing to build.
   for (const city of state.cities) {
     if (explored[tileIndex(map, city.x, city.y)] !== 1) continue;
     const p = pos(city.x, city.y);
     const inset = s * 0.12;
     ctx.fillStyle = playerColor(state, city.owner);
-    ctx.strokeStyle = '#111';
+    ctx.strokeStyle = city.id === view.openCityId ? '#ffe066' : '#111';
     ctx.lineWidth = Math.max(2, s * 0.06);
     ctx.fillRect(p.x + inset, p.y + inset, s - inset * 2, s - inset * 2);
     ctx.strokeRect(p.x + inset, p.y + inset, s - inset * 2, s - inset * 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    ctx.fillRect(p.x + s * 0.4, p.y + s * 0.3, s * 0.2, s * 0.4);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `800 ${Math.round(s * 0.36)}px system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(city.size), p.x + s / 2, p.y + s / 2 + s * 0.02);
+    if (city.owner === view.viewer && city.build === null) {
+      const bx = p.x + s - inset;
+      const by = p.y + inset;
+      ctx.fillStyle = '#e6b73f';
+      ctx.beginPath();
+      ctx.arc(bx, by, s * 0.14, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#1b1405';
+      ctx.font = `800 ${Math.round(s * 0.2)}px system-ui, sans-serif`;
+      ctx.fillText('!', bx, by + s * 0.01);
+    }
   }
 
   // Units: only where the viewer can currently see. One disc per tile; badge for stacks.
@@ -213,7 +253,8 @@ export function render(
   for (const [, list] of byTile) {
     const shown = list.find((u) => u.id === view.selectedUnitId) ?? list.find((u) => u.movesLeft > 0) ?? list[0]!;
     const p = pos(shown.x, shown.y);
-    drawUnit(ctx, state, shown, list.length, p.x, p.y, s, shown.id === view.selectedUnitId);
+    const inCity = state.cities.some((c) => c.x === shown.x && c.y === shown.y);
+    drawUnit(ctx, state, shown, list.length, p.x, p.y, s, shown.id === view.selectedUnitId, inCity);
   }
 
   // Explored-but-not-visible tiles are dimmed.
