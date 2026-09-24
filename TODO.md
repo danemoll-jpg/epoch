@@ -739,7 +739,7 @@ Steps, Technical Notes.
     | Destroyer | B | Speed Boat (Delapouite) |
     | Battleship | A | Battleship (Cathelineau) |
     | Submarine | A | Submarine (Delapouite) |
-    | Carrier | A | Carrier (Cathelineau) |
+    | Carrier | A, **trimmed** (`carrier-a-trimmed.svg`) | Carrier (Cathelineau), modified: waves removed, cropped |
     | Fighter | B | Biplane (Quoting) |
     | Bomber | B | Carpet Bombing (Skoll) |
     | Jet Fighter | A | Jet Fighter (Delapouite) |
@@ -756,7 +756,7 @@ Steps, Technical Notes.
       (**http://10.0.0.224:4173/docs/carrier-trim-candidates.html**). **Use
       the trimmed file when wiring in the Carrier**, credited as "modified"
       (CC BY 3.0 allows it; say so in `CREDITS.md` and About / Credits).
-      Waiting for Dan's OK on the trimmed look.
+      **Approved by Dan (2026-09-24): use the modified one.**
     - **Bomber B (Carpet Bombing):** its bomb dots disappear at 22 px, so
       it may read as a plain plane shape at map size.
     - **Fighter B (Biplane)** gets busy when small.
@@ -1079,8 +1079,8 @@ milestone before it. None has been decided against.
   - **Exploration huts.**
   - Possibly culture borders and city flipping.
 - **Round 9, Part A:** wire in Dan's ship icon picks (recorded under Round
-  8 in Completed Tasks, 2026-09-24; two watch-outs there for Dan to
-  confirm first).
+  8 in Completed Tasks, 2026-09-24; the Carrier uses the approved trimmed
+  file `carrier-a-trimmed.svg`, credited as modified).
 - **Round 10 — Air:** (the aircraft icons were picked in round 8)
   - **Flight finally unlocks something:** a Fighter (Flight), a Bomber
     (Flight, or a new **Advanced Flight** tech), a Jet Fighter (Advanced
