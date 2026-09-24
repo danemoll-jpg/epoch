@@ -81,7 +81,7 @@ footer{margin-top:24px;font-size:.85rem;color:var(--muted)}
 </defs></svg>
 <main>
 <h1>Unit Icon Candidates</h1>
-<p class="intro">Pick <b>one letter per unit</b> and send back a list like <b>&ldquo;Legion: B&rdquo;</b>. Each candidate is shown large, then at real map size on a grassland tile: the 31&nbsp;px disc used in the open field (blue and purple civs) and the 22&nbsp;px disc used inside a city. The overview at the bottom shows every candidate side by side. Icons are from game-icons.net under CC&nbsp;BY&nbsp;3.0; the author of each icon you pick will be credited in the game.</p>
+<p class="intro"><b>Tap one icon per unit</b> to pick it (tap again to undo). Your picks are remembered on this device. When you&rsquo;re done, tap <b>Copy my picks</b> (or <b>Share</b>) in the bar at the bottom and paste the list into the chat. Each candidate is shown large, then at real map size on a grassland tile: the 31&nbsp;px disc used in the open field (blue and purple civs) and the 22&nbsp;px disc used inside a city. The overview at the bottom shows every candidate side by side. Icons are from game-icons.net under CC&nbsp;BY&nbsp;3.0; the author of each icon you pick will be credited in the game.</p>
 <section><h2>Settler</h2><div class="cands">
 <figure class="cand"><div class="letter">A</div>
 <div class="big"><svg width="96" height="96" role="img" aria-label="Old Wagon"><use href="#i-settler-a" width="96" height="96"/></svg></div>
@@ -303,4 +303,168 @@ footer{margin-top:24px;font-size:.85rem;color:var(--muted)}
 <div class="ovrow"><span class="ovn">Tank</span><span class="ovt"><span class="ovc"><span class="ovl">A</span><svg class="disc" width="31" height="31" viewBox="0 0 31 31" aria-hidden="true"><circle cx="15.5" cy="15.5" r="14.5" fill="#3f7fe0" stroke="#fff" stroke-width="2"/><use href="#i-tank-a" x="5.5" y="5.5" width="20" height="20" style="color:#fff"/></svg></span><span class="ovc"><span class="ovl">B</span><svg class="disc" width="31" height="31" viewBox="0 0 31 31" aria-hidden="true"><circle cx="15.5" cy="15.5" r="14.5" fill="#3f7fe0" stroke="#fff" stroke-width="2"/><use href="#i-tank-b" x="5.5" y="5.5" width="20" height="20" style="color:#fff"/></svg></span><span class="ovc"><span class="ovl">C</span><svg class="disc" width="31" height="31" viewBox="0 0 31 31" aria-hidden="true"><circle cx="15.5" cy="15.5" r="14.5" fill="#3f7fe0" stroke="#fff" stroke-width="2"/><use href="#i-tank-c" x="5.5" y="5.5" width="20" height="20" style="color:#fff"/></svg></span></span></div>
 </div>
 <footer>Icons: game-icons.net, CC BY 3.0 (creativecommons.org/licenses/by/3.0). Authors are named under each icon. Full list: docs/icon-candidates/SOURCES.md.</footer>
-</main></body></html>
+</main><style>
+.cand{cursor:pointer;position:relative;-webkit-tap-highlight-color:transparent;transition:border-color .12s,box-shadow .12s}
+.cand:focus-visible{outline:3px solid var(--link);outline-offset:2px}
+.cand.picked{border-color:#2f9e5b;box-shadow:0 0 0 3px #2f9e5b}
+.cand.dim{opacity:.55}
+.cand .tick{position:absolute;top:10px;right:10px;min-width:44px;height:32px;padding:0 10px;border-radius:16px;border:2px solid var(--line);background:var(--card);color:var(--muted);font-weight:700;font-size:.85rem;display:flex;align-items:center;justify-content:center}
+.cand.picked .tick{background:#2f9e5b;border-color:#2f9e5b;color:#fff}
+h2 .pickNote{font-size:.9rem;font-weight:600;color:#2f9e5b;margin-left:.5em}
+h2 .pickNote.none{color:var(--muted);font-weight:400}
+.ovc.picked{outline:3px solid #fff;outline-offset:2px;border-radius:18px}
+.ovc.dim{opacity:.45}
+body{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
+#pickBar{position:fixed;left:0;right:0;bottom:0;z-index:10;background:var(--card);border-top:1px solid var(--line);box-shadow:0 -4px 16px rgba(0,0,0,.12);padding:10px 16px calc(10px + env(safe-area-inset-bottom))}
+#pickBar .in{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+#pickCount{font-weight:700;flex:1 1 auto;min-width:9em}
+#pickCount .sub{display:block;font-weight:400;font-size:.85rem;color:var(--muted)}
+#pickBar button{min-height:44px;padding:0 16px;border-radius:10px;border:1px solid var(--line);background:var(--tileBg);color:var(--ink);font:inherit;font-weight:600;cursor:pointer}
+#pickBar button.primary{background:#2f9e5b;border-color:#2f9e5b;color:#fff}
+#pickBar button:disabled{opacity:.5;cursor:default}
+#pickText{width:100%;margin-top:8px;min-height:7.5em;font:14px/1.4 ui-monospace,Menlo,Consolas,monospace;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px}
+#pickText[hidden]{display:none}
+</style>
+<div id="pickBar" role="region" aria-label="Your picks"><div class="in">
+  <div id="pickCount">0 of 15 picked<span class="sub">Tap an icon to pick it</span></div>
+  <button type="button" id="jumpBtn">Next unpicked</button>
+  <button type="button" id="shareBtn" hidden>Share</button>
+  <button type="button" id="copyBtn" class="primary">Copy my picks</button>
+  <textarea id="pickText" readonly hidden aria-label="Your picks as text"></textarea>
+</div></div>
+<script>
+(function () {
+  var KEY = 'epoch.iconPicks';
+  var sections = Array.prototype.slice.call(document.querySelectorAll('main section, body section')).filter(function (s) {
+    return s.querySelector('.cand');
+  });
+  var units = sections.map(function (s) { return s.querySelector('h2').textContent.trim(); });
+  var picks = {};
+  try { picks = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { picks = {}; }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(picks)); } catch (e) {} }
+
+  var cands = {}; // unit -> [{letter, name, el}]
+  sections.forEach(function (s, i) {
+    var unit = units[i];
+    var h2 = s.querySelector('h2');
+    var note = document.createElement('span');
+    note.className = 'pickNote none';
+    h2.appendChild(note);
+    cands[unit] = [];
+    s.querySelectorAll('.cand').forEach(function (fig) {
+      var letter = fig.querySelector('.letter').textContent.trim();
+      var name = (fig.querySelector('figcaption b') || {}).textContent || '';
+      var tick = document.createElement('span');
+      tick.className = 'tick';
+      tick.setAttribute('aria-hidden', 'true');
+      fig.appendChild(tick);
+      fig.setAttribute('role', 'button');
+      fig.setAttribute('tabindex', '0');
+      cands[unit].push({ letter: letter, name: name, el: fig });
+      function choose(e) {
+        if (e.target.closest('a')) return; // credit links still open
+        picks[unit] = picks[unit] === letter ? undefined : letter;
+        if (!picks[unit]) delete picks[unit];
+        save();
+        render();
+      }
+      fig.addEventListener('click', choose);
+      fig.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(e); }
+      });
+    });
+  });
+
+  // Overview rows (bottom of the page) mirror the picks.
+  var ovrows = {};
+  document.querySelectorAll('.ovrow').forEach(function (r) {
+    ovrows[r.querySelector('.ovn').textContent.trim()] = r;
+  });
+
+  function text() {
+    var lines = units.map(function (u) {
+      var l = picks[u];
+      if (!l) return u + ': (not picked)';
+      var c = cands[u].filter(function (x) { return x.letter === l; })[0];
+      return u + ': ' + l + (c && c.name ? ' (' + c.name + ')' : '');
+    });
+    return 'Epoch unit icon picks\n' + lines.join('\n');
+  }
+
+  function render() {
+    var n = 0;
+    units.forEach(function (u, i) {
+      var l = picks[u];
+      if (l) n++;
+      cands[u].forEach(function (c) {
+        var on = c.letter === l;
+        c.el.classList.toggle('picked', on);
+        c.el.classList.toggle('dim', !!l && !on);
+        c.el.setAttribute('aria-pressed', on ? 'true' : 'false');
+        c.el.querySelector('.tick').textContent = on ? '✓ Picked' : 'Pick';
+      });
+      var note = sections[i].querySelector('.pickNote');
+      note.textContent = l ? '✓ ' + l : 'not picked yet';
+      note.classList.toggle('none', !l);
+      var row = ovrows[u];
+      if (row) {
+        row.querySelectorAll('.ovc').forEach(function (oc) {
+          var ol = oc.querySelector('.ovl').textContent.trim();
+          oc.classList.toggle('picked', ol === l);
+          oc.classList.toggle('dim', !!l && ol !== l);
+        });
+      }
+    });
+    var left = units.length - n;
+    document.getElementById('pickCount').innerHTML = n + ' of ' + units.length + ' picked' +
+      '<span class="sub">' + (left ? 'Tap an icon to pick it; tap again to undo' : 'All done! Copy or share your picks') + '</span>';
+    document.getElementById('jumpBtn').hidden = left === 0;
+    var ta = document.getElementById('pickText');
+    if (!ta.hidden) ta.value = text();
+  }
+
+  document.getElementById('jumpBtn').addEventListener('click', function () {
+    for (var i = 0; i < units.length; i++) {
+      if (!picks[units[i]]) { sections[i].scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+    }
+  });
+
+  var copyBtn = document.getElementById('copyBtn');
+  copyBtn.addEventListener('click', function () {
+    var t = text();
+    var ta = document.getElementById('pickText');
+    function shown(msg) {
+      ta.hidden = false;
+      ta.value = t;
+      copyBtn.textContent = msg;
+      setTimeout(function () { copyBtn.textContent = 'Copy my picks'; }, 2500);
+    }
+    function fallback() {
+      ta.hidden = false;
+      ta.value = t;
+      ta.focus();
+      ta.select();
+      ta.setSelectionRange(0, t.length);
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) {}
+      shown(ok ? 'Copied ✓' : 'Select the text below and copy');
+    }
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(t).then(function () { shown('Copied ✓'); }, fallback);
+    } else {
+      fallback();
+    }
+  });
+
+  var shareBtn = document.getElementById('shareBtn');
+  if (navigator.share) {
+    shareBtn.hidden = false;
+    shareBtn.addEventListener('click', function () {
+      navigator.share({ title: 'Epoch icon picks', text: text() }).catch(function () {});
+    });
+  }
+
+  render();
+})();
+</script>
+</body></html>
