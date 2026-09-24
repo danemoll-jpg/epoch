@@ -8,8 +8,8 @@
 //
 // Placement is seeded and fair (see src/game/resources.ts): every tile has a small chance of
 // a resource its terrain allows, and every civ's start gets a few food or production ones
-// nearby. Numbers are placeholders until the balance pass. Glyphs are the map placeholder
-// until Dan picks icons (docs/map-icon-candidates.html).
+// nearby. Numbers are placeholders until the balance pass. Each resource has an `icon` (Dan's
+// round 9 picks, wired in round 10; credited in icons.ts); its letters are the fallback.
 
 import type { TechId } from './techs';
 import type { TerrainId, Yields } from './terrain';
@@ -21,8 +21,10 @@ export type ResourceId =
 export interface ResourceDef {
   id: ResourceId;
   name: string;
-  /** Map placeholder (1–2 letters) until the icon picks are wired in. */
+  /** Fallback (1–2 letters) while (or if) its icon can't be drawn. */
   glyph: string;
+  /** Its icon: a file `src/assets/icons/<icon>.svg`, credited in icons.ts (Dan's picks). */
+  icon: string;
   /** Terrains it can sit on. */
   terrains: TerrainId[];
   /** Added to the tile's terrain yields. */
@@ -35,28 +37,28 @@ export interface ResourceDef {
   weight: number;
 }
 
-function res(id: ResourceId, name: string, glyph: string, terrains: TerrainId[], food: number, production: number, trade: number, weight: number, extra: Partial<ResourceDef> = {}): ResourceDef {
-  return { id, name, glyph, terrains, bonus: { food, production, trade }, weight, ...extra };
+function res(id: ResourceId, name: string, glyph: string, icon: string, terrains: TerrainId[], food: number, production: number, trade: number, weight: number, extra: Partial<ResourceDef> = {}): ResourceDef {
+  return { id, name, glyph, icon, terrains, bonus: { food, production, trade }, weight, ...extra };
 }
 
 export const RESOURCES: Record<ResourceId, ResourceDef> = {
-  //            name        glyph terrains                     food prod trade weight
-  wheat: res('wheat', 'Wheat', 'Wh', ['plains'], 2, 0, 0, 3),
-  cattle: res('cattle', 'Cattle', 'Ct', ['grassland'], 1, 1, 0, 3),
-  game: res('game', 'Game', 'Ga', ['forest'], 2, 0, 0, 3),
-  fish: res('fish', 'Fish', 'Fi', ['coast'], 2, 0, 0, 3),
-  whales: res('whales', 'Whales', 'Wl', ['ocean', 'coast'], 1, 1, 1, 2),
-  oasis: res('oasis', 'Oasis', 'Oa', ['desert'], 3, 0, 0, 3),
-  spices: res('spices', 'Spices', 'Sp', ['grassland'], 0, 0, 2, 2),
-  silk: res('silk', 'Silk', 'Si', ['forest'], 0, 0, 2, 2),
-  wine: res('wine', 'Wine', 'Wi', ['plains'], 0, 0, 2, 2),
-  gold: res('gold', 'Gold', 'Au', ['hills', 'mountains'], 0, 0, 3, 2),
-  gems: res('gems', 'Gems', 'Ge', ['hills', 'mountains'], 0, 1, 2, 2),
+  //            name        glyph icon  terrains                     food prod trade weight
+  wheat: res('wheat', 'Wheat', 'Wh', 'wheat', ['plains'], 2, 0, 0, 3),
+  cattle: res('cattle', 'Cattle', 'Ct', 'cow', ['grassland'], 1, 1, 0, 3),
+  game: res('game', 'Game', 'Ga', 'stag-head', ['forest'], 2, 0, 0, 3),
+  fish: res('fish', 'Fish', 'Fi', 'circling-fish', ['coast'], 2, 0, 0, 3),
+  whales: res('whales', 'Whales', 'Wl', 'sperm-whale', ['ocean', 'coast'], 1, 1, 1, 2),
+  oasis: res('oasis', 'Oasis', 'Oa', 'oasis', ['desert'], 3, 0, 0, 3),
+  spices: res('spices', 'Spices', 'Sp', 'chili-pepper', ['grassland'], 0, 0, 2, 2),
+  silk: res('silk', 'Silk', 'Si', 'kimono', ['forest'], 0, 0, 2, 2),
+  wine: res('wine', 'Wine', 'Wi', 'wine-bottle', ['plains'], 0, 0, 2, 2),
+  gold: res('gold', 'Gold', 'Au', 'gold-bar', ['hills', 'mountains'], 0, 0, 3, 2),
+  gems: res('gems', 'Gems', 'Ge', 'cut-diamond', ['hills', 'mountains'], 0, 1, 2, 2),
   // Hidden until revealed.
-  iron: res('iron', 'Iron', 'Fe', ['hills'], 0, 3, 0, 3, { hidden: true, revealedBy: 'iron_working' }),
-  aluminum: res('aluminum', 'Aluminum', 'Al', ['hills', 'mountains'], 0, 3, 1, 2, { hidden: true, revealedBy: 'electricity' }),
-  rubber: res('rubber', 'Rubber', 'Ru', ['forest'], 0, 2, 1, 2, { hidden: true, revealedBy: 'industrialization' }),
-  oil: res('oil', 'Oil', 'Oi', ['desert'], 0, 3, 0, 3, { hidden: true, revealedBy: 'refining' }),
+  iron: res('iron', 'Iron', 'Fe', 'anvil', ['hills'], 0, 3, 0, 3, { hidden: true, revealedBy: 'iron_working' }),
+  aluminum: res('aluminum', 'Aluminum', 'Al', 'soda-can', ['hills', 'mountains'], 0, 3, 1, 2, { hidden: true, revealedBy: 'electricity' }),
+  rubber: res('rubber', 'Rubber', 'Ru', 'car-wheel', ['forest'], 0, 2, 1, 2, { hidden: true, revealedBy: 'industrialization' }),
+  oil: res('oil', 'Oil', 'Oi', 'oil-drum', ['desert'], 0, 3, 0, 3, { hidden: true, revealedBy: 'refining' }),
 };
 
 export const RESOURCE_IDS = Object.keys(RESOURCES) as ResourceId[];

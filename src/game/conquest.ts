@@ -6,7 +6,8 @@
 // (never below 1; cities are never destroyed), loses its Walls, and starts its production
 // over with nothing chosen. A civ with no cities and no units is eliminated.
 // Ships (Round 8) don't defend a city, so a city with only ships in port counts as empty;
-// when it falls, the ships docked there and their cargo are lost.
+// when it falls, the ships docked there and their cargo are lost. Aircraft based there
+// (Round 10) don't defend it either, and are lost with it. Helicopters never capture.
 
 import { BARBARIAN_CIV } from '../data/barbarians';
 import { CIVS } from '../data/civs';
@@ -18,7 +19,7 @@ import { RULES } from '../data/rules';
 import { addLog } from './log';
 import { atWar } from './war';
 import { loseSpaceship } from './victory';
-import { defendsTile, isShip, removeUnit } from './naval';
+import { canCapture, defendsTile, isAir, isShip, removeUnit } from './naval';
 import { refreshWorkedTiles } from './yields';
 import type { City, Coord, GameState, Unit } from './types';
 
@@ -64,7 +65,7 @@ export function capturableCity(state: GameState, unit: Unit, to: Coord): City | 
   if (!atWar(state, unit.owner, city.owner)) return undefined;
   // Barbarians never capture cities; they raid them (Round 9, barbarians.ts).
   if (state.players[unit.owner]?.kind === 'barbarian') return undefined;
-  if (UNITS[unit.type].attack <= 0 || isShip(unit)) return undefined;
+  if (UNITS[unit.type].attack <= 0 || !canCapture(unit)) return undefined;
   if (state.units.some((u) => u.x === to.x && u.y === to.y && u.owner !== unit.owner && defendsTile(state, u))) return undefined;
   return city;
 }
@@ -72,10 +73,12 @@ export function capturableCity(state: GameState, unit: Unit, to: Coord): City | 
 /** Hands the city to `newOwner` (the capturing unit is already standing in it). */
 export function captureCity(state: GameState, city: City, newOwner: number): void {
   const oldOwner = city.owner;
-  // Ships in port (and whatever they carry) go down with the city.
+  // Ships in port (and whatever they carry) go down with the city, and aircraft based there are lost.
   const lost = state.units.filter((u) => u.x === city.x && u.y === city.y && u.owner === oldOwner && isShip(u));
   let sunk = 0;
   for (const ship of lost) sunk += removeUnit(state, ship.id).length;
+  const planes = state.units.filter((u) => u.x === city.x && u.y === city.y && u.owner === oldOwner && isAir(u) && u.carriedBy === null);
+  for (const a of planes) removeUnit(state, a.id);
   city.owner = newOwner;
   city.size = Math.max(1, city.size - 1);
   city.buildings = city.buildings.filter((b) => !BUILDINGS[b].effects.defenseBonusPct);
@@ -95,6 +98,9 @@ export function captureCity(state: GameState, city: City, newOwner: number): voi
     const ships = lost.length === 1 ? 'a ship' : `${lost.length} ships`;
     const aboard = sunk > lost.length ? ` and ${sunk - lost.length} unit${sunk - lost.length === 1 ? '' : 's'} aboard` : '';
     addLog(state, newOwner, `${CivName(state, oldOwner)} lost ${ships}${aboard} in port at ${city.name}`, city, oldOwner);
+  }
+  if (planes.length > 0) {
+    addLog(state, newOwner, `${CivName(state, oldOwner)} lost ${planes.length === 1 ? 'an aircraft' : `${planes.length} aircraft`} on the ground at ${city.name}`, city, oldOwner);
   }
   // A civ's spaceship is built in its capital: losing the capital loses the ship (Milestone 6).
   if (city.capitalOf === oldOwner) loseSpaceship(state, oldOwner, city);

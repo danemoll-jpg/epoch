@@ -139,6 +139,8 @@ export interface City {
   greatPeople: GreatPersonKind[];
   /** The turn barbarians last raided the city, if ever. */
   lastRaid?: number;
+  /** The turn its Airport last airlifted a unit (Round 10: once a turn). */
+  airliftTurn?: number;
 }
 
 /**
@@ -149,8 +151,9 @@ export interface City {
  * 6 = Milestone 6 (culture, wonders, spaceship, victory).
  * 7 = Round 8 (ships: cargo, and the AI's sea plans).
  * 8 = Round 9 (barbarians and villages, resources, huts, Great People).
+ * 9 = Round 10 (aircraft: based in cities or on Carriers; the Airport's airlift).
  */
-export const STATE_VERSION = 8;
+export const STATE_VERSION = 9;
 
 export interface GameState {
   version: number;
@@ -306,7 +309,9 @@ export interface LogEntry {
   kind?:
     | 'contact' | 'war' | 'peace' | 'trade' | 'demand' | 'gift' | 'era' | 'wonder' | 'space' | 'victory' | 'warning' | 'landing'
     // Round 9
-    | 'village' | 'artifact' | 'hut' | 'raid' | 'greatPerson' | 'barbarians';
+    | 'village' | 'artifact' | 'hut' | 'raid' | 'greatPerson' | 'barbarians'
+    // Round 10: an air strike (or a Helicopter's attack), and a fighter intercepting one.
+    | 'strike' | 'intercept';
   /** Where it happened, so the UI can hide rival events the viewer can't see. */
   x?: number;
   y?: number;
@@ -363,4 +368,11 @@ export interface CombatReport {
   raided?: boolean;
   /** Units that went down with a sunk ship. */
   cargoLost?: number;
+  /** An aircraft struck from its base (Round 10): it never moves in, and it's back at its base. */
+  airStrike?: boolean;
+  /**
+   * A fighter intercepted the attack first (Round 10). If the fighter won, the attacker was
+   * shot down and the strike never happened (attackerWon is false).
+   */
+  interception?: { fighterType: UnitTypeId; fighterOwner: number; fighterWon: boolean; chance: number };
 }

@@ -1442,3 +1442,68 @@ table.stats thead th {
   color: var(--muted);
   font-weight: 600;
 }
+
+/* ---- map icons in panels and messages (Round 10): resources, Great People, the village ---- */
+
+.micon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  margin-right: 6px;
+  vertical-align: middle;
+  border-radius: 6px;
+  color: currentColor;
+}
+
+.micon .uicon {
+  width: 18px;
+  height: 18px;
+}
+
+/* A resource: white on a dark badge, as on the map. */
+.micon.res {
+  background: rgba(20, 20, 20, 0.72);
+  color: #fff;
+}
+
+/* A Great Person: on a gold disc, as on the picker page. */
+.micon.gp {
+  background: #d4a92a;
+  border: 1.5px solid #fff;
+  border-radius: 50%;
+  color: #fff;
+  box-sizing: border-box;
+}
+
+/* The artifact: gold on dark. */
+.micon.artifact {
+  background: #2b2f34;
+  color: #f0e2b6;
+}
+
+#noticeTitle .micon {
+  width: 34px;
+  height: 34px;
+}
+
+#noticeTitle .micon .uicon {
+  width: 26px;
+  height: 26px;
+}
+
+.udisc.mapdisc {
+  background: #2b2f34;
+}
+
+/* The interception warning in the odds panel. */
+.warnline {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(230, 120, 60, 0.18);
+  border: 1px solid rgba(230, 120, 60, 0.6);
+  font-size: 0.9em;
+}

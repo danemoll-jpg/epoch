@@ -3,19 +3,24 @@
 // with the size number. Armies get a thick gold ring and "×3"; fortified units a small
 // shield; capitals a star; tiles the selected unit can attack a red outline. A ship carrying
 // units (Round 8) gets a teal cargo badge; cargo isn't counted in the stack badge.
-// Round 9 (placeholders until Dan picks icons): barbarian units are near-black discs with a
-// red rim; a barbarian village is a wooden fence around its tile with a red flag per flag
-// it has; a hut is a small tan dome with "?"; a resource is a small dark badge with its
-// letters in the tile's upper-right corner (hidden ones only once the viewer can see them).
+// Round 9 things, with Dan's icon picks since round 10 (drawn as on the picker page he chose
+// from): a barbarian village is its icon on a pale rounded square, with a red flag along the
+// bottom for each flag it has (its garrison sits in the corner, like units in a city); a hut is
+// its icon on a pale circle; a resource is its icon, white on a small dark badge in the tile's
+// upper-right corner (hidden ones only once the viewer can see them); barbarian units carry a
+// red skull badge. Letters (and the old shapes) stand in while an icon loads or if one is
+// missing. Aircraft (Round 10) sit in their city behind its ground units, and a Carrier's
+// badge counts the aircraft aboard with its cargo.
 
 import { BARBARIAN_CIV, BARBARIANS } from '../data/barbarians';
 import { CIVS } from '../data/civs';
+import { MAP_ICONS } from '../data/icons';
 import { RULES } from '../data/rules';
 import type { TerrainId } from '../data/terrain';
 import { UNITS } from '../data/units';
 import { behindUnit } from '../game/stack';
 import { unitVisibleTo, visibleTiles } from '../game/fog';
-import { cargoOf } from '../game/naval';
+import { carriedBy, isAir } from '../game/naval';
 import { tileIndex } from '../game/grid';
 import { visibleResource } from '../game/resources';
 import type { Coord, GameState, Unit } from '../game/types';
@@ -55,60 +60,89 @@ export function playerColor(state: GameState, playerId: number): string {
   return CIVS.find((c) => c.id === civId)?.color ?? '#cccccc';
 }
 
-/** A barbarian village (Round 9): a wooden fence around the tile (its flags come later, over the units). */
-function drawVillage(ctx: CanvasRenderingContext2D, x: number, y: number, s: number): void {
-  const inset = s * 0.08;
+/**
+ * An icon in `color`, `box` px square, centered on (cx, cy), from the cached bitmaps. False if
+ * it isn't ready (or missing), so the caller can draw its fallback.
+ */
+function drawIcon(ctx: CanvasRenderingContext2D, icon: string, color: string, cx: number, cy: number, box: number, onReady?: () => void): boolean {
+  const scale = ctx.getTransform().a || 1;
+  const bmp = iconBitmap(icon, color, box * scale, onReady ?? (() => {}));
+  if (!bmp) return false;
+  ctx.drawImage(bmp, cx - box / 2, cy - box / 2, box, box);
+  return true;
+}
+
+/** A rounded rectangle path (drawn by hand: older iPad Safari has no roundRect). */
+function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/**
+ * A barbarian village (Round 9): Dan's icon, dark on a pale rounded square, as on the picker
+ * page (its flags come later, over the units). A wooden fence while the icon loads.
+ */
+function drawVillage(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, onReady?: () => void): void {
   ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,0.62)';
+  roundRectPath(ctx, x + s * 0.15, y + s * 0.12, s * 0.7, s * 0.7, s * 0.15);
+  ctx.fill();
+  if (drawIcon(ctx, MAP_ICONS.village, '#262626', x + s / 2, y + s * 0.47, s * 0.58, onReady)) {
+    ctx.restore();
+    return;
+  }
+  const inset = s * 0.08;
   ctx.strokeStyle = '#5a3a1a';
   ctx.lineWidth = Math.max(2, s * 0.07);
   ctx.strokeRect(x + inset, y + inset, s - inset * 2, s - inset * 2);
-  // Stakes along the fence.
-  ctx.fillStyle = '#8a5a2a';
-  const n = 5;
-  for (let i = 0; i < n; i++) {
-    const px = x + inset + ((s - inset * 2) * (i + 0.5)) / n;
-    for (const py of [y + inset, y + s - inset]) {
-      ctx.beginPath();
-      ctx.moveTo(px - s * 0.035, py + s * 0.035);
-      ctx.lineTo(px, py - s * 0.05);
-      ctx.lineTo(px + s * 0.035, py + s * 0.035);
-      ctx.closePath();
-      ctx.fill();
-    }
-  }
   ctx.restore();
 }
 
-/** A village's flags, top right, one per flag it has gained: drawn over the units so they stay readable. */
+/**
+ * A village's flags along the bottom right, one per flag it has gained (the empty ones faint),
+ * clear of its garrison in the lower-left corner: drawn over the units so they stay readable.
+ */
 function drawVillageFlags(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, flags: number): void {
-  const inset = s * 0.08;
   ctx.save();
   for (let i = 0; i < BARBARIANS.flagsToSpawn; i++) {
-    const fx = x + s - inset - s * 0.05 - i * s * 0.13;
-    const fy = y + inset + s * 0.02;
+    const fx = x + s * (0.53 + i * 0.12);
+    const fy = y + s * 0.78;
     ctx.strokeStyle = '#2a1a0a';
     ctx.lineWidth = Math.max(1, s * 0.025);
     ctx.beginPath();
     ctx.moveTo(fx, fy);
-    ctx.lineTo(fx, fy + s * 0.2);
+    ctx.lineTo(fx, fy + s * 0.18);
     ctx.stroke();
-    ctx.fillStyle = i < flags ? '#e03a2f' : 'rgba(255,255,255,0.25)';
+    ctx.fillStyle = i < flags ? '#e03a2f' : 'rgba(255,255,255,0.35)';
     ctx.beginPath();
     ctx.moveTo(fx, fy);
-    ctx.lineTo(fx - s * 0.1, fy + s * 0.05);
-    ctx.lineTo(fx, fy + s * 0.1);
+    ctx.lineTo(fx + s * 0.09, fy + s * 0.045);
+    ctx.lineTo(fx, fy + s * 0.09);
     ctx.closePath();
     ctx.fill();
   }
   ctx.restore();
 }
 
-/** An exploration hut (Round 9): a small tan dome with "?". */
-function drawHut(ctx: CanvasRenderingContext2D, x: number, y: number, s: number): void {
+/** An exploration hut (Round 9): Dan's icon, dark on a pale circle; a tan dome with "?" while it loads. */
+function drawHut(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, onReady?: () => void): void {
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,0.62)';
+  ctx.beginPath();
+  ctx.arc(x + s / 2, y + s / 2, s * 0.29, 0, Math.PI * 2);
+  ctx.fill();
+  if (drawIcon(ctx, MAP_ICONS.hut, '#262626', x + s / 2, y + s / 2, s * 0.44, onReady)) {
+    ctx.restore();
+    return;
+  }
   const cx = x + s / 2;
   const cy = y + s * 0.62;
   const r = s * 0.24;
-  ctx.save();
   ctx.fillStyle = '#d8b878';
   ctx.strokeStyle = '#4a3418';
   ctx.lineWidth = Math.max(1.5, s * 0.04);
@@ -127,32 +161,22 @@ function drawHut(ctx: CanvasRenderingContext2D, x: number, y: number, s: number)
   ctx.restore();
 }
 
-/** A resource (Round 9): its letters on a small dark badge in the tile's upper-right corner. */
-function drawResource(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, glyph: string): void {
-  const w = s * 0.34;
-  const h = s * 0.24;
+/** A resource (Round 9): its icon, white on a small dark badge in the tile's upper-right corner (its letters while the icon loads). */
+function drawResource(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, glyph: string, icon: string, onReady?: () => void): void {
+  const w = s * 0.35;
   const bx = x + s - w - s * 0.04;
-  const by = y + s * 0.04;
+  const by = y + s * 0.05;
   ctx.save();
-  ctx.fillStyle = 'rgba(15,20,28,0.82)';
-  ctx.strokeStyle = 'rgba(255,224,102,0.9)';
-  ctx.lineWidth = Math.max(1, s * 0.025);
-  // A rounded badge, drawn by hand (older iPad Safari has no roundRect).
-  const r = h * 0.35;
-  ctx.beginPath();
-  ctx.moveTo(bx + r, by);
-  ctx.arcTo(bx + w, by, bx + w, by + h, r);
-  ctx.arcTo(bx + w, by + h, bx, by + h, r);
-  ctx.arcTo(bx, by + h, bx, by, r);
-  ctx.arcTo(bx, by, bx + w, by, r);
-  ctx.closePath();
+  ctx.fillStyle = 'rgba(20,20,20,0.72)';
+  roundRectPath(ctx, bx, by, w, w, w * 0.22);
   ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = '#ffe9a8';
-  ctx.font = `700 ${Math.round(s * 0.16)}px system-ui, sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(glyph, bx + w / 2, by + h / 2 + s * 0.005);
+  if (!drawIcon(ctx, icon, '#ffffff', bx + w / 2, by + w / 2, w * 0.78, onReady)) {
+    ctx.fillStyle = '#ffe9a8';
+    ctx.font = `700 ${Math.round(s * 0.15)}px system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(glyph, bx + w / 2, by + w / 2 + s * 0.005);
+  }
   ctx.restore();
 }
 
@@ -252,7 +276,7 @@ function drawUnit(
     ctx.stroke();
   }
   ctx.fillStyle = playerColor(state, unit.owner);
-  // Barbarians (Round 9) get a red rim so they read as barbarians, not as a civ.
+  // Barbarians (Round 9) get a red rim (and the skull badge below) so they read as barbarians, not as a civ.
   const barbarian = state.players[unit.owner]?.kind === 'barbarian';
   ctx.strokeStyle = barbarian ? '#e03a2f' : unit.movesLeft > 0 ? '#ffffff' : '#333333';
   ctx.lineWidth = Math.max(barbarian ? 2.5 : 1.5, s * (barbarian ? 0.07 : 0.045));
@@ -261,6 +285,20 @@ function drawUnit(
   ctx.fill();
   ctx.stroke();
   drawGlyph(ctx, unit, cx, cy, r, onIconReady);
+  // Barbarians carry Dan's skull badge in the upper left, as on the picker page.
+  if (barbarian) {
+    const br = r * 0.48;
+    const bx = cx - r * 0.83;
+    const by = cy - r * 0.83;
+    ctx.fillStyle = '#c62f24';
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = Math.max(1, s * 0.025);
+    ctx.beginPath();
+    ctx.arc(bx, by, br, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    drawIcon(ctx, MAP_ICONS.barbarian, '#ffffff', bx, by, br * 1.4, onIconReady);
+  }
   if (unit.army) {
     ctx.strokeStyle = '#e6b73f';
     ctx.lineWidth = Math.max(2.5, s * 0.075);
@@ -316,13 +354,7 @@ function drawGlyph(ctx: CanvasRenderingContext2D, unit: Unit, cx: number, cy: nu
   const def = UNITS[unit.type];
   // Icon box: the same share of the disc as on the picker page (20 px in a 29 px disc).
   const box = r * 1.38;
-  const scale = ctx.getTransform().a || 1;
-  // Ships have no icon yet (Round 8: Dan picks them next), so they show their letters.
-  const bmp = def.icon ? iconBitmap(def.icon, '#ffffff', box * scale, onReady ?? (() => {})) : undefined;
-  if (bmp) {
-    ctx.drawImage(bmp, cx - box / 2, cy - box / 2, box, box);
-    return;
-  }
+  if (def.icon && drawIcon(ctx, def.icon, '#ffffff', cx, cy, box, onReady)) return;
   ctx.fillStyle = '#ffffff';
   const glyph = def.glyph;
   ctx.font = `700 ${Math.round(r * (glyph.length > 1 ? 0.8 : 1.07))}px system-ui, sans-serif`;
@@ -421,11 +453,11 @@ export function render(
         const res = visibleResource(state, view.viewer, i);
         if (res) {
           const p = pos(tx, ty);
-          drawResource(ctx, p.x, p.y, s, res.glyph);
+          drawResource(ctx, p.x, p.y, s, res.glyph, res.icon, view.onIconReady);
         }
         if (map.tiles[i]!.hut) {
           const p = pos(tx, ty);
-          drawHut(ctx, p.x, p.y, s);
+          drawHut(ctx, p.x, p.y, s, view.onIconReady);
         }
       }
     }
@@ -433,7 +465,7 @@ export function render(
   for (const v of state.villages) {
     if (explored[tileIndex(map, v.x, v.y)] !== 1) continue;
     const p = pos(v.x, v.y);
-    drawVillage(ctx, p.x, p.y, s);
+    drawVillage(ctx, p.x, p.y, s, view.onIconReady);
   }
 
   // Reachable-this-turn highlight for the selected unit.
@@ -508,14 +540,17 @@ export function render(
   }
   for (const [, list] of byTile) {
     // Cargo rides inside its ship: the ship is drawn (with a cargo badge) unless a unit aboard
-    // is the one selected.
+    // is the one selected. Aircraft in a city (Round 10) sit behind its ground units.
     const outside = list.filter((u) => u.carriedBy === null);
+    const ground = outside.filter((u) => !isAir(u));
     const shown =
-      list.find((u) => u.id === view.selectedUnitId) ?? outside.find((u) => u.movesLeft > 0) ?? outside[0] ?? list[0]!;
+      list.find((u) => u.id === view.selectedUnitId) ??
+      ground.find((u) => u.movesLeft > 0) ?? ground[0] ?? outside.find((u) => u.movesLeft > 0) ?? outside[0] ?? list[0]!;
     const p = pos(shown.x, shown.y);
-    const inCity = state.cities.some((c) => c.x === shown.x && c.y === shown.y);
+    // Units in a city, or a barbarian village, sit in the corner so the city or village shows.
+    const inCity = state.cities.some((c) => c.x === shown.x && c.y === shown.y) || state.villages.some((v) => v.x === shown.x && v.y === shown.y);
     const others = shown.carriedBy === null ? outside : list;
-    const aboard = shown.carriedBy === null ? cargoOf(state, shown).length : 0;
+    const aboard = shown.carriedBy === null ? carriedBy(state, shown).length : 0;
     drawUnit(ctx, state, shown, others.length, p.x, p.y, s, shown.id === view.selectedUnitId, inCity, behindUnit(others, shown), view.onIconReady, aboard);
   }
 

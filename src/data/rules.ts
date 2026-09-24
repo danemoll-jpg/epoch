@@ -229,6 +229,19 @@ export const RULES = {
       huntDistance: 5,
     },
 
+    // ---- the air (Round 10; see src/game/aiAir.ts) ----
+    air: {
+      /** From the Modern era: fighters kept per border or coastal city (never more than one per city). */
+      fightersPerCity: 0.5,
+      /** At war: bombers per city. */
+      bombersPerCityWar: 0.5,
+      /**
+       * A strike goes only when (chance no fighter stops it) × (chance to win) is at least this
+       * (percent): the same odds rule as land attacks.
+       */
+      strikeMinChancePct: 60,
+    },
+
     // ---- victory (Milestone 6; see src/game/aiGoals.ts) ----
     victory: {
       /** Each goal scores its personality base + this × its progress (0–1). */

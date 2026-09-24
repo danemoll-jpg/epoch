@@ -3,13 +3,16 @@
 
 import type { TechId } from './techs';
 
-export type BuildingId = 'granary' | 'barracks' | 'walls' | 'library' | 'marketplace' | 'temple' | 'harbor';
+export type BuildingId = 'granary' | 'barracks' | 'walls' | 'library' | 'marketplace' | 'temple' | 'harbor' | 'airport';
 
 export interface BuildingEffects {
   /** Percent of the food box kept after the city grows. */
   foodKeptPct?: number;
-  /** Units built in this city start as veterans. */
+  /** Units built in this city start as veterans (not aircraft: see veteranAircraft). */
   veteranUnits?: boolean;
+  /** Aircraft built here start as veterans, and a land unit can be airlifted from here once a turn (the Airport, Round 10). */
+  veteranAircraft?: boolean;
+  airlift?: boolean;
   /** Defense bonus (percent) for units in this city against land attacks. */
   defenseBonusPct?: number;
   sciencePct?: number;
@@ -69,10 +72,15 @@ export const BUILDINGS: Record<BuildingId, BuildingDef> = {
     summary: '+1 food on every water tile the city works (coastal cities only)',
     effects: { waterFood: 1 },
   },
+  airport: {
+    id: 'airport', name: 'Airport', cost: 80, requires: 'flight',
+    summary: 'Aircraft built here start as veterans; once a turn, fly one land unit to another city with an Airport',
+    effects: { veteranAircraft: true, airlift: true },
+  },
 };
 
 export const BUILDING_IDS = Object.keys(BUILDINGS) as BuildingId[];
 
 /** Order the AI works through buildings once its cities are defended and it has expanded. */
-export const AI_BUILDING_ORDER: BuildingId[] = ['granary', 'library', 'harbor', 'marketplace', 'temple', 'barracks', 'walls'];
+export const AI_BUILDING_ORDER: BuildingId[] = ['granary', 'library', 'harbor', 'marketplace', 'temple', 'barracks', 'walls', 'airport'];
 

@@ -175,6 +175,10 @@ const MIGRATIONS: Record<number, (s: Raw) => void> = {
     const explored = (i: number) => players.some((p, id) => id !== barb && p.explored?.[i] === 1);
     placeVillagesAndHuts(s as unknown as GameState, starts.filter((c) => c.x >= 0), (i) => !explored(i));
   },
+  // Round 9 → 10: aircraft and the Airport. Nothing to change: no aircraft exist yet, nobody
+  // knows Advanced Flight (a new tech), and no city has airlifted anything (`airliftTurn` is
+  // simply absent). Any unit with an unknown type would have been refused long before this.
+  8: () => {},
 };
 
 /** What each migration brought, for the "your game was updated" notice. Keyed like MIGRATIONS. */
@@ -185,6 +189,7 @@ export const MIGRATION_NOTES: Record<number, string> = {
   5: 'wonders, culture, and victory',
   6: 'ships and the sea',
   7: 'barbarians, villages, resources, huts, and Great People',
+  8: 'aircraft and Airports',
 };
 
 /** "the tech tree and combat and armies" for a save upgraded from version `from`. */

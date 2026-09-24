@@ -9,7 +9,7 @@ import type { GameState, Victory } from '../game/types';
 import type { VictoryKind } from '../data/victory';
 import { aiVictoryGoal } from '../game/aiGoals';
 import { landmassAt } from '../game/mapgen';
-import { isShip } from '../game/naval';
+import { isAir, isShip } from '../game/naval';
 
 export interface CivPace {
   civId: string;
@@ -27,6 +27,8 @@ export interface CivPace {
   shipsAt: Record<number, number>;
   /** Great People it had earned by the end of each listed turn (Round 9). */
   greatPeopleAt: Record<number, number>;
+  /** Aircraft (not Helicopters) it had at the end of each listed turn (Round 10). */
+  aircraftAt: Record<number, number>;
 }
 
 /** Barbarians, villages, and huts over the whole game (Round 9). */
@@ -59,14 +61,19 @@ export interface SimResult {
   /** Troops put ashore next to an enemy city (Round 8). */
   landings: number;
   barbarians: BarbarianStats;
+  /** Round 10: attacks by aircraft and Helicopters, and fighters intercepting one. */
+  strikes: number;
+  intercepts: number;
+  /** Cities taken by capture (not founded), for the domination check. */
+  captures: number;
   state: GameState;
 }
 
 /** Plays a 5-civ all-AI game for `turns` turns. Wars/peace/eliminations are counted until `countUntil`. */
-export function simulate(seed: number, turns: number, countUntil = 120, checkpoints = [25, 50, 100, 150, 200, 250]): SimResult {
+export function simulate(seed: number, turns: number, countUntil = 120, checkpoints = [25, 50, 100, 150, 200, 220, 250]): SimResult {
   const s = createGame({ seed, playerCount: 5 });
   for (const p of s.players) if (p.kind === 'human') p.kind = 'ai';
-  const civs: CivPace[] = s.players.map((p) => ({ civId: p.civId, eraTurn: { ancient: 1 }, techsAt: {}, cities: 0, alive: true, overseasCities: 0, shipsAt: {}, greatPeopleAt: {} }));
+  const civs: CivPace[] = s.players.map((p) => ({ civId: p.civId, eraTurn: { ancient: 1 }, techsAt: {}, cities: 0, alive: true, overseasCities: 0, shipsAt: {}, greatPeopleAt: {}, aircraftAt: {} }));
   const barbId = s.players.findIndex((p) => p.kind === 'barbarian');
   const barb: BarbarianStats = {
     villagesAtStart: s.villages.length, villagesDestroyed: 0, villagesSettled: 0, spawned: 0, killed: 0, raids: 0,
@@ -77,6 +84,9 @@ export function simulate(seed: number, turns: number, countUntil = 120, checkpoi
   // The log drops old entries, so landings are counted as they happen.
   const seenLog = new WeakSet<object>();
   let landings = 0;
+  let strikes = 0;
+  let intercepts = 0;
+  let captures = 0;
   let warsDeclared = 0;
   let peaceTreaties = 0;
   const n = s.players.length;
@@ -90,6 +100,9 @@ export function simulate(seed: number, turns: number, countUntil = 120, checkpoi
       if (seenLog.has(e)) continue;
       seenLog.add(e);
       if (e.kind === 'landing') landings++;
+      if (e.kind === 'strike') strikes++;
+      if (e.kind === 'intercept') intercepts++;
+      if (/ captured /.test(e.text)) captures++;
       if (e.kind === 'village' && e.text.startsWith('Destroyed')) barb.villagesDestroyed++;
       if (e.kind === 'village' && e.text.includes('settled a barbarian village')) barb.villagesSettled++;
       if (e.kind === 'raid') barb.raids++;
@@ -133,6 +146,7 @@ export function simulate(seed: number, turns: number, countUntil = 120, checkpoi
           civs[q.id]!.techsAt[turn] = q.techs.length;
           civs[q.id]!.shipsAt[turn] = s.units.filter((u) => u.owner === q.id && isShip(u)).length;
           civs[q.id]!.greatPeopleAt[turn] = q.greatPeople;
+          civs[q.id]!.aircraftAt[turn] = s.units.filter((u) => u.owner === q.id && isAir(u)).length;
         }
       }
       if (turn === countUntil) {
@@ -149,7 +163,7 @@ export function simulate(seed: number, turns: number, countUntil = 120, checkpoi
   const civList = civs.filter((_, i) => i !== barbId);
   const eliminated = civList.filter((c) => !c.alive).length;
   const goals = s.players.filter((q) => q.kind !== 'barbarian').map((q) => aiVictoryGoal(s, q.id));
-  return { seed, turns, civs: civList, warsDeclared, peaceTreaties, eliminated, victory: s.victory, goals, landings, barbarians: barb, state: s };
+  return { seed, turns, civs: civList, warsDeclared, peaceTreaties, eliminated, victory: s.victory, goals, landings, barbarians: barb, strikes, intercepts, captures, state: s };
 }
 
 /** Median of the defined values (undefined counts as "later than any"). */

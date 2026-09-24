@@ -34,6 +34,9 @@
 // A war on another landmass is carried there by ship. Warships guard the ports once rivals
 // have ships. Everything here that says "units" means land units; ships are played by
 // aiNaval.ts, and cargo moves only with its ship.
+//
+// The air (Round 10, aiAir.ts): fighters for defense in border and coastal cities; at war,
+// bombers. Aircraft strike (and rebase toward the front) before the land units move.
 
 import { AI_BUILDING_ORDER, type BuildingId } from '../data/buildings';
 import { RULES } from '../data/rules';
@@ -46,7 +49,8 @@ import { distance, neighbors, tileIndex } from './grid';
 import { foundCity, foundCityError } from './city';
 import { landmassAt, siteScore } from './mapgen';
 import { navalBuild, playShip, runFerry, updateFerry } from './aiNaval';
-import { isShip } from './naval';
+import { airBuild, runAiAir } from './aiAir';
+import { isAir, isShip } from './naval';
 import { attack, attackError, combatOdds, defenseStrength, fortify, formArmy, formArmyError } from './combat';
 import { capturableCity } from './conquest';
 import { runAiDiplomacy } from './diplomacy';
@@ -295,9 +299,11 @@ function isMilitaryBuild(c: City): boolean {
  *    before the other items at war, and before buildings in peacetime.
  * 4. A victory wonder it can build (in its wonder city) → that; a spaceship part it can build
  *    (in its capital) → that.
- * 5. At war and fewer fighting units than the wartime cap → the best attacker.
+ * 5. At war: a fighter or bomber the air force wants (aiAir.ts); then, with fewer fighting
+ *    units than the wartime cap, the best attacker.
  * 6. Going for culture: a wonder (in its wonder city).
- * 7. The next unlocked building, its goal's favorite first, then AI_BUILDING_ORDER.
+ * 7. A fighter for a border or coastal city (aiAir.ts); the next unlocked building, its
+ *    goal's favorite first, then AI_BUILDING_ORDER.
  * 8. A wonder (in its wonder city).
  * 9. Fewer fighting units than the peacetime cap (twice that for conquest) → the best attacker.
  * 10. Nothing (production is stored until something new is unlocked).
@@ -330,6 +336,7 @@ export function chooseBuild(state: GameState, city: City, ctx: BuildContext = bu
   const navy = navalBuild(state, city, ctx.boxedIn || (ctx.atWar && !state.aiPlans[owner]));
   if (navy.boat) return { kind: 'unit', id: navy.boat };
   if (navy.warship && ctx.atWar) return { kind: 'unit', id: navy.warship };
+  const air = airBuild(state, city, ctx.atWar);
 
   const wonderHere = aiWonderCity(state, owner)?.id === city.id;
   const wonder = wonderHere ? pickWonder(state, city, ctx.goal) : undefined;
@@ -340,10 +347,14 @@ export function chooseBuild(state: GameState, city: City, ctx: BuildContext = bu
   const military = state.units.filter((u) => u.owner === owner && isMilitary(u)).length + others.filter(isMilitaryBuild).length;
   const kept = mine.length * AI.defendersPerCity;
   const attacker: BuildItem = { kind: 'unit', id: bestAttacker(state, city) };
+  // Round 10: at war, a fighter to guard the skies and bombers to strike ahead of the army.
+  if (ctx.atWar && air.fighter) return { kind: 'unit', id: air.fighter };
+  if (ctx.atWar && air.bomber) return { kind: 'unit', id: air.bomber };
   if (ctx.atWar && military < kept + Math.ceil(mine.length * AI.offensePerCityWar)) return attacker;
 
   if (wonder && ctx.goal === 'culture') return { kind: 'wonder', id: wonder };
   if (navy.warship) return { kind: 'unit', id: navy.warship };
+  if (air.fighter) return { kind: 'unit', id: air.fighter };
   const next = buildingOrder(ctx.goal).find((b) => !buildChoiceError(state, city, { kind: 'building', id: b }));
   if (next) return { kind: 'building', id: next };
   if (wonder) return { kind: 'wonder', id: wonder };
@@ -563,6 +574,9 @@ export function runAiTurn(state: GameState, playerId: number): void {
   // The sea plan moves its ship, its cargo, and the units walking to the port to board.
   const reserved = runFerry(state, playerId, guards);
 
+  // Aircraft strike first, ahead of the land units (Round 10).
+  runAiAir(state, playerId, plan);
+
   // The war plan: enough gathered at the staging city? Then march.
   const staging = plan?.stagingCityId != null ? state.cities.find((c) => c.id === plan.stagingCityId) : undefined;
   const targetCity = plan ? state.cities.find((c) => c.id === plan.cityId) : undefined;
@@ -580,7 +594,7 @@ export function runAiTurn(state: GameState, playerId: number): void {
   const ids = state.units.filter((u) => u.owner === playerId).map((u) => u.id);
   for (const id of ids) {
     const unit = findUnit(state, id);
-    if (!unit || unit.movesLeft <= 0 || reserved.has(id) || unit.carriedBy !== null) continue;
+    if (!unit || unit.movesLeft <= 0 || reserved.has(id) || unit.carriedBy !== null || isAir(unit)) continue;
     if (isShip(unit)) {
       playShip(state, unit, (u, wander) => explore(state, u, wander), ctx.boxedIn || (ctx.atWar && !plan));
       continue;

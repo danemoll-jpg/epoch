@@ -15,7 +15,7 @@ import { UNITS, UNIT_IDS } from '../data/units';
 import { VICTORY } from '../data/victory';
 import { WONDERS } from '../data/wonders';
 import { applyAction } from '../game/actions';
-import { combatOdds } from '../game/combat';
+import { combatOdds, interception } from '../game/combat';
 import { CivName, civName, civVerb } from '../game/conquest';
 import { civDef, peaceDesire } from '../game/diplomacy';
 import { findOverseasSite } from '../game/aiNaval';
@@ -847,6 +847,180 @@ function resourceOrder(): string {
   return land.map((id) => RESOURCES[id].name).join(', ');
 }
 
+// ---- Round 10: aircraft ----------------------------------------------------------------------
+// Your capital at (7, 5) is the air base; the target sits 3 tiles east at (10, 5). The rival's
+// capital, Pataliputra, is at (12, 8). You and Maurya are at war.
+
+const AIR_TARGET = { x: 10, y: 5 };
+
+/** The air battlefield: your capital with a fortified Warrior, the rival capital, Flight known. */
+function airfield(): GameState {
+  const state = battlefield();
+  state.players[0]!.techs = ['flight'];
+  return state;
+}
+
+const mine = (s: GameState, type: string) => s.units.find((u) => u.owner === 0 && u.type === type)!;
+
+/** The win chance (whole percent) of your unit of this type attacking `at`, for the notes. */
+function airOdds(state: GameState, type: string, at: { x: number; y: number }): number {
+  return Math.round(combatOdds(state, mine(state, type), at)!.chance * 100);
+}
+
+function airStrikeBase(): GameState {
+  const state = airfield();
+  addUnit(state, 'bomber', 0, CITY_X, CITY_Y);
+  addUnit(state, 'musketman', 1, AIR_TARGET.x, AIR_TARGET.y);
+  // Aircraft strike only what you can see: a Warrior keeps the target in sight.
+  addUnit(state, 'warrior', 0, FRONT.x, FRONT.y - 1, { fortified: true });
+  return state;
+}
+
+const strike = (s: GameState, at = AIR_TARGET) => applyAction(s, { type: 'attack', unitId: mine(s, 'bomber').id, at });
+
+function airStrikeScenario(): GameState {
+  return withDiceFor(airStrikeBase, (s) => !!strike(s).combat?.attackerWon);
+}
+
+/** A Mauryan Fighter in Pataliputra, 3 tiles from the target: it intercepts your Bomber. */
+function interceptBase(): GameState {
+  const state = airStrikeBase();
+  state.players[1]!.techs = ['flight'];
+  addUnit(state, 'fighter', 1, 12, 8);
+  return state;
+}
+
+function interceptScenario(): GameState {
+  return withDiceFor(interceptBase, (s) => !!strike(s).combat?.interception?.fighterWon);
+}
+
+function interceptPct(): number {
+  const s = interceptBase();
+  return Math.round(interception(s, mine(s, 'bomber'), AIR_TARGET)!.chance * 100);
+}
+
+/** A Fighter and a Bomber in Babylon; your second city Ur to the north-east, and a Carrier off the north coast. */
+function rebaseScenario(): GameState {
+  const state = airfield();
+  addCity(state, 0, 10, 3, { name: 'Ur', build: { kind: 'unit', id: 'warrior' } });
+  state.players[0]!.citiesFounded = 2;
+  addUnit(state, 'fighter', 0, CITY_X, CITY_Y);
+  addUnit(state, 'bomber', 0, CITY_X, CITY_Y);
+  addUnit(state, 'carrier', 0, 9, 1);
+  return state;
+}
+
+/** Your Battleship next to a Mauryan Carrier with a Fighter and a Bomber aboard. */
+function carrierSunkBase(): GameState {
+  const state = airfield();
+  state.players[1]!.techs = ['flight'];
+  addUnit(state, 'battleship', 0, 9, 1);
+  const carrier = addUnit(state, 'carrier', 1, 10, 1);
+  addUnit(state, 'fighter', 1, 10, 1, { carriedBy: carrier.id });
+  addUnit(state, 'bomber', 1, 10, 1, { carriedBy: carrier.id });
+  return state;
+}
+
+function carrierSunkScenario(): GameState {
+  return withDiceFor(carrierSunkBase, (s) => !!applyAction(s, { type: 'attack', unitId: mine(s, 'battleship').id, at: { x: 10, y: 1 } }).combat?.attackerWon);
+}
+
+/** Taxila (Mauryan) 3 tiles east with one Musketman; your Bomber in Babylon and a Legion next to Taxila. */
+function noCaptureBase(): GameState {
+  const state = airfield();
+  addCity(state, 1, AIR_TARGET.x, AIR_TARGET.y, { name: 'Taxila', build: { kind: 'unit', id: 'warrior' } });
+  state.players[1]!.citiesFounded = 2;
+  addUnit(state, 'bomber', 0, CITY_X, CITY_Y);
+  addUnit(state, 'musketman', 1, AIR_TARGET.x, AIR_TARGET.y);
+  addUnit(state, 'legion', 0, FRONT.x, FRONT.y - 1);
+  return state;
+}
+
+function noCaptureScenario(): GameState {
+  return withDiceFor(noCaptureBase, (s) => !!strike(s).combat?.attackerWon);
+}
+
+const HELI_CITY = { x: 12, y: 5 };
+const HELI_SPOT = { x: 11, y: 5 };
+
+/** A Helicopter in Babylon; a mountain and a lake to the east; Taxila beyond them, held by a Musketman. */
+function helicopterBase(): GameState {
+  const state = airfield();
+  state.players[0]!.techs.push('machine_tools', 'advanced_flight');
+  setTerrain(state, 8, 5, 'mountains');
+  setTerrain(state, 9, 5, 'ocean');
+  setTerrain(state, 10, 5, 'forest');
+  addCity(state, 1, HELI_CITY.x, HELI_CITY.y, { name: 'Taxila', build: { kind: 'unit', id: 'warrior' } });
+  state.players[1]!.citiesFounded = 2;
+  addUnit(state, 'musketman', 1, HELI_CITY.x, HELI_CITY.y);
+  addUnit(state, 'helicopter', 0, CITY_X, CITY_Y);
+  return state;
+}
+
+function helicopterScenario(): GameState {
+  return withDiceFor(helicopterBase, (s) => {
+    const heli = mine(s, 'helicopter');
+    applyAction(s, { type: 'move', unitId: heli.id, to: HELI_SPOT });
+    return !!applyAction(s, { type: 'attack', unitId: heli.id, at: HELI_CITY }).combat?.attackerWon;
+  });
+}
+
+/** The helicopter scenario's odds once it's next to Taxila. */
+function helicopterOdds(): number {
+  const s = helicopterBase();
+  const heli = mine(s, 'helicopter');
+  applyAction(s, { type: 'move', unitId: heli.id, to: HELI_SPOT });
+  return airOdds(s, 'helicopter', HELI_CITY);
+}
+
+/** Babylon and Ur have Airports, Nineveh doesn't; two Riflemen in Babylon. */
+function airliftScenario(): GameState {
+  const { state } = withCapital(undefined, { buildings: ['airport'] });
+  state.players[0]!.techs = ['flight', 'conscription'];
+  addCity(state, 0, 12, 8, { name: 'Ur', buildings: ['airport'], build: { kind: 'unit', id: 'warrior' } });
+  addCity(state, 0, 3, 8, { name: 'Nineveh', build: { kind: 'unit', id: 'warrior' } });
+  state.players[0]!.citiesFounded = 3;
+  addUnit(state, 'rifleman', 0, CITY_X, CITY_Y);
+  addUnit(state, 'rifleman', 0, CITY_X, CITY_Y);
+  return state;
+}
+
+const AIRCRAFT_CITIES = [
+  { name: 'Babylon', x: CITY_X, y: CITY_Y, type: 'fighter' },
+  { name: 'Ur', x: 4, y: 3, type: 'bomber' },
+  { name: 'Nineveh', x: 10, y: 3, type: 'jet_fighter' },
+  { name: 'Uruk', x: 4, y: 8, type: 'stealth_bomber' },
+] as const;
+
+/** Each based aircraft alone in its own city (the 22 px in-city disc), a Helicopter in the open, and a Carrier with three aboard. */
+function allAircraftScenario(): GameState {
+  const { state } = withCapital(undefined, {}, 2);
+  state.atWar = [[false, false], [false, false]];
+  state.players[0]!.techs = ['flight'];
+  for (const c of AIRCRAFT_CITIES.slice(1)) addCity(state, 0, c.x, c.y, { name: c.name, build: { kind: 'unit', id: 'warrior' } });
+  state.players[0]!.citiesFounded = AIRCRAFT_CITIES.length;
+  for (const c of AIRCRAFT_CITIES) addUnit(state, c.type, 0, c.x, c.y);
+  addUnit(state, 'helicopter', 0, 9, 7);
+  const carrier = addUnit(state, 'carrier', 0, 7, 10);
+  for (const t of ['fighter', 'bomber', 'jet_fighter'] as const) addUnit(state, t, 0, 7, 10, { carriedBy: carrier.id });
+  addCity(state, 1, 12, 8, { name: RIVAL_CAPITAL, capitalOf: 1, build: { kind: 'unit', id: 'warrior' } });
+  state.players[1]!.citiesFounded = 1;
+  addUnit(state, 'bomber', 1, 12, 8);
+  return state;
+}
+
+/** Every resource (as in All resources), plus a barbarian village with 2 flags, a hut, and a barbarian Archer. */
+function allMapIconsScenario(): GameState {
+  const state = allResourcesScenario();
+  addBarbarians(state);
+  addVillage(state, 10, 5, { flags: 2 });
+  state.map.tiles[tileIndex(state.map, 5, 6)]!.hut = true;
+  addBarbarianUnit(state, 'archer', { x: 12, y: 6 });
+  // Your Warrior between them keeps both barbarians in sight.
+  addUnit(state, 'warrior', 0, 11, 6, { fortified: true });
+  return state;
+}
+
 export const SCENARIOS: Scenario[] = [
   {
     id: 'grow',
@@ -970,7 +1144,7 @@ export const SCENARIOS: Scenario[] = [
   {
     id: 'all-units',
     title: 'All unit icons',
-    note: `One of each land unit type (${UNIT_IDS.filter((id) => UNITS[id].domain === 'land').length}) in two rows north and south of ${CAPITAL}, in table order: Settler, Warrior, Archer … Tank. South row also has a Legion army (gold ring, ×3), a veteran Spearman (★ in its panel), a fortified Pikeman (shield), and a mixed stack (a Musketman with two Archers peeking out behind, badge 3). Rival units along the south coast show their color. Pinch-zoom in and out: the icons should stay sharp. Tap any unit to see its icon in the unit panel.`,
+    note: `One of each land unit type (${UNIT_IDS.filter((id) => UNITS[id].domain === 'land').length}) in two rows north and south of ${CAPITAL}, in table order: Settler, Warrior, Archer … Tank, Helicopter. South row also has a Legion army (gold ring, ×3), a veteran Spearman (★ in its panel), a fortified Pikeman (shield), and a mixed stack (a Musketman with two Archers peeking out behind, badge 3). Rival units along the south coast show their color. Pinch-zoom in and out: the icons should stay sharp. Tap any unit to see its icon in the unit panel.`,
     build: allUnitsScenario,
   },
   {
@@ -1123,7 +1297,7 @@ export const SCENARIOS: Scenario[] = [
   {
     id: 'village-spawn',
     title: 'Barbarians: a village sends a unit',
-    note: `A barbarian village (the fenced tile) south-east of ${CAPITAL} has ${BARBARIANS.flagsToSpawn - 1} of its ${BARBARIANS.flagsToSpawn} red flags; your Spearman keeps watch next to it. Tap End Turn: it gains its ${BARBARIANS.flagsToSpawn}th flag and sends a unit out (a Warrior or an Archer, dark with a red rim) next to it, and its flags start again at 0. Tap the village tile to see its flag count.`,
+    note: `A barbarian village (the camp icon) south-east of ${CAPITAL} has ${BARBARIANS.flagsToSpawn - 1} of its ${BARBARIANS.flagsToSpawn} red flags; your Spearman keeps watch next to it. Tap End Turn: it gains its ${BARBARIANS.flagsToSpawn}th flag and sends a unit out (a Warrior or an Archer, dark with a red rim) next to it, and its flags start again at 0. Tap the village tile to see its flag count.`,
     build: villageSpawnScenario,
   },
   {
@@ -1141,7 +1315,7 @@ export const SCENARIOS: Scenario[] = [
   {
     id: 'village-resource',
     title: 'Barbarians: destroying reveals Iron',
-    note: `The empty barbarian village east of your Warrior sits on hills with hidden Iron (nothing shows yet). Walk in and choose Destroy: you get the reward, and the panel says there was Iron under it; an "Fe" badge appears on the tile (+${RESOURCES.iron.bonus.production} production when a city works it). Settling instead keeps it hidden until you learn ${TECHS[RESOURCES.iron.revealedBy!].name}.`,
+    note: `The empty barbarian village east of your Warrior sits on hills with hidden Iron (nothing shows yet). Walk in and choose Destroy: you get the reward, and the panel says there was Iron under it; the Iron icon (an anvil) appears in the tile's corner (+${RESOURCES.iron.bonus.production} production when a city works it). Settling instead keeps it hidden until you learn ${TECHS[RESOURCES.iron.revealedBy!].name}.`,
     build: villageResourceScenario,
   },
   {
@@ -1153,7 +1327,7 @@ export const SCENARIOS: Scenario[] = [
   {
     id: 'hut',
     title: 'Huts: every result',
-    note: `Five huts (tan domes with "?") in a column east of ${CAPITAL}, each with your Warrior to its west. Walk each Warrior east onto its hut. Top to bottom: ${HUT_ROWS.map((r) => r.says).join('; ')}. (Normally a hut's result is random, and barbarians only come from turn ${HUTS.barbariansFromTurn}.)`,
+    note: `Five huts (the hut icon) in a column east of ${CAPITAL}, each with your Warrior to its west. Walk each Warrior east onto its hut. Top to bottom: ${HUT_ROWS.map((r) => r.says).join('; ')}. (Normally a hut's result is random, and barbarians only come from turn ${HUTS.barbariansFromTurn}.)`,
     build: hutScenario,
   },
   {
@@ -1173,6 +1347,61 @@ export const SCENARIOS: Scenario[] = [
     title: 'All resources',
     note: `One of each of the ${RESOURCE_IDS.length} resources, for the icon check (hidden ones shown as if revealed). Along the north of the island, then continuing on the row below ${CAPITAL}: ${resourceOrder()}. Fish is on the north coast, Whales out at sea. Tap one to see its bonus.`,
     build: allResourcesScenario,
+  },
+  // ---- Round 10: aircraft and the map icons ----
+  {
+    id: 'air-strike',
+    title: 'Air: a bomber strike',
+    note: `Your Bomber is based in ${CAPITAL}; a Mauryan Musketman stands 3 tiles east (you are at war). Tap ${CAPITAL}, then the Bomber in Units here: every target in its range (${UNITS.bomber.range} tiles) is outlined in red. (Aircraft strike only what you can see; your Warrior north-west of it keeps it in sight.) Tap the Musketman, then Attack (${airOdds(airStrikeBase(), 'bomber', AIR_TARGET)}%, no fighter can intercept; the dice are set to win): the Musketman is destroyed and the Bomber is back in ${CAPITAL}, done for the turn. It can strike again after End Turn.`,
+    build: airStrikeScenario,
+  },
+  {
+    id: 'intercept',
+    title: 'Air: a fighter intercepts',
+    note: `Same strike, but a Mauryan Fighter is based in ${RIVAL_CAPITAL}, within its range (${UNITS.fighter.range}) of the Musketman. Select your Bomber and tap the Musketman: the odds panel warns their Fighter can intercept (it wins ${interceptPct()}% of the time). Attack: their Fighter shoots your Bomber down (the dice are set) and the Musketman is untouched.`,
+    build: interceptScenario,
+  },
+  {
+    id: 'rebase',
+    title: 'Air: rebase to a city and a Carrier',
+    note: `A Fighter (range ${UNITS.fighter.range}) and a Bomber (range ${UNITS.bomber.range}) are based in ${CAPITAL}. Select the Fighter: the places it can fly to are highlighted. Tap Ur (north-east): it flies there and is done for the turn. Select the Bomber and tap the Carrier off the north coast: it lands on it (the Carrier's panel says aircraft 1/${UNITS.carrier.airCargo}). Select the Carrier and sail it: the Bomber goes along.`,
+    build: rebaseScenario,
+  },
+  {
+    id: 'carrier-sunk',
+    title: 'Air: a Carrier sinks with its aircraft',
+    note: `Your Battleship is next to a Mauryan Carrier with a Fighter and a Bomber aboard. Tap the Battleship, then the Carrier, then Attack (${oddsAt(carrierSunkBase(), { x: 9, y: 1 }, { x: 10, y: 1 })}%; the dice are set to win): the Carrier sinks, and the message says the 2 aircraft aboard went down with it.`,
+    build: carrierSunkScenario,
+  },
+  {
+    id: 'bomber-no-capture',
+    title: 'Air: bombers never capture',
+    note: `Taxila (Mauryan, 3 tiles east) has one Musketman. Strike it with your Bomber from ${CAPITAL} (${airOdds(noCaptureBase(), 'bomber', AIR_TARGET)}%; the dice are set to win): the Musketman is destroyed, but Taxila stays Mauryan, and empty; the Bomber is back in ${CAPITAL}. Then walk your Legion (north-west of Taxila) in: it captures the city.`,
+    build: noCaptureScenario,
+  },
+  {
+    id: 'helicopter',
+    title: 'Air: the Helicopter',
+    note: `Your Helicopter (${UNITS.helicopter.moves} moves) is in ${CAPITAL}. East of it are a mountain, a lake, and a forest, then Taxila (Mauryan), held by a Musketman. Tap the tile just west of Taxila: the Helicopter flies straight over all three at 1 move a tile (a land unit couldn't cross). Tap Taxila, then Attack (${helicopterOdds()}%; the dice are set to win): the Musketman is destroyed, but the Helicopter stays outside and Taxila stays Mauryan; Helicopters never capture.`,
+    build: helicopterScenario,
+  },
+  {
+    id: 'airlift',
+    title: 'Air: an airlift',
+    note: `${CAPITAL} and Ur (south-east) have Airports; Nineveh (south-west) doesn't. Two Riflemen are in ${CAPITAL}. Select one and tap ✈ Airlift…: only Ur is offered. Pick it: the Rifleman lands in Ur with no moves left. Select the other Rifleman: no Airlift button now; ${CAPITAL}'s Airport has flown its one unit this turn. After End Turn it can go.`,
+    build: airliftScenario,
+  },
+  {
+    id: 'all-aircraft',
+    title: 'All aircraft',
+    note: `Each aircraft alone in its own city, drawn at the small in-city size: ${AIRCRAFT_CITIES.map((c) => `${UNITS[c.type].name} in ${c.name}`).join(', ')}. A Helicopter is in the open south-east of ${CAPITAL} (full size), and a Carrier on the south coast has a Fighter, a Bomber, and a Jet Fighter aboard (badge 3). A Mauryan Bomber sits in ${RIVAL_CAPITAL} (you are at peace). Check the Bomber against the Fighter and the Jet Fighter; pinch-zoom to see them at other sizes. Tap a city, then its aircraft, to see its range.`,
+    build: allAircraftScenario,
+  },
+  {
+    id: 'all-map-icons',
+    title: 'All map icons',
+    note: `Every map icon at once: the ${RESOURCE_IDS.length} resources as in All resources (on dark badges in their tiles' corners: ${resourceOrder()}; Fish on the north coast, Whales at sea), a barbarian village east of ${CAPITAL} with 2 of its ${BARBARIANS.flagsToSpawn} flags and its Warrior in the corner, a hut south-west of ${CAPITAL}, and a barbarian Archer (red skull badge) to the south-east, both in sight of your Warrior. Tap a resource, the village, or the hut to hear what it is.`,
+    build: allMapIconsScenario,
   },
 ];
 

@@ -7,6 +7,9 @@
 //   can merge into a fleet (Dan's call, after Round 8): ×3 strength, ×3 cargo. Cargo stands on the
 //   ship's tile with `carriedBy` set, moves with it, can't attack, and dies with it.
 // - Only coastal cities (next to water) build ships and Harbors.
+// - Round 10: what kind of unit something is lives here too (ship, based aircraft, hovering
+//   Helicopter), since every rule file needs it. A Carrier carries aircraft (`airCargo`), not
+//   land units; `cargoOf` is the land cargo and `aircraftOf` the aircraft aboard.
 
 import { BUILDINGS, type BuildingId } from '../data/buildings';
 import { RULES } from '../data/rules';
@@ -21,6 +24,34 @@ export function isShipType(type: UnitTypeId): boolean {
 
 export function isShip(u: Unit): boolean {
   return isShipType(u.type);
+}
+
+/** A based aircraft (Round 10): Fighter, Bomber, Jet Fighter, Stealth Bomber. Not the Helicopter. */
+export function isAirType(type: UnitTypeId): boolean {
+  return UNITS[type].domain === 'air';
+}
+
+export function isAir(u: Unit): boolean {
+  return isAirType(u.type);
+}
+
+/** The Helicopter: moves like a land unit over any terrain and water, and can't capture. */
+export function hovers(u: Unit): boolean {
+  return !!UNITS[u.type].hover;
+}
+
+/** Anything that flies: based aircraft and the Helicopter (both can be intercepted). */
+export function isAircraftType(type: UnitTypeId): boolean {
+  return isAirType(type) || !!UNITS[type].hover;
+}
+
+export function isAircraft(u: Unit): boolean {
+  return isAircraftType(u.type);
+}
+
+/** Only land units that walk take cities and villages (not ships, aircraft, or Helicopters). */
+export function canCapture(u: Unit): boolean {
+  return UNITS[u.type].domain === 'land' && !hovers(u);
 }
 
 export function isWaterAt(state: GameState, x: number, y: number): boolean {
@@ -47,6 +78,9 @@ export function terrainAllows(state: GameState, type: UnitTypeId, owner: number,
   if (!t) return false;
   const def = UNITS[type];
   const terrain = TERRAIN[t.terrain];
+  // Based aircraft never walk or sail (they rebase, air.ts); the Helicopter goes anywhere.
+  if (def.domain === 'air') return false;
+  if (def.hover) return true;
   if (def.domain === 'land') return terrain.landPassable;
   if (terrain.isWater) return !def.coastOnly || t.terrain === 'coast';
   const city = cityAt(state, x, y);
@@ -61,9 +95,36 @@ export function shipTerrainError(state: GameState, type: UnitTypeId, x: number, 
   return 'Ships stay on water (they can dock in your coastal cities)';
 }
 
-/** The land units aboard this ship. */
+/** The land units aboard this ship (not aircraft on a Carrier: see aircraftOf). */
 export function cargoOf(state: GameState, ship: Unit): Unit[] {
+  return state.units.filter((u) => u.carriedBy === ship.id && !isAir(u));
+}
+
+/** Everything aboard this ship: land cargo and aircraft. It all moves and sinks with it. */
+export function carriedBy(state: GameState, ship: Unit): Unit[] {
   return state.units.filter((u) => u.carriedBy === ship.id);
+}
+
+/** The aircraft aboard this Carrier (Round 10). */
+export function aircraftOf(state: GameState, ship: Unit): Unit[] {
+  return state.units.filter((u) => u.carriedBy === ship.id && isAir(u));
+}
+
+/** How many aircraft this ship can carry (a Carrier fleet carries three Carriers' worth). */
+export function airCapacity(ship: Unit): number {
+  return (UNITS[ship.type].airCargo ?? 0) * (ship.army ? RULES.combat.armySize : 1);
+}
+
+/** Free aircraft places on this ship. */
+export function airRoom(state: GameState, ship: Unit): number {
+  return airCapacity(ship) - aircraftOf(state, ship).length;
+}
+
+/** The owner's Carrier on this tile with room for one more aircraft (oldest first), if any. */
+export function carrierWithRoom(state: GameState, owner: number, x: number, y: number, except?: number): Unit | undefined {
+  return state.units
+    .filter((u) => u.owner === owner && u.x === x && u.y === y && isShip(u) && u.id !== except && airRoom(state, u) > 0)
+    .sort((a, b) => a.id - b.id)[0];
 }
 
 /** How many land units this ship can carry: a fleet (a naval army, Dan's call) carries three ships' worth. */
@@ -88,9 +149,13 @@ export function shipWithRoom(state: GameState, owner: number, x: number, y: numb
     .sort((a, b) => a.id - b.id)[0];
 }
 
-/** Units that could defend this tile: ships at sea; on land, land units not aboard a ship (ships in port don't defend). */
+/**
+ * Units that could defend this tile: ships (and a hovering Helicopter) at sea; on land, land
+ * units not aboard a ship. Ships in port and aircraft (Round 10) never defend.
+ */
 export function defendsTile(state: GameState, u: Unit): boolean {
-  if (isWaterAt(state, u.x, u.y)) return isShip(u);
+  if (isAir(u)) return false;
+  if (isWaterAt(state, u.x, u.y)) return isShip(u) || hovers(u);
   return !isShip(u) && u.carriedBy === null;
 }
 

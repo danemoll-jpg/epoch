@@ -4,6 +4,12 @@
 //
 // Ships (Round 8) move only on water (and into their own coastal cities), carry `cargo`
 // land units, and are built only in coastal cities. See src/game/naval.ts.
+//
+// Aircraft (Round 10, see src/game/air.ts) are based in a friendly city or on a Carrier.
+// Each turn one either strikes a target within `range` tiles and returns to its base, or
+// rebases to another city or Carrier within range. They never stand on open map tiles, so
+// there's no fuel or crash rule. The Helicopter is different: it `hover`s, moving like a land
+// unit over any terrain (water too) at 1 move a tile, and can end its turn anywhere.
 
 import type { TechId } from './techs';
 
@@ -13,10 +19,12 @@ export type UnitTypeId =
   | 'tank'
   // Ships (Round 8)
   | 'galley' | 'caravel' | 'frigate' | 'ironclad' | 'transport' | 'destroyer' | 'battleship'
-  | 'submarine' | 'carrier';
+  | 'submarine' | 'carrier'
+  // Aircraft (Round 10)
+  | 'fighter' | 'bomber' | 'jet_fighter' | 'stealth_bomber' | 'helicopter';
 
-/** Land units walk; sea units sail (Round 8). Air comes in round 10. */
-export type UnitDomain = 'land' | 'sea';
+/** Land units walk; sea units sail (Round 8); air units fly from a base (Round 10). */
+export type UnitDomain = 'land' | 'sea' | 'air';
 
 export interface UnitDef {
   id: UnitTypeId;
@@ -49,6 +57,21 @@ export interface UnitDef {
   popCost: number;
   /** Tech needed to build it. */
   requires?: TechId;
+  /** A second tech it also needs (the Stealth Bomber: Advanced Flight and Computers). */
+  alsoRequires?: TechId;
+  /** Aircraft (Round 10): how far (tiles) it can strike or rebase from its base. */
+  range?: number;
+  /**
+   * Aircraft: its strength against other aircraft (intercepting a strike, or attacking a
+   * Helicopter). 0 or absent = it can't intercept (bombers).
+   */
+  airAttack?: number;
+  /** Aircraft: interceptors fighting it lose this much strength (the Stealth Bomber). */
+  evadePct?: number;
+  /** Aircraft a ship carries (the Carrier). */
+  airCargo?: number;
+  /** The Helicopter: moves like a land unit over any terrain and water, 1 move a tile; can't capture. */
+  hover?: boolean;
 }
 
 function unit(
@@ -64,6 +87,14 @@ function ship(
   extra: Partial<UnitDef> = {},
 ): UnitDef {
   return { id, name, glyph, domain: 'sea', cargo, cost, moves, sight, attack, defense, canFoundCity: false, popCost: 0, requires, ...extra };
+}
+
+function aircraft(
+  id: UnitTypeId, name: string, glyph: string, icon: string, cost: number,
+  attack: number, defense: number, range: number, airAttack: number, requires: TechId,
+  extra: Partial<UnitDef> = {},
+): UnitDef {
+  return { id, name, glyph, icon, domain: 'air', cargo: 0, cost, moves: 1, sight: 2, attack, defense, canFoundCity: false, popCost: 0, requires, range, airAttack, ...extra };
 }
 
 export const UNITS: Record<UnitTypeId, UnitDef> = {
@@ -95,7 +126,20 @@ export const UNITS: Record<UnitTypeId, UnitDef> = {
   destroyer: ship('destroyer', 'Destroyer', 'De', 60, 8, 6, 6, 2, 0, 'combustion', { icon: 'speed-boat' }),
   battleship: ship('battleship', 'Battleship', 'Bs', 120, 16, 12, 4, 2, 0, 'automobile', { icon: 'battleship' }),
   submarine: ship('submarine', 'Submarine', 'Su', 70, 14, 3, 4, 2, 0, 'combustion', { icon: 'submarine', stealth: true }),
-  carrier: ship('carrier', 'Carrier', 'Cr', 100, 2, 14, 4, 2, 0, 'flight', { icon: 'carrier' }),
+  carrier: ship('carrier', 'Carrier', 'Cr', 100, 2, 14, 4, 2, 0, 'flight', { icon: 'carrier', airCargo: 3 }),
+  // Aircraft (Round 10). Attack is a strike on land or sea; defense is its strength when
+  // intercepted; airAttack is its strength against aircraft.
+  //                  name              glyph icon             cost att def range airAtt tech
+  fighter: aircraft('fighter', 'Fighter', 'Fi', 'biplane', 60, 4, 4, 4, 8, 'flight'),
+  bomber: aircraft('bomber', 'Bomber', 'Bm', 'carpet-bombing', 80, 12, 3, 6, 0, 'flight'),
+  jet_fighter: aircraft('jet_fighter', 'Jet Fighter', 'Jf', 'jet-fighter', 80, 8, 8, 6, 16, 'advanced_flight'),
+  stealth_bomber: aircraft('stealth_bomber', 'Stealth Bomber', 'Sb', 'stealth-bomber', 120, 20, 6, 8, 0, 'advanced_flight', {
+    alsoRequires: 'computers', evadePct: 50,
+  }),
+  helicopter: {
+    id: 'helicopter', name: 'Helicopter', glyph: 'He', icon: 'helicopter', domain: 'land', cargo: 0, cost: 70,
+    moves: 5, sight: 2, attack: 10, defense: 4, canFoundCity: false, popCost: 0, requires: 'advanced_flight', hover: true,
+  },
 };
 
 export const UNIT_IDS = Object.keys(UNITS) as UnitTypeId[];

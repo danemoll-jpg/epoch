@@ -726,9 +726,9 @@ Steps, Technical Notes.
     the way: an Incan Frigate sank a Frankish Galley at 80%).
   - **Dan's ship and aircraft icon picks (2026-09-24), from the picker
     page.** Files are `docs/ship-air-icon-candidates/<unit>-<letter>.svg`;
-    authors are in that folder's `SOURCES.md`. **Not wired in yet:** Round
-    9 Part A wires in the 9 ships, Round 10 the 5 aircraft (both with
-    credits in `src/data/icons.ts`, `CREDITS.md`, and About / Credits).
+    authors are in that folder's `SOURCES.md`. **All wired in:** the 9 ships
+    in Round 9 Part A, the 5 aircraft in Round 10 (credited in
+    `src/data/icons.ts`, `CREDITS.md`, and About / Credits).
 
     | Unit | Pick | Icon (author) |
     |---|---|---|
@@ -893,11 +893,9 @@ Steps, Technical Notes.
       places you haven't explored yet.
   - **Dan's map icon picks (2026-09-24), from the picker page (check (a)
     done).** Files are `docs/map-icon-candidates/<subject>-<letter>.svg`;
-    authors are in that folder's `SOURCES.md`. **Not wired in yet:** the game
-    still draws the placeholders. Wiring them in means copying the 24 files
-    into `src/assets/icons/`, drawing them on the map and in the panels, and
-    crediting each one in `src/data/icons.ts`, `CREDITS.md`, and About /
-    Credits (new authors: Willdabeast, Guard13007, Lord Berandas).
+    authors are in that folder's `SOURCES.md`. **Wired in (Round 10):** all 24
+    are in `src/assets/icons/`, drawn on the map and in the panels, and
+    credited in `src/data/icons.ts`, `CREDITS.md`, and About / Credits.
 
     | Subject | Pick | Icon (author) |
     |---|---|---|
@@ -984,171 +982,107 @@ Steps, Technical Notes.
       the iPad-size checks were done by measuring (panel buttons 44–56 px, no
       sideways overflow) and by pressing the real buttons from the page.
 
+* **Round 10 — Dan's map and aircraft icons + air units — done (2026-09-24).**
+  Waiting for Dan's checks (below).
+  - **Result:** 487 unit tests passing (74 new). Type-check and production
+    build are clean, and the dev-code leak check passes. Preview-verified on
+    desktop and in iPad-sized emulation (768×1024). **Save format 9** (a v8
+    game loads unchanged, with the original kept as a backup). Package
+    version 0.10.0. Pushed; play server restarted (see the end of this entry).
+  - **Per-item status (coding round 10):**
+
+    | # | Item | Status | Verified by |
+    |---|------|--------|-------------|
+    | 0 | Commit docs first | Done (`8c4fb59`), then re-read both. Nothing from last round's report was dropped: the Round 9 entry and Dan's icon pick tables are intact | n/a |
+    | A1 | The 24 map icons | Done. Dan's picks copied into **`src/assets/icons/`** under their icon names (`goblin-camp.svg`, `wheat.svg`…), bundled as text like the unit icons, never loaded from the web. Each resource and Great Person has an **`icon`** field in data; the village, hut, barbarian badge, and artifact are **`MAP_ICONS`** in `src/data/icons.ts`. **On the map, drawn as the picker page showed them:** the village is its icon, dark on a pale rounded square, with its **flags along the bottom right** (red for each flag it has, faint for the rest), and its garrison now sits in the lower-left corner like a unit in a city, so the village stays visible; the hut is its icon on a pale circle; a **resource is its icon, white on a small dark badge in the tile's upper-right corner**; every **barbarian unit carries a red skull badge** (upper left of its disc; the red rim stays). **In the panels:** the village choice and "Village destroyed" panels (village icon in the title), the "Ancient artifact!" panel (the amphora, gold on dark), the Great Person arrival panel and its settle/use pickers (the person's icon on a gold disc), the city panel's **Resources worked** and **Great People settled here** lists, the resource/village/hut messages when you tap a tile, and the hut, village, and artifact news messages. **Letters (and the old shapes) stay as the fallback** while an icon loads or if one is missing | unit-tested (`tests/icons.test.ts`); preview-verified on desktop (`all-map-icons`, zoomed in) and in 768×1024 emulation (village, artifact, Great Person panels; city panel resources; no sideways overflow, panel buttons 56 px) |
+    | A2 | The 5 aircraft icons | Done: Fighter = Biplane (Quoting), Bomber = Carpet Bombing (Skoll), Jet Fighter, Stealth Bomber, Helicopter (Delapouite). **Bomber B at 22 px, reported, not swapped:** at the in-city size (aircraft always sit in a city or on a Carrier, so that's the size you'll see most), its bomb dots vanish and it shrinks to a **thin dash**, because the drawing only fills the top of its square. It still looks different from the boxy Fighter and the Jet Fighter, but it's the weakest aircraft icon. **Comparison page:** `docs/bomber-size-candidates.html` (all five in game at 22 and 31 px on two civ colors, plus round 8's Bomber A and C for comparison), on the iPad at **http://10.0.0.224:4173/docs/bomber-size-candidates.html** | unit-tested (bundled, credited); preview-verified (`all-aircraft` scenario and the comparison page) |
+    | A3 | Credits | Done. All 29 new icons are in `src/data/icons.ts`, **`CREDITS.md`** (aircraft in the unit table, plus a new **Map icons** table), and **☰ → About / Credits** (now two lists: "Unit icons", 29, and "Map icons", 24, each with its icon). New authors: **Willdabeast, Guard13007, Lord Berandas, Quoting**, and Skoll (already credited for units). `tests/icons.test.ts` now covers **units and map things**: every used icon is bundled, one `currentColor` shape, no web links, credited in data and CREDITS.md with the right name, title, and author; no icon used twice; nothing unused credited; **every bundled file is used**; and each new author is credited | unit-tested; preview-verified (About: 29 + 24 rows, all with icons, in 768×1024) |
+    | B1 | Techs | Done. **Flight** unlocks the Fighter, the Bomber, and the **Airport** (and the Carrier, as before). New **Advanced Flight** (Modern, tier 14): **Flight + Machine Tools**; it unlocks the **Jet Fighter** and the **Helicopter**. The **Stealth Bomber needs Advanced Flight and Computers** (a unit can now name a second tech, `alsoRequires`; the tech screen lists it under both). 55 techs. Era pace re-checked: **unchanged** (below) | unit-tested; `npm run sim`; `pace.test.ts` passes |
+    | B2 | Base and strike | Done (`src/game/air.ts`). Every aircraft but the Helicopter is **based in one of your cities or aboard your Carrier**, with a **range** (Fighter 4, Bomber 6, Jet Fighter 6, Stealth Bomber 8). **Strike:** select it, and every tile in range with a target you can see is outlined in red; tap one for the odds panel ("Air strike?"), and Attack resolves it; the aircraft never leaves its base, so it's **back there automatically** ("…destroyed the Musketman and flew back to base"). **One action a turn.** **Rebase:** the cities and Carriers it can reach are highlighted; tapping one flies it there and uses its turn. It never stands on an open tile, so there's no fuel or crash rule. In a city with a Carrier in port, the unit panel offers **✈ Land on the Carrier** / **✈ Base it in the city**. Aircraft on a Carrier still come up in Next Unit, and "Stay" skips them | unit-tested; preview-verified (`air-strike`, `rebase`) |
+    | B3 | Air combat | Done. **Bombers** (Bomber 12 attack / 3 defense; Stealth Bomber 20/6) hit hard and are weak when caught; a win destroys the defender but **aircraft never capture or move in** (the city stays theirs, empty). **Fighters** (Fighter 4 attack, **8 against aircraft**; Jet Fighter 8, **16**) make weaker strikes on ground or sea and are what intercepts. **Interception:** when an aircraft or a Helicopter strikes a tile, the target's owner's best fighter whose base is within **its** range of that tile fights it first (fighter's anti-air strength vs the attacker's defense, the same odds formula). Fighter wins: the attacker is shot down and the strike never happens; fighter loses: the fighter is lost and the strike goes ahead. A message says which, either way, and the **odds panel warns first** ("Their Fighter can intercept: it shoots your Bomber down 73% of the time… Overall: 18%"). **Stealth:** the fighter loses 50% strength against a Stealth Bomber (`evadePct` in data). **Aircraft never defend a tile**, so ground units and ships can't attack them; a land unit simply walks into a city held only by aircraft and takes it, and **the aircraft there are lost** ("…lost 2 aircraft on the ground at X"); **aircraft aboard a sunk Carrier are lost**. **No air armies** (Q16). Walls don't count against aircraft (they're for land attacks) | unit-tested; preview-verified (`intercept`, `bomber-no-capture`) |
+    | B4 | Carriers | Done. A Carrier carries **3 aircraft** (`airCargo` in data; a Carrier fleet, 9). Aircraft rebase onto it in range, strike from it, and move and sink with it. Its panel says "aircraft 1/3" and the stack list "✈ Carrier aircraft 1/3: 1 Bomber"; its map badge counts what's aboard | unit-tested; preview-verified (`rebase`: Bomber onto the Carrier, sailing with it) |
+    | B5 | Helicopter | Done. Advanced Flight; 10 attack, 4 defense, **5 moves**, sight 2. It **moves like a land unit over any terrain, water and mountains too, 1 move a tile**, can end its turn anywhere, never boards ships, and **can't capture cities** ("Helicopters can't capture cities"; after a win it stays where it is). It **can be intercepted** when it attacks, and fighters use their anti-air strength against it | unit-tested; preview-verified (`helicopter`: over the mountain, lake, and forest; the Musketman destroyed; Taxila stays Mauryan) |
+    | B6 | Airport | Done: Flight, cost 80. **Aircraft built there start as veterans** (Barracks no longer does that for aircraft; land units and ships still get it from Barracks). **Airlift:** once a turn, one land unit in a city with an Airport flies to another of your cities with an Airport (**✈ Airlift…** in the unit panel, then pick the city); it arrives with no moves left. The city panel shows whether the airlift is used. The AI builds Airports last in its building order and doesn't airlift | unit-tested; preview-verified (`airlift`) |
+    | B7 | The AI's air power | Done (`src/game/aiAir.ts`). **Fighters for defense** once it has Flight, in border (a met rival within 6 tiles) and coastal cities, one per city at most (0.5 per such city in all). **At war with a plan: bombers** (its strongest), 0.5 per city. **Each turn, before its land units move**, every aircraft strikes the best target in range whose **overall odds (not shot down × winning) are at least 60%**, the war plan's target city and enemies next to its own units first; with nothing to strike, it **rebases toward the plan's target city**. Deterministic (same state, same turn). Numbers in `RULES.ai.air`. **Sim (below): aircraft per civ at turn 220 = 2.0 on average (max 9); 27 strikes and 0.2 intercepts per game; still no domination wins** | unit-tested (strike choice, holding back under fighter cover, rebasing, builds, a whole AI turn twice); `npm run sim` |
+    | B8 | Save migration v8 → v9 | Done. `STATE_VERSION` 9. Nothing needs changing: no aircraft exist yet, nobody knows Advanced Flight, and no city has airlifted (`airliftTurn` is simply absent). The notice says "updated for aircraft and Airports"; the pre-upgrade save is kept as a backup as usual | unit-tested (v8 → v9 loads, plays 3 turns, re-saves) |
+    | B9 | Dev scenarios | Done, all 9, each with a computed note: `air-strike`, `intercept` (73%), `rebase`, `carrier-sunk`, `bomber-no-capture`, `helicopter`, `airlift`, `all-aircraft`, `all-map-icons`. The fights use set dice so the note's promise always holds. Aircraft strike only what you can see, so the strike scenarios have a Warrior keeping the target in sight | unit-tested (each outcome); preview-verified: `air-strike`, `intercept`, `rebase`, `airlift`, `helicopter`, `all-aircraft`, `all-map-icons` (`carrier-sunk` and `bomber-no-capture` through their tests) |
+    | B10 | Unit tests | Done: 74 new, 487 total. New **`tests/air.test.ts`** (25): the techs and tree, the Stealth Bomber's two techs, range and visibility, one strike a turn and the return, no capture, no Walls against air, aircraft not defending and lost with a captured city or a sunk Carrier, rebasing (city, Carrier, capacity 3, range, not to open tiles), boarding in port and striking from a Carrier, interception (best fighter in range, bombers don't, out of range doesn't, stealth, both outcomes), Helicopters intercepted and ground attacks not, Helicopter movement and no capture, Airport veterans, the airlift once a turn, the AI (strike, holding back, rebasing, builds, deterministic), no air armies, v8 → v9. `tests/icons.test.ts` rewritten for units and map icons. `tests/scenarios.test.ts`: the 9 new scenarios. **`pace.test.ts` still passes.** Older tests changed only for the tech count (54 → 55) | `npm test` |
+
+  - **Simulation** (`npm run sim`, all-AI, 5 civs, seeds 8/13/21/33/42, 300
+    turns): **Medieval era (median civ) 63, Industrial 124, Modern 194**
+    (Round 9: 63, 125, 198; targets 50–70, 120–150, 180–220). First to finish
+    the tree, per seed: 218, 201, 188, 200, 209. **Winners: turns 178–234**
+    (Technology ×2, Culture ×2, Economic ×1); none before turn 150. **Air per
+    game: 27 strikes, 0.2 intercepts, 9.4 city captures; aircraft per civ at
+    turn 220: 2.0 on average (max 9). Domination wins: 0 of 5**, so air power
+    alone doesn't make them appear. Wars 3.4 per game, peace treaties 2.
+    Most strikes come from two of the five games (seeds 13 and 42: 76 and 57
+    strikes, each with a long late war); intercepts are rare, probably
+    because the AI's odds rule already skips targets under enemy fighter
+    cover.
+  - **Dan's checks for this round:**
+    - (a) On `dev:lan`: ☰ → Dev scenarios → **All map icons** and **All
+      aircraft**: check the icons, then a real game on `play:lan`. For the
+      Bomber at small size, also open
+      **http://10.0.0.224:4173/docs/bomber-size-candidates.html** and say if
+      you'd like a different Bomber (A or C are shown).
+    - (b) The **Air: …** scenarios; each should do what its note says.
+    - (c) If not done yet: take a barbarian village in a real game and make
+      the choice.
+  - **Decisions worth reviewing:**
+    - **Aircraft strike only what you can see** (a Bomber's range is 6, but
+      it sees 2 from its base). A scout, a nearby unit, or a city's sight
+      makes a target strikable.
+    - **The Helicopter is a hovering land unit:** it stands on the map, so it
+      defends its tile and can be attacked by ground units and ships like any
+      unit (otherwise a Helicopter alone on a tile could never be removed).
+      "Ground units can't attack aircraft" applies to based aircraft, which
+      never stand on open tiles anyway.
+    - **Interception needs the fighter's base within the fighter's own range
+      of the target**, and a fighter can intercept any number of times a turn
+      (as long as it survives). Only the target's owner's fighters intercept.
+    - **Barracks don't make aircraft veterans**; the Airport does (land units
+      and ships keep getting it from Barracks).
+    - Fighters can also strike ground or sea targets (4 / Jet 8); bombers
+      can't intercept.
+    - The AI's fighters also rebase toward the front at war; it doesn't use
+      Helicopters on purpose (the Artillery ties it on attack and is cheaper,
+      so it rarely builds one), doesn't airlift, and doesn't use Carriers for
+      aircraft.
+    - **Advanced Flight = Flight + Machine Tools.**
+    - A barbarian village's garrison is now drawn in the corner, like a unit
+      in a city, so the village icon shows; its flags moved to the bottom
+      right.
+  - **Also changed:**
+    - New files: `src/game/air.ts` (rebase, airlift, range),
+      `src/game/aiAir.ts` (the AI in the air), `tests/air.test.ts`,
+      `docs/bomber-size-candidates.html`, and the 29 icons.
+    - `naval.ts` now also says what kind of unit something is (`isAir`,
+      `hovers`, `isAircraft`, `canCapture`) and holds the Carrier helpers
+      (`aircraftOf`, `airCapacity`, `carriedBy`). `cargoOf` is land cargo
+      only.
+    - New actions `rebase` and `airlift`; a `move` order for an aircraft is a
+      rebase. Log kinds `strike` and `intercept`. The combat report has
+      `airStrike` and `interception`.
+    - The odds panel's modifier list shows negative bonuses with a minus sign.
+    - `npm run sim` prints the air numbers (strikes, intercepts, captures,
+      aircraft at turn 220, domination wins).
+  - **Observed, not fixed:**
+    - Domination still never wins in the sim.
+
 ## Current Objective (Focus Area)
 
-### Round 10 — Wire in the map and aircraft icons + Air units
-**Goal:**
-- Replace the round 9 placeholders with Dan's 24 map icon picks.
-- Add aircraft, so Flight finally unlocks something that flies (Dan's
-  aircraft icon picks are from round 8).
-- After this round the unit roster is complete. Next up is M8 (leaders).
+**Round 10 is done** (see its entry at the end of Completed Tasks), and
+waiting for Dan's checks. The next objective comes from the planning
+session: **M8, the leader roster and Dan's AI portraits**, then M9 (polish).
+The unit roster is now complete: 16 land units (with the Helicopter), 9
+ships, and 4 based aircraft.
 
-**Items for the coding agent. Report status on each one individually:**
-
-0. **Commit the updated docs first:** `CLAUDE.md` and `TODO.md` as their own
-   commit, then re-read them.
-
-**Part A — Wire in Dan's icon picks**
-
-A1. **The 24 map icons** (the table under Round 9 in Completed Tasks):
-    - the village, hut, barbarian badge, 15 resources, 5 Great People, and
-      the artifact;
-    - copy them into `src/assets/icons/`, bundled and never loaded from the
-      web;
-    - draw them on the map the way the picker page showed them. The village
-      icon keeps its flag count visible, resources sit in the tile corner on
-      a dark badge, and the barbarian units get the badge;
-    - use them in the panels too: the village choice, the artifact
-      discovery, the Great Person arrival and use, the city panel's worked
-      tiles or resources, and hut results where it fits;
-    - letters stay as the fallback.
-
-A2. **The 5 aircraft icons** (the table under Round 8): Fighter (Biplane),
-    Bomber (Carpet Bombing), Jet Fighter, Stealth Bomber, and Helicopter.
-    Watch Bomber B at 22 px. If its bomb dots vanish and it can't be told
-    apart from the fighters, report it with a comparison rather than
-    swapping it silently.
-
-A3. **Credits:**
-    - add every new icon to `src/data/icons.ts`, `CREDITS.md`, and About /
-      Credits;
-    - new authors include Willdabeast, Guard13007, Lord Berandas, Quoting,
-      and Skoll;
-    - keep `tests/icons.test.ts` enforcing that every used icon is bundled
-      and credited, now covering map things as well as units.
-
-**Part B — Air units (Civ Rev 1 spirit; all numbers in data)**
-
-B1. **Techs:**
-    - **Flight** (existing) unlocks the Fighter and the Bomber;
-    - add **Advanced Flight** (Modern; needs Flight plus a sensible second
-      prerequisite), which unlocks the Jet Fighter and the Helicopter;
-    - the **Stealth Bomber** needs Advanced Flight plus Computers, or
-      another late tech;
-    - keep the tree valid and re-check the era pace (`npm run sim`,
-      `pace.test.ts`).
-
-B2. **How air units move: a "base and strike" model, chosen so nothing
-    crashes by accident on a touchscreen:**
-    - every aircraft (except the Helicopter, see B5) is **based in a
-      friendly city or on a Carrier**, and each has a **range** in tiles;
-    - **Strike:** select the aircraft, and tiles in range with a valid target
-      are outlined. Tapping one opens the odds panel, and Attack resolves the
-      fight. **The aircraft then returns to its base automatically.** One
-      strike per turn;
-    - **Rebase:** move to another friendly city or Carrier within range,
-      using up the turn;
-    - aircraft never sit on open map tiles, so there's no fuel or crash
-      rule.
-
-B3. **Air combat rules:**
-    - **Bombers** (and the Stealth Bomber) have a strong attack against land
-      units, cities, and ships, and a weak defense. A win destroys the
-      defender, but **aircraft never capture or move in**, like a ship's
-      bombard;
-    - **Fighters and Jet Fighters** are good against aircraft and can make
-      weaker strikes against ground or sea;
-    - **interception:** when an enemy aircraft strikes a tile within range of
-      one of your fighters' bases, your best fighter **intercepts first**. If
-      the attacker loses, the strike never happens. If the fighter loses, the
-      strike goes ahead. Show a message either way;
-    - the **Stealth Bomber** is harder to intercept (a data modifier);
-    - ground units and ships can't attack aircraft;
-    - **aircraft in a city don't defend it** and are lost if the city is
-      captured;
-    - **aircraft on a Carrier are lost if it sinks**;
-    - no air armies (default; see Q16).
-
-B4. **Carriers:** carry up to 3 aircraft (in data). Aircraft rebase onto them
-    within range, strike from them, and move with them. The Carrier's panel
-    lists its aircraft, like cargo.
-
-B5. **Helicopter:**
-    - it **moves like a land unit over any terrain**, including crossing
-      water and ignoring terrain costs;
-    - it can end its turn anywhere;
-    - it has a strong attack against land units, but **can't capture
-      cities**;
-    - it's vulnerable to fighters (it can be intercepted when it attacks).
-
-B6. **Airport building** (needs Flight):
-    - aircraft built there start as veterans;
-    - **airlift:** once per turn, one land unit can move instantly from this
-      city to another friendly city that also has an Airport.
-
-B7. **The AI uses air power:**
-    - in the Modern era it builds fighters for defense in border or coastal
-      cities;
-    - at war, it builds bombers and strikes targets ahead of its invasions,
-      using the odds rule;
-    - it rebases toward the front;
-    - it stays deterministic;
-    - **sim report:** aircraft per civ at turn 220, strikes and intercepts per
-      game, the era pace, victory turns, and **whether domination wins
-      finally appear**.
-
-B8. **Save migration v8 → v9:** no aircraft exist, Advanced Flight is
-    unknown, and backups are kept as usual.
-
-B9. **Dev scenarios, each with a note:**
-    - `air-strike`: a bomber strikes a unit and returns to base;
-    - `intercept`: an enemy fighter stops your bomber;
-    - `rebase`: fly to another city and onto a Carrier;
-    - `carrier-sunk`: the aircraft aboard are lost;
-    - `bomber-no-capture`: an empty city after the strike, and the bomber
-      still can't take it;
-    - `helicopter`;
-    - `airlift`;
-    - `all-aircraft`: for Dan's icon check;
-    - `all-map-icons`: every resource, the village, the hut, and a barbarian
-      unit, for the map-icon check.
-
-B10. **Unit tests:**
-     - the new techs and the tree;
-     - strike range, one strike per turn, and the automatic return;
-     - rebasing (city and Carrier) and Carrier capacity;
-     - interception, including the stealth modifier;
-     - no capture by air;
-     - ground units can't attack air;
-     - aircraft lost with a captured city or a sunk Carrier;
-     - Helicopter movement and no capture;
-     - Airport veterans and the airlift once per turn;
-     - AI air use (deterministic);
-     - the v8 → v9 migration;
-     - icons bundled and credited;
-     - every new scenario;
-     - `pace.test.ts` still passing.
-
-**Done means:**
-- every item (0, A1–A3, B1–B10) is reported individually;
-- tests pass;
-- it's preview-verified on desktop and in iPad emulation;
-- the epoch repo is **pushed**, and the play server is **restarted**.
-
-Dan then:
-- (a) checks the map icons and aircraft icons (the `all-map-icons` and
-  `all-aircraft` scenarios, then a real game);
-- (b) tries the air scenarios;
-- (c) confirms the round 9 things in a real game, if not done yet: take a
-  village and make the choice.
-
-**Open questions (defaults in bold; the coding agent proceeds on the default
-unless Dan decides otherwise):**
-- **Q1 — Working title:** **"Epoch" as a codename for now.**
-- **Q16 — Air armies:** **no** (land armies and naval fleets only).
-- **Q17 — Air movement model:** **base and strike, with automatic return**,
-  so there's no fuel or crash rule on a touchscreen.
-- **Q18 — Nuclear weapons:** **not planned.**
+Open questions carried from Round 10 (the coding round used the defaults):
+- **Q1 — Working title:** "Epoch" as a codename for now.
+- **Q16 — Air armies:** no (land armies and naval fleets only). Used.
+- **Q17 — Air movement model:** base and strike, with automatic return. Used.
+- **Q18 — Nuclear weapons:** not planned.
 
 ## Next Steps (Do Not Start Yet)
 
@@ -1179,9 +1113,9 @@ milestone before it. None has been decided against.
      before the Netlify site exists.
 - **Order after round 7 — DECIDED by Dan (2026-09-24):**
   - **Round 8:** Naval — done (see Completed Tasks).
-  - **Round 9, M7 (now the current objective):** barbarians, villages, artifacts, resources, Great
+  - **Round 9, M7 — done:** barbarians, villages, artifacts, resources, Great
     People, and huts.
-  - **Round 10:** Air.
+  - **Round 10:** Air — done (see Completed Tasks).
   - **Then:** M8 and M9.
 - **Round 9, Part A — DONE EARLY (2026-09-24, after Dan asked why
   `all-ships` still showed letters):** the 9 ship icons are wired in

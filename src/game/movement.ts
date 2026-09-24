@@ -9,6 +9,10 @@
 // tile and can dock in their own coastal cities. A land unit boards a ship by stepping onto
 // its tile (next to it at sea, or in the same city), and goes ashore by stepping onto a land
 // tile next to the ship; either one uses up the unit's moves. Cargo moves with its ship.
+//
+// Aircraft (Round 10, see air.ts) never walk: a 'move' order for one is a rebase. The
+// Helicopter hovers: it goes onto any tile, water and mountains too, at 1 move a tile, never
+// boards a ship, and never captures a city.
 
 import { TERRAIN } from '../data/terrain';
 import { UNITS } from '../data/units';
@@ -17,7 +21,8 @@ import { distance, inBounds, neighbors, tileAt } from './grid';
 import { civName } from './conquest';
 import { updateContacts } from './diplomacy';
 import { updateExplored } from './fog';
-import { cargoCapacity, cargoOf, cargoRoom, isShip, isWaterAt, shipTerrainError, shipWithRoom, terrainAllows } from './naval';
+import { airRoom, cargoCapacity, cargoRoom, carriedBy, hovers, isAir, isShip, isWaterAt, shipTerrainError, shipWithRoom, terrainAllows } from './naval';
+import { rebase, rebaseTargets } from './air';
 import { atWar } from './war';
 import { enterTile, pendingVillage } from './villages';
 import type { ActionResult, Coord, GameState, Unit } from './types';
@@ -49,9 +54,9 @@ export function moveCost(state: GameState, x: number, y: number): number {
   return tile ? TERRAIN[tile.terrain].moveCost : Infinity;
 }
 
-/** What a unit pays to step onto a tile: ships 1 a tile, land units the terrain's cost. */
+/** What a unit pays to step onto a tile: ships and Helicopters 1 a tile, land units the terrain's cost. */
 function stepCost(state: GameState, unit: Unit, to: Coord): number {
-  return isShip(unit) ? 1 : moveCost(state, to.x, to.y);
+  return isShip(unit) || hovers(unit) ? 1 : moveCost(state, to.x, to.y);
 }
 
 /** How a legal step happens: an ordinary move, boarding a ship there, or going ashore from one. */
@@ -62,6 +67,9 @@ function stepKind(state: GameState, unit: Unit, to: Coord): StepKind | string {
     if (!terrainAllows(state, unit.type, unit.owner, to.x, to.y)) return shipTerrainError(state, unit.type, to.x, to.y);
     return { kind: 'move' };
   }
+  // Aircraft rebase instead (air.ts); a Helicopter flies over anything.
+  if (isAir(unit)) return 'Aircraft fly from a base: tap a target to strike, or a city or Carrier in range to rebase';
+  if (hovers(unit)) return { kind: 'move' };
   if (isWaterAt(state, to.x, to.y)) {
     // Boarding another ship at sea (or from the shore). Enemy ships there: nothing to board.
     const ship = shipWithRoom(state, unit.owner, to.x, to.y, unit.carriedBy ?? undefined);
@@ -85,7 +93,7 @@ export function stepError(state: GameState, unit: Unit, to: Coord): string | und
     return kind;
   }
   if (occupiedByOthers(state, unit.owner, to.x, to.y) && !capturableCity(state, unit, to)) return blockedReason(state, unit, to);
-  if (!isShip(unit) && kind.kind !== 'board' && !TERRAIN[tileAt(state.map, to.x, to.y)!.terrain].landPassable) return 'Tile is impassable';
+  if (!isShip(unit) && !hovers(unit) && kind.kind !== 'board' && !TERRAIN[tileAt(state.map, to.x, to.y)!.terrain].landPassable) return 'Tile is impassable';
   if (kind.kind !== 'move') return undefined; // boarding and going ashore take whatever moves are left
   const cost = stepCost(state, unit, to);
   const full = UNITS[unit.type].moves;
@@ -99,6 +107,7 @@ function blockedReason(state: GameState, unit: Unit, to: Coord): string {
     state.cities.find((c) => c.x === to.x && c.y === to.y && c.owner !== unit.owner)?.owner ??
     state.units.find((u) => u.x === to.x && u.y === to.y && u.owner !== unit.owner)?.owner;
   if (other !== undefined && !atWar(state, unit.owner, other)) return `You are at peace with ${civName(state, other)}`;
+  if (hovers(unit) && state.cities.some((c) => c.x === to.x && c.y === to.y)) return 'Helicopters can’t capture cities';
   return 'Tile is impassable';
 }
 
@@ -110,7 +119,8 @@ export function moveUnit(state: GameState, unitId: number, to: Coord): ActionRes
   if (err) return { ok: false, reason: err };
   const kind = stepKind(state, unit, to) as StepKind;
   const captured = capturableCity(state, unit, to);
-  const cargo = isShip(unit) ? cargoOf(state, unit) : [];
+  // Everything aboard (land units, and aircraft on a Carrier) sails with the ship.
+  const cargo = isShip(unit) ? carriedBy(state, unit) : [];
   unit.x = to.x;
   unit.y = to.y;
   unit.fortified = false;
@@ -143,11 +153,13 @@ export function boardShip(state: GameState, unitId: number, shipId: number): Act
   if (!unit || !ship) return { ok: false, reason: 'No such unit' };
   if (state.currentPlayer !== unit.owner) return { ok: false, reason: 'Not your turn' };
   if (isShip(unit)) return { ok: false, reason: 'Ships can’t board ships' };
+  if (hovers(unit)) return { ok: false, reason: 'Helicopters fly: they don’t board ships' };
   if (!isShip(ship) || ship.owner !== unit.owner) return { ok: false, reason: 'That isn’t one of your ships' };
   if (unit.carriedBy === ship.id) return { ok: false, reason: 'Already aboard' };
   if (ship.x !== unit.x || ship.y !== unit.y) return { ok: false, reason: 'Move next to the ship, then tap it to board' };
   if (unit.movesLeft <= 0) return { ok: false, reason: 'No moves left' };
-  if (cargoRoom(state, ship) <= 0) return { ok: false, reason: `The ${UNITS[ship.type].name} is full` };
+  // Aircraft land on a Carrier (Round 10); land units go in the hold.
+  if (isAir(unit) ? airRoom(state, ship) <= 0 : cargoRoom(state, ship) <= 0) return { ok: false, reason: `The ${UNITS[ship.type].name} is full` };
   unit.carriedBy = ship.id;
   unit.movesLeft = 0;
   unit.fortified = false;
@@ -180,7 +192,8 @@ export function findPath(state: GameState, unit: Unit, to: Coord): Coord[] | und
   const explored = state.players[unit.owner]?.explored;
   const known = (k: number) => !explored || explored[k] === 1;
   const key = (c: Coord) => c.y * map.width + c.x;
-  const boardGoal = !isShip(unit) && !!shipWithRoom(state, unit.owner, to.x, to.y, unit.carriedBy ?? undefined);
+  if (isAir(unit)) return undefined;
+  const boardGoal = !isShip(unit) && !hovers(unit) && !!shipWithRoom(state, unit.owner, to.x, to.y, unit.carriedBy ?? undefined);
   if (known(key(to)) && !canEnter(state, unit, to.x, to.y) && !boardGoal) return undefined;
   const start = key(unit);
   const goal = key(to);
@@ -201,7 +214,7 @@ export function findPath(state: GameState, unit: Unit, to: Coord): Coord[] | und
       if (done.has(k)) continue;
       const isKnown = known(k);
       if (isKnown && !canEnter(state, unit, n.x, n.y) && !(k === goal && boardGoal)) continue;
-      const nc = cost.get(cur)! + (isKnown && !isShip(unit) ? moveCost(state, n.x, n.y) : 1);
+      const nc = cost.get(cur)! + (isKnown && !isShip(unit) && !hovers(unit) ? moveCost(state, n.x, n.y) : 1);
       if (nc < (cost.get(k) ?? Infinity)) {
         cost.set(k, nc);
         prev.set(k, cur);
@@ -227,6 +240,8 @@ export function moveUnitToward(state: GameState, unitId: number, to: Coord): Act
   const unit = findUnit(state, unitId);
   if (!unit) return { ok: false, reason: 'No such unit' };
   if (state.currentPlayer !== unit.owner) return { ok: false, reason: 'Not your turn' };
+  // An aircraft told to go somewhere rebases there (Round 10).
+  if (isAir(unit)) return rebase(state, unitId, to);
   if (unit.movesLeft <= 0) return { ok: false, reason: 'No moves left' };
   // One step (capturing, boarding, going ashore, or just next door) goes straight there;
   // paths never go through enemy cities or onto ships.
@@ -252,8 +267,10 @@ export function moveUnitToward(state: GameState, unitId: number, to: Coord): Act
 export function reachableThisTurn(state: GameState, unit: Unit): Coord[] {
   if (unit.movesLeft <= 0) return [];
   const { map } = state;
+  // Aircraft: the cities and Carriers they could rebase to.
+  if (isAir(unit)) return rebaseTargets(state, unit);
   // Going ashore or boarding ends the unit's move, so those are one step away at most.
-  if (!isShip(unit)) {
+  if (!isShip(unit) && !hovers(unit)) {
     const extra = neighbors(map, unit).filter((n) => {
       if (stepError(state, unit, n)) return false;
       const k = stepKind(state, unit, n);

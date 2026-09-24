@@ -6,8 +6,8 @@ import { CIVS } from '../data/civs';
 import { CITY_FOCUSES, RULES, growthThreshold, type CityFocus } from '../data/rules';
 import { ERAS, TECHS, TECH_LIST, type TechId } from '../data/techs';
 import { TERRAIN } from '../data/terrain';
-import { ICON_CREDITS, ICON_LICENSE, ICON_SITE } from '../data/icons';
-import { UNITS, UNIT_IDS, type UnitTypeId } from '../data/units';
+import { ICON_CREDITS, ICON_LICENSE, ICON_SITE, MAP_ICONS, usedIcons } from '../data/icons';
+import { UNITS, type UnitTypeId } from '../data/units';
 import { PROJECTS, VICTORY, VICTORY_NAMES, type VictoryKind } from '../data/victory';
 import { WONDERS, WONDER_LIST } from '../data/wonders';
 import { applyAction, type Action } from '../game/actions';
@@ -19,7 +19,8 @@ import { cityNameFor, foundCityError } from '../game/city';
 import { cultureToNextGreatPerson, engineerCities, generalTiles, greatPersonError, merchantGold } from '../game/greatPeople';
 import { bonusText, visibleResource } from '../game/resources';
 import { pendingVillage, settleVillageError } from '../game/villages';
-import { attackError, combatOdds, fortifyError, type Strength } from '../game/combat';
+import { attackError, combatOdds, fortifyError, interception, overallChance, type Strength } from '../game/combat';
+import { airliftSourceError, airliftTargets, airRange, hasAirlift, tilesWithin } from '../game/air';
 import { CivName, civAdjective, civName, civVerb } from '../game/conquest';
 import {
   attitude,
@@ -37,7 +38,7 @@ import {
 } from '../game/diplomacy';
 import { distance, neighbors, tileAt, tileIndex } from '../game/grid';
 import { unitVisibleTo } from '../game/fog';
-import { armyWord, cargoCapacity, cargoOf, isShip, isWaterAt } from '../game/naval';
+import { aircraftOf, airCapacity, armyWord, cargoCapacity, cargoOf, hovers, isAir, isShip, isWaterAt } from '../game/naval';
 import { entryText, eventsVisibleTo } from '../game/log';
 import { findUnit, reachableThisTurn } from '../game/movement';
 import { migrationSummary } from '../game/save';
@@ -84,7 +85,7 @@ import { cityCulture, cityScienceGold, cityYields, empireCulture, empireIncome, 
 import { capitalOf, launchError, victoryProgress, type VictoryProgress } from '../game/victory';
 import { wonderCity } from '../game/wonders';
 import { clampCamera, panBy, screenToWorld, zoomAt, type Camera } from '../render/camera';
-import { unitIconHtml } from '../render/icons';
+import { iconHtml, unitIconHtml } from '../render/icons';
 import { playerColor, render, type ViewState } from '../render/renderer';
 import { attachMapInput } from './input';
 import { backupCurrentSave, listBackups, restoreBackup, saveToStorage } from './storage';
@@ -178,6 +179,7 @@ export class App {
       if (btn.dataset.act === 'army') this.formArmyOf(id);
       else if (btn.dataset.act === 'board') this.boardShip(id, Number(btn.dataset.ship));
       else if (btn.dataset.act === 'unload') this.unloadHere(id);
+      else if (btn.dataset.act === 'airlift') this.pickAirlift(id);
       else this.select(id);
     });
     $('attackGoBtn').addEventListener('click', () => this.confirmAttack());
@@ -279,7 +281,9 @@ export class App {
       // These have their own panels.
       const aimedAtMe = e.other === this.human && e.player !== this.human;
       if (e.kind === 'contact' || (aimedAtMe && (e.kind === 'war' || e.kind === 'demand' || e.kind === 'warning'))) continue;
-      this.toast(entryText(e, this.human));
+      // Round 10: Dan's icons beside the Round 9 news (a hut's result, a village, an artifact).
+      const icon = e.kind === 'hut' ? MAP_ICONS.hut : e.kind === 'village' ? MAP_ICONS.village : e.kind === 'artifact' ? MAP_ICONS.artifact : undefined;
+      this.toast(entryText(e, this.human), false, icon);
     }
   }
 
@@ -342,7 +346,7 @@ export class App {
     if (!u) return;
     if (this.dispatch({ type: 'fortify', unitId: u.id })) {
       this.toast(
-        isShip(u)
+        isShip(u) || isAir(u) || hovers(u)
           ? `${UNITS[u.type].name} stays put (Next Unit skips it until it moves)`
           : `${UNITS[u.type].name} fortified (+${RULES.combat.fortifiedPct}% defense until it moves)`,
       );
@@ -366,7 +370,7 @@ export class App {
     const ship = findUnit(this.state, shipId);
     if (!u || !ship) return;
     if (this.dispatch({ type: 'board', unitId, shipId })) {
-      this.toast(`${UNITS[u.type].name} boarded the ${UNITS[ship.type].name}`);
+      this.toast(isAir(u) ? `${UNITS[u.type].name} landed on the ${UNITS[ship.type].name}` : `${UNITS[u.type].name} boarded the ${UNITS[ship.type].name}`);
       this.selectNext(false);
     }
   }
@@ -376,9 +380,35 @@ export class App {
     const u = findUnit(this.state, unitId);
     if (!u) return;
     if (this.dispatch({ type: 'unload', unitId })) {
-      this.toast(`${UNITS[u.type].name} went ashore`);
+      this.toast(isAir(u) ? `${UNITS[u.type].name} is now based in the city` : `${UNITS[u.type].name} went ashore`);
       this.selectNext(false);
     }
+  }
+
+  /** The Airport's airlift (Round 10): pick the city with an Airport to fly this land unit to. */
+  private pickAirlift(unitId: number): void {
+    const u = findUnit(this.state, unitId);
+    if (!u) return;
+    const from = findCity(this.state, this.state.cities.find((c) => c.x === u.x && c.y === u.y)?.id ?? -1);
+    this.showNow({
+      title: `Airlift the ${UNITS[u.type].name} where?`,
+      text: `Your Airport${from ? ` in ${from.name}` : ''} can fly one land unit a turn to another of your cities with an Airport. It arrives with no moves left.`,
+      list: true,
+      buttons: [
+        ...airliftTargets(this.state, u).map((c) => ({
+          label: c.name,
+          run: () => {
+            const res = this.dispatchResult({ type: 'airlift', unitId, cityId: c.id });
+            if (res.ok) {
+              this.toast(`${UNITS[u.type].name} airlifted to ${c.name}`);
+              this.centerOn(c.x, c.y);
+              this.selectNext(false);
+            }
+          },
+        })),
+        { label: 'Cancel' },
+      ],
+    });
   }
 
   private changeRate(delta: number): void {
@@ -448,9 +478,9 @@ export class App {
     return this.state.units.filter((u) => u.owner === this.human);
   }
 
-  /** Units still waiting for orders this turn (fortified units, and cargo riding aboard a ship, are left alone). */
+  /** Units still waiting for orders this turn (fortified units, and cargo riding aboard a ship, are left alone; aircraft on a Carrier aren't cargo). */
   private readyUnits(): Unit[] {
-    return this.myUnits().filter((u) => u.movesLeft > 0 && !u.fortified && u.carriedBy === null);
+    return this.myUnits().filter((u) => u.movesLeft > 0 && !u.fortified && (u.carriedBy === null || isAir(u)));
   }
 
   private myCities(): City[] {
@@ -487,7 +517,11 @@ export class App {
       case 'move': {
         const logStart = this.state.log.length;
         const enemyCity = this.state.cities.find((c) => c.x === tx && c.y === ty && c.owner !== this.human);
-        if (this.dispatch({ type: 'move', unitId: result.unitId, to: { x: tx, y: ty } })) {
+        const mover = findUnit(this.state, result.unitId);
+        const res = this.dispatchResult({ type: 'move', unitId: result.unitId, to: { x: tx, y: ty } });
+        // An aircraft rebased (Round 10).
+        if (res.ok && mover && isAir(mover) && res.message) this.toast(`${UNITS[mover.type].name} flew ${res.message}`);
+        if (res.ok) {
           // Captures and eliminations are worth announcing.
           this.announce(this.state.log.slice(logStart));
           const after = this.selected();
@@ -519,12 +553,12 @@ export class App {
           this.toast(`${cityText}${def.name} — food ${y.food}, production ${y.production}, trade ${y.trade}${defense}`);
           // Round 9: a resource you can see, a barbarian village, a hut.
           const res = visibleResource(this.state, this.human, tileIndex(this.state.map, tx, ty));
-          if (res) this.toast(`${res.name}: ${bonusText(res.bonus)} when a city works it`);
+          if (res) this.toast(`${res.name}: ${bonusText(res.bonus)} when a city works it`, false, res.icon);
           const village = villageAt(this.state, { x: tx, y: ty });
           if (village) {
-            this.toast(`Barbarian village · ${village.flags}/${BARBARIANS.flagsToSpawn} flags (at ${BARBARIANS.flagsToSpawn} it sends a unit out) · defense +${BARBARIANS.villageDefensePct}%. Take it to destroy it for a reward or settle it as a city`);
+            this.toast(`Barbarian village · ${village.flags}/${BARBARIANS.flagsToSpawn} flags (at ${BARBARIANS.flagsToSpawn} it sends a unit out) · defense +${BARBARIANS.villageDefensePct}%. Take it to destroy it for a reward or settle it as a city`, false, MAP_ICONS.village);
           }
-          if (tile.hut) this.toast('Ruins to explore: step a unit onto them to see what’s there');
+          if (tile.hut) this.toast('A hut to explore: step a unit onto it to see what’s there', false, MAP_ICONS.hut);
           // Enemy units in sight: say what they are.
           const enemies = unitsOnTile(this.state, tx, ty).filter((u) => u.owner !== this.human && unitVisibleTo(this.state, this.human, u));
           if (enemies.length === 1) this.toast(`${this.unitLabel(enemies[0]!)} · ${unitSummary(enemies[0]!.type)}`);
@@ -732,7 +766,7 @@ export class App {
           .map(
             (u) => `<button type="button" data-act="unit" data-unit="${u.id}" class="unitItem">
             ${this.badge(u.type, u.owner)}${UNITS[u.type].name}${u.army ? ` ${armyWord(u.type)} ×${RULES.combat.armyMultiplier}` : ''}${u.veteran ? ' ★' : ''}${u.fortified && !isShip(u) ? ' 🛡' : ''}${u.carriedBy !== null ? ' ⚓ aboard' : ''}
-            <span class="sub">moves ${u.movesLeft}/${UNITS[u.type].moves}${isShip(u) && UNITS[u.type].cargo ? ` · cargo ${cargoOf(this.state, u).length}/${cargoCapacity(u)}` : ''} · tap to select</span></button>`,
+            <span class="sub">${isAir(u) ? (u.movesLeft > 0 ? `ready · range ${airRange(u)}` : 'flown this turn') : `moves ${u.movesLeft}/${UNITS[u.type].moves}`}${isShip(u) && UNITS[u.type].cargo ? ` · cargo ${cargoOf(this.state, u).length}/${cargoCapacity(u)}` : ''}${isShip(u) && UNITS[u.type].airCargo ? ` · aircraft ${aircraftOf(this.state, u).length}/${airCapacity(u)}` : ''} · tap to select</span></button>`,
           )
           .join('') + armyBtns
       : '<span class="sub">None</span>';
@@ -763,11 +797,11 @@ export class App {
     const resList = resTiles
       .map((k) => visibleResource(this.state, this.human, k))
       .filter((r) => !!r)
-      .map((r) => `<b>${r!.name}</b> <span class="sub">${bonusText(r!.bonus)}</span>`);
+      .map((r) => `<span class="micon res">${iconHtml(r!.icon, r!.glyph)}</span><b>${r!.name}</b> <span class="sub">${bonusText(r!.bonus)}</span>`);
     const resHtml = resList.length ? `<div class="section"><div class="label">Resources worked</div><div>${resList.join('<br>')}</div></div>` : '';
     const gpHtml = city.greatPeople.length
       ? `<div class="section"><div class="label">Great People settled here</div><div>${city.greatPeople
-          .map((k) => `<b>${GREAT_PEOPLE[k].name}</b> <span class="sub">${GREAT_PEOPLE[k].settleText}</span>`)
+          .map((k) => `<span class="micon gp">${iconHtml(GREAT_PEOPLE[k].icon, GREAT_PEOPLE[k].glyph)}</span><b>${GREAT_PEOPLE[k].name}</b> <span class="sub">${GREAT_PEOPLE[k].settleText}</span>`)
           .join('<br>')}</div></div>`
       : '';
 
@@ -777,6 +811,7 @@ export class App {
         <button type="button" data-act="close" class="closeBtn" aria-label="Close city">✕</button>
       </div>
       ${units.length ? `<div class="section"><div class="label">Units here</div><div class="unitList">${unitBtns}</div></div>` : ''}
+      ${hasAirlift(city) ? `<div class="section sub">✈ Airport: ${city.airliftTurn === this.state.turn ? 'airlift used this turn' : 'one airlift this turn (select a land unit here, then Airlift)'}</div>` : ''}
       <div class="section">
         <div class="stat">Food ${Math.max(0, city.food)}/${threshold}
           <span class="sub">(${surplus >= 0 ? '+' : ''}${surplus}) · ${growText}</span></div>
@@ -852,21 +887,27 @@ export class App {
 
   /** ☰ → About / Credits (every build): the game's name and version, and the icon credits the license asks for. */
   private renderAbout(): void {
-    const used = UNIT_IDS.filter((id) => UNITS[id].icon).map((id) => ({ id, icon: UNITS[id].icon!, credit: ICON_CREDITS[UNITS[id].icon!] }));
-    const rows = used
-      .map(
-        (u) => `<li>${this.badge(u.id, this.human)}<span><b>${UNITS[u.id].name}</b>: “${esc(u.credit?.title ?? u.icon)}” by ${esc(u.credit?.author ?? 'unknown')}
-          ${u.credit?.modified ? `<span class="sub">(modified: ${esc(u.credit.modified)})</span>` : ''}
-          ${u.credit ? `<a href="${u.credit.url}" target="_blank" rel="noopener">source</a>` : ''}</span></li>`,
-      )
-      .join('');
+    // Round 10: the map icons too (village, hut, barbarian badge, artifact, resources, Great People).
+    const rowsFor = (group: 'Units' | 'Map') =>
+      usedIcons()
+        .filter((u) => u.group === group)
+        .map((u) => {
+          const credit = ICON_CREDITS[u.icon];
+          const pic = u.unit ? this.badge(u.unit, this.human) : `<span class="udisc mapdisc">${iconHtml(u.icon, '?')}</span>`;
+          return `<li>${pic}<span><b>${esc(u.name)}</b>: “${esc(credit?.title ?? u.icon)}” by ${esc(credit?.author ?? 'unknown')}
+          ${credit?.modified ? `<span class="sub">(modified: ${esc(credit.modified)})</span>` : ''}
+          ${credit ? `<a href="${credit.url}" target="_blank" rel="noopener">source</a>` : ''}</span></li>`;
+        })
+        .join('');
     $('aboutBody').innerHTML = `
       <p><b>Epoch</b> (working title) · version ${esc(__APP_VERSION__)} · save format ${STATE_VERSION}</p>
       <p class="sub">A turn-based strategy game made for family and friends.</p>
       <div class="label">Unit icons</div>
       <p class="sub">From <a href="${ICON_SITE}" target="_blank" rel="noopener">game-icons.net</a>, used under the
         <a href="${ICON_LICENSE.url}" target="_blank" rel="noopener">${ICON_LICENSE.name}</a> license. Recolored to fit the map; shapes unchanged except where noted.</p>
-      <ul class="credits">${rows}</ul>`;
+      <ul class="credits">${rowsFor('Units')}</ul>
+      <div class="label">Map icons</div>
+      <ul class="credits">${rowsFor('Map')}</ul>`;
   }
 
   // ---- backups (☰ → Restore a backup; in the production build too) ------------------------
@@ -941,8 +982,9 @@ export class App {
     const stackNote = others > 0 ? `<p class="sub">Their best defender fights. If it loses, the other ${plural(others, 'unit')} on that tile stay.</p>` : '';
     const city = this.state.cities.find((c) => c.x === at.x && c.y === at.y);
     const bombard = isShip(unit) && !isWaterAt(this.state, at.x, at.y);
+    const flying = isAir(unit) || hovers(unit);
     const takeNote =
-      city && others === 0 && !bombard
+      city && others === 0 && !bombard && !flying
         ? `<p class="sub">It’s ${esc(city.name)}’s last defender: if you win, your ${esc(UNITS[unit.type].name)} moves in and takes the city.</p>`
         : '';
     const bombardNote = bombard
@@ -952,14 +994,26 @@ export class App {
     const cargoNote =
       (aboard(odds.defender) ? `<p class="sub">If their ${esc(UNITS[odds.defender.type].name)} sinks, the ${plural(aboard(odds.defender), 'unit')} aboard go down with it.</p>` : '') +
       (aboard(unit) ? `<p class="sub">If your ${esc(UNITS[unit.type].name)} sinks, the ${plural(aboard(unit), 'unit')} aboard go down with it.</p>` : '');
+    // Round 10: aircraft strike and fly home; a fighter may intercept first.
+    const uname = esc(UNITS[unit.type].name);
+    const airNote = isAir(unit)
+      ? `<p class="sub">Air strike: if you win, the defender is destroyed and your ${uname} flies back to base. Aircraft never capture${city && others === 0 ? `, so ${esc(city.name)} stays theirs` : ''}. If you lose, it’s shot down.</p>`
+      : hovers(unit)
+        ? `<p class="sub">Helicopters never capture: if you win, the defender is destroyed and your ${uname} stays where it is.</p>`
+        : '';
+    const icpt = interception(this.state, unit, at);
+    const overall = Math.round(overallChance(this.state, unit, at) * 100);
+    const icptNote = icpt
+      ? `<p class="warnline">${this.badge(icpt.fighter.type, icpt.fighter.owner)}Their ${esc(this.unitName(icpt.fighter))} can intercept: it shoots your ${uname} down ${Math.round(icpt.chance * 100)}% of the time${icpt.attack.mods.some((m) => m.label === 'Stealth') ? ' (stealth makes it harder)' : ''}, and then the strike never happens. <b>Overall: ${overall}%</b> that it gets through and wins.</p>`
+      : flying ? '<p class="sub">No enemy fighter is in range to intercept.</p>' : '';
     $('attackBody').innerHTML = `
-      <h2>Attack?</h2>
-      <div class="odds ${pct >= 60 ? 'good' : pct >= 40 ? 'even' : 'bad'}"><b>${pct}%</b><span>chance to win</span></div>
+      <h2>${isAir(unit) ? 'Air strike?' : 'Attack?'}</h2>
+      <div class="odds ${pct >= 60 ? 'good' : pct >= 40 ? 'even' : 'bad'}"><b>${pct}%</b><span>chance to win${icpt ? ' the fight' : ''}</span></div>
       <div class="sides">
         ${sideHtml(this.badge(odds.attacker.type, odds.attacker.owner), `Your ${this.unitName(odds.attacker)}`, 'Attack', odds.attack)}
         ${sideHtml(this.badge(odds.defender.type, odds.defender.owner), this.unitLabel(odds.defender), 'Defense', odds.defense)}
       </div>
-      ${stackNote}${takeNote}${bombardNote}${cargoNote}
+      ${icptNote}${stackNote}${takeNote}${bombardNote}${airNote}${cargoNote}
       <p class="sub">The loser is destroyed. Attacking uses up your unit’s turn.</p>`;
     $('attackOverlay').hidden = false;
     $<HTMLButtonElement>('attackGoBtn').focus({ preventScroll: true });
@@ -993,6 +1047,11 @@ export class App {
       ? `Your ${mine} defeated the ${theirs} (${pct}%)`
       : `Your ${mine} was destroyed by the ${theirs} (${pct}%)`;
     if (c.bombard && c.attackerWon) text = `Your ${mine} bombarded and destroyed the ${theirs} (${pct}%). It stays at sea`;
+    if (c.airStrike && c.attackerWon) text = `Your ${mine} destroyed the ${theirs} (${pct}%) and flew back to base`;
+    // Round 10: a fighter went after it first.
+    const i = c.interception;
+    if (i && i.fighterWon) text = `A ${civAdjective(this.state, i.fighterOwner)} ${UNITS[i.fighterType].name} intercepted and shot down your ${mine} (${Math.round(i.chance * 100)}%). The strike never happened`;
+    else if (i) text = `Your ${mine} shot down the intercepting ${UNITS[i.fighterType].name}, then ${c.attackerWon ? `destroyed the ${theirs}` : `was destroyed by the ${theirs}`} (${pct}%)`;
     if (c.promoted && c.attackerWon) text += `. Your ${mine} is now a veteran ★`;
     if (c.cargoLost) text += `. ${plural(c.cargoLost, 'unit')} aboard went down with the ship`;
     this.toast(text, !c.attackerWon);
@@ -1023,10 +1082,11 @@ export class App {
     return `<span class="udisc" style="background:${playerColor(this.state, owner)}">${unitIconHtml(type)}</span>`;
   }
 
-  /** Adjacent tiles the selected unit could attack right now (outlined in red). */
+  /** Tiles the selected unit could attack right now (outlined in red): next door, or in an aircraft's range. */
   private attackTargets(u: Unit | undefined): Coord[] {
     if (!u || u.owner !== this.human || u.movesLeft <= 0 || UNITS[u.type].attack <= 0) return [];
-    return neighbors(this.state.map, u).filter((n) => !attackError(this.state, u, n));
+    const tiles = isAir(u) ? tilesWithin(this.state, u, airRange(u)) : neighbors(this.state.map, u);
+    return tiles.filter((n) => !attackError(this.state, u, n));
   }
 
   // ---- end of game (Milestone 6): which victory, who, when, and a short stats summary ------
@@ -1360,6 +1420,7 @@ export class App {
     const name = cityNameFor(this.state, this.human);
     this.queueNotice({
       title: 'Barbarian village taken',
+      icon: MAP_ICONS.village,
       text: `Your ${unit ? UNITS[unit.type].name : 'unit'} took the village. Destroy it for a reward, or settle it as a new city?`,
       sub:
         `Destroy: a random reward (usually gold), and anything hidden under it comes to light. ` +
@@ -1388,6 +1449,7 @@ export class App {
       const res2 = o.revealed ? RESOURCES[o.revealed] : undefined;
       this.showNow({
         title: 'Village destroyed',
+        icon: MAP_ICONS.village,
         text: `Your people found ${o.reward}.`,
         sub: res2 ? `There was ${res2.name} under the village (${bonusText(res2.bonus)} when a city works it).` : undefined,
         buttons: [{ label: 'OK', cls: 'bigBtn' }],
@@ -1397,6 +1459,8 @@ export class App {
       const techs = o.artifact.techs.map((t) => TECHS[t].name);
       this.queueNotice({
         title: 'Ancient artifact!',
+        icon: MAP_ICONS.artifact,
+        iconCls: 'artifact',
         text: `Digging through the village, your people found the ${o.artifact.name}.`,
         sub: `It taught you ${techs.length === 1 ? techs[0] : `${techs.slice(0, -1).join(', ')} and ${techs[techs.length - 1]}`}.`,
         buttons: [
@@ -1442,6 +1506,8 @@ export class App {
             : undefined;
     return {
       title: `${def.name}: ${gp.name}`,
+      icon: def.icon,
+      iconCls: 'gp',
       text: `${gp.name}, a ${def.name}, has joined your empire. Settle them in a city for good, or use them once.`,
       sub: `Settle: ${def.settleText}. Use now: ${this.gpUseText(gp)}.${noTarget ? ` (${noTarget}.)` : ''}`,
       gpId: gp.id,
@@ -1461,6 +1527,8 @@ export class App {
       const tiles = generalTiles(this.state, this.human);
       this.showNow({
         title: `${gp.name}: train which units?`,
+        icon: def.icon,
+        iconCls: 'gp',
         text: 'Every unit on the tile you pick becomes a veteran (+50% in combat).',
         gpId: gp.id,
         list: true,
@@ -1480,6 +1548,8 @@ export class App {
     const cities = mode === 'use' ? engineerCities(this.state, this.human) : this.myCities();
     this.showNow({
       title: mode === 'settle' ? `Settle ${gp.name} where?` : `${gp.name}: finish what?`,
+      icon: def.icon,
+      iconCls: 'gp',
       text: mode === 'settle' ? `${def.settleText}, for good.` : 'The city finishes what it is making at the end of this turn.',
       gpId: gp.id,
       list: true,
@@ -1507,7 +1577,7 @@ export class App {
     const n = this.notices[0];
     $('noticeOverlay').hidden = !n;
     if (!n) return;
-    $('noticeTitle').textContent = n.title;
+    $('noticeTitle').innerHTML = `${n.icon ? `<span class="micon ${n.iconCls ?? ''}">${iconHtml(n.icon, '')}</span>` : ''}${esc(n.title)}`;
     $('noticeText').innerHTML = `${esc(n.text)}${n.sub ? `<span class="sub">${esc(n.sub)}</span>` : ''}`;
     // A long list of choices (cities, tiles) stacks up and scrolls.
     $('noticeButtons').className = n.list ? 'row list scroll' : 'row';
@@ -1870,9 +1940,13 @@ export class App {
         : carrier
           ? ` · ⚓ aboard the ${UNITS[carrier.type].name}`
           : '';
+      const air = isAir(sel)
+        ? ` · range ${airRange(sel)}${def.airAttack ? ` · vs aircraft ${def.airAttack}` : ''} · ${sel.movesLeft > 0 ? 'tap an outlined target to strike, or a city or Carrier to rebase' : 'flown this turn'}`
+        : hovers(sel) ? ' · flies over anything · can’t capture' : '';
+      const carrierAir = isShip(sel) && def.airCargo ? ` · aircraft ${aircraftOf(this.state, sel).length}/${airCapacity(sel)}` : '';
       $('unitInfo').innerHTML = `${this.badge(sel.type, sel.owner)}${def.name}${army}${vet}${fort} <span class="sub">· attack ${def.attack * mult} · defense ${
         def.defense * mult
-      } · moves ${sel.movesLeft}/${def.moves}${naval} · ${terrain}</span>`;
+      }${isAir(sel) ? '' : ` · moves ${sel.movesLeft}/${def.moves}`}${naval}${carrierAir}${air}${isAir(sel) ? '' : ` · ${terrain}`}</span>`;
       foundBtn.hidden = !def.canFoundCity;
       const err = foundCityError(this.state, sel.id);
       foundBtn.disabled = err !== undefined;
@@ -1881,8 +1955,9 @@ export class App {
       fortifyBtn.hidden = def.canFoundCity || sel.owner !== this.human;
       fortifyBtn.disabled = fortifyError(this.state, sel) !== undefined;
       // Ships don't dig in; "Stay" just leaves them out of Next Unit until they move.
-      fortifyBtn.textContent = isShip(sel) ? (sel.fortified ? 'Staying' : 'Stay') : sel.fortified ? 'Fortified' : 'Fortify';
-      fortifyBtn.hidden = fortifyBtn.hidden || sel.carriedBy !== null;
+      const stays = isShip(sel) || isAir(sel) || hovers(sel);
+      fortifyBtn.textContent = stays ? (sel.fortified ? 'Staying' : 'Stay') : sel.fortified ? 'Fortified' : 'Fortify';
+      fortifyBtn.hidden = fortifyBtn.hidden || (sel.carriedBy !== null && !isAir(sel));
       this.renderStackList(sel);
       // The city panel covers this spot; the unit comes back when the city closes.
       panel.hidden = this.openCityId !== undefined;
@@ -1908,22 +1983,43 @@ export class App {
     const mine = sel.owner === this.human;
     // Ships (Round 8): what's aboard, and boarding a ship docked here / going ashore in port.
     const ships = units.filter((u) => isShip(u));
-    const cargoHead = ships
-      .filter((s) => UNITS[s.type].cargo > 0)
-      .map((s) => {
-        const c = cargoOf(this.state, s);
-        return `<div class="label">⚓ ${UNITS[s.type].name} cargo ${c.length}/${cargoCapacity(s)}${c.length ? `: ${stackLabel(c)}` : ''}</div>`;
-      })
-      .join('');
+    const cargoHead =
+      ships
+        .filter((s) => UNITS[s.type].cargo > 0)
+        .map((s) => {
+          const c = cargoOf(this.state, s);
+          return `<div class="label">⚓ ${UNITS[s.type].name} cargo ${c.length}/${cargoCapacity(s)}${c.length ? `: ${stackLabel(c)}` : ''}</div>`;
+        })
+        .join('') +
+      // A Carrier's aircraft (Round 10).
+      ships
+        .filter((s) => (UNITS[s.type].airCargo ?? 0) > 0)
+        .map((s) => {
+          const a = aircraftOf(this.state, s);
+          return `<div class="label">✈ ${UNITS[s.type].name} aircraft ${a.length}/${airCapacity(s)}${a.length ? `: ${stackLabel(a)}` : ''}</div>`;
+        })
+        .join('');
     let navalBtns = '';
-    if (mine && !isShip(sel) && sel.carriedBy === null) {
+    if (mine && !isShip(sel) && !isAir(sel) && !hovers(sel) && sel.carriedBy === null) {
       const ship = ships.find((s) => cargoOf(this.state, s).length < cargoCapacity(s));
       if (ship) navalBtns += `<button type="button" data-act="board" data-unit="${sel.id}" data-ship="${ship.id}" class="navalBtn">⚓ Board the ${UNITS[ship.type].name}</button>`;
     }
-    if (mine && sel.carriedBy !== null && !isWaterAt(this.state, sel.x, sel.y)) {
+    // An aircraft in a city with a Carrier in port: land on it, or leave it for the city.
+    if (mine && isAir(sel) && sel.carriedBy === null && sel.movesLeft > 0) {
+      const ship = ships.find((s) => aircraftOf(this.state, s).length < airCapacity(s));
+      if (ship) navalBtns += `<button type="button" data-act="board" data-unit="${sel.id}" data-ship="${ship.id}" class="navalBtn">✈ Land on the ${UNITS[ship.type].name}</button>`;
+    }
+    if (mine && isAir(sel) && sel.carriedBy !== null && sel.movesLeft > 0 && !isWaterAt(this.state, sel.x, sel.y)) {
+      navalBtns += `<button type="button" data-act="unload" data-unit="${sel.id}" class="navalBtn">✈ Base it in the city</button>`;
+    }
+    if (mine && !isAir(sel) && sel.carriedBy !== null && !isWaterAt(this.state, sel.x, sel.y)) {
       navalBtns += `<button type="button" data-act="unload" data-unit="${sel.id}" class="navalBtn">Go ashore here</button>`;
     }
-    if (mine && sel.carriedBy !== null && isWaterAt(this.state, sel.x, sel.y)) {
+    // The Airport's airlift (Round 10).
+    if (mine && !airliftSourceError(this.state, sel) && airliftTargets(this.state, sel).length > 0) {
+      navalBtns += `<button type="button" data-act="airlift" data-unit="${sel.id}" class="navalBtn">✈ Airlift…</button>`;
+    }
+    if (mine && !isAir(sel) && sel.carriedBy !== null && isWaterAt(this.state, sel.x, sel.y)) {
       navalBtns += '<div class="label">Tap a land tile next to the ship to go ashore there.</div>';
     }
     let html = '';
@@ -1958,11 +2054,13 @@ export class App {
     box.hidden = html === '';
   }
 
-  private toast(text: string, error = false): void {
+  /** A short message; `icon` (Round 10) puts one of the map icons in front of it. */
+  private toast(text: string, error = false, icon?: string): void {
     const box = $('toasts');
     const el = document.createElement('div');
     el.className = error ? 'toast error' : 'toast';
-    el.textContent = text;
+    if (icon) el.innerHTML = `<span class="micon">${iconHtml(icon, '')}</span>${esc(text)}`;
+    else el.textContent = text;
     box.appendChild(el);
     while (box.children.length > 4) box.firstElementChild?.remove();
     setTimeout(() => el.classList.add('fade'), 2600);
@@ -1973,7 +2071,7 @@ export class App {
 /** One side of the odds panel: base strength, each bonus, and the total. */
 function sideHtml(icon: string, title: string, kind: 'Attack' | 'Defense', st: Strength): string {
   const mods = st.mods.length
-    ? st.mods.map((m) => `<li>+${m.pct}% ${esc(m.label)}</li>`).join('')
+    ? st.mods.map((m) => `<li>${m.pct >= 0 ? '+' : '−'}${Math.abs(m.pct)}% ${esc(m.label)}</li>`).join('')
     : '<li class="sub">No bonuses</li>';
   return `<div class="side"><div class="sideName">${icon}${esc(title)}</div>
     <div class="sub">${kind} ${num(st.base)}</div><ul>${mods}</ul>
@@ -1995,6 +2093,9 @@ interface Notice {
   gpId?: number;
   /** The buttons are a list of choices (cities, tiles): stacked, and scrolling if long. */
   list?: boolean;
+  /** Round 10: an icon beside the title (the village, the artifact, a Great Person), and its style. */
+  icon?: string;
+  iconCls?: string;
 }
 
 const ATTITUDE_LABEL = { friendly: 'Friendly', neutral: 'Neutral', hostile: 'Hostile' } as const;
@@ -2045,6 +2146,15 @@ function unitSummary(id: BuildItem['id']): string {
     if (def.coastOnly) parts.push('coast only');
     if (def.stealth) parts.push('seen only from next to it');
   }
+  if (def.domain === 'air') {
+    parts[0] = `attack ${def.attack} · defense ${def.defense}`;
+    parts.push(`aircraft · range ${def.range}`);
+    if (def.airAttack) parts.push(`${def.airAttack} vs aircraft, intercepts`);
+    if (def.evadePct) parts.push('hard to intercept');
+    parts.push('strikes and flies back to base');
+  }
+  if (def.hover) parts.push('flies over anything, can’t capture');
+  if (def.airCargo) parts.push(`carries ${def.airCargo} aircraft`);
   if (def.canFoundCity) parts.push('founds a city');
   if (def.popCost > 0) parts.push(`costs ${def.popCost} population`);
   return parts.join(' · ');

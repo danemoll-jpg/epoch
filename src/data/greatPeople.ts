@@ -10,8 +10,10 @@ export const GREAT_PERSON_KINDS: GreatPersonKind[] = ['scientist', 'artist', 'me
 export interface GreatPersonDef {
   kind: GreatPersonKind;
   name: string;
-  /** Map/panel placeholder until Dan picks icons. */
+  /** Fallback letters while (or if) its icon can't be drawn. */
   glyph: string;
+  /** Its icon in the panels: a file `src/assets/icons/<icon>.svg`, credited in icons.ts (Dan's picks). */
+  icon: string;
   /** Settled in a city: what it does there, for the panel. */
   settleText: string;
   /** Used once: what it does, for the panel. */
@@ -21,31 +23,31 @@ export interface GreatPersonDef {
 
 export const GREAT_PEOPLE: Record<GreatPersonKind, GreatPersonDef> = {
   scientist: {
-    kind: 'scientist', name: 'Great Scientist', glyph: 'GS',
+    kind: 'scientist', name: 'Great Scientist', glyph: 'GS', icon: 'microscope',
     settleText: '+50% science in the city',
     useText: 'Learn a tech at once',
     names: ['Hypatia', 'Archimedes', 'Zhang Heng', 'Al-Khwarizmi', 'Ibn al-Haytham', 'Galileo Galilei', 'Isaac Newton', 'Marie Curie', 'Ada Lovelace', 'Srinivasa Ramanujan'],
   },
   artist: {
-    kind: 'artist', name: 'Great Artist', glyph: 'GA',
+    kind: 'artist', name: 'Great Artist', glyph: 'GA', icon: 'palette',
     settleText: '+3 culture per turn in the city',
     useText: 'A burst of culture for your empire',
     names: ['Homer', 'Sappho', 'Li Bai', 'Murasaki Shikibu', 'Rumi', 'Michelangelo', 'William Shakespeare', 'Rembrandt', 'Ludwig van Beethoven', 'Frida Kahlo'],
   },
   merchant: {
-    kind: 'merchant', name: 'Great Merchant', glyph: 'GM',
+    kind: 'merchant', name: 'Great Merchant', glyph: 'GM', icon: 'two-coins',
     settleText: '+50% gold in the city',
     useText: 'A big sum of gold',
     names: ['Croesus', 'Zheng He', 'Marco Polo', 'Ibn Battuta', 'Jakob Fugger', 'Cosimo de’ Medici', 'Adam Smith', 'Mayer Rothschild', 'Andrew Carnegie', 'Madam C. J. Walker'],
   },
   engineer: {
-    kind: 'engineer', name: 'Great Engineer', glyph: 'GE',
+    kind: 'engineer', name: 'Great Engineer', glyph: 'GE', icon: 'gears',
     settleText: '+25% production in the city',
     useText: 'Finish the wonder or building a city is making',
     names: ['Imhotep', 'Hero of Alexandria', 'Li Chun', 'Filippo Brunelleschi', 'Mimar Sinan', 'James Watt', 'Isambard Kingdom Brunel', 'Gustave Eiffel', 'Nikola Tesla', 'Emily Roebling'],
   },
   general: {
-    kind: 'general', name: 'Great General', glyph: 'GG',
+    kind: 'general', name: 'Great General', glyph: 'GG', icon: 'laurel-crown',
     settleText: 'New units there are veterans; armies there fight 25% better',
     useText: 'Every unit on one tile becomes a veteran',
     names: ['Sun Tzu', 'Alexander', 'Hannibal', 'Julius Caesar', 'Khalid ibn al-Walid', 'Tomoe Gozen', 'Genghis Khan', 'Joan of Arc', 'Yi Sun-sin', 'Napoleon Bonaparte'],

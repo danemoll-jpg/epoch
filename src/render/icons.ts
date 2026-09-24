@@ -1,4 +1,4 @@
-// Unit icons (Round 7). The SVGs in src/assets/icons/ are bundled into the build as text (no
+// Unit icons (Round 7), and the map icons (Round 10). The SVGs in src/assets/icons/ are bundled into the build as text (no
 // request to the web, ever). The map draws each icon from a small bitmap, rasterized once per
 // icon, color, and pixel size and then cached; the HTML panels inline the SVG itself, colored
 // by CSS (`currentColor`). A missing or not-yet-loaded icon falls back to the unit's letters.
@@ -19,8 +19,16 @@ export function iconSvg(icon: string): string | undefined {
 /** The unit type's icon as inline HTML (inherits the text color), or its letters if missing. */
 export function unitIconHtml(type: UnitTypeId, cls = 'uicon'): string {
   const def = UNITS[type];
-  const svg = def?.icon ? iconSvg(def.icon) : undefined;
-  if (!svg) return `<span class="${cls} uglyph" aria-hidden="true">${def?.glyph ?? '?'}</span>`;
+  return iconHtml(def?.icon, def?.glyph ?? '?', cls);
+}
+
+/**
+ * Any icon as inline HTML (inherits the text color; sized by CSS), or `fallback` letters if
+ * it's missing. Round 10: map things (resources, Great People, the village...) use it too.
+ */
+export function iconHtml(icon: string | undefined, fallback: string, cls = 'uicon'): string {
+  const svg = icon ? iconSvg(icon) : undefined;
+  if (!svg) return `<span class="${cls} uglyph" aria-hidden="true">${fallback}</span>`;
   // Drop the credit comment and size the SVG by CSS.
   return `<span class="${cls}" aria-hidden="true">${svg.replace(/<!--.*?-->/g, '').replace('<svg ', '<svg focusable="false" ')}</span>`;
 }

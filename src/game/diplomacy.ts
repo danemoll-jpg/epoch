@@ -508,10 +508,10 @@ export function bestAttack(state: GameState, p: number): number {
   const player = state.players[p]!;
   let best = 0;
   for (const def of Object.values(UNITS)) {
-    if (def.canFoundCity || def.domain !== 'land' || !hasTech(player, def.requires)) continue;
+    if (def.canFoundCity || def.domain !== 'land' || def.hover || !hasTech(player, def.requires)) continue;
     best = Math.max(best, def.attack * RULES.combat.armyMultiplier);
   }
-  for (const u of state.units) if (u.owner === p && UNITS[u.type].domain === 'land') best = Math.max(best, attackStrength(u, state).total);
+  for (const u of state.units) if (u.owner === p && UNITS[u.type].domain === 'land' && !UNITS[u.type].hover) best = Math.max(best, attackStrength(u, state).total);
   return best;
 }
 

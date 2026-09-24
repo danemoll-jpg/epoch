@@ -78,7 +78,7 @@ export interface TechUnlocks {
 /** What learning this tech makes available, read from the `requires` fields in data. */
 export function techUnlocks(tech: TechId): TechUnlocks {
   return {
-    units: UNIT_IDS.filter((u) => UNITS[u].requires === tech),
+    units: UNIT_IDS.filter((u) => UNITS[u].requires === tech || UNITS[u].alsoRequires === tech),
     buildings: BUILDING_IDS.filter((b) => BUILDINGS[b].requires === tech),
     wonders: WONDER_LIST.filter((w) => w.requires === tech),
   };

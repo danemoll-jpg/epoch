@@ -18,7 +18,7 @@ import { addLog } from './log';
 import { hasTech } from './tech';
 import { addSpaceshipPart, spaceshipError, victoryWonderBlocker } from './victory';
 import { completeWonder, wonderError } from './wonders';
-import { coastalError } from './naval';
+import { coastalError, isAircraftType } from './naval';
 import { cityCulture, cityScienceGold, cityYields, empireWonderEffect, foodSurplus, refreshWorkedTiles, settled } from './yields';
 import type { ActionResult, BuildItem, City, GameState, Unit } from './types';
 
@@ -63,6 +63,9 @@ export function buildChoiceError(state: GameState, city: City, item: BuildItem):
   if (item.kind === 'building' && city.buildings.includes(item.id)) return 'Already built';
   const requires = itemRequires(item);
   if (!hasTech(state.players[city.owner]!, requires)) return `Needs ${TECHS[requires!].name}`;
+  // A second tech (the Stealth Bomber, Round 10).
+  const also = item.kind === 'unit' ? UNITS[item.id].alsoRequires : undefined;
+  if (!hasTech(state.players[city.owner]!, also)) return `Needs ${TECHS[also!].name}`;
   const coast = coastalError(state, city, item);
   if (coast) return coast;
   if (item.kind === 'wonder') return wonderError(state, city, item.id);
@@ -186,9 +189,10 @@ export function turnsToFinish(state: GameState, city: City): number | undefined 
 }
 
 function spawnUnit(state: GameState, city: City, type: Unit['type']): Unit {
-  // Barracks, a veteran wonder, or a Great General settled here (Round 9).
+  // Barracks (an Airport for aircraft, Round 10), a veteran wonder, or a Great General settled here (Round 9).
+  const air = isAircraftType(type);
   const veteran =
-    city.buildings.some((b) => BUILDINGS[b].effects.veteranUnits) ||
+    city.buildings.some((b) => (air ? BUILDINGS[b].effects.veteranAircraft : BUILDINGS[b].effects.veteranUnits)) ||
     empireWonderEffect(state, city.owner, 'veteranUnits') ||
     settled(city, 'general') > 0;
   const unit: Unit = {

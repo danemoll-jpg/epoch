@@ -116,7 +116,7 @@ npm run dev      # start local dev server
 npm test         # run unit tests (Vitest, tests/**/*.test.ts)
 npm run build    # type-check + production build into dist/
 npm run lint     # type-check only (tsc --noEmit); no ESLint yet
-npm run sim      # pace/war/victory/naval/barbarian/Great People report on 5 all-AI seeds + landmass stats (not part of npm test)
+npm run sim      # pace/war/victory/naval/barbarian/Great People/air report on 5 all-AI seeds + landmass stats (not part of npm test)
 ```
 **iPad over the local network:**
 ```
@@ -156,7 +156,7 @@ debugging, including from Safari's Web Inspector on the iPad.
 completes inside Safari's `pagehide`). Saved after every successful action
 (including End Turn), on `visibilitychange` → hidden, and on `pagehide`.
 The save carries `saveVersion` (= `STATE_VERSION` in `src/game/types.ts`,
-currently 8). **Bump `STATE_VERSION` whenever the state shape changes, and
+currently 9). **Bump `STATE_VERSION` whenever the state shape changes, and
 add a migration** to `MIGRATIONS` in `src/game/save.ts` (keyed by the
 version it upgrades from), plus a line in `MIGRATION_NOTES` for the notice,
 so Dan's game carries forward. Migrated so far: 2 → 3 (M3: no techs,
@@ -170,7 +170,9 @@ plans; the four sea techs are simply unknown), and 7 → 8 (Round 9:
 resources from the seed for the whole map, the barbarians added as the
 last player with every table grown by one, villages and huts only on tiles
 no civ has explored, and Great People counting only culture made from now
-on via `greatPeopleCultureBase`).
+on via `greatPeopleCultureBase`), and 8 → 9 (Round 10: nothing to change;
+no aircraft exist yet, Advanced Flight is unknown, and `City.airliftTurn`
+is simply absent).
 
 **Backups: a save is never thrown away.** All startup and replace logic
 is in `src/ui/storage.ts` (`loadOrStart`, `backupCurrentSave`,
@@ -200,7 +202,12 @@ never autosaves**, so the real game can't be overwritten. Current set:
 `naval-battle`, `bombard`, `ship-sunk-cargo`, `amphibious-capture`,
 `harbor`, `ai-overseas`, `all-ships`, `fleet`; (round 9) `village-spawn`,
 `take-village`, `village-artifact`, `village-resource`, `barbarian-raid`,
-`hut`, `great-person`, `engineer-wonder`, `all-resources`. The naval ones use `seaState()` (your
+`hut`, `great-person`, `engineer-wonder`, `all-resources`; (round 10)
+`air-strike`, `intercept`, `rebase`, `carrier-sunk`, `bomber-no-capture`,
+`helicopter`, `airlift`, `all-aircraft`, `all-map-icons`. The air ones use
+`airfield()` (the combat `battlefield()` with Flight known). **Aircraft
+strike only what their owner can see**, so a strike scenario keeps a unit
+next to the target. The naval ones use `seaState()` (your
 island plus an eastern landmass across a coast channel or open ocean). The
 round 9 ones use `withBarbarians()` (your capital plus the barbarian
 player); `makeState(..., { barbarians: true })` or `addBarbarians(state)`
@@ -235,12 +242,18 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
 ## Code layout
 - `src/data/`: terrain (yields, move cost, `defensePct`), units (cost,
   `popCost`, attack/defense/moves/sight, `requires` tech, `glyph` letters,
-  `icon` file name (ships have none yet), and Round 8's `domain`
-  ('land'/'sea'), `cargo`, `coastOnly` (Galley), `stealth` (Submarine); 15
-  land units and 9 ships), `icons.ts` (each used icon's CC BY 3.0 credit),
+  `icon` file name, and Round 8's `domain` ('land'/'sea'/'air'), `cargo`,
+  `coastOnly` (Galley), `stealth` (Submarine); Round 10's `range`,
+  `airAttack` (strength against aircraft), `evadePct` (Stealth Bomber),
+  `airCargo` (Carrier: 3), `hover` (Helicopter), `alsoRequires` (a second
+  tech); 16 land units counting the Helicopter, 9 ships, 4 based aircraft),
+  `icons.ts` (each used icon's CC BY 3.0 credit, `MAP_ICONS` for the
+  village/hut/barbarian badge/artifact, and `usedIcons()`, the list the
+  credits and the icon test use),
   buildings (`requires` tech; Walls' `defenseBonusPct`; Temple culture;
-  Harbor `coastal` + `waterFood`; AI building order), `techs.ts` (eras,
-  the 54 techs with prereqs/era/tier/description, the tech cost formula,
+  Harbor `coastal` + `waterFood`; Round 10's Airport: `veteranAircraft`,
+  `airlift`; AI building order), `techs.ts` (eras,
+  the 55 techs with prereqs/era/tier/description, the tech cost formula,
   AI research priority), `wonders.ts` (13 wonders + the 2 victory wonders:
   cost, tech, city/empire effects, free building, `victory`), `victory.ts`
   (culture and gold goals, spaceship parts/cost/travel turns, warning line,
@@ -257,7 +270,8 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   force, gold reserve, and `victory`: goal weights, war bonus, science-rate
   and gold-spending thresholds, each goal's first building), and `naval`:
   overseas site score, plan timeouts, escort and invasion waits, warships
-  kept)). A tech's
+  kept), and `air` (Round 10: fighters per border or coastal city, bombers
+  per city at war, the strike odds rule)). A tech's
   unlocks are the `requires` fields on units/buildings/wonders, so adding a
   unit never touches `techs.ts`. Round 9: `barbarians.ts` (the barbarian
   "civ" `BARBARIAN_CIV`, `BARBARIANS`: village count and spacing, defense
@@ -265,8 +279,9 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   home radius, attack odds, seek chance, raids; `VILLAGE_REWARDS`;
   `ARTIFACTS`: chance, tech counts, names; `HUTS`: count, results,
   amounts), `resources.ts` (the 15 resources: terrains, bonus, `hidden`,
-  `revealedBy` tech; `RESOURCE_RULES`: chance, spacing, fair starts), and
-  `greatPeople.ts` (the 5 kinds, texts, names; `GREAT_PEOPLE_RULES`:
+  `revealedBy` tech, `icon`; `RESOURCE_RULES`: chance, spacing, fair
+  starts), and `greatPeople.ts` (the 5 kinds, texts, names, `icon`;
+  `GREAT_PEOPLE_RULES`:
   thresholds and every effect's number). `TECH_COST.perKnown` is 8.5 since
   round 9 (was 6) to keep the era pace.
 - `src/game/`: pure rules. `types.ts` (state + `STATE_VERSION`), `rng.ts`,
@@ -275,7 +290,13 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   boarding by stepping onto your ship, going ashore by stepping onto land,
   cargo moving with its ship; `boardShip`/`unloadHere` for ships in port),
   `naval.ts` (ship rules: where ships may go, coastal cities, cargo, who
-  defends a tile, `removeUnit` taking cargo down with a ship), `stack.ts` (what's
+  defends a tile, `removeUnit` taking cargo down with a ship; since Round
+  10 also what kind a unit is: `isAir`, `hovers`, `isAircraft`,
+  `canCapture`, and the Carrier's `aircraftOf`/`airCapacity`; `cargoOf` is
+  land cargo only, `carriedBy` everything aboard), `air.ts` (Round 10: the
+  base-and-strike model's rebase, `rebaseTargets`, range, and the Airport's
+  airlift), `aiAir.ts` (the AI's aircraft: builds, strikes with the odds
+  rule, rebasing toward the front), `stack.ts` (what's
   on a tile: mixed stacks, the unit peeking out behind, army candidates of
   any type), `city.ts`
   (founding), `yields.ts` (tile yields, automatic worked tiles, trade
@@ -299,8 +320,10 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   (research action, end-of-turn research, eras, unlocks, AI research
   choice, `learnTech`), `combat.ts` (odds with named modifiers,
   `winChance` = the one formula, attack (a win over a city's last defender
-  captures it; ships bombard and never capture), fortify, armies (three
-  ships make a "fleet": ×3 strength and ×3 cargo)), `conquest.ts` (city capture,
+  captures it; ships bombard and never capture; aircraft strike in range
+  and never capture), `interception` and `overallChance` (Round 10),
+  fortify, armies (three ships make a "fleet": ×3 strength and ×3 cargo; no
+  air armies)), `conquest.ts` (city capture,
   elimination, and the civ-name helpers every message uses: `civName`
   mid-sentence, `CivName` to start one, `civPossessive`, `civVerb`), `war.ts` (the `atWar` table), `diplomacy.ts` (contact,
   declare war, peace and `peaceDesire`, opinions/attitude, tech trades and
@@ -317,16 +340,20 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   (serialize/deserialize with version check and migrations), and
   `actions.ts` (the single `applyAction` entry point the UI uses).
 - `src/render/`: `camera.ts`, `renderer.ts` (Canvas 2D; read-only on
-  state; Round 9 placeholders until Dan's map icon picks: village fence
-  with flags drawn over its unit, hut dome with "?", resource letter badge,
-  barbarian discs with a red rim), and `icons.ts` (the bundled unit SVGs: bitmaps cached per icon,
-  color, and size for the map; inline SVG for the panels). A unit's look on
-  the map is drawn only in `drawGlyph` (its icon, white on the owner's
-  color; letters while it loads or if it's missing).
-- `src/assets/icons/`: the 24 unit icons Dan picked (15 land, 9 ships;
-  game-icons.net, CC BY 3.0; the Carrier's is modified), credited in
-  `CREDITS.md` and on ☰ → About / Credits (a credit's `modified` field
-  says what we changed).
+  state; since Round 10 Dan's map icons, drawn as on his picker page: the
+  village on a pale square with its flags along the bottom right and its
+  garrison in the corner, the hut on a pale circle, resources white on a
+  dark corner badge, a red skull badge on barbarian units; aircraft sit in
+  their city behind its ground units), and `icons.ts` (the bundled SVGs:
+  bitmaps cached per icon, color, and size for the map; inline SVG for the
+  panels via `iconHtml`/`unitIconHtml`). A unit's look on the map is drawn
+  only in `drawGlyph` (its icon, white on the owner's color; letters while
+  it loads or if it's missing).
+- `src/assets/icons/`: the 53 icons Dan picked (29 units: 15 land, 9
+  ships, 5 aircraft; 24 map icons: village, hut, barbarian badge, 15
+  resources, 5 Great People, artifact; game-icons.net, CC BY 3.0; the
+  Carrier's is modified), credited in `CREDITS.md` and on ☰ → About /
+  Credits (a credit's `modified` field says what we changed).
 - `src/dev/`: dev/test only, never in the production build. `build.ts`
   (hand-made state builder shared by tests and scenarios), `scenarios.ts`,
   and `sim.ts` (all-AI simulation: era turns, techs over time, wars; used
@@ -351,8 +378,11 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
 - `docs/map-icon-candidates.html` + `docs/map-icon-candidates/`: round 9's
   candidates for the village, hut, barbarian badge, 15 resources, 5 Great
   People, and the artifact (72 icons, same picker; picks saved under
-  `epoch.mapIconPicks`; `SOURCES.md` has each author). Waiting for Dan's
-  picks; the next round wires them in.
+  `epoch.mapIconPicks`; `SOURCES.md` has each author). Dan's picks are
+  wired in (Round 10).
+- `docs/bomber-size-candidates.html`: round 10's check of the Bomber icon
+  at map size next to the other aircraft (and round 8's Bomber A and C),
+  for Dan to decide whether to swap it.
 - `docs/ship-air-icon-candidates.html` + `docs/ship-air-icon-candidates/`:
   round 8's candidates for the 9 ships and 5 aircraft (35 icons, same
   picker; `SOURCES.md` has each author). Dan's picks are recorded under
@@ -360,8 +390,8 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   removed so it doesn't look like the Battleship; compare in
   `docs/carrier-trim-candidates.html`).
 - The version shown on the About screen comes from `package.json`
-  (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.9.0 for
-  round 9.
+  (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.10.0 for
+  round 10.
 - The barbarians, when present, are always the **last** player (kind
   `'barbarian'`). Loops over civs should skip them (`civPlayers`, or
   `p.kind !== 'barbarian'`): they're always at war with everyone but never
@@ -411,25 +441,15 @@ what was pushed.
 ## Where things stand
 **Always check `TODO.md` for the current objective before starting work.**
 
-- **Milestones 1–7 and naval** are done and approved: land and sea units,
+- **Milestones 1–7, naval, and air** are done: land, sea, and air units,
   wonders, culture, the four victories, diplomacy, barbarians, villages,
-  resources, huts, and Great People.
+  resources, huts, and Great People. **Round 10** (Dan's map and aircraft
+  icons, and air units) is done and waiting for Dan's checks.
 - **The play server:** http://10.0.0.224:4173/.
 - The epoch repo is pushed every round until Netlify is set up.
 
-**The current objective is Round 10:**
-- **Part A:** wire in Dan's 24 map icon picks and 5 aircraft icons, with
-  credits.
-- **Part B, air units:**
-  - Fighter, Bomber, Jet Fighter, Stealth Bomber, and Helicopter;
-  - the base-and-strike model, with an automatic return and no crashing;
-  - interception;
-  - Carriers carrying aircraft;
-  - the Airport with an airlift;
-  - the AI using air power.
-
-See items 0, A1–A3, and B1–B10 in TODO.md. After this comes M8 (the leader
-roster and Dan's AI portraits), then M9 (polish).
+**Next (from the planning session):** M8 (the leader roster and Dan's AI
+portraits), then M9 (polish). See TODO.md.
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.

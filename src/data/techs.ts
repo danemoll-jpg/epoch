@@ -1,4 +1,4 @@
-// Tech tree (Milestone 3). Four eras, 54 techs (Round 8 added four sea techs), each with prerequisites, an era, and a
+// Tech tree (Milestone 3). Four eras, 55 techs (Round 8 added four sea techs, Round 10 Advanced Flight), each with prerequisites, an era, and a
 // cost tier (its depth in the tree). What a tech unlocks is declared on the thing it unlocks
 // (`requires` on units, buildings, and wonders), so adding a unit never touches this file.
 // Names are common historical terms; the descriptions are our own.
@@ -35,7 +35,7 @@ export type TechId =
   | 'industrialization' | 'corporation'
   // Modern
   | 'refining' | 'electronics' | 'combustion' | 'machine_tools' | 'automobile' | 'flight'
-  | 'mass_production' | 'computers' | 'rocketry' | 'space_flight';
+  | 'mass_production' | 'computers' | 'rocketry' | 'space_flight' | 'advanced_flight';
 
 export interface TechDef {
   id: TechId;
@@ -114,6 +114,7 @@ export const TECH_LIST: TechDef[] = [
   tech('mass_production', 'Mass Production', 'modern', 14, ['automobile', 'corporation'], 'Assembly lines turn out goods by the thousand.'),
   tech('computers', 'Computers', 'modern', 15, ['electronics', 'mass_production'], 'Machines that calculate faster than any person.'),
   tech('rocketry', 'Rocketry', 'modern', 14, ['flight', 'electronics'], 'Controlled explosions that climb past the clouds.'),
+  tech('advanced_flight', 'Advanced Flight', 'modern', 14, ['flight', 'machine_tools'], 'Jet engines and spinning rotors: faster, higher, and able to hover.'),
   tech('space_flight', 'Space Flight', 'modern', 16, ['computers', 'rocketry'], 'Leaving the world behind. Opens the way to the stars.'),
 ];
 

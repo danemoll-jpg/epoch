@@ -2,7 +2,7 @@
 
 ## Unit icons
 
-The unit icons are from [game-icons.net](https://game-icons.net), licensed
+The unit icons (land units, ships, and aircraft) are from [game-icons.net](https://game-icons.net), licensed
 under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). They're
 recolored in the game (drawn white on each civ's color); the shapes are
 unchanged except where noted below. The SVG files are in `src/assets/icons/`, and the game's
@@ -34,10 +34,49 @@ unchanged except where noted below. The SVG files are in `src/assets/icons/`, an
 | Battleship | Battleship | Cathelineau | https://game-icons.net/1x1/cathelineau/battleship.html | CC BY 3.0 |
 | Submarine | Submarine | Delapouite | https://game-icons.net/1x1/delapouite/submarine.html | CC BY 3.0 |
 | Carrier | Carrier | Cathelineau | https://game-icons.net/1x1/cathelineau/carrier.html | CC BY 3.0 |
+| Fighter | Biplane | Quoting | https://game-icons.net/1x1/quoting/biplane.html | CC BY 3.0 |
+| Bomber | Carpet bombing | Skoll | https://game-icons.net/1x1/skoll/carpet-bombing.html | CC BY 3.0 |
+| Jet Fighter | Jet fighter | Delapouite | https://game-icons.net/1x1/delapouite/jet-fighter.html | CC BY 3.0 |
+| Stealth Bomber | Stealth bomber | Delapouite | https://game-icons.net/1x1/delapouite/stealth-bomber.html | CC BY 3.0 |
+| Helicopter | Helicopter | Delapouite | https://game-icons.net/1x1/delapouite/helicopter.html | CC BY 3.0 |
 
 **Modified:** the Carrier icon has its wave lines removed and is cropped a
 little larger, so it reads differently from the Battleship at map size.
 
+## Map icons
+
+The map icons (the barbarian village, the hut, the barbarian badge, the
+artifact, the 15 resources, and the 5 Great People) are from the same site and
+license, recolored in the game, shapes unchanged.
+
+| Subject | Icon | Author | Source | License |
+|---|---|---|---|---|
+| Barbarian village | Goblin camp | Delapouite | https://game-icons.net/1x1/delapouite/goblin-camp.html | CC BY 3.0 |
+| Exploration hut | Hut | Delapouite | https://game-icons.net/1x1/delapouite/hut.html | CC BY 3.0 |
+| Barbarian badge | Skull crossed bones | Lorc | https://game-icons.net/1x1/lorc/skull-crossed-bones.html | CC BY 3.0 |
+| Ancient artifact | Amphora | Delapouite | https://game-icons.net/1x1/delapouite/amphora.html | CC BY 3.0 |
+| Wheat | Wheat | Lorc | https://game-icons.net/1x1/lorc/wheat.html | CC BY 3.0 |
+| Cattle | Cow | Delapouite | https://game-icons.net/1x1/delapouite/cow.html | CC BY 3.0 |
+| Game | Stag head | Lorc | https://game-icons.net/1x1/lorc/stag-head.html | CC BY 3.0 |
+| Fish | Circling fish | Delapouite | https://game-icons.net/1x1/delapouite/circling-fish.html | CC BY 3.0 |
+| Whales | Sperm whale | Delapouite | https://game-icons.net/1x1/delapouite/sperm-whale.html | CC BY 3.0 |
+| Oasis | Oasis | Delapouite | https://game-icons.net/1x1/delapouite/oasis.html | CC BY 3.0 |
+| Spices | Chili pepper | Delapouite | https://game-icons.net/1x1/delapouite/chili-pepper.html | CC BY 3.0 |
+| Silk | Kimono | Delapouite | https://game-icons.net/1x1/delapouite/kimono.html | CC BY 3.0 |
+| Wine | Wine bottle | Delapouite | https://game-icons.net/1x1/delapouite/wine-bottle.html | CC BY 3.0 |
+| Gold | Gold bar | Willdabeast | https://game-icons.net/1x1/willdabeast/gold-bar.html | CC BY 3.0 |
+| Gems | Cut diamond | Lorc | https://game-icons.net/1x1/lorc/cut-diamond.html | CC BY 3.0 |
+| Iron | Anvil | Lorc | https://game-icons.net/1x1/lorc/anvil.html | CC BY 3.0 |
+| Aluminum | Soda can | Guard13007 | https://game-icons.net/1x1/guard13007/soda-can.html | CC BY 3.0 |
+| Rubber | Car wheel | Delapouite | https://game-icons.net/1x1/delapouite/car-wheel.html | CC BY 3.0 |
+| Oil | Oil drum | Skoll | https://game-icons.net/1x1/skoll/oil-drum.html | CC BY 3.0 |
+| Great Scientist | Microscope | Lord Berandas | https://game-icons.net/1x1/lord-berandas/microscope.html | CC BY 3.0 |
+| Great Artist | Palette | Delapouite | https://game-icons.net/1x1/delapouite/palette.html | CC BY 3.0 |
+| Great Merchant | Two coins | Delapouite | https://game-icons.net/1x1/delapouite/two-coins.html | CC BY 3.0 |
+| Great Engineer | Gears | Lorc | https://game-icons.net/1x1/lorc/gears.html | CC BY 3.0 |
+| Great General | Laurel crown | Lorc | https://game-icons.net/1x1/lorc/laurel-crown.html | CC BY 3.0 |
+
 The other candidates Dan chose from (not used in the game) are in
-`docs/icon-candidates/` and `docs/ship-air-icon-candidates/`, credited in
+`docs/icon-candidates/`, `docs/ship-air-icon-candidates/`, and
+`docs/map-icon-candidates/`, credited in
 their `SOURCES.md` files.

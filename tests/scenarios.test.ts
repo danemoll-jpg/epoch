@@ -24,6 +24,11 @@ import { BARBARIANS } from '../src/data/barbarians';
 import { RESOURCE_IDS } from '../src/data/resources';
 import { visibleResource } from '../src/game/resources';
 import { pendingVillage } from '../src/game/villages';
+import { interception } from '../src/game/combat';
+import { airliftTargets } from '../src/game/air';
+
+const AIR_TARGET = { x: 10, y: 5 };
+const mine = (s: GameState, type: string) => s.units.find((u) => u.owner === 0 && u.type === type)!;
 
 const capital = (s: GameState): City => s.cities.find((c) => c.owner === 0)!;
 const FRONT = { x: 9, y: 5 };
@@ -49,6 +54,126 @@ function endTurn(s: GameState): void {
 
 /** What each scenario's note promises. A new scenario without an entry here fails the suite. */
 const OUTCOMES: Record<string, (s: GameState) => void> = {
+  // ---- Round 10: aircraft and the map icons ----
+  'air-strike': (s) => {
+    const bomber = mine(s, 'bomber');
+    const base = { x: bomber.x, y: bomber.y };
+    // Its targets are anywhere in range, not just next door.
+    expect(distance(bomber, AIR_TARGET)).toBe(3);
+    expect(attackError(s, bomber, AIR_TARGET)).toBeUndefined();
+    expect(noteOf('air-strike')).toContain(`${Math.round(combatOdds(s, bomber, AIR_TARGET)!.chance * 100)}%`);
+    const res = applyAction(s, { type: 'attack', unitId: bomber.id, at: AIR_TARGET });
+    expect(res.combat).toMatchObject({ attackerWon: true, airStrike: true });
+    expect(res.combat!.interception).toBeUndefined();
+    expect(s.units.some((u) => u.owner === 1 && u.x === AIR_TARGET.x && u.y === AIR_TARGET.y)).toBe(false);
+    // Back at base, and done for the turn.
+    expect({ x: bomber.x, y: bomber.y }).toEqual(base);
+    expect(bomber.movesLeft).toBe(0);
+    expect(attackError(s, bomber, AIR_TARGET)).toBe('Already flew this turn');
+  },
+  intercept: (s) => {
+    const bomber = mine(s, 'bomber');
+    const icpt = interception(s, bomber, AIR_TARGET)!;
+    expect(icpt.fighter.type).toBe('fighter');
+    expect(noteOf('intercept')).toContain(`${Math.round(icpt.chance * 100)}% of the time`);
+    const res = applyAction(s, { type: 'attack', unitId: bomber.id, at: AIR_TARGET });
+    expect(res.combat!.interception).toMatchObject({ fighterWon: true, fighterType: 'fighter' });
+    expect(res.combat!.attackerWon).toBe(false);
+    expect(s.units.some((u) => u.id === bomber.id)).toBe(false);
+    // The strike never happened.
+    expect(s.units.some((u) => u.owner === 1 && u.type === 'musketman')).toBe(true);
+    expect(s.log.some((e) => e.kind === 'intercept')).toBe(true);
+  },
+  rebase: (s) => {
+    const fighter = mine(s, 'fighter');
+    const bomber = mine(s, 'bomber');
+    const ur = s.cities.find((c) => c.name === 'Ur')!;
+    const carrier = mine(s, 'carrier');
+    // Tapping Ur with the Fighter selected is a move (rebase); the Carrier too for the Bomber.
+    expect(reachableThisTurn(s, fighter)).toContainEqual({ x: ur.x, y: ur.y });
+    expect(applyAction(s, { type: 'move', unitId: fighter.id, to: ur }).ok).toBe(true);
+    expect({ x: fighter.x, y: fighter.y, carriedBy: fighter.carriedBy, movesLeft: fighter.movesLeft }).toEqual({ x: ur.x, y: ur.y, carriedBy: null, movesLeft: 0 });
+    expect(applyAction(s, { type: 'move', unitId: bomber.id, to: carrier }).ok).toBe(true);
+    expect(bomber.carriedBy).toBe(carrier.id);
+    // The Carrier sails, and the Bomber goes along.
+    expect(applyAction(s, { type: 'move', unitId: carrier.id, to: { x: carrier.x + 1, y: carrier.y } }).ok).toBe(true);
+    expect({ x: bomber.x, y: bomber.y }).toEqual({ x: carrier.x, y: carrier.y });
+  },
+  'carrier-sunk': (s) => {
+    const theirs = s.units.find((u) => u.owner === 1 && u.type === 'carrier')!;
+    const aboard = s.units.filter((u) => u.carriedBy === theirs.id);
+    expect(aboard.map((u) => u.type).sort()).toEqual(['bomber', 'fighter']);
+    const res = applyAction(s, { type: 'attack', unitId: mine(s, 'battleship').id, at: theirs });
+    expect(res.combat).toMatchObject({ attackerWon: true, cargoLost: 2 });
+    for (const u of [theirs, ...aboard]) expect(s.units.some((x) => x.id === u.id)).toBe(false);
+  },
+  'bomber-no-capture': (s) => {
+    const taxila = s.cities.find((c) => c.name === 'Taxila')!;
+    const bomber = mine(s, 'bomber');
+    const base = { x: bomber.x, y: bomber.y };
+    const res = applyAction(s, { type: 'attack', unitId: bomber.id, at: taxila });
+    expect(res.combat).toMatchObject({ attackerWon: true, airStrike: true });
+    expect(res.combat!.capturedCityId).toBeUndefined();
+    // Empty, and still theirs; the Bomber went home.
+    expect(taxila.owner).toBe(1);
+    expect(s.units.some((u) => u.x === taxila.x && u.y === taxila.y)).toBe(false);
+    expect({ x: bomber.x, y: bomber.y }).toEqual(base);
+    // The Legion walks in and takes it.
+    expect(applyAction(s, { type: 'move', unitId: mine(s, 'legion').id, to: taxila }).ok).toBe(true);
+    expect(taxila.owner).toBe(0);
+  },
+  helicopter: (s) => {
+    const heli = mine(s, 'helicopter');
+    const taxila = s.cities.find((c) => c.name === 'Taxila')!;
+    // Over the mountain, the lake, and the forest at 1 a tile.
+    expect(applyAction(s, { type: 'move', unitId: heli.id, to: { x: taxila.x - 1, y: taxila.y } }).ok).toBe(true);
+    expect({ x: heli.x, y: heli.y }).toEqual({ x: taxila.x - 1, y: taxila.y });
+    expect(heli.movesLeft).toBe(UNITS.helicopter.moves - 4);
+    const res = applyAction(s, { type: 'attack', unitId: heli.id, at: taxila });
+    expect(res.combat!.attackerWon).toBe(true);
+    expect(res.combat!.capturedCityId).toBeUndefined();
+    expect({ x: heli.x, y: heli.y }).toEqual({ x: taxila.x - 1, y: taxila.y });
+    expect(taxila.owner).toBe(1);
+    // Even into the empty city, it can't go.
+    heli.movesLeft = 1;
+    expect(applyAction(s, { type: 'move', unitId: heli.id, to: taxila }).reason).toBe('Helicopters can’t capture cities');
+  },
+  airlift: (s) => {
+    const [a, b] = s.units.filter((u) => u.type === 'rifleman');
+    const ur = s.cities.find((c) => c.name === 'Ur')!;
+    const nineveh = s.cities.find((c) => c.name === 'Nineveh')!;
+    expect(airliftTargets(s, a!).map((c) => c.name)).toEqual(['Ur']);
+    expect(applyAction(s, { type: 'airlift', unitId: a!.id, cityId: nineveh.id }).ok).toBe(false);
+    expect(applyAction(s, { type: 'airlift', unitId: a!.id, cityId: ur.id }).ok).toBe(true);
+    expect({ x: a!.x, y: a!.y, movesLeft: a!.movesLeft }).toEqual({ x: ur.x, y: ur.y, movesLeft: 0 });
+    expect(applyAction(s, { type: 'airlift', unitId: b!.id, cityId: ur.id }).reason).toContain('already airlifted a unit this turn');
+    endTurn(s);
+    expect(applyAction(s, { type: 'airlift', unitId: b!.id, cityId: ur.id }).ok).toBe(true);
+  },
+  'all-aircraft': (s) => {
+    const air = UNIT_IDS.filter((id) => UNITS[id].domain === 'air' || UNITS[id].hover);
+    for (const id of air) expect(s.units.some((u) => u.owner === 0 && u.type === id)).toBe(true);
+    // Every based aircraft is in a city of yours or on your Carrier, never in the open.
+    for (const u of s.units.filter((x) => UNITS[x.type].domain === 'air')) {
+      const inCity = s.cities.some((c) => c.x === u.x && c.y === u.y && c.owner === u.owner);
+      expect(inCity || u.carriedBy !== null).toBe(true);
+    }
+    const carrier = mine(s, 'carrier');
+    expect(s.units.filter((u) => u.carriedBy === carrier.id)).toHaveLength(3);
+    expect(atWar(s, 0, 1)).toBe(false);
+  },
+  'all-map-icons': (s) => {
+    const shown = new Set<string>();
+    for (let k = 0; k < s.map.tiles.length; k++) {
+      const r = visibleResource(s, 0, k);
+      if (r) shown.add(r.id);
+    }
+    expect(shown.size).toBe(RESOURCE_IDS.length);
+    expect(s.villages).toHaveLength(1);
+    expect(s.villages[0]!.flags).toBe(2);
+    expect(s.map.tiles.some((t) => t.hut)).toBe(true);
+    expect(s.units.filter((u) => s.players[u.owner]!.kind === 'barbarian').length).toBeGreaterThanOrEqual(2);
+  },
   // ---- Round 9: barbarians, villages, artifacts, resources, huts, Great People ----
   'village-spawn': (s) => {
     const v = s.villages[0]!;

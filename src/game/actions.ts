@@ -5,6 +5,7 @@ import type { CityFocus } from '../data/rules';
 import type { TechId } from '../data/techs';
 import { foundCity } from './city';
 import { attack, formArmy, fortify } from './combat';
+import { airlift, rebase } from './air';
 import { answerOffer, declareWar, giveGold, proposePeace, tradeTech } from './diplomacy';
 import { boardShip, moveUnitToward, unloadHere } from './movement';
 import { rushBuy, setBuild, setFocus, setScienceRate } from './production';
@@ -25,6 +26,10 @@ export type Action =
   | { type: 'board'; unitId: number; shipId: number }
   /** Go ashore from a ship docked in a city, into the city. Elsewhere, unloading is a move onto land. */
   | { type: 'unload'; unitId: number }
+  /** Round 10: fly an aircraft to a city or Carrier in range (a 'move' order for an aircraft does the same). */
+  | { type: 'rebase'; unitId: number; to: Coord }
+  /** Round 10: fly a land unit from its city's Airport to another city with one. */
+  | { type: 'airlift'; unitId: number; cityId: number }
   | { type: 'setBuild'; cityId: number; item: BuildItem }
   | { type: 'setFocus'; cityId: number; focus: CityFocus }
   | { type: 'rushBuy'; cityId: number }
@@ -67,6 +72,10 @@ function runAction(state: GameState, action: Action): ActionResult {
       return boardShip(state, action.unitId, action.shipId);
     case 'unload':
       return unloadHere(state, action.unitId);
+    case 'rebase':
+      return rebase(state, action.unitId, action.to);
+    case 'airlift':
+      return airlift(state, action.unitId, action.cityId);
     case 'setBuild':
       return setBuild(state, action.cityId, action.item);
     case 'setFocus':

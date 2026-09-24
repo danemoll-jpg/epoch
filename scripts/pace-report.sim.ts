@@ -13,6 +13,8 @@ it('report', () => {
   const wins: string[] = [];
   const barbs: any[] = [];
   const gp150: number[] = [];
+  const air220: number[] = [];
+  let strikes = 0, intercepts = 0, captures = 0;
   for (const seed of seeds) {
     const t0 = Date.now();
     const r = simulate(seed, turns);
@@ -32,6 +34,9 @@ it('report', () => {
     all.push(...r.civs);
     barbs.push(r.barbarians);
     gp150.push(...r.civs.map((c) => c.greatPeopleAt[150] ?? 0));
+    air220.push(...r.civs.map((c) => c.aircraftAt[220] ?? 0));
+    strikes += r.strikes; intercepts += r.intercepts; captures += r.captures;
+    console.log(`  AIR strikes=${r.strikes} intercepts=${r.intercepts} captures=${r.captures} aircraft@220 ${r.civs.map((c) => `${c.civId}:${c.aircraftAt[220] ?? '-'}`).join(' ')}`);
     const b = r.barbarians;
     console.log(`  BARBARIANS villages=${b.villagesAtStart} destroyed=${b.villagesDestroyed} settled=${b.villagesSettled} spawned=${b.spawned} killed=${b.killed} raids=${b.raids} elimByBarb=${b.eliminationsByBarbarians} huts=${b.hutsEntered} artifacts=${b.artifacts}; GP@150 ${r.civs.map((c) => `${c.civId}:${c.greatPeopleAt[150] ?? '-'}`).join(' ')}`);
     seedTree.push(Math.min(...r.civs.map((c) => c.treeDoneTurn ?? Infinity)));
@@ -49,6 +54,7 @@ it('report', () => {
   console.log(`NAVAL per game: overseas cities founded=${overseas / seeds.length} landings=${landings / seeds.length}; ships per civ t100=${avg1(ships100)} (max ${Math.max(...ships100)}) t200=${avg1(ships200)} (max ${Math.max(...ships200)})`);
   const sum = (k: string) => barbs.reduce((a, b) => a + b[k], 0) / barbs.length;
   console.log(`BARBARIANS per game: villages at start=${sum('villagesAtStart')} destroyed=${sum('villagesDestroyed')} settled=${sum('villagesSettled')} spawned=${sum('spawned')} killed=${sum('killed')} raids=${sum('raids')} eliminations by barbarians=${sum('eliminationsByBarbarians')} huts entered=${sum('hutsEntered')} artifacts=${sum('artifacts')}`);
+  console.log(`AIR per game: strikes=${strikes / seeds.length} intercepts=${intercepts / seeds.length} city captures=${captures / seeds.length}; aircraft per civ at turn 220: avg ${avg1(air220)} (max ${Math.max(...air220)}); domination wins: ${wins.filter((w) => w.includes('domination')).length} of ${seeds.length}`);
   console.log(`GREAT PEOPLE per civ by turn 150: avg ${avg1(gp150)} (min ${Math.min(...gp150)}, max ${Math.max(...gp150)})`);
   const lm = landmassStats(100);
   console.log(`LANDMASSES (100 seeds): each civ alone=${lm.allSeparate} all on one=${lm.allTogether} shared/mixed=${lm.mixed}; distinct start landmasses 1..5=${lm.distinctStarts.join('/')}; empty island (room for a city)=${lm.emptyIsland} (room for 2+: ${lm.emptyBigIsland})`);
