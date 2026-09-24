@@ -235,9 +235,115 @@ Steps, Technical Notes.
     and AIs stop at 4 cities), not just the cost formula. Both are in data.
     Tune in the balance pass, or sooner if Dan finds it slow.
 
+* **Round 4 — Save safety + Milestone 4 (combat and armies) — coding done
+  (2026-09-23). Waiting for Dan's iPad checks (a)–(c).**
+  - **Result:** 187 unit tests passing (65 new). Type-check and production
+    build are clean, and the dev-code leak check passes on both `dist/` and
+    `dist-play/`. Preview-verified on desktop and in iPad-sized touch
+    emulation (768×1024 portrait, 1024×768 landscape). Nothing pushed.
+  - **Per-item status (coding round 4):**
+
+    | # | Item | Status | Verified by |
+    |---|------|--------|-------------|
+    | 0 | Commit docs first | Done (`5157fdc`), then re-read both. Nothing from last round's report was dropped | n/a |
+    | A1 | Stable `play:lan` build | Done. `npm run play:lan` type-checks, builds into its **own folder `dist-play/`** (so my `npm run build` checks never touch Dan's running game), runs the dev-code leak check on it, then serves it with `vite preview --host` on **port 4173**. The served page has no Vite live-reload client, so editing code changes nothing until Dan restarts `play:lan`. `npm run play` is the same, localhost only. `dev:lan` is unchanged for quick checks. **Different port = different saved game in Safari** (saves are per address), so dev reloads can never touch the play save; that also means a game started on `dev:lan` doesn't show up in `play:lan`. Scenarios are dev-only, so they aren't in `play:lan` (`?scenario=` is ignored there) | Ran `npm run play:lan` end to end (served 200 on localhost and listed both LAN addresses). Preview-verified the `dist-play` build: no Vite client, version 4 game, no dev menu, Restore a backup present. Confirmed `npm run build` leaves `dist-play/` untouched (file times unchanged) |
+    | A2 | Never throw a save away | Done. Before the saved game is replaced by anything other than its own next autosave, its exact text is copied to `epoch.autosave.backup.1` (older ones shift to `.2`, `.3`; the oldest past 3 is dropped). Each backup stores when and why it was kept; the list reads the turn, save date, and version from inside the save. **Paths that back up:** incompatible version, corrupt data, failed migration, an exception while loading, a successful upgrade (the pre-upgrade save is kept), New Game, `?new`, and restoring a backup (the replaced game is kept). If a backup can't be written (storage full), the old save is **left in place** and the new game isn't autosaved, with a notice saying so. The notice says a backup was kept and where to find it. **☰ → Restore a backup** is in the production build too: each entry shows turn, date saved, version (and "will be updated" for older ones), when and why it was kept, and a Restore button with an on-screen confirm. An entry that can't be loaded says why in plain words ("It's from version 99 of Epoch, which this version can't read." / "It's damaged and can't be read.") and has no Restore button. Hidden while a dev scenario is loaded | unit-tested (`tests/storage.test.ts`: every discard path writes a backup of the exact text; the cap of 3; unloadable backups listed with reasons; restore round-trips and keeps the replaced game; restore and startup both refuse to overwrite when the backup can't be written). Preview-verified: a real v3 save was upgraded with its original kept, then restored through the menu (and upgraded again), then New Game, giving 3 backups with the right reasons |
+    | A3 | What wiped Dan's M2 game | Done (short look). See the finding below | Code and history read |
+    | B1 | Everyone at war | Done. `state.atWar[a][b]` (symmetric, all true except yourself) lives in state, so M5 can add peace. Combat and capture check it ("You are at peace with them") | unit-tested |
+    | B2 | Combat resolution | Done in `src/game/combat.ts`. The attacker wins with probability `A / (A + D)` (the one function `winChance`), using the seeded RNG. The loser is destroyed; no hit points. The winner (either side) becomes a veteran with a 50% chance (`RULES.combat.veteranChancePct`). Attacking uses up the attacker's turn and clears its fortify; **the attacker stays where it is** (capturing is a separate move). 0-attack units (Settlers) can't attack | unit-tested (formula, determinism, loser removed on both sides, veteran rate over 400 fixed seeds, error cases) |
+    | B3 | Modifiers | Done, all in data: terrain `defensePct` (hills +50%, forest +25%) in `terrain.ts`; fortified +50%, veteran +50% (either side), in a city +25%, army ×3 in `RULES.combat`; Walls +100% (its `defenseBonusPct` in `buildings.ts`, city defenders vs land attacks). **Bonuses add up** (hills + fortified + veteran = +150%, so ×2.5). Each is listed by name in the odds panel | unit-tested (each modifier and the stacking); preview-verified (`fortified` and `walls` scenarios show the lists) |
+    | B4 | Stacks | Done. The unit with the highest effective defense fights (ties: oldest). If it loses, only it dies. The odds panel says so when there are others on the tile | unit-tested |
+    | B5 | Attack flow on touch | Done. With a unit selected, tapping an **adjacent** enemy opens the odds panel: big win % (green / gold / red), your unit vs their best defender, each side's base value, every bonus, the total, and big **Attack** / **Cancel** buttons (56 px). Nothing happens without Attack; Cancel, a backdrop tap, or Esc closes it. Tiles the selected unit can attack get a **red outline**. Afterwards: a green or red flash on the tile (~1 s) plus a toast, e.g. "Your Legion defeated the Spearman (64%). Your Legion is now a veteran ★". A unit that can't attack gets a reason ("A Settler can't attack") | unit-tested (the tap rule); preview-verified on desktop and in portrait/landscape emulation (attack won, attack lost, Cancel changes nothing) |
+    | B6 | Fortify | Done. A **Fortify** button on the unit panel (not for Settlers). It ends the unit's turn; the unit stays fortified across turns until it moves or attacks. Next Unit and the End Turn pulse skip fortified units. On the map: a small shield on the unit's disc; 🛡 in the city panel's unit list | unit-tested; preview-verified |
+    | B7 | Armies of 3 | Done. **Form Army** appears only when 3 units of the selected unit's type (not already armies, not Settlers) share its tile. The army is one unit with 3× attack and defense (`armyMultiplier` in data), the same moves (the lowest of the three's moves left), veteran if any member was. It can't be split, and it dies whole if it loses. On the map: a thick gold ring and a "×3" tag | unit-tested; preview-verified (`army` scenario: 75% → 90%) |
+    | B8 | Capturing cities | Done. A land unit with attack > 0 stepping into an adjacent enemy city with **no units in it** captures it: new owner, −1 population (never below 1), Walls destroyed (other buildings kept), production reset to 0 with nothing chosen. Your city panel opens so you can pick a build. **Capitals:** `City.capitalOf` marks a civ's first city; it keeps pointing at the original owner after a capture (for M6 domination). Capturing a capital logs "Babylon captured Pataliputra, the Mauryan capital!" | unit-tested; preview-verified (`capture` scenario) |
+    | B9 | Elimination | Done. A civ with no cities and no units is eliminated (logged; skipped in the turn order). If you're eliminated, AI turns stop and a **Defeated** panel shows with New Game. If every rival is gone, a **Victory** panel shows. Both have "Look at the map" to dismiss. Both are derived from `alive`, so they come back after a reload | unit-tested (you, one rival, all rivals, units-only civs survive); preview-verified (`defeat` scenario). The Victory panel itself was not seen in the preview, only its rule in tests |
+    | B10 | Barracks | Done: units built with Barracks start as veterans (from M2), and the veteran bonus now applies in combat | unit-tested |
+    | B11 | AI combat | Done in `ai.ts` (`tryCombat`): a unit that isn't its city's only defender first **captures** an adjacent undefended enemy city, else attacks the adjacent enemy it has the best odds against if those are **≥ 60%** (`aiAttackMinChancePct`). A city's only defender **fortifies** and stays home. **Three of a kind on one tile form an army** at the start of the AI's turn. Settlers never attack (0 attack). Deterministic; same actions as the player | unit-tested (threshold both sides of 60%, capture, fortify, army, settler, a 60-turn 5-civ game is identical twice) |
+    | B12 | Combat events and fog | Done. Log entries now carry an optional `other` player (the defender, or the civ that lost a city). A fight your units are in always shows, even if your unit died and the tile is out of sight; other fights follow the M2 rule | unit-tested |
+    | B13 | Save migration v3 → v4 | Done. `STATE_VERSION` is 4. `MIGRATIONS[3]`: fortified and army off, everyone at war, each civ's first city (earliest founded, then lowest id) becomes its capital. v2 saves go 2 → 3 → 4 in one load. The pre-upgrade save is kept as a backup (A2). The notice names what changed ("updated for combat and armies") | unit-tested; preview-verified (a real v3 save left in the preview browser from round 3 came back upgraded, turn 8, with its original in backup slot 1) |
+    | B14 | Dev scenarios | Done: `combat` (Legion vs Spearman, 57%), `fortified` (fortified veteran Spearman on hills: 7.5 defense, 35%), `walls` (Catapult vs a walled city: 6.75 defense, 47%), `army` (3 Archers → Form Army, 75% → 90%), `capture` (attack a walled capital's Warrior at 64%, then move the second Legion in), and `defeat` (End Turn: three Legions take your last city, and the Defeated panel shows). Each note says what to do and what should happen, and each note's odds are computed from the rules, not typed in | unit-tested (each note's numbers and outcome through the real actions); preview-verified (all six on desktop; `walls` also in portrait emulation) |
+    | B15 | Unit tests | Done: 65 new, 187 total. `tests/combat.test.ts` (38): odds formula and every modifier, best defender, loser destroyed and stack survives, veteran chance on fixed seeds, fortify cleared by moving, armies (only 3 of a type, strength, dies whole), capture (owner, size, Walls, capital flag, settlers can't), elimination (you, all rivals), Barracks, AI threshold and determinism, v3 → v4. `tests/storage.test.ts` (15): backups. `tests/scenarios.test.ts` (+12): the new scenarios | `npm test` |
+
+  - **A3 finding (what wiped Dan's M2 game):** most likely the dev-server
+    live reload, as suspected. It can't be proven from git, because round 3
+    is a single commit (`79fa89e`), so the in-between states of the code
+    aren't recorded. But the code path is clear: in both M2 and round 3
+    code, a save that didn't load cleanly (`incompatible` or `corrupt`) went
+    straight to `newGame()` + `saveToStorage()` in the same moment, with no
+    backup. Vite reloads the whole page whenever a source file is saved
+    (the app has no hot-update handlers), so Dan's iPad on `dev:lan`
+    reloaded after every edit. While M3 was being written there were
+    windows where `STATE_VERSION` was already 3 (or the load check already
+    required `techs`) but the M2 → M3 migration didn't exist yet. Any reload
+    in such a window would have treated the M2 save as unreadable and
+    replaced it with a turn 1 game. **A related thing I saw this round:** a
+    page still running *old* code also autosaves its in-memory game on
+    `pagehide`. The preview browser's leftover round 3 tab wrote a v3 save
+    one second before the new code loaded. This time the new code upgraded
+    it and kept the original as a backup. A1 (a play build that never
+    reloads) and A2 (a backup before anything is replaced) cover both.
+  - **Dan's iPad checks for this round** (from "Done means"):
+    - (a) Run `npm run play:lan` on the PC and open
+      `http://<PC-IP>:4173/` on the iPad. Play there. It won't change while
+      code is being edited; after a code update, stop it and run it again.
+      It's a separate saved game from `dev:lan` (a different port), so it
+      starts fresh.
+    - (b) On `dev:lan`: ☰ → Dev scenarios → `Combat odds`, `Attack a
+      fortified veteran`, `Attack a walled city`, `Form an army`, `Capture a
+      city`, `Defeat`. Each should do what its purple note says.
+    - (c) In a real game, tap an enemy next to one of your units and check
+      that the odds panel makes sense before you attack.
+  - **Decisions worth reviewing:**
+    - Bonuses add rather than multiply (hills +50% and fortified +50% make
+      +100%, not ×2.25).
+    - The attacker never moves into the tile it attacked. Taking a city with
+      one defender needs a second unit, or a second turn.
+    - Fortifying works at once and ends the unit's turn. There's no "takes
+      a turn to dig in".
+    - A city on hills gets both bonuses (hills +50% and city +25%).
+    - Settlers defend with 1 and can be killed; they aren't captured.
+    - A captured civ doesn't get a new capital (no palace move). `capitalOf`
+      keeps pointing at the original owner.
+    - A civ with only units left and no cities is still alive.
+    - AIs are at war with each other too, and they fight.
+    - The combat scenarios start from a fixed, "fair" RNG state (first roll
+      about 0.48). The default test state rolls 0.98 first, which made every
+      scenario's first attack lose, including a 90% army attack.
+    - Toasts sit above overlays (from round 3), so the fight messages can
+      cover the top of the Defeated panel for ~3 seconds.
+  - **Also changed:**
+    - A home Warrior in the combat scenarios starts fortified, so the
+      front-line unit is the one selected when the scenario loads.
+    - Tapping a visible enemy (with nothing selected) also names the unit
+      and its strengths. Tapping terrain shows its defense bonus.
+    - The unit panel shows attack and defense (×3 for an army).
+    - New Game's confirm now says your game will be kept as a backup.
+    - New files: `src/game/combat.ts` (odds, attack, fortify, armies),
+      `src/game/conquest.ts` (capture, elimination), and `src/game/war.ts`.
+    - `.claude/launch.json` gained `epoch-play-verify` (port 4176, serves
+      `dist-play/`). `dist-play/` is git-ignored.
+  - **Observed, not fixed:**
+    - Late in a game the AI piles up defenders, because it builds its best
+      defender once it runs out of buildings. Seed 33, 5 civs, turn 120:
+      154 units and 31 armies. AI turns still take ~13 ms. For the M5 AI
+      work.
+    - In simulations where the human never moves, the AI wiped them out by
+      turn 50–86. That's expected when everyone is at war. But an AI veteran
+      Spearman (1.5 attack) will attack a Warrior at exactly 60%, so early
+      raids may feel harsh. It's tunable in data.
+    - You can only capture a city from the tile next to it. Tapping a
+      farther enemy city says "Can't reach that tile".
+    - Walls aren't drawn on the map (placeholder art). The odds panel lists
+      them when you attack a walled city.
+
 ## Current Objective (Focus Area)
 
 ### Round 4 — Save safety + Milestone 4 (combat and armies)
+**Status (coding round 4):** all items done (0, A1–A3, B1–B15). See the
+report under Completed Tasks. **Waiting for Dan's iPad checks (a)–(c).**
+Nothing pushed.
+
 **Goal:**
 - Make it impossible to lose a game by accident, and give Dan a stable way
   to play on the iPad that doesn't reload while code is changing.

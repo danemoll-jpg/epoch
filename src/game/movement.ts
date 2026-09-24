@@ -1,10 +1,13 @@
 // Unit movement rules. Land units can't enter water or mountains and pay the terrain's move
 // cost. A unit with full movement points may always make one move, even into terrain that
-// costs more than it has (so a 1-move unit can still enter forest or hills). There's no
-// combat yet, so tiles holding another player's unit or city are blocked.
+// costs more than it has (so a 1-move unit can still enter forest or hills). Tiles holding
+// another player's units or city are blocked, with one exception: stepping into an adjacent
+// enemy city with no units in it captures it (see conquest.ts). Fighting is a separate
+// action (combat.ts). Moving clears a unit's fortified state.
 
 import { TERRAIN } from '../data/terrain';
 import { UNITS } from '../data/units';
+import { capturableCity, captureCity } from './conquest';
 import { distance, inBounds, neighbors, tileAt } from './grid';
 import { updateExplored } from './fog';
 import type { ActionResult, Coord, GameState, Unit } from './types';
@@ -33,7 +36,7 @@ export function stepError(state: GameState, unit: Unit, to: Coord): string | und
   if (!inBounds(state.map, to.x, to.y)) return 'Off the map';
   if (distance(unit, to) !== 1) return 'Not adjacent';
   if (unit.movesLeft <= 0) return 'No moves left';
-  if (!isEnterable(state, unit.owner, to.x, to.y)) return 'Tile is impassable';
+  if (!isEnterable(state, unit.owner, to.x, to.y) && !capturableCity(state, unit, to)) return 'Tile is impassable';
   const cost = moveCost(state, to.x, to.y);
   const full = UNITS[unit.type].moves;
   if (cost > unit.movesLeft && unit.movesLeft < full) return 'Not enough moves left';
@@ -47,10 +50,13 @@ export function moveUnit(state: GameState, unitId: number, to: Coord): ActionRes
   const err = stepError(state, unit, to);
   if (err) return { ok: false, reason: err };
   const cost = moveCost(state, to.x, to.y);
+  const captured = capturableCity(state, unit, to);
   unit.x = to.x;
   unit.y = to.y;
   unit.movesLeft = Math.max(0, unit.movesLeft - cost);
+  unit.fortified = false;
   updateExplored(state, unit.owner);
+  if (captured) captureCity(state, captured, unit.owner);
   return { ok: true };
 }
 
@@ -113,6 +119,8 @@ export function moveUnitToward(state: GameState, unitId: number, to: Coord): Act
   if (!unit) return { ok: false, reason: 'No such unit' };
   if (state.currentPlayer !== unit.owner) return { ok: false, reason: 'Not your turn' };
   if (unit.movesLeft <= 0) return { ok: false, reason: 'No moves left' };
+  // Capturing is always a single step into the city (paths never go through enemy cities).
+  if (distance(unit, to) === 1 && capturableCity(state, unit, to)) return moveUnit(state, unitId, to);
   const path = findPath(state, unit, to);
   if (!path) return { ok: false, reason: "Can't reach that tile" };
   let moved = false;

@@ -55,6 +55,8 @@ export function foundCity(state: GameState, unitId: number): ActionResult & { ci
     build: null,
     focus: 'balanced',
     buildings: [],
+    // A civ's first city is its capital.
+    capitalOf: player.citiesFounded === 0 ? unit.owner : null,
     worked: [],
   };
   player.citiesFounded++;

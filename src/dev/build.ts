@@ -4,6 +4,7 @@
 
 import type { TerrainId } from '../data/terrain';
 import { UNITS, type UnitTypeId } from '../data/units';
+import { allAtWar } from '../game/war';
 import { refreshWorkedTiles } from '../game/yields';
 import { STATE_VERSION, type City, type GameState, type Unit } from '../game/types';
 
@@ -42,12 +43,24 @@ export function makeState(rows: string[], opts: { players?: number; exploreAll?:
     units: [],
     cities: [],
     nextId: 100,
+    atWar: allAtWar(players),
     log: [],
   };
 }
 
-export function addUnit(state: GameState, type: UnitTypeId, owner: number, x: number, y: number): Unit {
-  const unit: Unit = { id: state.nextId++, type, owner, x, y, movesLeft: UNITS[type].moves, veteran: false };
+export function addUnit(
+  state: GameState,
+  type: UnitTypeId,
+  owner: number,
+  x: number,
+  y: number,
+  extra: Partial<Unit> = {},
+): Unit {
+  const unit: Unit = {
+    id: state.nextId++, type, owner, x, y,
+    movesLeft: UNITS[type].moves, veteran: false, fortified: false, army: false,
+    ...extra,
+  };
   state.units.push(unit);
   return unit;
 }
@@ -73,6 +86,7 @@ export function addCity(
     build: null,
     focus: 'balanced',
     buildings: [],
+    capitalOf: null,
     worked: [],
     ...extra,
   };

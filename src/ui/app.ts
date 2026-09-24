@@ -9,9 +9,13 @@ import { TERRAIN } from '../data/terrain';
 import { UNITS } from '../data/units';
 import { applyAction, type Action } from '../game/actions';
 import { foundCityError } from '../game/city';
-import { tileAt } from '../game/grid';
+import { attackError, combatOdds, formArmyError, fortifyError, type Strength } from '../game/combat';
+import { civAdjective } from '../game/conquest';
+import { neighbors, tileAt } from '../game/grid';
+import { visibleTiles } from '../game/fog';
 import { eventsVisibleTo } from '../game/log';
 import { findUnit, reachableThisTurn } from '../game/movement';
+import { migrationSummary } from '../game/save';
 import {
   buildOptions,
   buyCost,
@@ -35,12 +39,12 @@ import {
   techUnlocks,
   turnsToLearn,
 } from '../game/tech';
-import type { BuildItem, City, GameState, Unit } from '../game/types';
+import { STATE_VERSION, type ActionResult, type BuildItem, type City, type CombatReport, type Coord, type GameState, type Unit } from '../game/types';
 import { cityScienceGold, cityYields, empireIncome, foodSurplus } from '../game/yields';
 import { clampCamera, panBy, screenToWorld, zoomAt, type Camera } from '../render/camera';
 import { playerColor, render, type ViewState } from '../render/renderer';
 import { attachMapInput } from './input';
-import { saveToStorage } from './storage';
+import { backupCurrentSave, listBackups, restoreBackup, saveToStorage } from './storage';
 import { resolveTap } from './tap';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -75,6 +79,13 @@ export class App {
   /** The tech highlighted on the tech screen, and its prompt line (view state only). */
   private techSelected: TechId | undefined;
   private techPrompt: string | undefined;
+  /** The attack waiting for confirmation in the odds panel. */
+  private pendingAttack: { unitId: number; at: Coord } | undefined;
+  /** A short flash on a tile after a fight (view only). */
+  private flash: { x: number; y: number; won: boolean } | undefined;
+  private flashTimer: number | undefined;
+  /** The end-of-game panel was dismissed to look at the map ("Look at the map"). */
+  private endDismissed = false;
   private cssW = 0;
   private cssH = 0;
   private frameQueued = false;
@@ -106,6 +117,21 @@ export class App {
     $('foundBtn').addEventListener('click', () => this.foundCity());
     $('nextBtn').addEventListener('click', () => this.selectNext(true));
     $('deselectBtn').addEventListener('click', () => this.select(undefined));
+    $('fortifyBtn').addEventListener('click', () => this.fortifySelected());
+    $('armyBtn').addEventListener('click', () => this.formArmySelected());
+    $('attackGoBtn').addEventListener('click', () => this.confirmAttack());
+    $('attackCancelBtn').addEventListener('click', () => this.closeAttack());
+    $('attackOverlay').addEventListener('click', (e) => {
+      if (e.target === $('attackOverlay')) this.closeAttack();
+    });
+    $('endNewBtn').addEventListener('click', () => {
+      if (this.opts.scenario) gotoScenario(undefined);
+      else this.startNewGame();
+    });
+    $('endCloseBtn').addEventListener('click', () => {
+      this.endDismissed = true;
+      this.refresh();
+    });
     $('rateDown').addEventListener('click', () => this.changeRate(-RULES.scienceRateStep));
     $('rateUp').addEventListener('click', () => this.changeRate(RULES.scienceRateStep));
     $('cityPanel').addEventListener('click', (e) => this.handleCityPanelClick(e));
@@ -137,12 +163,16 @@ export class App {
   // ---- actions ---------------------------------------------------------------------------
 
   private dispatch(action: Action): boolean {
+    return this.dispatchResult(action).ok;
+  }
+
+  private dispatchResult(action: Action): ActionResult {
     const res = applyAction(this.state, action);
     if (!res.ok && res.reason) this.toast(res.reason, true);
     // Cheap (a few tens of KB), and means a reload never loses more than one tap.
     if (res.ok) this.save();
     this.refresh();
-    return res.ok;
+    return res;
   }
 
   private save(): void {
@@ -181,6 +211,24 @@ export class App {
     }
   }
 
+  private fortifySelected(): void {
+    const u = this.selected();
+    if (!u) return;
+    if (this.dispatch({ type: 'fortify', unitId: u.id })) {
+      this.toast(`${UNITS[u.type].name} fortified (+${RULES.combat.fortifiedPct}% defense until it moves)`);
+      this.selectNext(false);
+    }
+  }
+
+  private formArmySelected(): void {
+    const u = this.selected();
+    if (!u) return;
+    if (this.dispatch({ type: 'formArmy', unitId: u.id })) {
+      this.toast(`${UNITS[u.type].name} army formed: ×${RULES.combat.armyMultiplier} attack and defense`);
+      this.select(u.id);
+    }
+  }
+
   private changeRate(delta: number): void {
     const rate = this.state.players[this.human]!.scienceRate + delta;
     if (rate < 0 || rate > 100) return;
@@ -202,14 +250,29 @@ export class App {
     this.refresh();
   }
 
-  /** Swap in a brand-new game (New Game button). */
-  private replaceGame(state: GameState): void {
+  /** New Game: the current game is backed up first, then replaced. */
+  private startNewGame(): void {
+    if (this.opts.autosave !== false) {
+      this.save();
+      if (!backupCurrentSave('Replaced by New Game', Date.now())) {
+        this.toast("Couldn't back up your current game (storage is full), so it was kept.", true);
+        return;
+      }
+    }
+    this.replaceGame(this.opts.newGame(), 'New game started');
+  }
+
+  /** Swap in another game (New Game, or a restored backup that's already been saved). */
+  private replaceGame(state: GameState, message: string): void {
     this.state = state;
     this.openCityId = undefined;
     this.selectedUnitId = undefined;
+    this.pendingAttack = undefined;
+    this.endDismissed = false;
+    $('attackOverlay').hidden = true;
     this.save();
     this.startHumanTurn();
-    this.toast('New game started');
+    this.toast(message);
     (window as unknown as { __epoch: { app: App; seed: number } }).__epoch.seed = state.seed;
   }
 
@@ -223,6 +286,11 @@ export class App {
     return this.state.units.filter((u) => u.owner === this.human);
   }
 
+  /** Units still waiting for orders this turn (fortified units are left alone). */
+  private readyUnits(): Unit[] {
+    return this.myUnits().filter((u) => u.movesLeft > 0 && !u.fortified);
+  }
+
   private myCities(): City[] {
     return this.state.cities.filter((c) => c.owner === this.human).sort((a, b) => a.id - b.id);
   }
@@ -234,7 +302,7 @@ export class App {
 
   /** Select the next unit that can still move (cycling after the current one). */
   private selectNext(center: boolean): void {
-    const ready = this.myUnits().filter((u) => u.movesLeft > 0);
+    const ready = this.readyUnits();
     if (ready.length === 0) {
       this.selectedUnitId = undefined;
     } else {
@@ -255,12 +323,23 @@ export class App {
     const result = resolveTap(this.state, this.human, this.selectedUnitId, tx, ty);
     switch (result.kind) {
       case 'move': {
+        const logStart = this.state.log.length;
+        const enemyCity = this.state.cities.find((c) => c.x === tx && c.y === ty && c.owner !== this.human);
         if (this.dispatch({ type: 'move', unitId: result.unitId, to: { x: tx, y: ty } })) {
+          // Captures and eliminations are worth announcing.
+          for (const entry of this.state.log.slice(logStart)) this.toast(entry.text);
           const after = this.selected();
           if (after && after.movesLeft <= 0) this.selectNext(false);
+          if (enemyCity && enemyCity.owner === this.human) {
+            this.showFlash(tx, ty, true);
+            this.openCity(enemyCity.id);
+          }
         }
         return;
       }
+      case 'attack':
+        this.openAttack(result.unitId, { x: tx, y: ty });
+        return;
       case 'openCity':
         this.openCity(result.cityId);
         return;
@@ -274,7 +353,11 @@ export class App {
           const def = TERRAIN[tile.terrain];
           const y = def.yields;
           const cityText = city ? `${city.name} · ` : '';
-          this.toast(`${cityText}${def.name} — food ${y.food}, production ${y.production}, trade ${y.trade}`);
+          const defense = def.defensePct ? ` · defense +${def.defensePct}%` : '';
+          this.toast(`${cityText}${def.name} — food ${y.food}, production ${y.production}, trade ${y.trade}${defense}`);
+          // Enemy units in sight: say what they are.
+          const enemy = this.state.units.find((u) => u.x === tx && u.y === ty && u.owner !== this.human);
+          if (enemy && this.visibleToMe(tx, ty)) this.toast(`${this.unitLabel(enemy)} · ${unitSummary(enemy.type)}`);
         }
         this.closeCity();
         this.select(undefined);
@@ -294,6 +377,11 @@ export class App {
       if (e.key === 'Escape') this.closeMenu();
       return;
     }
+    if (!$('attackOverlay').hidden) {
+      if (e.key === 'Escape') this.closeAttack();
+      return;
+    }
+    if (!$('endOverlay').hidden) return;
     if (!$('techOverlay').hidden) {
       if (e.key === 'Escape') this.closeTech();
       return;
@@ -422,7 +510,8 @@ export class App {
       ? units
           .map(
             (u) => `<button type="button" data-act="unit" data-unit="${u.id}" class="unitItem">
-            ${UNITS[u.type].name}${u.veteran ? ' ★' : ''} <span class="sub">moves ${u.movesLeft}/${UNITS[u.type].moves}</span></button>`,
+            ${UNITS[u.type].name}${u.army ? ` army ×${RULES.combat.armyMultiplier}` : ''}${u.veteran ? ' ★' : ''}${u.fortified ? ' 🛡' : ''}
+            <span class="sub">moves ${u.movesLeft}/${UNITS[u.type].moves}</span></button>`,
           )
           .join('')
       : '<span class="sub">None</span>';
@@ -468,19 +557,23 @@ export class App {
         ? `Dev scenario “${sc.title}” · turn ${this.state.turn}. Not saved; your real game is untouched.`
         : `Turn ${this.state.turn} · seed ${this.state.seed}. Your game saves automatically.`;
       $('newGameBtn').hidden = !!sc;
-      $('menuMain').hidden = false;
-      $('menuConfirm').hidden = true;
+      $('restoreBtn').hidden = !!sc;
+      this.showMenuPage('menuMain');
       $('menuOverlay').hidden = false;
     });
-    $('menuCloseBtn').addEventListener('click', () => this.closeMenu());
-    $('newGameBtn').addEventListener('click', () => {
-      $('menuMain').hidden = true;
-      $('menuConfirm').hidden = false;
+    $('restoreBtn').addEventListener('click', () => {
+      this.backupConfirmSlot = undefined;
+      this.renderBackups();
+      this.showMenuPage('menuBackups');
     });
+    $('backupsBackBtn').addEventListener('click', () => this.showMenuPage('menuMain'));
+    $('backupList').addEventListener('click', (e) => this.handleBackupClick(e));
+    $('menuCloseBtn').addEventListener('click', () => this.closeMenu());
+    $('newGameBtn').addEventListener('click', () => this.showMenuPage('menuConfirm'));
     $('confirmNoBtn').addEventListener('click', () => this.closeMenu());
     $('confirmYesBtn').addEventListener('click', () => {
       this.closeMenu();
-      this.replaceGame(this.opts.newGame());
+      this.startNewGame();
     });
     // Tapping the dimmed backdrop closes the menu.
     $('menuOverlay').addEventListener('click', (e) => {
@@ -490,6 +583,170 @@ export class App {
 
   private closeMenu(): void {
     $('menuOverlay').hidden = true;
+  }
+
+  private showMenuPage(id: 'menuMain' | 'menuBackups' | 'menuConfirm'): void {
+    for (const page of ['menuMain', 'menuBackups', 'menuConfirm']) $(page).hidden = page !== id;
+  }
+
+  // ---- backups (☰ → Restore a backup; in the production build too) ------------------------
+
+  private backupConfirmSlot: number | undefined;
+
+  private renderBackups(): void {
+    const when = (ms: number) =>
+      new Date(ms).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    const items = listBackups().map((b) => {
+      const turn = b.turn === undefined ? 'Unknown turn' : `Turn ${b.turn}`;
+      const saved = b.savedAt ? `saved ${when(b.savedAt)}` : '';
+      const upgrade = b.loadable && b.saveVersion !== undefined && b.saveVersion < STATE_VERSION ? ' (will be updated)' : '';
+      const version = b.saveVersion === undefined ? '' : `version ${b.saveVersion}${upgrade}`;
+      let action: string;
+      if (!b.loadable) {
+        action = `<div class="warn">Can’t be restored. ${esc(b.problem ?? '')}</div>`;
+      } else if (this.backupConfirmSlot === b.slot) {
+        action = `<div class="sub">Restore this? Your current game will be kept as a backup.</div>
+          <div class="row"><button type="button" data-cancel="1">Cancel</button>
+          <button type="button" data-confirm="${b.slot}" class="danger">Yes, restore</button></div>`;
+      } else {
+        action = `<div class="row"><button type="button" data-restore="${b.slot}">Restore</button></div>`;
+      }
+      return `<div class="backup"><div><b>${turn}</b> <span class="sub">${[saved, version].filter(Boolean).join(' · ')}</span></div>
+        <div class="sub">Kept ${when(b.backedUpAt)} · ${esc(b.reason)}</div>${action}</div>`;
+    });
+    $('backupList').innerHTML = items.length
+      ? items.join('')
+      : '<p>No backups yet. One is kept automatically whenever a saved game is replaced: New Game, an update, or a save that can’t be loaded.</p>';
+  }
+
+  private handleBackupClick(e: MouseEvent): void {
+    const btn = (e.target as HTMLElement).closest('button');
+    if (!btn || btn.disabled) return;
+    if (btn.dataset.restore) {
+      this.backupConfirmSlot = Number(btn.dataset.restore);
+      this.renderBackups();
+    } else if (btn.dataset.cancel) {
+      this.backupConfirmSlot = undefined;
+      this.renderBackups();
+    } else if (btn.dataset.confirm) {
+      // The backup of the current game should be its very latest state.
+      this.save();
+      const res = restoreBackup(Number(btn.dataset.confirm), Date.now());
+      this.backupConfirmSlot = undefined;
+      if (!res.ok) {
+        this.toast(res.reason, true);
+        this.renderBackups();
+        return;
+      }
+      this.closeMenu();
+      const updated = res.migratedFrom ? ` and updated it for ${migrationSummary(res.migratedFrom)}` : '';
+      this.replaceGame(res.state, `Restored your game from turn ${res.state.turn}${updated}. The game you replaced is now a backup.`);
+    }
+  }
+
+  // ---- attack (odds panel) ---------------------------------------------------------------
+
+  private openAttack(unitId: number, at: Coord): void {
+    const unit = findUnit(this.state, unitId);
+    if (!unit) return;
+    const err = attackError(this.state, unit, at);
+    if (err) {
+      this.toast(err, true);
+      return;
+    }
+    const odds = combatOdds(this.state, unit, at)!;
+    this.pendingAttack = { unitId, at };
+    const pct = Math.round(odds.chance * 100);
+    const others = this.state.units.filter((u) => u.x === at.x && u.y === at.y && u.id !== odds.defender.id).length;
+    const stackNote = others > 0 ? `<p class="sub">Their best defender fights. If it loses, the other ${plural(others, 'unit')} on that tile stay.</p>` : '';
+    $('attackBody').innerHTML = `
+      <h2>Attack?</h2>
+      <div class="odds ${pct >= 60 ? 'good' : pct >= 40 ? 'even' : 'bad'}"><b>${pct}%</b><span>chance to win</span></div>
+      <div class="sides">
+        ${sideHtml(`Your ${this.unitName(odds.attacker)}`, 'Attack', odds.attack)}
+        ${sideHtml(this.unitLabel(odds.defender), 'Defense', odds.defense)}
+      </div>
+      ${stackNote}
+      <p class="sub">The loser is destroyed. Attacking uses up your unit’s turn.</p>`;
+    $('attackOverlay').hidden = false;
+    $<HTMLButtonElement>('attackGoBtn').focus({ preventScroll: true });
+  }
+
+  private closeAttack(): void {
+    this.pendingAttack = undefined;
+    $('attackOverlay').hidden = true;
+  }
+
+  private confirmAttack(): void {
+    const p = this.pendingAttack;
+    this.closeAttack();
+    if (!p) return;
+    const logStart = this.state.log.length;
+    const res = this.dispatchResult({ type: 'attack', unitId: p.unitId, at: p.at });
+    if (!res.ok || !res.combat) return;
+    this.reportCombat(res.combat);
+    // Anything after the fight itself (e.g. a civ eliminated).
+    for (const entry of this.state.log.slice(logStart + 1)) this.toast(entry.text);
+    this.selectNext(false);
+  }
+
+  private reportCombat(c: CombatReport): void {
+    const pct = Math.round(c.chance * 100);
+    const mine = `${UNITS[c.attackerType].name}${c.attackerArmy ? ' army' : ''}`;
+    const theirs = `${UNITS[c.defenderType].name}${c.defenderArmy ? ' army' : ''}`;
+    let text = c.attackerWon
+      ? `Your ${mine} defeated the ${theirs} (${pct}%)`
+      : `Your ${mine} was destroyed by the ${theirs} (${pct}%)`;
+    if (c.promoted && c.attackerWon) text += `. Your ${mine} is now a veteran ★`;
+    this.toast(text, !c.attackerWon);
+    this.showFlash(c.x, c.y, c.attackerWon);
+  }
+
+  private showFlash(x: number, y: number, won: boolean): void {
+    this.flash = { x, y, won };
+    if (this.flashTimer !== undefined) clearTimeout(this.flashTimer);
+    this.flashTimer = window.setTimeout(() => {
+      this.flash = undefined;
+      this.requestDraw();
+    }, 900);
+    this.requestDraw();
+  }
+
+  private unitName(u: Unit): string {
+    return `${UNITS[u.type].name}${u.army ? ' army' : ''}${u.veteran ? ' ★' : ''}`;
+  }
+
+  /** "Malian Spearman ★", or "Your Warrior". */
+  private unitLabel(u: Unit): string {
+    return u.owner === this.human ? `Your ${this.unitName(u)}` : `${civAdjective(this.state, u.owner)} ${this.unitName(u)}`;
+  }
+
+  private visibleToMe(x: number, y: number): boolean {
+    return visibleTiles(this.state, this.human)[y * this.state.map.width + x] === true;
+  }
+
+  /** Adjacent tiles the selected unit could attack right now (outlined in red). */
+  private attackTargets(u: Unit | undefined): Coord[] {
+    if (!u || u.owner !== this.human || u.movesLeft <= 0 || UNITS[u.type].attack <= 0) return [];
+    return neighbors(this.state.map, u).filter((n) => !attackError(this.state, u, n));
+  }
+
+  // ---- end of game (placeholder panels until Milestone 6) --------------------------------
+
+  private renderEnd(): void {
+    const me = this.state.players[this.human]!;
+    const rivals = this.state.players.filter((p) => p.id !== this.human);
+    const defeated = !me.alive;
+    const victory = me.alive && rivals.length > 0 && rivals.every((p) => !p.alive);
+    const show = (defeated || victory) && !this.endDismissed;
+    $('endOverlay').hidden = !show;
+    if (!show) return;
+    $('endTitle').textContent = defeated ? 'Defeated' : 'Victory';
+    $('endText').textContent = defeated
+      ? `Your empire has fallen on turn ${this.state.turn}: no cities and no units left.`
+      : `Every rival has been eliminated. You rule the world on turn ${this.state.turn}.`;
+    // In a dev scenario, "New Game" means going back to the real game.
+    $('endNewBtn').textContent = this.opts.scenario ? 'Back to my game' : 'New Game';
   }
 
   // ---- tech screen ---------------------------------------------------------------------
@@ -684,6 +941,7 @@ export class App {
   private refresh(): void {
     this.updateHud();
     this.renderCityPanel();
+    this.renderEnd();
     if (!$('techOverlay').hidden) this.renderTech();
     this.requestDraw();
   }
@@ -704,7 +962,9 @@ export class App {
       viewer: this.human,
       selectedUnitId: sel?.id,
       reachable: sel ? reachableThisTurn(this.state, sel) : [],
+      targets: this.attackTargets(sel),
       openCityId: this.openCityId,
+      flash: this.flash,
     };
     // The DPR transform may be reset if the canvas was resized; re-apply every frame.
     const dpr = this.canvas.width / Math.max(1, this.cssW);
@@ -747,18 +1007,30 @@ export class App {
       const def = UNITS[sel.type];
       const terrain = TERRAIN[tileAt(this.state.map, sel.x, sel.y)!.terrain].name;
       const vet = sel.veteran ? ' ★ veteran' : '';
-      $('unitInfo').innerHTML = `${def.name}${vet} <span class="sub">· moves ${sel.movesLeft}/${def.moves} · ${terrain}</span>`;
+      const army = sel.army ? ` army ×${RULES.combat.armyMultiplier}` : '';
+      const mult = sel.army ? RULES.combat.armyMultiplier : 1;
+      const fort = sel.fortified ? ' · 🛡 fortified' : '';
+      $('unitInfo').innerHTML = `${def.name}${army}${vet}${fort} <span class="sub">· attack ${def.attack * mult} · defense ${
+        def.defense * mult
+      } · moves ${sel.movesLeft}/${def.moves} · ${terrain}</span>`;
       foundBtn.hidden = !def.canFoundCity;
       const err = foundCityError(this.state, sel.id);
       foundBtn.disabled = err !== undefined;
       foundBtn.title = err ?? 'Found a city here';
+      const fortifyBtn = $<HTMLButtonElement>('fortifyBtn');
+      fortifyBtn.hidden = def.canFoundCity || sel.owner !== this.human;
+      fortifyBtn.disabled = fortifyError(this.state, sel) !== undefined;
+      fortifyBtn.textContent = sel.fortified ? 'Fortified' : 'Fortify';
+      // Form Army only appears when it's possible (3 of a kind here).
+      $('armyBtn').hidden = sel.owner !== this.human || formArmyError(this.state, sel) !== undefined;
       // The city panel covers this spot; the unit comes back when the city closes.
       panel.hidden = this.openCityId !== undefined;
     } else {
       panel.hidden = true;
     }
-    const anyReady = this.myUnits().some((u) => u.movesLeft > 0);
-    $('nextBtn').hidden = !this.myUnits().some((u) => u.movesLeft > 0 && u.id !== sel?.id);
+    const ready = this.readyUnits();
+    const anyReady = ready.length > 0;
+    $('nextBtn').hidden = !ready.some((u) => u.id !== sel?.id);
     $('endTurnBtn').classList.toggle('ready', !anyReady);
   }
 
@@ -772,6 +1044,20 @@ export class App {
     setTimeout(() => el.classList.add('fade'), 2600);
     setTimeout(() => el.remove(), 3100);
   }
+}
+
+/** One side of the odds panel: base strength, each bonus, and the total. */
+function sideHtml(title: string, kind: 'Attack' | 'Defense', st: Strength): string {
+  const mods = st.mods.length
+    ? st.mods.map((m) => `<li>+${m.pct}% ${esc(m.label)}</li>`).join('')
+    : '<li class="sub">No bonuses</li>';
+  return `<div class="side"><div class="sideName">${esc(title)}</div>
+    <div class="sub">${kind} ${num(st.base)}</div><ul>${mods}</ul>
+    <div class="total">${num(st.total)}</div></div>`;
+}
+
+function num(n: number): string {
+  return String(Math.round(n * 100) / 100);
 }
 
 function plural(n: number, word: string): string {

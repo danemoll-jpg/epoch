@@ -8,6 +8,7 @@ import { UNITS } from '../data/units';
 import { updateExplored } from './fog';
 import { findStartPositions, generateMap } from './mapgen';
 import { hashSeed, shuffle } from './rng';
+import { allAtWar } from './war';
 import { STATE_VERSION, type GameMap, type GameState, type Player, type Unit, type Coord } from './types';
 
 export interface NewGameOptions {
@@ -65,6 +66,7 @@ export function createGame(opts: NewGameOptions): GameState {
     units: [],
     cities: [],
     nextId: 1,
+    atWar: allAtWar(playerCount),
     log: [],
   };
 
@@ -79,6 +81,8 @@ export function createGame(opts: NewGameOptions): GameState {
         y: start.y,
         movesLeft: UNITS[type].moves,
         veteran: false,
+        fortified: false,
+        army: false,
       };
       state.units.push(unit);
     }

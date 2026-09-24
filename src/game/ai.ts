@@ -4,6 +4,12 @@
 // chooseBuild), and research follows a priority list in data (see chooseAiResearch). It
 // only uses the same action functions the human player uses, and only looks at tiles it
 // has explored.
+//
+// Combat (Milestone 4, deliberately simple; smarter war logic is M5): a unit that isn't its
+// city's only defender captures an undefended enemy city next to it, or else attacks the
+// adjacent enemy it has the best odds against, if those odds are at least
+// RULES.combat.aiAttackMinChancePct. A city's only defender fortifies and stays home. Three
+// units of one type on one tile form an army. Settlers can't attack at all (0 attack).
 
 import { AI_BUILDING_ORDER, AI_TARGET_CITIES } from '../data/buildings';
 import { RULES } from '../data/rules';
@@ -12,7 +18,9 @@ import { UNITS, UNIT_IDS, type UnitTypeId } from '../data/units';
 import { distance, neighbors, tileIndex } from './grid';
 import { foundCity, foundCityError } from './city';
 import { siteScore } from './mapgen';
-import { findUnit, isEnterable, moveUnitToward } from './movement';
+import { attack, attackError, combatOdds, fortify, formArmy, formArmyError } from './combat';
+import { capturableCity } from './conquest';
+import { findUnit, isEnterable, moveUnit, moveUnitToward } from './movement';
 import { buildChoiceError, buyError, rushBuy, sameItem, setBuild, setFocus } from './production';
 import { nextFloat } from './rng';
 import { chooseAiResearch, setResearch } from './tech';
@@ -150,14 +158,47 @@ function manageCities(state: GameState, playerId: number): void {
   }
 }
 
-function playWarrior(state: GameState, unit: Unit): void {
-  // The only defender in one of our cities stays put, once someone else is out exploring.
+/** The only defender of one of our cities, once someone else is out exploring. */
+function isHomeGuard(state: GameState, unit: Unit): boolean {
   // (The starting warrior explores; the capital builds its own defender.)
   const home = cityAt(state, unit.x, unit.y);
-  if (home && home.owner === unit.owner && defendersIn(state, home).length === 1 && hasExplorer(state, unit.owner)) {
+  return !!home && home.owner === unit.owner && defendersIn(state, home).length === 1 && hasExplorer(state, unit.owner);
+}
+
+/**
+ * Captures an adjacent undefended enemy city, or attacks the adjacent enemy with the best
+ * odds if they clear the threshold. True if the unit acted.
+ */
+export function tryCombat(state: GameState, unit: Unit): boolean {
+  if (UNITS[unit.type].attack <= 0 || unit.movesLeft <= 0) return false;
+  for (const n of neighbors(state.map, unit)) {
+    if (capturableCity(state, unit, n)) return moveUnit(state, unit.id, n).ok;
+  }
+  let best: { at: Coord; chance: number } | undefined;
+  for (const n of neighbors(state.map, unit)) {
+    if (attackError(state, unit, n)) continue;
+    const odds = combatOdds(state, unit, n)!;
+    if (!best || odds.chance > best.chance) best = { at: n, chance: odds.chance };
+  }
+  if (!best || best.chance * 100 < RULES.combat.aiAttackMinChancePct) return false;
+  return attack(state, unit.id, best.at).ok;
+}
+
+function playWarrior(state: GameState, unit: Unit): void {
+  if (isHomeGuard(state, unit)) {
+    if (!unit.fortified) fortify(state, unit.id);
     return;
   }
+  if (tryCombat(state, unit)) return;
   explore(state, unit);
+}
+
+/** Any three of a kind standing together become an army (lowest id first, so it's deterministic). */
+function formArmies(state: GameState, playerId: number): void {
+  const mine = state.units.filter((u) => u.owner === playerId).sort((a, b) => a.id - b.id);
+  for (const u of mine) {
+    if (findUnit(state, u.id) && !formArmyError(state, u)) formArmy(state, u.id);
+  }
 }
 
 /** Walk toward the nearest frontier of unexplored tiles, or wander if there is none. */
@@ -192,6 +233,7 @@ export function runAiTurn(state: GameState, playerId: number): void {
     const tech = chooseAiResearch(player);
     if (tech) setResearch(state, tech);
   }
+  formArmies(state, playerId);
   const mine = state.units.filter((u) => u.owner === playerId).map((u) => u.id);
   for (const id of mine) {
     const unit = findUnit(state, id);

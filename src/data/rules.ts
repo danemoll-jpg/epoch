@@ -60,6 +60,25 @@ export const RULES = {
   // ---- rush-buying ----
   /** Gold to finish an item = remaining * goldPerShield + remaining² / squareDivisor. */
   rushBuy: { goldPerShield: 2, squareDivisor: 20 },
+
+  // ---- combat (Milestone 4) ----
+  // Terrain defense bonuses are in terrain.ts and the Walls bonus is in buildings.ts.
+  // Bonuses add up (e.g. hills +50% and fortified +50% = +100%, so strength × 2).
+  combat: {
+    fortifiedPct: 50,
+    /** For either side. */
+    veteranPct: 50,
+    /** Any unit defending in a city. */
+    cityDefensePct: 25,
+    /** An army's attack and defense are its unit type's × this. */
+    armyMultiplier: 3,
+    /** Units of one type on one tile needed to form an army. */
+    armySize: 3,
+    /** Chance (percent) that the winner of a fight becomes a veteran. */
+    veteranChancePct: 50,
+    /** The AI attacks only when its win chance is at least this (percent). */
+    aiAttackMinChancePct: 60,
+  },
 };
 
 /** Food needed in the box for a city of this size to grow. */

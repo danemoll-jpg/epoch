@@ -1,6 +1,7 @@
 // Canvas 2D renderer. Reads game state and view state; never changes game state.
 // Placeholder art: colored tiles, simple terrain marks, lettered unit discs, city squares
-// with the size number.
+// with the size number. Armies get a thick gold ring and "×3"; fortified units a small
+// shield; capitals a star; tiles the selected unit can attack a red outline.
 
 import { CIVS } from '../data/civs';
 import { RULES } from '../data/rules';
@@ -28,8 +29,12 @@ export interface ViewState {
   viewer: number;
   selectedUnitId?: number;
   reachable: Coord[];
+  /** Adjacent enemy tiles the selected unit can attack (outlined in red). */
+  targets: Coord[];
   /** City whose panel is open: its worked tiles are outlined. */
   openCityId?: number;
+  /** A short flash on a tile after a fight or capture: green if we won, red if we lost. */
+  flash?: { x: number; y: number; won: boolean };
 }
 
 export function playerColor(state: GameState, playerId: number): string {
@@ -123,6 +128,21 @@ function drawUnit(
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(glyph, cx, cy + s * 0.01);
+  if (unit.army) {
+    ctx.strokeStyle = '#e6b73f';
+    ctx.lineWidth = Math.max(2.5, s * 0.075);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r + s * 0.02, 0, Math.PI * 2);
+    ctx.stroke();
+    const lx = cx;
+    const ly = cy + r + s * 0.02;
+    ctx.fillStyle = '#e6b73f';
+    ctx.fillRect(lx - s * 0.14, ly - s * 0.08, s * 0.28, s * 0.16);
+    ctx.fillStyle = '#1b1405';
+    ctx.font = `800 ${Math.round(s * 0.14)}px system-ui, sans-serif`;
+    ctx.fillText(`×${RULES.combat.armyMultiplier}`, lx, ly + s * 0.005);
+  }
+  if (unit.fortified) drawShield(ctx, cx - r * 0.95, cy + r * 0.2, s * 0.2);
   if (stackCount > 1) {
     const bx = cx + r * 0.85;
     const by = cy - r * 0.85;
@@ -134,6 +154,39 @@ function drawUnit(
     ctx.font = `700 ${Math.round(s * 0.18)}px system-ui, sans-serif`;
     ctx.fillText(String(stackCount), bx, by + s * 0.01);
   }
+}
+
+/** Small shield (fortified), centered on (x, y), `h` tall. */
+function drawShield(ctx: CanvasRenderingContext2D, x: number, y: number, h: number): void {
+  const w = h * 0.8;
+  ctx.fillStyle = '#d8dee6';
+  ctx.strokeStyle = '#1b2430';
+  ctx.lineWidth = Math.max(1, h * 0.1);
+  ctx.beginPath();
+  ctx.moveTo(x - w / 2, y - h / 2);
+  ctx.lineTo(x + w / 2, y - h / 2);
+  ctx.lineTo(x + w / 2, y);
+  ctx.quadraticCurveTo(x + w / 2, y + h * 0.35, x, y + h / 2);
+  ctx.quadraticCurveTo(x - w / 2, y + h * 0.35, x - w / 2, y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+}
+
+/** Five-pointed star centered on (x, y) with outer radius r (capital marker). */
+function drawStar(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+    const rr = i % 2 === 0 ? r : r * 0.45;
+    ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+  }
+  ctx.closePath();
+  ctx.fillStyle = '#ffe066';
+  ctx.strokeStyle = '#1b1405';
+  ctx.lineWidth = Math.max(1, r * 0.2);
+  ctx.fill();
+  ctx.stroke();
 }
 
 export function render(
@@ -229,6 +282,7 @@ export function render(
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(String(city.size), p.x + s / 2, p.y + s / 2 + s * 0.02);
+    if (city.capitalOf !== null) drawStar(ctx, p.x + inset, p.y + inset, s * 0.13);
     if (city.owner === view.viewer && city.build === null) {
       const bx = p.x + s - inset;
       const by = p.y + inset;
@@ -256,6 +310,24 @@ export function render(
     const p = pos(shown.x, shown.y);
     const inCity = state.cities.some((c) => c.x === shown.x && c.y === shown.y);
     drawUnit(ctx, state, shown, list.length, p.x, p.y, s, shown.id === view.selectedUnitId, inCity);
+  }
+
+  // Tiles the selected unit can attack.
+  ctx.strokeStyle = '#ff5a4f';
+  ctx.lineWidth = Math.max(2, s * 0.06);
+  for (const c of view.targets) {
+    const p = pos(c.x, c.y);
+    ctx.strokeRect(p.x + 2, p.y + 2, s - 4, s - 4);
+  }
+
+  // A fight (or capture) just happened here.
+  if (view.flash) {
+    const p = pos(view.flash.x, view.flash.y);
+    ctx.fillStyle = view.flash.won ? 'rgba(90, 230, 120, 0.45)' : 'rgba(255, 70, 60, 0.5)';
+    ctx.fillRect(p.x, p.y, s, s);
+    ctx.strokeStyle = view.flash.won ? '#5ae678' : '#ff463c';
+    ctx.lineWidth = Math.max(3, s * 0.09);
+    ctx.strokeRect(p.x + 1, p.y + 1, s - 2, s - 2);
   }
 
   // Explored-but-not-visible tiles are dimmed.

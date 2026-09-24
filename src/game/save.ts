@@ -54,7 +54,39 @@ const MIGRATIONS: Record<number, (s: Raw) => void> = {
       if (c.build && needs(c.build)) c.build = null;
     }
   },
+  // Milestone 3 → 4: combat. No unit is fortified or an army yet, everyone is at war with
+  // everyone (no diplomacy until M5), and each civ's first city becomes its capital.
+  3: (s) => {
+    for (const u of s.units as Raw[]) {
+      u.fortified = false;
+      u.army = false;
+    }
+    const n = (s.players as Raw[]).length;
+    s.atWar = Array.from({ length: n }, (_, a) => Array.from({ length: n }, (_, b) => a !== b));
+    const first = new Map<number, Raw>();
+    for (const c of s.cities as Raw[]) {
+      c.capitalOf = null;
+      const cur = first.get(c.owner);
+      if (!cur || c.foundedTurn < cur.foundedTurn || (c.foundedTurn === cur.foundedTurn && c.id < cur.id)) {
+        first.set(c.owner, c);
+      }
+    }
+    for (const [owner, c] of first) c.capitalOf = owner;
+  },
 };
+
+/** What each migration brought, for the "your game was updated" notice. Keyed like MIGRATIONS. */
+export const MIGRATION_NOTES: Record<number, string> = {
+  2: 'the tech tree',
+  3: 'combat and armies',
+};
+
+/** "the tech tree and combat and armies" for a save upgraded from version `from`. */
+export function migrationSummary(from: number): string {
+  const parts: string[] = [];
+  for (let v = from; v < SAVE_VERSION; v++) if (MIGRATION_NOTES[v]) parts.push(MIGRATION_NOTES[v]!);
+  return parts.join(', then ') || 'the latest version';
+}
 
 /** Just enough shape checking that a damaged save starts a new game instead of crashing. */
 function shapeError(s: Record<string, unknown>): string | undefined {
@@ -69,6 +101,7 @@ function shapeError(s: Record<string, unknown>): string | undefined {
   }
   if (typeof s.currentPlayer !== 'number' || !s.players[s.currentPlayer]) return 'bad current player';
   if (!s.players.every((p) => isObject(p) && Array.isArray(p.techs))) return 'missing techs';
+  if (!Array.isArray(s.atWar) || s.atWar.length !== s.players.length) return 'missing war table';
   return undefined;
 }
 
@@ -113,5 +146,6 @@ export function deserializeGame(text: string): LoadResult {
 function shapeErrorBeforeMigration(s: Record<string, unknown>): string | undefined {
   if (!Array.isArray(s.players) || !s.players.every(isObject)) return 'missing players';
   if (!Array.isArray(s.cities) || !s.cities.every(isObject)) return 'missing cities';
+  if (!Array.isArray(s.units) || !s.units.every(isObject)) return 'missing units';
   return undefined;
 }

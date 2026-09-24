@@ -7,8 +7,9 @@ import { visibleTiles } from './fog';
 import { tileIndex } from './grid';
 import type { Coord, GameState, LogEntry } from './types';
 
-export function addLog(state: GameState, player: number, text: string, at?: Coord): void {
+export function addLog(state: GameState, player: number, text: string, at?: Coord, other?: number): void {
   const entry: LogEntry = { turn: state.turn, player, text };
+  if (other !== undefined && other !== player) entry.other = other;
   if (at) {
     entry.x = at.x;
     entry.y = at.y;
@@ -18,13 +19,14 @@ export function addLog(state: GameState, player: number, text: string, at?: Coor
 }
 
 /**
- * The entries `viewer` should be told about: all of their own, and a rival's only when the
- * event's tile is visible to the viewer right now. Rival events with no location stay hidden.
+ * The entries `viewer` should be told about: all of their own (including ones where they're
+ * the `other` side, e.g. their unit was attacked), and a rival's only when the event's tile
+ * is visible to the viewer right now. Rival events with no location stay hidden.
  */
 export function eventsVisibleTo(state: GameState, viewer: number, entries: LogEntry[]): LogEntry[] {
   let vis: boolean[] | undefined;
   return entries.filter((e) => {
-    if (e.player === viewer) return true;
+    if (e.player === viewer || e.other === viewer) return true;
     if (e.x === undefined || e.y === undefined) return false;
     vis ??= visibleTiles(state, viewer);
     return vis[tileIndex(state.map, e.x, e.y)] === true;

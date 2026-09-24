@@ -8,6 +8,7 @@ import { runAiTurn } from '../src/game/ai';
 import { createGame } from '../src/game/newGame';
 import { buildChoiceError, buildOptions, processCities, setBuild } from '../src/game/production';
 import { deserializeGame, serializeGame } from '../src/game/save';
+import { STATE_VERSION } from '../src/game/types';
 import {
   availableTechs,
   chooseAiResearch,
@@ -330,7 +331,7 @@ describe('saves from Milestone 2', () => {
     expect(res.migratedFrom).toBe(2);
     expect(res.savedAt).toBe(42);
     const s = res.state;
-    expect(s.version).toBe(3);
+    expect(s.version).toBe(STATE_VERSION); // 2 → 3 → 4 in one go
     for (const p of s.players) {
       expect(p.techs).toEqual([]);
       expect(p.researching).toBeNull();

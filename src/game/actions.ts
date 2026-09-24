@@ -4,6 +4,7 @@
 import type { CityFocus } from '../data/rules';
 import type { TechId } from '../data/techs';
 import { foundCity } from './city';
+import { attack, formArmy, fortify } from './combat';
 import { moveUnitToward } from './movement';
 import { rushBuy, setBuild, setFocus, setScienceRate } from './production';
 import { setResearch } from './tech';
@@ -13,6 +14,9 @@ import type { ActionResult, BuildItem, Coord, GameState } from './types';
 export type Action =
   | { type: 'move'; unitId: number; to: Coord }
   | { type: 'foundCity'; unitId: number }
+  | { type: 'attack'; unitId: number; at: Coord }
+  | { type: 'fortify'; unitId: number }
+  | { type: 'formArmy'; unitId: number }
   | { type: 'setBuild'; cityId: number; item: BuildItem }
   | { type: 'setFocus'; cityId: number; focus: CityFocus }
   | { type: 'rushBuy'; cityId: number }
@@ -26,6 +30,12 @@ export function applyAction(state: GameState, action: Action): ActionResult {
       return moveUnitToward(state, action.unitId, action.to);
     case 'foundCity':
       return foundCity(state, action.unitId);
+    case 'attack':
+      return attack(state, action.unitId, action.at);
+    case 'fortify':
+      return fortify(state, action.unitId);
+    case 'formArmy':
+      return formArmy(state, action.unitId);
     case 'setBuild':
       return setBuild(state, action.cityId, action.item);
     case 'setFocus':

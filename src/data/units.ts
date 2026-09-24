@@ -1,5 +1,5 @@
-// Unit table. Combat values (attack/defense) are stored and shown now but unused until
-// Milestone 4. `requires` is the tech that unlocks the unit (none = available from the
+// Unit table. Attack and defense feed combat (src/game/combat.ts); a unit with 0 attack
+// can't attack. `requires` is the tech that unlocks the unit (none = available from the
 // start). Costs and strengths are placeholders until the balance pass.
 
 import type { TechId } from './techs';

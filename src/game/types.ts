@@ -55,8 +55,12 @@ export interface Unit {
   x: number;
   y: number;
   movesLeft: number;
-  /** Built in a city with Barracks. Combat uses it from Milestone 4. */
+  /** Veterans get a combat bonus. Built in a city with Barracks, or promoted by winning a fight. */
   veteran: boolean;
+  /** Dug in for a defense bonus; cleared when the unit moves or attacks. */
+  fortified: boolean;
+  /** Three units of one type merged into one (combat strength × RULES.combat.armyMultiplier). */
+  army: boolean;
 }
 
 export type BuildItem =
@@ -80,6 +84,11 @@ export interface City {
   focus: CityFocus;
   buildings: BuildingId[];
   /**
+   * The player whose original capital this is (their first city), or null. It stays set when
+   * the city is captured, so "capture every capital" (domination, M6) can be checked.
+   */
+  capitalOf: number | null;
+  /**
    * Tile indices worked by citizens (not including the center). Assigned automatically by
    * refreshWorkedTiles; stored so the UI and saves see exactly what the rules used.
    */
@@ -89,9 +98,9 @@ export interface City {
 /**
  * Bumped whenever the state shape changes. Older saves are migrated forward when there's a
  * migration for them in save.ts; otherwise they aren't loaded.
- * 3 = Milestone 3 (techs, research).
+ * 3 = Milestone 3 (techs, research). 4 = Milestone 4 (combat: war, fortify, armies, capitals).
  */
-export const STATE_VERSION = 3;
+export const STATE_VERSION = 4;
 
 export interface GameState {
   version: number;
@@ -106,6 +115,11 @@ export interface GameState {
   units: Unit[];
   cities: City[];
   nextId: number;
+  /**
+   * atWar[a][b]: are players a and b at war? Symmetric. Everyone is at war with everyone
+   * until diplomacy arrives (Milestone 5).
+   */
+  atWar: boolean[][];
   /** Short human-readable event log (newest last); the UI shows recent entries. */
   log: LogEntry[];
 }
@@ -113,6 +127,8 @@ export interface GameState {
 export interface LogEntry {
   turn: number;
   player: number;
+  /** Another player involved (e.g. the defender in a fight): they always see the entry too. */
+  other?: number;
   text: string;
   /** Where it happened, so the UI can hide rival events the viewer can't see. */
   x?: number;
@@ -122,4 +138,23 @@ export interface LogEntry {
 export interface ActionResult {
   ok: boolean;
   reason?: string;
+  /** Set by an attack: what happened, for the UI's result message. */
+  combat?: CombatReport;
+}
+
+export interface CombatReport {
+  attackerWon: boolean;
+  /** The attacker's win chance, 0–1, as shown before the attack. */
+  chance: number;
+  attackerType: UnitTypeId;
+  defenderType: UnitTypeId;
+  attackerArmy: boolean;
+  defenderArmy: boolean;
+  attackerOwner: number;
+  defenderOwner: number;
+  /** The defending tile. */
+  x: number;
+  y: number;
+  /** The winner became a veteran from this fight. */
+  promoted: boolean;
 }

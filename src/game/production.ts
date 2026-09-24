@@ -161,6 +161,8 @@ function spawnUnit(state: GameState, city: City, type: Unit['type']): Unit {
     // Units appear at the end of the owner's turn; they get moves at the next turn start.
     movesLeft: 0,
     veteran,
+    fortified: false,
+    army: false,
   };
   state.units.push(unit);
   return unit;

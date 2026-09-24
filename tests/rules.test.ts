@@ -55,14 +55,16 @@ describe('movement', () => {
     expect(moveUnit(s, w.id, { x: 1, y: 0 }).reason).toBe('Not enough moves left');
   });
 
-  it("is blocked by another player's unit or city", () => {
+  it("is blocked by another player's unit or city (moving in to capture is covered in combat tests)", () => {
     const s = makeState(['ggg']);
     const w = addUnit(s, 'warrior', 0, 0, 0);
     addUnit(s, 'warrior', 1, 1, 0);
     expect(moveUnit(s, w.id, { x: 1, y: 0 }).reason).toBe('Tile is impassable');
     s.units = s.units.filter((u) => u.owner === 0);
     addCity(s, 1, 1, 0, { name: 'X' });
-    expect(moveUnit(s, w.id, { x: 1, y: 0 }).ok).toBe(false);
+    // A settler can't capture (0 attack), so the enemy city blocks it.
+    const settler = addUnit(s, 'settler', 0, 0, 0);
+    expect(moveUnit(s, settler.id, { x: 1, y: 0 }).ok).toBe(false);
   });
 
   it('can stack with own units', () => {

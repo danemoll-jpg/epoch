@@ -5,7 +5,7 @@ import { createGame } from './game/newGame';
 import type { GameState } from './game/types';
 import { App, type AppOptions } from './ui/app';
 import { preventBrowserGestures } from './ui/input';
-import { loadFromStorage, saveToStorage } from './ui/storage';
+import { loadOrStart } from './ui/storage';
 
 // URL options for testing: ?seed=123 for a reproducible map, ?players=5 for a full table,
 // ?new to ignore the autosave and start fresh. Without ?new, a saved game always resumes
@@ -51,25 +51,11 @@ async function boot(): Promise<void> {
   }
 
   if (!state) {
-    const saved = params.has('new') ? undefined : loadFromStorage();
-    if (saved?.kind === 'ok') {
-      state = saved.state;
-      notice ??= saved.migratedFrom
-        ? `Your saved game was updated for the tech tree (turn ${state.turn}). Tap the research button to pick a tech.`
-        : `Resumed your game (turn ${state.turn})`;
-    } else if (saved?.kind === 'incompatible') {
-      notice = 'Your saved game is from an older version of Epoch and can’t be loaded, so a new game has started.';
-    } else if (saved?.kind === 'corrupt') {
-      console.warn('Epoch: saved game unreadable:', saved.error);
-      notice = 'Your saved game couldn’t be read, so a new game has started.';
-    }
-    if (!state) {
-      state = newGame();
-      saveToStorage(state);
-    } else if (saved?.kind === 'ok' && saved.migratedFrom) {
-      // Write the upgraded save back right away.
-      saveToStorage(state);
-    }
+    // Resume the autosave, or start fresh; a save that gets replaced is always backed up first.
+    const start = loadOrStart({ forceNew: params.has('new'), newGame, now: Date.now() });
+    state = start.state;
+    notice = [notice, start.notice].filter(Boolean).join(' ') || undefined;
+    if (!start.autosave) opts.autosave = false;
   }
 
   preventBrowserGestures();

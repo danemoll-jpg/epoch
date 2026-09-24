@@ -42,6 +42,8 @@
         <div id="unitInfo"></div>
         <div class="row">
           <button id="foundBtn" type="button">Found City</button>
+          <button id="fortifyBtn" type="button">Fortify</button>
+          <button id="armyBtn" type="button">Form Army</button>
           <button id="nextBtn" type="button">Next Unit</button>
           <button id="deselectBtn" type="button" aria-label="Deselect unit">✕</button>
         </div>
@@ -76,20 +78,49 @@
         </section>
       </div>
 
+      <div id="attackOverlay" class="overlay" hidden>
+        <section id="attackPanel" class="dialog" role="dialog" aria-modal="true" aria-label="Attack">
+          <div id="attackBody"></div>
+          <div class="row">
+            <button id="attackCancelBtn" type="button" class="bigBtn">Cancel</button>
+            <button id="attackGoBtn" type="button" class="bigBtn danger">Attack</button>
+          </div>
+        </section>
+      </div>
+
+      <div id="endOverlay" class="overlay" hidden>
+        <section class="dialog" role="dialog" aria-modal="true">
+          <h2 id="endTitle"></h2>
+          <p id="endText"></p>
+          <div class="row">
+            <button id="endCloseBtn" type="button">Look at the map</button>
+            <button id="endNewBtn" type="button" class="bigBtn">New Game</button>
+          </div>
+        </section>
+      </div>
+
       <div id="menuOverlay" class="overlay" hidden>
         <div class="dialog" role="dialog" aria-modal="true">
           <div id="menuMain">
             <h2>Game</h2>
             <p id="menuInfo"></p>
             <div class="row">
+              <button id="restoreBtn" type="button">Restore a backup</button>
               <button id="newGameBtn" type="button">New Game</button>
               <button id="menuCloseBtn" type="button">Close</button>
             </div>
             <div id="devMenu" hidden></div>
           </div>
+          <div id="menuBackups" hidden>
+            <h2>Restore a backup</h2>
+            <div id="backupList" class="scroll"></div>
+            <div class="row">
+              <button id="backupsBackBtn" type="button">Back</button>
+            </div>
+          </div>
           <div id="menuConfirm" hidden>
             <h2>Start a new game?</h2>
-            <p>Your current game will be lost.</p>
+            <p>Your current game will be kept as a backup (☰ → Restore a backup).</p>
             <div class="row">
               <button id="confirmNoBtn" type="button">Cancel</button>
               <button id="confirmYesBtn" type="button" class="danger">Start New Game</button>

@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "dev:lan": "vite --host",
+    "play": "npm run build:play && vite preview --outDir dist-play --port 4173 --strictPort",
+    "play:lan": "npm run build:play && vite preview --outDir dist-play --host --port 4173 --strictPort",
     "build": "tsc --noEmit && vite build && node scripts/check-dist.mjs",
+    "build:play": "tsc --noEmit && vite build --outDir dist-play --emptyOutDir && node scripts/check-dist.mjs dist-play",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",

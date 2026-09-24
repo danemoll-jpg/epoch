@@ -8,9 +8,9 @@ export type BuildingId = 'granary' | 'barracks' | 'walls' | 'library' | 'marketp
 export interface BuildingEffects {
   /** Percent of the food box kept after the city grows. */
   foodKeptPct?: number;
-  /** Units built in this city start as veterans (used by combat in Milestone 4). */
+  /** Units built in this city start as veterans. */
   veteranUnits?: boolean;
-  /** Defense bonus for units in this city (used by combat in Milestone 4). */
+  /** Defense bonus (percent) for units in this city against land attacks. */
   defenseBonusPct?: number;
   sciencePct?: number;
   goldPct?: number;
@@ -42,7 +42,7 @@ export const BUILDINGS: Record<BuildingId, BuildingDef> = {
   },
   walls: {
     id: 'walls', name: 'Walls', cost: 40, requires: 'masonry',
-    summary: 'Stronger city defense (from combat on)',
+    summary: '+100% defense in this city against land attacks',
     effects: { defenseBonusPct: 100 },
   },
   library: {

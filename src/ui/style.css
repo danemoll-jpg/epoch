@@ -719,3 +719,110 @@ button.danger {
 .devList button.on {
   border-color: #c08ce0;
 }
+
+/* ---- unit panel extras (Milestone 4) ---- */
+
+#fortifyBtn:not(:disabled) {
+  background: #3d4f63;
+}
+
+#armyBtn {
+  background: #6b5320;
+  border-color: #e6b73f;
+}
+
+/* ---- attack odds panel ---- */
+
+#attackPanel {
+  width: min(460px, calc(100vw - 24px));
+}
+
+.odds {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 10px;
+  margin: 6px 0 12px;
+}
+
+.odds b {
+  font-size: 44px;
+  line-height: 1;
+}
+
+.odds span {
+  color: var(--muted);
+}
+
+.odds.good b { color: #5ae678; }
+.odds.even b { color: var(--accent); }
+.odds.bad b { color: #ff6a5f; }
+
+.sides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.side {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+.side .sideName {
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.side ul {
+  margin: 6px 0;
+  padding-left: 18px;
+  font-size: 14px;
+}
+
+.side .total {
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.dialog .sub {
+  margin: 0 0 8px;
+}
+
+button.bigBtn {
+  min-height: 56px;
+  min-width: 120px;
+  font-size: 18px;
+}
+
+/* ---- backups list (☰ → Restore a backup) ---- */
+
+#backupList {
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
+  margin-bottom: 12px;
+}
+
+.backup {
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+
+.backup .row {
+  margin-top: 6px;
+}
+
+.backup .warn {
+  color: #ffb36b;
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+#menuMain .row {
+  justify-content: flex-start;
+}

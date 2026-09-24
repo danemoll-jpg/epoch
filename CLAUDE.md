@@ -49,8 +49,9 @@ friends, not released publicly or sold.
 - **Rendering:** HTML5 Canvas 2D. No game engine.
 - **Tests:** Vitest.
 - **Targets:** iPad Safari (touch) and desktop browsers (mouse and keyboard).
-- **Testing on iPad:** Dan tests on his iPad over the **local network**
-  against the dev server. Not live in the hub yet, by Dan's choice.
+- **Testing on iPad:** Dan plays on his iPad over the **local network**:
+  real games on the stable `play:lan` build, quick checks of work in
+  progress on `dev:lan`. Not live in the hub yet, by Dan's choice.
 - **Hosting (later):** its own GitHub repo (`danemoll-jpg/epoch`) and its own
   Netlify site, linked from the game hub. `netlify.toml` is already in place.
   See "Hub integration" below.
@@ -115,15 +116,26 @@ npm run lint     # type-check only (tsc --noEmit); no ESLint yet
 ```
 **iPad over the local network:**
 ```
-npm run dev:lan  # = vite --host: listens on the LAN as well as localhost
+npm run play:lan # real games: build into dist-play/, serve it on :4173 (LAN)
+npm run dev:lan  # work in progress: vite --host on :5173, live-reloads
 ```
-Vite prints a `Network: http://<PC-IP>:5173/` line; open that URL in
+Both print a `Network: http://<PC-IP>:<port>/` line; open that URL in
 Safari on the iPad (same Wi-Fi). Windows may ask once to allow Node through
-the firewall; allow it on private networks. Plain `npm run dev` stays
-localhost-only, and Vite is not set to listen on the network by default.
-The `epoch-dev` preview config in `.claude/launch.json` also passes
-`--host` (port 5174); `epoch-verify` (port 5175, localhost only) is for a
-second session to preview without taking 5174.
+the firewall; allow it on private networks.
+- **`play:lan` is for real games.** It type-checks, builds into its own
+  `dist-play/` folder (git-ignored; `npm run build` writes `dist/` and never
+  touches it), runs the dev-code leak check on it, then serves it with
+  `vite preview --host --port 4173`. The page has no live reload, so code
+  edits change nothing until Dan restarts `play:lan`. `npm run play` is the
+  same, localhost only. Dev scenarios aren't in it.
+- **Each address has its own saved game.** Safari keeps `localStorage` per
+  host and port, so `play:lan` (:4173) and `dev:lan` (:5173) never share or
+  overwrite each other's save. That's intended.
+- Plain `npm run dev` stays localhost-only. The `epoch-dev` preview config
+  in `.claude/launch.json` passes `--host` (port 5174); `epoch-verify`
+  (port 5175, localhost only) is for a second session to preview without
+  taking 5174; `epoch-play-verify` (port 4176) serves an existing
+  `dist-play/` (run `npm run build:play` first) to check the play build.
 
 Dev URL options: `?seed=123` gives a reproducible map, and `?players=5` gives
 a full 5-civ game. **The autosave wins:** if a saved game exists it resumes,
@@ -136,13 +148,26 @@ debugging, including from Safari's Web Inspector on the iPad.
 completes inside Safari's `pagehide`). Saved after every successful action
 (including End Turn), on `visibilitychange` → hidden, and on `pagehide`.
 The save carries `saveVersion` (= `STATE_VERSION` in `src/game/types.ts`,
-currently 3). **Bump `STATE_VERSION` whenever the state shape changes, and
+currently 4). **Bump `STATE_VERSION` whenever the state shape changes, and
 add a migration** to `MIGRATIONS` in `src/game/save.ts` (keyed by the
-version it upgrades from) so Dan's game carries forward. A version with no
-migration path starts a new game with an on-screen notice instead of
-crashing. 2 → 3 (M3) is migrated: no techs, nothing researched, science
-kept as banked, and a city building something now tech-locked goes back to
-"choose" with its production kept.
+version it upgrades from), plus a line in `MIGRATION_NOTES` for the notice,
+so Dan's game carries forward. Migrated so far: 2 → 3 (M3: no techs,
+science kept as banked, tech-locked builds go back to "choose") and 3 → 4
+(M4: fortify/army off, everyone at war, each civ's first city becomes its
+capital).
+
+**Backups: a save is never thrown away.** All startup and replace logic
+is in `src/ui/storage.ts` (`loadOrStart`, `backupCurrentSave`,
+`listBackups`, `restoreBackup`; each takes the store as a parameter so it's
+unit-tested). Before the saved game is replaced by anything other than its
+own next autosave, its exact text goes to `epoch.autosave.backup.1`, and
+older backups shift to `.2` and `.3` (only 3 are kept). That covers an
+incompatible version, corrupt data, a failed migration, an exception while
+loading, a successful upgrade, New Game, `?new`, and restoring a backup. If
+the backup can't be written, the old save stays put and the new game isn't
+autosaved. ☰ → **Restore a backup** lists them in every build (hidden in a
+dev scenario). Any new code path that replaces the save must call
+`backupCurrentSave` first.
 
 **Dev scenarios (dev server only):** `?scenario=<id>` loads a small
 hand-made game with a hard-to-reach rule one End Turn away, with an
@@ -150,13 +175,17 @@ on-screen note saying what to do and what should happen. On the iPad, pick
 one from the ☰ menu (the "Dev scenarios" list) instead of typing URLs;
 "Back to my game" (in the note or the menu) drops `?scenario`. **A scenario
 never autosaves**, so the real game can't be overwritten. Current set:
-`grow`, `starve`, `settler`, `rich`, `tech`, `era`. They're compiled out of
+`grow`, `starve`, `settler`, `rich`, `tech`, `era`, and (M4) `combat`,
+`fortified`, `walls`, `army`, `capture`, `defeat`. The combat ones start
+from `FAIR_DICE` (first roll about 0.48), because `makeState`'s default RNG
+state rolls 0.98 first and would make every first attack lose. Put odds in
+a note by computing them (see `frontOdds`), not by typing numbers. They're compiled out of
 the production build: `main.ts` imports `src/dev/scenarios.ts` only inside
 `if (import.meta.env.DEV)`, and `npm run build` ends with
 `scripts/check-dist.mjs`, which fails the build if the scenario marker or
 note text appears anywhere in `dist/`.
 
-**Adding a scenario (e.g. combat odds in M4):**
+**Adding a scenario:**
 1. Append an entry to `SCENARIOS` in `src/dev/scenarios.ts`: `id`, `title`
    (menu label), `note` ("Tap End Turn. X should …"), and `build()`, which
    makes the state with the helpers in `src/dev/build.ts` (`makeState`,
@@ -168,12 +197,14 @@ note text appears anywhere in `dist/`.
 Nothing else to wire up: the ☰ menu lists every entry automatically.
 
 ## Code layout
-- `src/data/`: terrain, units (cost, `popCost`, attack/defense/moves,
-  `requires` tech), buildings (`requires` tech), `techs.ts` (eras, the 50
+- `src/data/`: terrain (yields, move cost, `defensePct`), units (cost,
+  `popCost`, attack/defense/moves, `requires` tech), buildings (`requires`
+  tech; Walls' `defenseBonusPct`), `techs.ts` (eras, the 50
   techs with prereqs/era/tier/description, the tech cost formula, AI
   research priority), `wonders.ts` (empty shape for M7), civs/leaders/city
   names, rule constants (`rules.ts`: growth, focus weights, rush-buy
-  formula, science rate, etc.). A tech's unlocks are the `requires` fields
+  formula, science rate, and `RULES.combat`: fortify/veteran/city bonuses,
+  army size and multiplier, veteran chance, AI attack threshold). A tech's unlocks are the `requires` fields
   on units/buildings/wonders, so adding a unit never touches `techs.ts`.
 - `src/game/`: pure rules. `types.ts` (state + `STATE_VERSION`), `rng.ts`,
   `grid.ts`, `mapgen.ts`, `newGame.ts`, `movement.ts`, `city.ts`
@@ -181,7 +212,10 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   split), `production.ts` (build/focus/rate/rush-buy actions, the
   tech-gated build list, and the end-of-turn city update), `tech.ts`
   (research action, end-of-turn research, eras, unlocks, AI research
-  choice), `fog.ts`, `log.ts` (event log + fog filter),
+  choice), `combat.ts` (odds with named modifiers, `winChance` = the one
+  formula, attack, fortify, armies), `conquest.ts` (city capture,
+  elimination), `war.ts` (the `atWar` table), `fog.ts`, `log.ts` (event
+  log + fog filter; an entry's `other` player always sees it),
   `turn.ts`, `ai.ts`, `save.ts` (serialize/deserialize with version
   check and migrations), and `actions.ts` (the single `applyAction` entry point the UI
   uses).
@@ -193,10 +227,11 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
 - `src/ui/`: `app.ts` (view state, HUD, city panel, tech screen, menu, dev
   scenario banner, dispatch),
   `tap.ts` (pure tap rule, unit-tested), `storage.ts` (localStorage
-  autosave), `input.ts` (Pointer Events, Safari gesture guards; touch
+  autosave, backups, startup load), `input.ts` (Pointer Events, Safari gesture guards; touch
   scrolling is allowed only inside `.scroll` elements), `style.css`.
 - `tests/`: Vitest suites. `helpers.ts` re-exports `src/dev/build.ts`.
-- `scripts/check-dist.mjs`: post-build check that no dev code shipped.
+- `scripts/check-dist.mjs`: post-build check that no dev code shipped
+  (takes the folder as an argument; `build:play` checks `dist-play/`).
 - A player's `id` always equals its index in `state.players`.
 
 ## Hub integration (how Dan's games are deployed)
@@ -232,16 +267,13 @@ the local commits waiting. Then wait for Dan to say "push."
 - **Round 3** (Milestone 3, the tech tree, plus dev scenarios): done and
   approved by Dan after iPad testing. The hub reset (A1) is left to Dan and
   is optional.
+- **Round 4** (save safety + Milestone 4, combat and armies): coding done,
+  all items (0, A1–A3, B1–B15). Waiting for Dan's iPad checks: `play:lan`,
+  the six combat scenarios, and a real fight. Not pushed.
 - Going live in the hub is deferred by Dan.
 
-**The current objective is Round 4:**
-- **Part A, save safety:** a stable `play:lan` build for real games, save
-  backups that are never discarded, and a short look at what wiped Dan's
-  test game.
-- **Part B, Milestone 4:** combat, fortify, armies of 3, city capture, and
-  elimination.
-
-See items 0, A1–A3, and B1–B15 in TODO.md.
+The per-item report is under Completed Tasks in TODO.md; the next round's
+objective comes from the planning session.
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.

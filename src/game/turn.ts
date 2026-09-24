@@ -42,6 +42,8 @@ export function endTurn(state: GameState): ActionResult {
 export function runUntilHuman(state: GameState): void {
   // Guard against a game with no living humans looping forever.
   for (let guard = 0; guard < state.players.length * 2; guard++) {
+    // The human was eliminated: stop here (the UI shows the Defeated panel).
+    if (!state.players.some((q) => q.kind === 'human' && q.alive)) return;
     const p = state.players[state.currentPlayer]!;
     if (p.kind === 'human' && p.alive) return;
     if (p.alive) runAiTurn(state, p.id);
