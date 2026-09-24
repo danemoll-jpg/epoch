@@ -6,7 +6,9 @@ import { runAiTurn } from '../game/ai';
 import { createGame } from '../game/newGame';
 import { eraIndex, playerEra } from '../game/tech';
 import { endTurn } from '../game/turn';
-import type { GameState } from '../game/types';
+import type { GameState, Victory } from '../game/types';
+import type { VictoryKind } from '../data/victory';
+import { aiVictoryGoal } from '../game/aiGoals';
 
 export interface CivPace {
   civId: string;
@@ -28,6 +30,10 @@ export interface SimResult {
   warsDeclared: number;
   peaceTreaties: number;
   eliminated: number;
+  /** The first win (the sim plays on after it, for the pace numbers). */
+  victory: Victory | null;
+  /** Each civ's victory goal at the end. */
+  goals: VictoryKind[];
   state: GameState;
 }
 
@@ -79,7 +85,8 @@ export function simulate(seed: number, turns: number, countUntil = 120, checkpoi
     if (turns < countUntil) c.alive = q.alive;
   }
   const eliminated = civs.filter((c) => !c.alive).length;
-  return { seed, turns, civs, warsDeclared, peaceTreaties, eliminated, state: s };
+  const goals = s.players.map((q) => aiVictoryGoal(s, q.id));
+  return { seed, turns, civs, warsDeclared, peaceTreaties, eliminated, victory: s.victory, goals, state: s };
 }
 
 /** Median of the defined values (undefined counts as "later than any"). */

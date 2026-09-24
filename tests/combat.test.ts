@@ -310,9 +310,10 @@ describe('capturing cities', () => {
     expect(target.build).toBeNull();
     expect(target.capitalOf).toBe(1); // still marks whose capital it was
     expect([legion.x, legion.y]).toEqual([2, 0]);
-    const last = s.log[s.log.length - 1]!;
-    expect(last.text).toContain('capital');
-    expect(last.other).toBe(1);
+    // (In this two-civ game, taking the only rival capital is also a domination win, logged after.)
+    const capture = s.log.find((e) => e.text.includes('captured'))!;
+    expect(capture.text).toContain('capital');
+    expect(capture.other).toBe(1);
   });
 
   it('never below size 1, and a non-capital capture is a plain event', () => {

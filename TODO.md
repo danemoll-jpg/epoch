@@ -540,9 +540,127 @@ Steps, Technical Notes.
     - Game code didn't change, so the play server wasn't restarted (it's
       already serving this round's build).
 
+* **Round 7 — Unit icons in the game + Milestone 6 (wonders, culture, and
+  victory) — done by the coding agent (2026-09-24). Waiting for Dan's iPad
+  checks (a)–(c) below.**
+  - **Result:** 308 unit tests passing (67 new). Type-check and production
+    build are clean, and the dev-code leak check passes. Preview-verified on
+    desktop and in iPad-sized touch emulation (1024×768 landscape, 768×1024
+    portrait). **Save format 6** (a v5 game is upgraded, with the original
+    kept as a backup). Package version is now 0.7.0 (shown on the About
+    screen).
+  - **Per-item status (coding round 7):**
+
+    | # | Item | Status | Verified by |
+    |---|------|--------|-------------|
+    | 0 | Commit docs first | Done (`295219d`), then re-read both. Nothing from last round's report was dropped | n/a |
+    | A1 | Wire in the 15 icons | Done. Dan's picks copied from `docs/icon-candidates/` into **`src/assets/icons/<icon-name>.svg`** (e.g. `old-wagon.svg`). They're bundled into the game's JavaScript as text (Vite `?raw`), so nothing is ever loaded from the web. Each unit in `units.ts` has an **`icon`** field naming its file; the letters stay as `glyph`, the fallback | unit-tested (`tests/icons.test.ts`: every unit's file exists, is one `currentColor` shape with no web links, every type looks different, every used icon is credited in data and in CREDITS.md, and nothing unused is credited); production build checked (icons inside the JS bundle) |
+    | A2 | Map drawing | Done, in `drawGlyph` only (`renderer.ts`) plus `src/render/icons.ts`. Each icon is rasterized once per icon, color, and pixel size (rounded to 4 device px, so pinch-zoom doesn't make a bitmap per frame) and cached; while a new size loads, the nearest ready size is scaled, and the letters show only until the first one loads, or if an icon is missing. **Drawn white on the owner's colored disc**, exactly as on the picker page Dan chose from (see "Decisions" below). The army ring and ×3, the fortified shield, the count badge, the selection ring, and the mixed-stack second disc (with its own icon) are all unchanged | preview-verified (`all-units` scenario on desktop and 1024×768 emulation: every icon drawn, army ring, shield, mixed stack) |
+    | A3 | Icons in the UI | Done. The icon on a small owner-colored disc appears in: the unit panel, its stack list, the city's "Units here", the build list (units), **both sides of the odds panel**, the tech screen's unlocks, and About / Credits. **The diplomacy military summary shows no units** (it's a phrase like "Stronger than yours"), so there's nothing to put an icon on there | preview-verified (odds panel had 2 icons, build list 2, About 15) |
+    | A4 | Credits | Done. **`CREDITS.md`** lists each used icon: unit, icon name, author, source link, CC BY 3.0. **☰ → About / Credits** (in every build) shows "Epoch (working title) · version 0.7.0 · save format 6", a one-line description, and the same 15 credits, each with its icon and a source link, plus links to game-icons.net and the license. Credit data lives in `src/data/icons.ts`; the test keeps it, the files, and CREDITS.md in step. Authors: Delapouite, Lorc, Cathelineau, HeavenlyDog, Skoll | unit-tested; preview-verified in 768×1024 portrait (15 rows, scrolls inside the dialog, no sideways scroll) |
+    | A5 | `all-units` scenario | Done. One of each of the 15 unit types in two rows north and south of your capital (table order), plus a Legion army, a veteran Spearman, a fortified Pikeman, a mixed stack (a Musketman with two Archers), and four rival units in their color. Everyone is at peace, so nothing fights | unit-tested (outcome); preview-verified |
+    | B1 | Culture | Done. Each city makes culture per turn from its buildings (**the Temple: 1**) and its wonders (2–12 each). It's added to the civ's `culture` total at the end of its turn and never goes down. Shown on the victory screen (total and +per turn for every civ you've met), in diplomacy (a new Culture line), and in the city panel (the city's own per turn). Not in the top bar. No borders or flipping | unit-tested; preview-verified |
+    | B2 | Wonders | Done: **13 wonders plus 2 victory wonders** in `src/data/wonders.ts` (our own descriptions and effects). Ancient: Pyramids (+25% production), Hanging Gardens (+2 food), Colossus (+100% gold), Oracle (5 culture). Medieval: Great Library (+100% science), Great Wall (free Walls in every city you hold), War Academy (all new units veterans), Grand Bazaar (+25% gold everywhere), Grand Cathedral (8 culture). Industrial: Royal Observatory (+25% science everywhere), Grand Workshop (+25% production everywhere). Modern: Broadcast Tower (12 culture), Global Network (+50% science everywhere). Each is tech-unlocked, **one per world**, built in a city like a building, and **can't be bought**. A wonder stays with its city if it's captured. **The race rule:** when someone finishes a wonder, every other city building it keeps its production and asks for a new choice ("Maurya finished the Colossus first. Babylon keeps its 43 production; choose something new."), and it's gone from every build list. Completions are **world news** for everyone who has met the builder. The build list marks wonders ("Wonder, one per world", plus "someone else is building it too" when a rival is), the city panel lists the city's wonders, and the victory screen has a "Wonders of the world" list (who built each, if you've met them) | unit-tested (uniqueness, the race, can't buy, every kind of effect, captured wonders, data sanity); preview-verified (`wonder`, `wonder-race`) |
+    | B3 | The four victories | Done in **`src/game/victory.ts`, one function each**: `dominationWon`, `cultureWon`, `economicWon`, `technologyWon`, checked by `checkVictory` after every action and every player's turn (the player whose turn it is first, then the rest). **Domination:** hold every rival's original capital (`capitalOf`); an eliminated rival counts, so the old "every rival eliminated" win is now a domination win. **Culture:** reach **4000** culture, then build the **World Council** (needs Philosophy). **Economic:** have **5500** gold, then build the **Global Exchange** (needs Economics). **I chose production** for it, like any wonder; the treasury must still hold the goal when it's finished (it waits otherwise). **Technology:** learn Space Flight, build **3 parts** (180 production each, buyable) **in your capital** (the city whose `capitalOf` is you), tap **🚀 Launch spaceship** (city panel or victory screen), and it **arrives at the start of turn launch + 12**, winning. If your capital is captured first, the ship and its parts are lost (world news). The launch is world news. First to meet any condition wins; if a rival wins, you lose. Numbers are in `src/data/victory.ts` | unit-tested (each victory both ways; arrival timing; loss on capture; first win kept; a rival winning) |
+    | B4 | Victory progress screen | Done: **🏆 in the top bar** (next to Diplomacy) and **☰ → Victory progress**. One card per civ: you first, then every other civ. Each shows Domination (rival capitals held, n/4), Culture (total/4000, +per turn, and "building the World Council" when they are), Economic (gold/5500, same for the Global Exchange), and Technology (not started · n/50 techs / Space Flight known / building n/3 parts / **Launched: arrives on turn N** in orange), each with a bar. **Civs you haven't met show as "Unknown civ"** in grey (no name or color); eliminated ones say so. A rules strip at the top explains all four, and "Wonders of the world" is at the bottom. Cards sit side by side in landscape and stack in portrait; only the body scrolls | preview-verified (1024×768 and 768×1024: no sideways overflow, every button ≥ 44 px) |
+    | B5 | Victory and defeat screens | Done, replacing the M4 panels. **Win:** 🏆, "Culture victory!", "You won on turn N: you built the World Council after reaching 4000 culture." **A rival wins:** "Defeat", "Maurya won a technology victory on turn 201: their spaceship arrived. The game is theirs." Both have a stats table (cities, techs, wonders, culture, gold) for the winner and you, and **New Game** / **Keep playing**. **Keep playing** is an action (`keepPlaying`, saved in the game): it closes the screen, stops all victory checks for the rest of that game, and the win stays on record (the victory screen says so). **Eliminated:** "Defeated", with New Game / Look at the map, as before. In a dev scenario, New Game reads "Back to my game" | unit-tested (Keep playing); preview-verified (`win-culture` → Keep playing → End Turn: stays closed; `lose-space`; `win-domination`; `win-space`) |
+    | B6 | Near-win warnings | Done. At the end of each round, `issueWarnings` checks every civ you've met: **a spaceship launched** ("… arrives on turn N. Capture X, their capital, before then to stop it."), **culture or gold past 75%** of its goal, or **holding all but one rival capital**. Each shows once as a **"Close to winning!" panel** with a Victory progress button (a relaunch after a loss warns again). Unmet civs never trigger one. Stored in the save (`warned`), so a reload doesn't repeat them | unit-tested (74% no / 75% yes, launch text, domination, once only, unmet civs); preview-verified (`near-win-warning`) |
+    | B7 | AI goes for victories | Done. **`src/game/aiGoals.ts`:** each AI leans toward one victory from its personality plus its progress (weights in `RULES.ai.victory`): **Hammurabi → technology, Ashoka → culture, Mansa Musa → economic, Pachacuti and Charlemagne → domination**. The goal picks its first building (Library / Temple / Marketplace / Barracks), whether wonders come before buildings (culture) or after, and war keenness (+2 war score and twice the peacetime attackers for domination). **Every AI builds wonders**, one at a time in its most productive city, and builds a **victory wonder or spaceship part as soon as it can**, and **launches at once**. **Gold hoarding fixed:** spare gold rush-buys buildings, settlers, spaceship parts, and (at war) units; when gold piles up past 150 + 20 per city the science rate goes to 100%, and back to 60% once it drops to 80. An AI going for the economic win sets science to 30% and doesn't spend below the goal. Still deterministic | unit-tested (leanings, progress shifting the lean, victory wonder and spaceship choice, launch, rich AI spends and raises science, economic AI saves); sim below |
+    | B8 | Save migration v5 → v6 | Done. `STATE_VERSION` 6. Culture 0, no spaceship, no wonders in any city, nobody has won, no warnings given. v2–v4 saves chain through. The pre-upgrade save is kept as a backup as usual, and the notice says "updated for wonders, culture, and victory" | unit-tested; preview-verified (the preview browser's real v5 save loaded as v6, with "Upgraded from version 5" in the backups) |
+    | B9 | Dev scenarios | Done: `wonder`, `wonder-race`, `win-domination`, `win-culture`, `win-economic`, `win-space`, `lose-space`, `stop-launch`, `near-win-warning` (plus A5's `all-units`). Each note says what to do and what should happen, with its numbers (goals, odds, turns) computed from data | unit-tested (each outcome through the real actions); preview-verified (all except `win-economic`, which shares its code path with `win-culture` and is covered by its test) |
+    | B10 | Unit tests | Done: 67 new, 308 total. New `tests/victory.test.ts` (30): culture adding up; wonder uniqueness, the race rule, no buying, every kind of effect, captured wonders; each victory both ways; spaceship parts, launch, arrival timing, and loss on capture; first win kept; Keep playing; warning thresholds, once only, unmet civs; AI leanings, victory wonder and spaceship choice, launch, gold spending, economic saving; v5 → v6 and v2 → v6. `tests/icons.test.ts` (17). `tests/scenarios.test.ts`: the 10 new scenarios. **`pace.test.ts` still passes, and now also checks that every sim game has a winner, never before turn 150** (the sim records the first win and plays on, so the era numbers still cover the whole tree). Three older tests were updated for the new rules: Pottery now also unlocks Hanging Gardens; in a 2-civ test, taking the only rival capital is now also a domination win; and Maurya (culture) now starts a wonder before its buildings | `npm test` |
+
+  - **B7 simulation** (`npm run sim`, all-AI, 5 civs, seeds 8/13/21/33/42,
+    300 turns):
+
+    | Seed | Winner | Victory | Turn |
+    |---|---|---|---|
+    | 8 | Franks | Technology | 246 |
+    | 13 | Babylon | Technology | 210 |
+    | 21 | Mali | Economic | 223 |
+    | 33 | Babylon | Culture | 221 |
+    | 42 | Mali | Economic | 179 |
+
+    **No game ends before turn 150** (earliest 179, median 221, toward the
+    ~250 target). Three victory types appear; **domination never happened**
+    in these runs (see "Observed" below). Research pace is still on target
+    after the AI started spending its gold: median Medieval turn 69,
+    Industrial 122, Modern 198 (targets 50–70, 120–150, 180–220); the first
+    civ finishes the tree on turns 191–215. Wars 2.0 / peace 0.6 /
+    eliminations 0.2 per game by turn 120. **Tuning done:** the first run had
+    culture wins on turns 144–169, so the culture goal went 1500 → 4000, gold
+    2500 → 5500, spaceship parts 120 → 180 production, travel 10 → 12 turns.
+  - **Dan's iPad checks for this round** (from "Done means"), on `dev:lan`
+    for the scenarios and `play:lan` for a real game:
+    - (a) ☰ → Dev scenarios → **All unit icons**: every icon should be
+      clear at map size, including pinch-zoomed out. Then in a real game,
+      check the icons read well.
+    - (b) The victory scenarios (**Win: domination / culture / economic /
+      spaceship arrives**, **Lose: rival spaceship**, **Stop a spaceship**,
+      **Near-win warning**, **Wonder finishes**, **Wonder race lost**), and
+      🏆 Victory progress.
+    - (c) ☰ → **About / Credits**.
+  - **Decisions worth reviewing:**
+    - **Icon color:** the item said "draw each icon in the owner's color on
+      the unit disc". An owner-colored icon on an owner-colored disc would be
+      invisible, so the icon is **white on the owner's colored disc**, as on
+      the picker page Dan chose from. The code takes a color, so switching to
+      e.g. a white disc with a colored icon is a one-line change.
+    - Wonders can't be bought; spaceship parts can.
+    - The Global Exchange is paid for in production. The 5500 gold is only
+      needed in the treasury when it's started and finished; it isn't spent.
+    - The two victory wonders also need a tech (World Council: Philosophy;
+      Global Exchange: Economics).
+    - The spaceship is built only in your **original** capital. There's still
+      no palace move, so a civ that has lost its capital can't build or launch
+      one until it takes the capital back.
+    - A ship "arrives on turn N" means at the start of turn N, before anyone
+      moves that turn.
+    - Domination doesn't require holding your own capital; eliminated rivals
+      count as held. In a 2-civ game, taking the rival's capital wins at once.
+    - Wonders go with their city when it's captured (the new owner gets the
+      effects).
+    - The Temple gives 1 culture per turn. Wonders give 2–12.
+    - The AI's lean is recomputed every turn from personality plus progress,
+      so a civ that falls behind or races ahead can change goals. Technology's
+      base is 3.5 so Hammurabi (whose economic base ties at 3) doesn't flip
+      to economic the moment he has some gold.
+  - **Also changed:**
+    - New files: `src/data/victory.ts` (goals, spaceship, warning line, the
+      spaceship-part "project"), `src/data/icons.ts`, `src/game/victory.ts`,
+      `src/game/wonders.ts`, `src/game/aiGoals.ts`, `src/render/icons.ts`,
+      `src/assets/icons/`, `CREDITS.md`, `tests/victory.test.ts`,
+      `tests/icons.test.ts`.
+    - A build item can now be a unit, building, **wonder**, or **project**
+      (the spaceship part). `completionBlocker` takes the state.
+    - `applyAction` checks for a win after every successful action; new
+      actions `launchSpaceship` and `keepPlaying`.
+    - `vite.config.ts` injects the package version (`__APP_VERSION__`);
+      `tsconfig.json` has `resolveJsonModule` for that.
+    - The city panel shows the city's culture, its wonders, and (in the
+      capital, once Space Flight is known) the spaceship with a Launch
+      button.
+    - `npm run sim` now prints each game's winner and each civ's goal,
+      culture, gold, science rate, parts, and wonders.
+  - **Observed, not fixed:**
+    - **Domination never won in the sim.** The conquest-minded AIs
+      (Charlemagne, Pachacuti) fight a few wars but rarely take capitals,
+      and late in the game their lean drifts to technology as their tech
+      count grows. Worth a look in the balance pass, or with M8 leaders.
+    - The earliest win was Mali's economic win on turn 179 (seed 42, an
+      8-city Mali). Still well past 150.
+    - In the preview browser, screenshots of the page came back as a zoomed
+      corner (a device-pixel-ratio quirk of the pane), so most layout checks
+      were done by measuring the page (overflow, sizes, tap targets) rather
+      than by eye. The map icons were seen on screen.
+
 ## Current Objective (Focus Area)
 
 ### Round 7 — Unit icons in the game + Milestone 6 (wonders, culture, and victory)
+
+**Status: done by the coding agent (2026-09-24).** Per-item report under
+"Round 7" in Completed Tasks. Waiting for Dan's iPad checks (a)–(c). The
+item list below is kept as it was assigned.
 **Goal:**
 - Put Dan's chosen icons into the game, with credits.
 - Give the game its four ways to win, as in Civ Rev 1: domination, culture,
@@ -722,8 +840,8 @@ unless Dan decides otherwise):**
 All of these are deferred for **sequencing only**. Each depends on the
 milestone before it. None has been decided against.
 
-- **Unit icons, step 2 (proposed for the next round; Dan decides after
-  review):** wire Dan's 15 picks into the game (the SVGs are already in
+- **Unit icons, step 2 — DONE in Round 7** (see Completed Tasks); this
+  entry is kept only until the planning session reconciles it: wire Dan's 15 picks into the game (the SVGs are already in
   `docs/icon-candidates/`), drawn in `drawGlyph` in `renderer.ts`, which is
   the only place a unit's mark is drawn. Keep the letters as a fallback
   while an icon loads. Also add the **About / Credits** screen and

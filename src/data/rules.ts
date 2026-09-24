@@ -191,6 +191,28 @@ export const RULES = {
     minAttackForce: 3,
     /** Gold the AI keeps before rush-buying settlers and buildings. */
     goldReserve: 40,
+
+    // ---- victory (Milestone 6; see src/game/aiGoals.ts) ----
+    victory: {
+      /** Each goal scores its personality base + this × its progress (0–1). */
+      progressWeight: 3,
+      /** Technology's personality base (the others come from aggression and trade willingness). */
+      techBase: 3.5,
+      /** An AI going for conquest adds this to its war score. */
+      dominationWarBonus: 2,
+      /** ...and keeps this many times more attackers in peacetime. */
+      dominationOffenseFactor: 2,
+      /** An AI going for the economic win sets its science rate to this, to save gold. */
+      economicScienceRate: 30,
+      /** Gold piling up: past richGold + richGoldPerCity × cities, the science rate goes to richScienceRate... */
+      richGold: 150,
+      richGoldPerCity: 20,
+      richScienceRate: 100,
+      /** ...and back to the default once gold falls to this. */
+      poorGold: 80,
+      /** The first building each goal wants (then the usual order). */
+      firstBuilding: { domination: 'barracks', culture: 'temple', economic: 'marketplace', technology: 'library' },
+    },
   },
 };
 

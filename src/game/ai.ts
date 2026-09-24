@@ -19,12 +19,20 @@
 // - Settlers found the capital at once, and later cities on a decent site nearby.
 //
 // Cities (see chooseBuild): a defender first; Settlers while there's room to expand (the city
-// target scales with the map's land per civ); defenders up to the cap; attackers during a
-// war; buildings; a few attackers in peacetime; then nothing (production is stored for
-// later). Spare gold rush-buys Settlers and buildings.
+// target scales with the map's land per civ); defenders up to the cap; a victory wonder or
+// spaceship part when it can; attackers during a war; buildings; wonders; a few attackers in
+// peacetime; then nothing (production is stored for later). Spare gold rush-buys Settlers,
+// buildings, spaceship parts, and (at war) units, and piling-up gold raises the science rate.
+//
+// Victory (Milestone 6, aiGoals.ts): each AI leans toward one victory, which picks its first
+// building, whether wonders come before or after the other buildings, how keen it is on war,
+// and whether it saves gold (economic) or spends it.
 
-import { AI_BUILDING_ORDER } from '../data/buildings';
+import { AI_BUILDING_ORDER, type BuildingId } from '../data/buildings';
 import { RULES } from '../data/rules';
+import { VICTORY, type VictoryKind } from '../data/victory';
+import { WONDERS, WONDER_IDS, type WonderId } from '../data/wonders';
+import { aiVictoryGoal } from './aiGoals';
 import { TERRAIN } from '../data/terrain';
 import { UNITS, UNIT_IDS, type UnitTypeId } from '../data/units';
 import { distance, neighbors, tileIndex } from './grid';
@@ -34,7 +42,9 @@ import { attack, attackError, combatOdds, defenseStrength, fortify, formArmy, fo
 import { capturableCity } from './conquest';
 import { runAiDiplomacy } from './diplomacy';
 import { findUnit, isEnterable, moveUnit, moveUnitToward } from './movement';
-import { buildChoiceError, buyCost, buyError, clearBuild, rushBuy, sameItem, setBuild, setFocus } from './production';
+import { buildChoiceError, buyCost, buyError, clearBuild, rushBuy, sameItem, setBuild, setFocus, setScienceRate } from './production';
+import { launchError, launchSpaceship, victoryWonder } from './victory';
+import { cityYields } from './yields';
 import { nextFloat } from './rng';
 import { chooseAiResearch, setResearch } from './tech';
 import { atWar } from './war';
@@ -192,10 +202,50 @@ export interface BuildContext {
   target: number;
   openSite: boolean;
   atWar: boolean;
+  /** The victory this AI is going for. */
+  goal: VictoryKind;
 }
 
 export function buildContext(state: GameState, playerId: number): BuildContext {
-  return { target: aiCityTarget(state), openSite: hasOpenSite(state, playerId), atWar: atWarWithAnyone(state, playerId) };
+  return {
+    target: aiCityTarget(state),
+    openSite: hasOpenSite(state, playerId),
+    atWar: atWarWithAnyone(state, playerId),
+    goal: aiVictoryGoal(state, playerId),
+  };
+}
+
+/**
+ * The one city where this AI builds wonders: the one already building a wonder, else its
+ * most productive city (lowest id on a tie). One wonder at a time, so its cities don't race
+ * each other.
+ */
+export function aiWonderCity(state: GameState, playerId: number): City | undefined {
+  const mine = citiesOf(state, playerId);
+  const busy = mine.find((c) => c.build?.kind === 'wonder');
+  if (busy) return busy;
+  let best: { city: City; prod: number } | undefined;
+  for (const c of mine) {
+    const prod = cityYields(state, c).production;
+    if (!best || prod > best.prod) best = { city: c, prod };
+  }
+  return best?.city;
+}
+
+/** The wonder this city should build: a victory wonder first, else (culture) the most culture, else the first available. */
+function pickWonder(state: GameState, city: City, goal: VictoryKind): WonderId | undefined {
+  const ok = (id: WonderId) => !buildChoiceError(state, city, { kind: 'wonder', id });
+  for (const kind of ['culture', 'economic'] as const) if (ok(victoryWonder(kind))) return victoryWonder(kind);
+  if (city.build?.kind === 'wonder' && ok(city.build.id)) return city.build.id;
+  const open = WONDER_IDS.filter((id) => !WONDERS[id].victory && ok(id));
+  if (goal === 'culture') open.sort((a, b) => (WONDERS[b].effects.culture ?? 0) - (WONDERS[a].effects.culture ?? 0));
+  return open[0];
+}
+
+/** The building order with this goal's favorite first. */
+function buildingOrder(goal: VictoryKind): BuildingId[] {
+  const first = RULES.ai.victory.firstBuilding[goal] as BuildingId;
+  return [first, ...AI_BUILDING_ORDER.filter((b) => b !== first)];
 }
 
 function isSettlerBuild(c: City): boolean {
@@ -213,10 +263,14 @@ function isMilitaryBuild(c: City): boolean {
  *    and a known open site) → Settler, with only a few settlers under way at once. A size-1
  *    city switches to Food focus so the Settler can finish. (At war, step 3 comes first.)
  * 3. Fewer defenders than this city keeps → a defender.
- * 4. At war and fewer fighting units than the wartime cap → the best attacker.
- * 5. The next unlocked building in AI_BUILDING_ORDER it doesn't have.
- * 6. Fewer fighting units than the peacetime cap → the best attacker.
- * 7. Nothing (production is stored until something new is unlocked).
+ * 4. A victory wonder it can build (in its wonder city) → that; a spaceship part it can build
+ *    (in its capital) → that.
+ * 5. At war and fewer fighting units than the wartime cap → the best attacker.
+ * 6. Going for culture: a wonder (in its wonder city).
+ * 7. The next unlocked building, its goal's favorite first, then AI_BUILDING_ORDER.
+ * 8. A wonder (in its wonder city).
+ * 9. Fewer fighting units than the peacetime cap (twice that for conquest) → the best attacker.
+ * 10. Nothing (production is stored until something new is unlocked).
  */
 export function chooseBuild(state: GameState, city: City, ctx: BuildContext = buildContext(state, city.owner)): BuildItem | null {
   const owner = city.owner;
@@ -237,14 +291,23 @@ export function chooseBuild(state: GameState, city: City, ctx: BuildContext = bu
   if (expanding && underWay < atOnce) return { kind: 'unit', id: 'settler' };
   if (home < wanted) return defender;
 
+  const wonderHere = aiWonderCity(state, owner)?.id === city.id;
+  const wonder = wonderHere ? pickWonder(state, city, ctx.goal) : undefined;
+  if (wonder && WONDERS[wonder].victory) return { kind: 'wonder', id: wonder };
+  const part: BuildItem = { kind: 'project', id: 'spaceship' };
+  if (!buildChoiceError(state, city, part)) return part;
+
   const military = state.units.filter((u) => u.owner === owner && isMilitary(u)).length + others.filter(isMilitaryBuild).length;
   const kept = mine.length * AI.defendersPerCity;
   const attacker: BuildItem = { kind: 'unit', id: bestAttacker(state, city) };
   if (ctx.atWar && military < kept + Math.ceil(mine.length * AI.offensePerCityWar)) return attacker;
 
-  const next = AI_BUILDING_ORDER.find((b) => !buildChoiceError(state, city, { kind: 'building', id: b }));
+  if (wonder && ctx.goal === 'culture') return { kind: 'wonder', id: wonder };
+  const next = buildingOrder(ctx.goal).find((b) => !buildChoiceError(state, city, { kind: 'building', id: b }));
   if (next) return { kind: 'building', id: next };
-  if (military < kept + Math.ceil(mine.length * AI.offensePerCityPeace)) return attacker;
+  if (wonder) return { kind: 'wonder', id: wonder };
+  const offense = AI.offensePerCityPeace * (ctx.goal === 'domination' ? AI.victory.dominationOffenseFactor : 1);
+  if (military < kept + Math.ceil(mine.length * offense)) return attacker;
   return null;
 }
 
@@ -263,15 +326,36 @@ function manageCities(state: GameState, playerId: number): void {
     // An undefended city buys its defender if the treasury allows.
     if (defendersIn(state, city).length === 0 && !buyError(state, city)) rushBuy(state, city.id);
   }
-  // Spare gold finishes Settlers and buildings, cheapest first.
+  // Spare gold finishes Settlers, buildings, spaceship parts, and (at war) units, cheapest
+  // first. An AI saving up for the economic win keeps the goal in the bank.
   const player = state.players[playerId]!;
+  const reserve = ctx.goal === 'economic' ? VICTORY.goldGoal + AI.goldReserve : AI.goldReserve;
   const buys = citiesOf(state, playerId)
-    .filter((c) => c.build && (c.build.kind === 'building' || isSettlerBuild(c)) && !buyError(state, c))
+    .filter((c) => {
+      if (!c.build || buyError(state, c)) return false;
+      const k = c.build.kind;
+      return k === 'building' || k === 'project' || isSettlerBuild(c) || (ctx.atWar && isMilitaryBuild(c));
+    })
     .sort((a, b) => buyCost(a)! - buyCost(b)! || a.id - b.id);
   for (const c of buys) {
-    if (player.gold - buyCost(c)! < AI.goldReserve) break;
+    if (player.gold - buyCost(c)! < reserve) break;
     rushBuy(state, c.id);
   }
+}
+
+/**
+ * The science rate: low while saving for the economic win; all science while gold piles up
+ * (Round 6 found AIs sitting on 1,000+ gold); back to the default once it's spent down.
+ */
+function setAiScienceRate(state: GameState, playerId: number, goal: VictoryKind): void {
+  const p = state.players[playerId]!;
+  const V = AI.victory;
+  const rich = V.richGold + V.richGoldPerCity * citiesOf(state, playerId).length;
+  let rate = p.scienceRate;
+  if (goal === 'economic' && p.gold < VICTORY.goldGoal) rate = V.economicScienceRate;
+  else if (p.gold >= rich) rate = V.richScienceRate;
+  else if (p.gold <= V.poorGold || rate === V.economicScienceRate) rate = RULES.defaultScienceRate;
+  if (rate !== p.scienceRate) setScienceRate(state, rate);
 }
 
 /**
@@ -400,6 +484,9 @@ export function runAiTurn(state: GameState, playerId: number): void {
     const tech = chooseAiResearch(player);
     if (tech) setResearch(state, tech);
   }
+  // A finished spaceship goes up at once.
+  if (!launchError(state, playerId)) launchSpaceship(state);
+  setAiScienceRate(state, playerId, aiVictoryGoal(state, playerId));
   runAiDiplomacy(state, playerId);
   formArmies(state, playerId);
   const plan = updatePlan(state, playerId);

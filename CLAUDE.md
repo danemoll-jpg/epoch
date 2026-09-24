@@ -116,7 +116,7 @@ npm run dev      # start local dev server
 npm test         # run unit tests (Vitest, tests/**/*.test.ts)
 npm run build    # type-check + production build into dist/
 npm run lint     # type-check only (tsc --noEmit); no ESLint yet
-npm run sim      # research-pace/war report: all-AI games on 5 seeds (not part of npm test)
+npm run sim      # pace/war/victory report: all-AI games on 5 seeds (not part of npm test)
 ```
 **iPad over the local network:**
 ```
@@ -152,14 +152,16 @@ debugging, including from Safari's Web Inspector on the iPad.
 completes inside Safari's `pagehide`). Saved after every successful action
 (including End Turn), on `visibilitychange` → hidden, and on `pagehide`.
 The save carries `saveVersion` (= `STATE_VERSION` in `src/game/types.ts`,
-currently 5). **Bump `STATE_VERSION` whenever the state shape changes, and
+currently 6). **Bump `STATE_VERSION` whenever the state shape changes, and
 add a migration** to `MIGRATIONS` in `src/game/save.ts` (keyed by the
 version it upgrades from), plus a line in `MIGRATION_NOTES` for the notice,
 so Dan's game carries forward. Migrated so far: 2 → 3 (M3: no techs,
 science kept as banked, tech-locked builds go back to "choose"), 3 → 4
 (M4: fortify/army off, everyone at war, each civ's first city becomes its
-capital), and 4 → 5 (M5: pairs who can see each other now count as met,
-wars carry over as they are, no treaties/opinions/offers/plans yet).
+capital), 4 → 5 (M5: pairs who can see each other now count as met,
+wars carry over as they are, no treaties/opinions/offers/plans yet), and
+5 → 6 (M6: culture 0, no wonders, no spaceship, nobody has won, no
+warnings given).
 
 **Backups: a save is never thrown away.** All startup and replace logic
 is in `src/ui/storage.ts` (`loadOrStart`, `backupCurrentSave`,
@@ -183,7 +185,9 @@ never autosaves**, so the real game can't be overwritten. Current set:
 `grow`, `starve`, `settler`, `rich`, `tech`, `era`; (M4) `combat`,
 `fortified`, `walls`, `army`, `army-in-city`, `capture`, `victory`,
 `defeat`; (M5) `first-contact`, `peace`, `demand`, `tech-trade`, `ai-war`;
-(round 6) `mixed-stack`.
+(round 6) `mixed-stack`; (round 7) `all-units`, `wonder`, `wonder-race`,
+`win-domination`, `win-culture`, `win-economic`, `win-space`, `lose-space`,
+`stop-launch`, `near-win-warning`.
 The combat ones start from `FAIR_DICE` (first roll about 0.48), because
 `makeState`'s default RNG state rolls 0.98 first and would make every
 first attack lose. A rule that happens on a dice roll at End Turn (a
@@ -210,10 +214,15 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
 
 ## Code layout
 - `src/data/`: terrain (yields, move cost, `defensePct`), units (cost,
-  `popCost`, attack/defense/moves, `requires` tech), buildings (`requires`
-  tech; Walls' `defenseBonusPct`; AI building order), `techs.ts` (eras,
+  `popCost`, attack/defense/moves, `requires` tech, `glyph` letters and
+  `icon` file name), `icons.ts` (each used icon's CC BY 3.0 credit),
+  buildings (`requires` tech; Walls' `defenseBonusPct`; Temple culture; AI
+  building order), `techs.ts` (eras,
   the 50 techs with prereqs/era/tier/description, the tech cost formula,
-  AI research priority), `wonders.ts` (empty shape for M7), `civs.ts`
+  AI research priority), `wonders.ts` (13 wonders + the 2 victory wonders:
+  cost, tech, city/empire effects, free building, `victory`), `victory.ts`
+  (culture and gold goals, spaceship parts/cost/travel turns, warning line,
+  the spaceship-part "project"), `civs.ts`
   (civs, leaders, colors, city names, each leader's `aggression` and
   `tradeWillingness`, 1–5, and message grammar: `article: 'the'` and
   `plural` for names like "the Franks"), rule constants (`rules.ts`: growth, focus
@@ -222,15 +231,23 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   threshold), `RULES.diplomacy` (treaty length, grace period, opinion
   events, AI war/peace weights, demand caps, tech prices), and `RULES.ai`
   (city target, settlers at once, defenders per city, unit caps, attack
-  force, gold reserve)). A tech's unlocks are the `requires` fields on
-  units/buildings/wonders, so adding a unit never touches `techs.ts`.
+  force, gold reserve, and `victory`: goal weights, war bonus, science-rate
+  and gold-spending thresholds, each goal's first building)). A tech's
+  unlocks are the `requires` fields on units/buildings/wonders, so adding a
+  unit never touches `techs.ts`.
 - `src/game/`: pure rules. `types.ts` (state + `STATE_VERSION`), `rng.ts`,
   `grid.ts`, `mapgen.ts`, `newGame.ts`, `movement.ts`, `stack.ts` (what's
   on a tile: mixed stacks, the unit peeking out behind, army candidates of
   any type), `city.ts`
   (founding), `yields.ts` (tile yields, automatic worked tiles, trade
-  split), `production.ts` (build/focus/rate/rush-buy actions, the
-  tech-gated build list, and the end-of-turn city update), `tech.ts`
+  split, wonder effects, city/empire culture), `production.ts`
+  (build/focus/rate/rush-buy actions, the tech-gated build list of units,
+  buildings, wonders, and spaceship parts, and the end-of-turn city
+  update), `wonders.ts` (one per world, the race rule, completion news),
+  `victory.ts` (the four victories, one function each; `checkVictory`,
+  called after every action and every player's turn; spaceship
+  launch/loss; Keep playing; progress and near-win warnings),
+  `aiGoals.ts` (which victory each AI leans toward), `tech.ts`
   (research action, end-of-turn research, eras, unlocks, AI research
   choice, `learnTech`), `combat.ts` (odds with named modifiers,
   `winChance` = the one formula, attack (a win over a city's last defender
@@ -247,17 +264,22 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   and caps, guards, explorer, war plans in `state.aiPlans`), `save.ts`
   (serialize/deserialize with version check and migrations), and
   `actions.ts` (the single `applyAction` entry point the UI uses).
-- `src/render/`: `camera.ts` and `renderer.ts` (Canvas 2D; read-only on
-  state). A unit's look is drawn only in `drawGlyph` (letters now, icons
-  next), so the icon swap touches just that.
+- `src/render/`: `camera.ts`, `renderer.ts` (Canvas 2D; read-only on
+  state), and `icons.ts` (the bundled unit SVGs: bitmaps cached per icon,
+  color, and size for the map; inline SVG for the panels). A unit's look on
+  the map is drawn only in `drawGlyph` (its icon, white on the owner's
+  color; letters while it loads or if it's missing).
+- `src/assets/icons/`: the 15 unit icons Dan picked (game-icons.net, CC BY
+  3.0), credited in `CREDITS.md` and on ☰ → About / Credits.
 - `src/dev/`: dev/test only, never in the production build. `build.ts`
   (hand-made state builder shared by tests and scenarios), `scenarios.ts`,
   and `sim.ts` (all-AI simulation: era turns, techs over time, wars; used
   by `tests/pace.test.ts` and `scripts/pace-report.sim.ts` / `npm run sim`,
   whose config is `vitest.sim.config.ts`).
 - `src/ui/`: `app.ts` (view state, HUD, city panel, tech screen,
-  diplomacy screen, notice panels for first contact / war / AI offers,
-  menu, dev scenario banner, dispatch),
+  diplomacy screen, 🏆 victory progress screen, victory/defeat screens,
+  notice panels for first contact / war / AI offers / near-win warnings,
+  menu with About / Credits, dev scenario banner, dispatch),
   `tap.ts` (pure tap rule, unit-tested), `storage.ts` (localStorage
   autosave, backups, startup load), `input.ts` (Pointer Events, Safari gesture guards; touch
   scrolling is allowed only inside `.scroll` elements), `style.css`.
@@ -266,7 +288,11 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   (takes the folder as an argument; `build:play` checks `dist-play/`).
 - `docs/icon-candidates.html` + `docs/icon-candidates/`: round 6's unit
   icon candidates (game-icons.net, CC BY 3.0; `SOURCES.md` has each
-  author) for Dan to pick from. Not used by the game yet.
+  author), with the picker Dan used. The game uses its own copies of the
+  15 picks in `src/assets/icons/`.
+- The version shown on the About screen comes from `package.json`
+  (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.7.0 for
+  round 7.
 - A player's `id` always equals its index in `state.players`.
 
 ## Hub integration (how Dan's games are deployed)
@@ -316,11 +342,14 @@ what was pushed.
   covers the skeleton, cities and economy, the tech tree, combat and
   armies, save safety, 5 civs and diplomacy, mixed stacks, the research
   pace, and icon picks.
+- **Round 7 (unit icons + Milestone 6: culture, wonders, the four
+  victories):** done by the coding agent (2026-09-24), waiting for Dan's
+  iPad checks. Save format 6.
 - **The play server** is reached from the iPad at
   **http://10.0.0.224:4173/**.
 - The epoch repo is pushed to GitHub every round until Netlify is set up.
 
-**The current objective is Round 7:**
+**The current objective is Round 7 (done; awaiting Dan's review):**
 - **Part A:** wire in Dan's 15 chosen unit icons, plus About / Credits.
 - **Part B, Milestone 6:**
   - culture and a first set of wonders;

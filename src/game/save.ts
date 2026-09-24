@@ -104,6 +104,19 @@ const MIGRATIONS: Record<number, (s: Raw) => void> = {
     s.diplomacy = d;
     s.aiPlans = players.map(() => null);
   },
+  // Milestone 5 → 6: wonders, culture, and victory. Everyone starts at 0 culture with no
+  // spaceship, no city has a wonder, and nobody has won (the old "every rival eliminated"
+  // win is now a domination victory, checked from here on).
+  5: (s) => {
+    for (const p of s.players as Raw[]) {
+      p.culture = 0;
+      p.space = { parts: 0, launchedTurn: null, arrivesTurn: null };
+    }
+    for (const c of s.cities as Raw[]) c.wonders = [];
+    s.victory = null;
+    s.keepPlaying = false;
+    s.warned = [];
+  },
 };
 
 /** What each migration brought, for the "your game was updated" notice. Keyed like MIGRATIONS. */
@@ -111,6 +124,7 @@ export const MIGRATION_NOTES: Record<number, string> = {
   2: 'the tech tree',
   3: 'combat and armies',
   4: 'diplomacy',
+  5: 'wonders, culture, and victory',
 };
 
 /** "the tech tree and combat and armies" for a save upgraded from version `from`. */
@@ -139,6 +153,9 @@ function shapeError(s: Record<string, unknown>): string | undefined {
     return 'missing diplomacy';
   }
   if (!Array.isArray(s.aiPlans) || s.aiPlans.length !== s.players.length) return 'missing AI plans';
+  if (!s.players.every((p) => isObject(p) && typeof p.culture === 'number' && isObject(p.space))) return 'missing culture';
+  if (!Array.isArray(s.cities) || !s.cities.every((c) => isObject(c) && Array.isArray(c.wonders))) return 'missing wonders';
+  if (!Array.isArray(s.warned) || typeof s.keepPlaying !== 'boolean') return 'missing victory';
   return undefined;
 }
 

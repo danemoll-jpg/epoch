@@ -8,6 +8,7 @@ import { expireOffers, updateContacts } from './diplomacy';
 import { updateExplored } from './fog';
 import { processCities } from './production';
 import { processResearch } from './tech';
+import { checkVictory, issueWarnings } from './victory';
 import type { ActionResult, GameState } from './types';
 
 function startTurnFor(state: GameState, playerId: number): void {
@@ -34,6 +35,8 @@ export function endTurn(state: GameState): ActionResult {
   }
   state.currentPlayer = next;
   startTurnFor(state, next);
+  // Wonders just finished, captures during the turn, a spaceship arriving at this turn's start.
+  checkVictory(state);
   return { ok: true };
 }
 
@@ -61,5 +64,7 @@ export function endHumanTurn(state: GameState): ActionResult {
   expireOffers(state, p.id);
   endTurn(state);
   runUntilHuman(state);
+  // Anyone the human has met who got close to winning this round.
+  issueWarnings(state);
   return { ok: true };
 }

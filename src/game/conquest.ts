@@ -14,6 +14,7 @@ import { updateExplored } from './fog';
 import { RULES } from '../data/rules';
 import { addLog } from './log';
 import { atWar } from './war';
+import { loseSpaceship } from './victory';
 import { refreshWorkedTiles } from './yields';
 import type { City, Coord, GameState, Unit } from './types';
 
@@ -81,6 +82,8 @@ export function captureCity(state: GameState, city: City, newOwner: number): voi
       ? `${who} captured ${city.name}, the ${civAdjective(state, oldOwner)} capital!`
       : `${who} captured ${city.name} from ${civName(state, oldOwner)}`;
   addLog(state, newOwner, text, city, oldOwner);
+  // A civ's spaceship is built in its capital: losing the capital loses the ship (Milestone 6).
+  if (city.capitalOf === oldOwner) loseSpaceship(state, oldOwner, city);
   checkEliminations(state, newOwner, city);
 }
 

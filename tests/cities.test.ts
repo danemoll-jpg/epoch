@@ -339,6 +339,11 @@ describe('AI cities', () => {
     expect(chooseBuild(s, c)).toEqual({ kind: 'unit', id: 'warrior' });
     addUnit(s, 'warrior', 1, 1, 1);
     s.players[1]!.techs.push('pottery', 'alphabet', 'writing');
+    // Maurya leans to culture (Round 7), so its wonder city starts a wonder before buildings...
+    expect(chooseBuild(s, c)).toEqual({ kind: 'wonder', id: 'hanging_gardens' });
+    // ...and once someone else has it, the buildings come next (its favorite, the Temple, isn't unlocked).
+    s.cities.find((x) => x.id !== c.id)!.owner = 0;
+    s.cities.find((x) => x.id !== c.id)!.wonders.push('hanging_gardens');
     expect(chooseBuild(s, c)).toEqual({ kind: 'building', id: 'granary' });
     c.buildings.push('granary');
     expect(chooseBuild(s, c)).toEqual({ kind: 'building', id: 'library' });

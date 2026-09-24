@@ -6,7 +6,10 @@ import { CIVS } from '../data/civs';
 import { CITY_FOCUSES, RULES, growthThreshold, type CityFocus } from '../data/rules';
 import { ERAS, TECHS, TECH_LIST, type TechId } from '../data/techs';
 import { TERRAIN } from '../data/terrain';
-import { UNITS } from '../data/units';
+import { ICON_CREDITS, ICON_LICENSE, ICON_SITE } from '../data/icons';
+import { UNITS, UNIT_IDS, type UnitTypeId } from '../data/units';
+import { PROJECTS, VICTORY, VICTORY_NAMES, type VictoryKind } from '../data/victory';
+import { WONDERS, WONDER_LIST } from '../data/wonders';
 import { applyAction, type Action } from '../game/actions';
 import { foundCityError } from '../game/city';
 import { attackError, combatOdds, fortifyError, type Strength } from '../game/combat';
@@ -15,6 +18,7 @@ import {
   attitude,
   civDef,
   declareWarError,
+  hasMet,
   metCivs,
   offerAcceptError,
   offerText,
@@ -44,6 +48,7 @@ import {
 import {
   availableTechs,
   eraName,
+  hasTech,
   knows,
   playerEra,
   researchError,
@@ -65,8 +70,11 @@ import {
   type Unit,
 } from '../game/types';
 import { atWar } from '../game/war';
-import { cityScienceGold, cityYields, empireIncome, foodSurplus } from '../game/yields';
+import { cityCulture, cityScienceGold, cityYields, empireCulture, empireIncome, foodSurplus } from '../game/yields';
+import { capitalOf, launchError, victoryProgress, type VictoryProgress } from '../game/victory';
+import { wonderCity } from '../game/wonders';
 import { clampCamera, panBy, screenToWorld, zoomAt, type Camera } from '../render/camera';
+import { unitIconHtml } from '../render/icons';
 import { playerColor, render, type ViewState } from '../render/renderer';
 import { attachMapInput } from './input';
 import { backupCurrentSave, listBackups, restoreBackup, saveToStorage } from './storage';
@@ -168,9 +176,21 @@ export class App {
       else this.startNewGame();
     });
     $('endCloseBtn').addEventListener('click', () => {
-      this.endDismissed = true;
-      this.refresh();
+      // A win (anyone's): Keep playing stops victory checks for the rest of the game.
+      // Eliminated: just look at the map.
+      if (this.state.players[this.human]!.alive && this.state.victory && !this.state.keepPlaying) {
+        this.dispatch({ type: 'keepPlaying' });
+      } else {
+        this.endDismissed = true;
+        this.refresh();
+      }
     });
+    $('victoryBtn').addEventListener('click', () => this.openVictory());
+    $('victoryMenuBtn').addEventListener('click', () => {
+      this.closeMenu();
+      this.openVictory();
+    });
+    $('victoryOverlay').addEventListener('click', (e) => this.handleVictoryClick(e));
     $('rateDown').addEventListener('click', () => this.changeRate(-RULES.scienceRateStep));
     $('rateUp').addEventListener('click', () => this.changeRate(RULES.scienceRateStep));
     $('cityPanel').addEventListener('click', (e) => this.handleCityPanelClick(e));
@@ -230,7 +250,7 @@ export class App {
     for (const e of eventsVisibleTo(this.state, this.human, entries)) {
       // These have their own panels.
       const aimedAtMe = e.other === this.human && e.player !== this.human;
-      if (e.kind === 'contact' || (aimedAtMe && (e.kind === 'war' || e.kind === 'demand'))) continue;
+      if (e.kind === 'contact' || (aimedAtMe && (e.kind === 'war' || e.kind === 'demand' || e.kind === 'warning'))) continue;
       this.toast(entryText(e, this.human));
     }
   }
@@ -249,6 +269,18 @@ export class App {
           text: entryText(entry, this.human),
           buttons: [
             { label: 'Diplomacy', run: () => this.openDiplo(entry.player) },
+            { label: 'OK', cls: 'bigBtn' },
+          ],
+        });
+      }
+      // Someone we've met is close to winning (Milestone 6).
+      if (entry.kind === 'warning' && entry.other === this.human) {
+        this.queueNotice({
+          title: 'Close to winning!',
+          text: entryText(entry, this.human),
+          sub: 'Open Victory progress to see where everyone stands.',
+          buttons: [
+            { label: 'Victory progress', run: () => this.openVictory() },
             { label: 'OK', cls: 'bigBtn' },
           ],
         });
@@ -344,6 +376,7 @@ export class App {
     $('attackOverlay').hidden = true;
     $('noticeOverlay').hidden = true;
     $('diploOverlay').hidden = true;
+    $('victoryOverlay').hidden = true;
     this.save();
     this.startHumanTurn();
     this.toast(message);
@@ -463,6 +496,10 @@ export class App {
       if (e.key === 'Escape') this.closeDiplo();
       return;
     }
+    if (!$('victoryOverlay').hidden) {
+      if (e.key === 'Escape') this.closeVictory();
+      return;
+    }
     if (!$('attackOverlay').hidden) {
       if (e.key === 'Escape') this.closeAttack();
       return;
@@ -524,6 +561,9 @@ export class App {
     } else if (act === 'build') {
       const item = JSON.parse(btn.dataset.item!) as BuildItem;
       this.dispatch({ type: 'setBuild', cityId: city.id, item });
+    } else if (act === 'launch') {
+      const logStart = this.state.log.length;
+      if (this.dispatch({ type: 'launchSpaceship' })) this.announce(this.state.log.slice(logStart));
     } else if (act === 'buy') {
       const name = city.build ? itemName(city.build) : '';
       if (this.dispatch({ type: 'rushBuy', cityId: city.id })) this.toast(`Bought ${name}; it's ready next turn`);
@@ -535,6 +575,25 @@ export class App {
       const u = findUnit(this.state, Number(btn.dataset.unit));
       if (u && this.dispatch({ type: 'formArmy', unitId: u.id })) {
         this.toast(`${UNITS[u.type].name} army formed: ×${RULES.combat.armyMultiplier} attack and defense`);
+      }
+    }
+  }
+
+  /** The one-line description under a build-list item. */
+  private itemDetail(item: BuildItem): string {
+    switch (item.kind) {
+      case 'unit':
+        return unitSummary(item.id);
+      case 'building':
+        return BUILDINGS[item.id].summary;
+      case 'wonder': {
+        const rivals = this.state.cities.filter((c) => c.owner !== this.human && c.build?.kind === 'wonder' && c.build.id === item.id);
+        const race = rivals.length ? ' · someone else is building it too' : '';
+        return `Wonder, one per world · ${WONDERS[item.id].summary}${race}`;
+      }
+      case 'project': {
+        const s = this.state.players[this.human]!.space;
+        return `${PROJECTS[item.id].summary} · ${s.parts}/${VICTORY.spaceship.parts} built`;
       }
     }
   }
@@ -564,7 +623,7 @@ export class App {
     if (city.build) {
       const cost = itemCost(city.build);
       const t = turnsToFinish(this.state, city);
-      const blocker = completionBlocker(city, city.build);
+      const blocker = completionBlocker(this.state, city, city.build);
       const when = blocker ? `waiting: ${blocker}` : t === undefined ? 'no production' : plural(t, 'turn');
       prodHtml = `<div class="stat"><b>${itemName(city.build)}</b> ${Math.min(city.production, cost)}/${cost}
         <span class="sub">(+${y.production}) · ${when}</span></div>
@@ -586,12 +645,12 @@ export class App {
         const itemCostV = itemCost(item);
         const perTurn = y.production;
         const turns = perTurn > 0 ? Math.max(1, Math.ceil(Math.max(0, itemCostV - city.production) / perTurn)) : undefined;
-        const blocker = completionBlocker(city, item);
-        const detail = item.kind === 'building' ? BUILDINGS[item.id].summary : unitSummary(item.id);
+        const blocker = completionBlocker(this.state, city, item);
+        const detail = this.itemDetail(item);
         const note = blocker ?? (turns === undefined ? '—' : plural(turns, 'turn'));
         return `<button type="button" data-act="build" data-item='${JSON.stringify(item)}'
-          class="buildItem ${sameItem(city.build, item) ? 'on' : ''}">
-          <span class="bname">${itemName(item)}</span>
+          class="buildItem ${item.kind} ${sameItem(city.build, item) ? 'on' : ''}">
+          <span class="bname">${item.kind === 'unit' ? this.badge(item.id, this.human) : ''}${itemName(item)}</span>
           <span class="bmeta">${itemCostV} · ${note}</span>
           <span class="bdesc">${detail}</span></button>`;
       })
@@ -609,7 +668,7 @@ export class App {
       ? units
           .map(
             (u) => `<button type="button" data-act="unit" data-unit="${u.id}" class="unitItem">
-            ${UNITS[u.type].name}${u.army ? ` army ×${RULES.combat.armyMultiplier}` : ''}${u.veteran ? ' ★' : ''}${u.fortified ? ' 🛡' : ''}
+            ${this.badge(u.type, u.owner)}${UNITS[u.type].name}${u.army ? ` army ×${RULES.combat.armyMultiplier}` : ''}${u.veteran ? ' ★' : ''}${u.fortified ? ' 🛡' : ''}
             <span class="sub">moves ${u.movesLeft}/${UNITS[u.type].moves} · tap to select</span></button>`,
           )
           .join('') + armyBtns
@@ -618,6 +677,24 @@ export class App {
     const builtList = city.buildings.length
       ? city.buildings.map((b) => BUILDINGS[b].name).join(', ')
       : '<span class="sub">None yet</span>';
+    const wonderList = city.wonders.length
+      ? `<div class="section"><div class="label">Wonders</div><div>${city.wonders
+          .map((w) => `<b class="wonderName">★ ${WONDERS[w].name}</b> <span class="sub">${WONDERS[w].summary}</span>`)
+          .join('<br>')}</div></div>`
+      : '';
+    // The spaceship is built (and launched) in the capital.
+    const me = this.state.players[this.human]!;
+    let spaceHtml = '';
+    if (city.capitalOf === this.human && (me.space.parts > 0 || me.space.launchedTurn !== null || hasTech(me, VICTORY.spaceship.requires))) {
+      const launchErr = launchError(this.state, this.human);
+      const status =
+        me.space.arrivesTurn !== null
+          ? `Launched on turn ${me.space.launchedTurn}: arrives on turn ${me.space.arrivesTurn}. Keep ${esc(city.name)} safe until then.`
+          : `${me.space.parts} of ${VICTORY.spaceship.parts} parts built.`;
+      spaceHtml = `<div class="section"><div class="label">Spaceship</div><div class="stat">${status}</div>
+        ${me.space.launchedTurn === null && !launchErr ? '<button type="button" data-act="launch" class="bigBtn launchBtn">🚀 Launch spaceship</button>' : ''}</div>`;
+    }
+    const culture = cityCulture(this.state, city);
 
     panel.innerHTML = `
       <div class="cityHead">
@@ -638,10 +715,13 @@ export class App {
       <div class="section yields">
         <span>Food <b>${y.food}</b></span><span>Production <b>${y.production}</b></span>
         <span>Trade <b>${y.trade}</b></span><span class="sub">→ Science ${sg.science} · Gold ${sg.gold}</span>
+        <span>Culture <b>${culture}</b></span>
       </div>
       <div class="section"><div class="label">Focus</div><div class="seg">${focusBtns}</div></div>
       <div class="section"><div class="label">Build</div><div class="buildList">${buildBtns}</div></div>
+      ${spaceHtml}
       <div class="section"><div class="label">Buildings</div><div>${builtList}</div></div>
+      ${wonderList}
     `;
     panel.hidden = false;
     panel.scrollTop = scrollTop;
@@ -666,6 +746,11 @@ export class App {
       this.showMenuPage('menuBackups');
     });
     $('backupsBackBtn').addEventListener('click', () => this.showMenuPage('menuMain'));
+    $('aboutBtn').addEventListener('click', () => {
+      this.renderAbout();
+      this.showMenuPage('menuAbout');
+    });
+    $('aboutBackBtn').addEventListener('click', () => this.showMenuPage('menuMain'));
     $('backupList').addEventListener('click', (e) => this.handleBackupClick(e));
     $('menuCloseBtn').addEventListener('click', () => this.closeMenu());
     $('newGameBtn').addEventListener('click', () => this.showMenuPage('menuConfirm'));
@@ -684,8 +769,26 @@ export class App {
     $('menuOverlay').hidden = true;
   }
 
-  private showMenuPage(id: 'menuMain' | 'menuBackups' | 'menuConfirm'): void {
-    for (const page of ['menuMain', 'menuBackups', 'menuConfirm']) $(page).hidden = page !== id;
+  private showMenuPage(id: 'menuMain' | 'menuBackups' | 'menuConfirm' | 'menuAbout'): void {
+    for (const page of ['menuMain', 'menuBackups', 'menuConfirm', 'menuAbout']) $(page).hidden = page !== id;
+  }
+
+  /** ☰ → About / Credits (every build): the game's name and version, and the icon credits the license asks for. */
+  private renderAbout(): void {
+    const used = UNIT_IDS.map((id) => ({ id, icon: UNITS[id].icon, credit: ICON_CREDITS[UNITS[id].icon] }));
+    const rows = used
+      .map(
+        (u) => `<li>${this.badge(u.id, this.human)}<span><b>${UNITS[u.id].name}</b>: “${esc(u.credit?.title ?? u.icon)}” by ${esc(u.credit?.author ?? 'unknown')}
+          ${u.credit ? `<a href="${u.credit.url}" target="_blank" rel="noopener">source</a>` : ''}</span></li>`,
+      )
+      .join('');
+    $('aboutBody').innerHTML = `
+      <p><b>Epoch</b> (working title) · version ${esc(__APP_VERSION__)} · save format ${STATE_VERSION}</p>
+      <p class="sub">A turn-based strategy game made for family and friends.</p>
+      <div class="label">Unit icons</div>
+      <p class="sub">From <a href="${ICON_SITE}" target="_blank" rel="noopener">game-icons.net</a>, used under the
+        <a href="${ICON_LICENSE.url}" target="_blank" rel="noopener">${ICON_LICENSE.name}</a> license. Recolored to fit the map; shapes unchanged.</p>
+      <ul class="credits">${rows}</ul>`;
   }
 
   // ---- backups (☰ → Restore a backup; in the production build too) ------------------------
@@ -764,8 +867,8 @@ export class App {
       <h2>Attack?</h2>
       <div class="odds ${pct >= 60 ? 'good' : pct >= 40 ? 'even' : 'bad'}"><b>${pct}%</b><span>chance to win</span></div>
       <div class="sides">
-        ${sideHtml(`Your ${this.unitName(odds.attacker)}`, 'Attack', odds.attack)}
-        ${sideHtml(this.unitLabel(odds.defender), 'Defense', odds.defense)}
+        ${sideHtml(this.badge(odds.attacker.type, odds.attacker.owner), `Your ${this.unitName(odds.attacker)}`, 'Attack', odds.attack)}
+        ${sideHtml(this.badge(odds.defender.type, odds.defender.owner), this.unitLabel(odds.defender), 'Defense', odds.defense)}
       </div>
       ${stackNote}${takeNote}
       <p class="sub">The loser is destroyed. Attacking uses up your unit’s turn.</p>`;
@@ -824,6 +927,11 @@ export class App {
     return u.owner === this.human ? `Your ${this.unitName(u)}` : `${civAdjective(this.state, u.owner)} ${this.unitName(u)}`;
   }
 
+  /** The unit type's icon on its owner's color, as on the map (Round 7). */
+  private badge(type: UnitTypeId, owner: number): string {
+    return `<span class="udisc" style="background:${playerColor(this.state, owner)}">${unitIconHtml(type)}</span>`;
+  }
+
   private visibleToMe(x: number, y: number): boolean {
     return visibleTiles(this.state, this.human)[y * this.state.map.width + x] === true;
   }
@@ -834,22 +942,143 @@ export class App {
     return neighbors(this.state.map, u).filter((n) => !attackError(this.state, u, n));
   }
 
-  // ---- end of game (placeholder panels until Milestone 6) --------------------------------
+  // ---- end of game (Milestone 6): which victory, who, when, and a short stats summary ------
 
   private renderEnd(): void {
     const me = this.state.players[this.human]!;
-    const rivals = this.state.players.filter((p) => p.id !== this.human);
-    const defeated = !me.alive;
-    const victory = me.alive && rivals.length > 0 && rivals.every((p) => !p.alive);
-    const show = (defeated || victory) && !this.endDismissed;
+    const v = this.state.victory;
+    const eliminated = !me.alive;
+    const won = !eliminated && !!v && !this.state.keepPlaying;
+    const show = eliminated ? !this.endDismissed : won;
     $('endOverlay').hidden = !show;
     if (!show) return;
-    $('endTitle').textContent = defeated ? 'Defeated' : 'Victory';
-    $('endText').textContent = defeated
-      ? `Your empire has fallen on turn ${this.state.turn}: no cities and no units left.`
-      : `Every rival has been eliminated. You rule the world on turn ${this.state.turn}.`;
+    const mine = !!v && v.winner === this.human;
+    let banner: string;
+    let title: string;
+    let text: string;
+    if (eliminated) {
+      banner = '💀';
+      title = 'Defeated';
+      text = `Your empire has fallen on turn ${this.state.turn}: no cities and no units left.`;
+    } else if (mine) {
+      banner = '🏆';
+      title = `${VICTORY_NAMES[v!.kind]} victory!`;
+      text = `You won on turn ${v!.turn}: ${victoryHow(v!.kind, true)}.`;
+    } else {
+      banner = '🏳️';
+      title = 'Defeat';
+      const civ = v!.winner;
+      text = `${CivName(this.state, civ)} won a ${VICTORY_NAMES[v!.kind].toLowerCase()} victory on turn ${v!.turn}: ${victoryHow(v!.kind, false)}. The game is theirs.`;
+    }
+    $('endBanner').textContent = banner;
+    $('endPanel').className = `dialog ${mine ? 'win' : 'lose'}`;
+    $('endTitle').textContent = title;
+    $('endText').textContent = text;
+    const rows = [this.human];
+    if (v && v.winner !== this.human) rows.unshift(v.winner);
+    $('endStats').innerHTML = `<table class="stats"><thead><tr><th></th><th>Cities</th><th>Techs</th><th>Wonders</th><th>Culture</th><th>Gold</th></tr></thead>
+      <tbody>${rows.map((p) => this.statsRow(p)).join('')}</tbody></table>`;
+    $('endCloseBtn').textContent = eliminated ? 'Look at the map' : 'Keep playing';
     // In a dev scenario, "New Game" means going back to the real game.
     $('endNewBtn').textContent = this.opts.scenario ? 'Back to my game' : 'New Game';
+  }
+
+  private statsRow(p: number): string {
+    const pl = this.state.players[p]!;
+    const cities = this.state.cities.filter((c) => c.owner === p);
+    const wonders = cities.reduce((n, c) => n + c.wonders.length, 0);
+    const name = p === this.human ? 'You' : esc(civDef(this.state, p).name);
+    return `<tr><th><span class="swatch" style="background:${playerColor(this.state, p)}"></span> ${name}</th>
+      <td>${cities.length}</td><td>${pl.techs.length}</td><td>${wonders}</td><td>${pl.culture}</td><td>${pl.gold}</td></tr>`;
+  }
+
+  // ---- victory progress screen (Milestone 6): who's close to winning? ---------------------
+
+  private openVictory(): void {
+    $('victoryOverlay').hidden = false;
+    this.renderVictory();
+  }
+
+  private closeVictory(): void {
+    $('victoryOverlay').hidden = true;
+  }
+
+  private handleVictoryClick(e: MouseEvent): void {
+    const target = e.target as HTMLElement;
+    if (target === $('victoryOverlay')) {
+      this.closeVictory();
+      return;
+    }
+    const btn = target.closest('button');
+    if (!btn || btn.disabled) return;
+    if (btn.id === 'victoryCloseBtn') this.closeVictory();
+    else if (btn.dataset.act === 'launch') {
+      const logStart = this.state.log.length;
+      if (this.dispatch({ type: 'launchSpaceship' })) this.announce(this.state.log.slice(logStart));
+    }
+  }
+
+  private renderVictory(): void {
+    const v = this.state.victory;
+    $('victoryStatus').textContent = v
+      ? `${v.winner === this.human ? 'You' : CivName(this.state, v.winner)} won a ${VICTORY_NAMES[v.kind].toLowerCase()} victory on turn ${v.turn}${this.state.keepPlaying ? '; you kept playing' : ''}.`
+      : `Turn ${this.state.turn}. The first civ to reach any one of these wins.`;
+    const body = $('victoryBody');
+    const scroll = body.scrollTop;
+    const order = [this.human, ...this.state.players.map((p) => p.id).filter((p) => p !== this.human)];
+    const cards = order.map((p) => this.victoryCard(p)).join('');
+    const S = VICTORY.spaceship;
+    const rules = `<div class="vrules">
+      <div><b>Domination</b> <span class="sub">Hold every rival's original capital (★). Wiping a civ out counts too.</span></div>
+      <div><b>Culture</b> <span class="sub">Reach ${VICTORY.cultureGoal} culture (Temples and wonders), then build the ${WONDERS.world_council.name}.</span></div>
+      <div><b>Economic</b> <span class="sub">Have ${VICTORY.goldGoal} gold, then build the ${WONDERS.global_exchange.name} (with production; keep the gold until it's done).</span></div>
+      <div><b>Technology</b> <span class="sub">Learn Space Flight, build ${S.parts} spaceship parts in your capital, launch, and hold your capital for ${S.travelTurns} turns until it arrives.</span></div>
+    </div>`;
+    const wonders = WONDER_LIST.map((w) => {
+      const city = wonderCity(this.state, w.id);
+      const met = city && (city.owner === this.human || hasMet(this.state, this.human, city.owner));
+      const where = !city
+        ? '<span class="sub">Not built yet</span>'
+        : met
+          ? `<span class="swatch" style="background:${playerColor(this.state, city.owner)}"></span> ${city.owner === this.human ? 'You' : esc(civDef(this.state, city.owner).name)} · ${esc(city.name)}`
+          : '<span class="sub">A civ you haven’t met</span>';
+      return `<li><b>${w.name}</b> <span class="sub">${TECHS[w.requires].name}${w.victory ? ' · wins the game' : ''}</span><span class="wwhere">${where}</span></li>`;
+    }).join('');
+    body.innerHTML = `${rules}<div class="vcards">${cards}</div>
+      <div class="label">Wonders of the world</div><ul class="wonderList">${wonders}</ul>`;
+    body.scrollTop = scroll;
+  }
+
+  /** One civ's progress toward all four victories; unmet civs show as unknown. */
+  private victoryCard(p: number): string {
+    const pl = this.state.players[p]!;
+    const me = p === this.human;
+    const def = civDef(this.state, p);
+    const head = `<div class="vhead"><span class="swatch" style="background:${playerColor(this.state, p)}"></span>
+      <b>${me ? `You (${esc(def.name)})` : esc(def.name)}</b>`;
+    if (!me && !hasMet(this.state, this.human, p)) {
+      return `<div class="vcard unknown"><div class="vhead"><span class="swatch unknownSwatch"></span><b>Unknown civ</b></div>
+        <div class="sub">You haven’t met them yet.</div></div>`;
+    }
+    if (!pl.alive) return `<div class="vcard out">${head}<span class="sub">Eliminated</span></div></div>`;
+    const g: VictoryProgress = victoryProgress(this.state, p);
+    const capital = capitalOf(this.state, p);
+    const S = VICTORY.spaceship;
+    let space: string;
+    if (g.space.arrivesTurn !== null) space = `<b class="hot">Launched: arrives on turn ${g.space.arrivesTurn}</b>`;
+    else if (g.space.parts > 0) space = `Building: ${g.space.parts}/${S.parts} parts`;
+    else if (hasTech(pl, S.requires)) space = 'Space Flight known · not started';
+    else space = `Not started · ${g.techs}/${TECH_LIST.length} techs`;
+    const launch = me && !launchError(this.state, p) ? '<button type="button" data-act="launch" class="launchBtn">🚀 Launch spaceship</button>' : '';
+    const building = (on: boolean, what: string) => (on ? ` · <b class="hot">building the ${what}</b>` : '');
+    const row = (label: string, value: string, pct: number) => `<div class="vrow"><span class="vlabel">${label}</span>
+      <span class="vval">${value}</span>${bar(pct, 100, 'vbar')}</div>`;
+    return `<div class="vcard${me ? ' me' : ''}">${head}${!capital ? ' <span class="sub">· capital lost</span>' : ''}</div>
+      ${row('Domination', `${g.capitals.held}/${g.capitals.of} rival capitals`, (g.capitals.held / Math.max(1, g.capitals.of)) * 100)}
+      ${row('Culture', `${g.culture}/${VICTORY.cultureGoal} <span class="sub">(+${g.culturePerTurn}/turn)</span>${building(g.buildingWonder.culture, WONDERS.world_council.name)}`, (g.culture / VICTORY.cultureGoal) * 100)}
+      ${row('Economic', `${g.gold}/${VICTORY.goldGoal} gold${building(g.buildingWonder.economic, WONDERS.global_exchange.name)}`, (g.gold / VICTORY.goldGoal) * 100)}
+      ${row('Technology', space, g.space.arrivesTurn !== null ? 100 : (g.space.parts / S.parts) * 100)}
+      ${launch}</div>`;
   }
 
   // ---- tech screen ---------------------------------------------------------------------
@@ -956,7 +1185,7 @@ export class App {
     const u = techUnlocks(tech);
     const unlockParts = [
       ...u.buildings.map((b) => `<li><b>${BUILDINGS[b].name}</b> <span class="sub">building · ${BUILDINGS[b].summary}</span></li>`),
-      ...u.units.map((id) => `<li><b>${UNITS[id].name}</b> <span class="sub">unit · ${unitSummary(id)}</span></li>`),
+      ...u.units.map((id) => `<li>${this.badge(id, this.human)}<b>${UNITS[id].name}</b> <span class="sub">unit · ${unitSummary(id)}</span></li>`),
       ...u.wonders.map((w) => `<li><b>${w.name}</b> <span class="sub">wonder · ${w.summary}</span></li>`),
     ];
     const unlocks = unlockParts.length
@@ -1187,6 +1416,7 @@ export class App {
         <dt>Attitude</dt><dd class="att-${att}">${ATTITUDE_LABEL[att]}</dd>
         <dt>Cities</dt><dd>${cities}</dd>
         <dt>Military</dt><dd>${strengthWords(strengthRatio(this.state, civ, this.human))}</dd>
+        <dt>Culture</dt><dd>${this.state.players[civ]!.culture} <span class="sub">(+${empireCulture(this.state, civ)} per turn)</span></dd>
       </dl>${answer}`;
 
     if (this.diploPage === 'confirmWar') {
@@ -1318,6 +1548,7 @@ export class App {
     this.renderEnd();
     if (!$('techOverlay').hidden) this.renderTech();
     if (!$('diploOverlay').hidden) this.renderDiplo();
+    if (!$('victoryOverlay').hidden) this.renderVictory();
     this.requestDraw();
   }
 
@@ -1340,6 +1571,7 @@ export class App {
       targets: this.attackTargets(sel),
       openCityId: this.openCityId,
       flash: this.flash,
+      onIconReady: () => this.requestDraw(),
     };
     // The DPR transform may be reset if the canvas was resized; re-apply every frame.
     const dpr = this.canvas.width / Math.max(1, this.cssW);
@@ -1389,7 +1621,7 @@ export class App {
       const army = sel.army ? ` army ×${RULES.combat.armyMultiplier}` : '';
       const mult = sel.army ? RULES.combat.armyMultiplier : 1;
       const fort = sel.fortified ? ' · 🛡 fortified' : '';
-      $('unitInfo').innerHTML = `${def.name}${army}${vet}${fort} <span class="sub">· attack ${def.attack * mult} · defense ${
+      $('unitInfo').innerHTML = `${this.badge(sel.type, sel.owner)}${def.name}${army}${vet}${fort} <span class="sub">· attack ${def.attack * mult} · defense ${
         def.defense * mult
       } · moves ${sel.movesLeft}/${def.moves} · ${terrain}</span>`;
       foundBtn.hidden = !def.canFoundCity;
@@ -1428,7 +1660,7 @@ export class App {
         ? units
             .map(
               (u) => `<button type="button" data-unit="${u.id}" class="stackItem${u.id === sel.id ? ' on' : ''}">
-              ${UNITS[u.type].name}${u.army ? ` army ×${RULES.combat.armyMultiplier}` : ''}${u.veteran ? ' ★' : ''}${u.fortified ? ' 🛡' : ''}
+              ${this.badge(u.type, u.owner)}${UNITS[u.type].name}${u.army ? ` army ×${RULES.combat.armyMultiplier}` : ''}${u.veteran ? ' ★' : ''}${u.fortified ? ' 🛡' : ''}
               <span class="sub">${u.movesLeft}/${UNITS[u.type].moves}</span></button>`,
             )
             .join('')
@@ -1464,11 +1696,11 @@ export class App {
 }
 
 /** One side of the odds panel: base strength, each bonus, and the total. */
-function sideHtml(title: string, kind: 'Attack' | 'Defense', st: Strength): string {
+function sideHtml(icon: string, title: string, kind: 'Attack' | 'Defense', st: Strength): string {
   const mods = st.mods.length
     ? st.mods.map((m) => `<li>+${m.pct}% ${esc(m.label)}</li>`).join('')
     : '<li class="sub">No bonuses</li>';
-  return `<div class="side"><div class="sideName">${esc(title)}</div>
+  return `<div class="side"><div class="sideName">${icon}${esc(title)}</div>
     <div class="sub">${kind} ${num(st.base)}</div><ul>${mods}</ul>
     <div class="total">${num(st.total)}</div></div>`;
 }
@@ -1494,6 +1726,21 @@ function strengthWords(ratio: number): string {
   if (ratio >= 0.87) return 'About the same as yours';
   if (ratio >= 0.67) return 'Weaker than yours';
   return 'Much weaker than yours';
+}
+
+/** How each victory was won, for the end screen. */
+function victoryHow(kind: VictoryKind, you: boolean): string {
+  const who = you ? 'you' : 'they';
+  switch (kind) {
+    case 'domination':
+      return `${who} held every rival's original capital`;
+    case 'culture':
+      return `${who} built the ${WONDERS.world_council.name} after reaching ${VICTORY.cultureGoal} culture`;
+    case 'economic':
+      return `${who} built the ${WONDERS.global_exchange.name} with ${VICTORY.goldGoal} gold in the treasury`;
+    case 'technology':
+      return `${you ? 'your' : 'their'} spaceship arrived`;
+  }
 }
 
 function num(n: number): string {

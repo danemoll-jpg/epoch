@@ -9,6 +9,7 @@ import { updateExplored } from './fog';
 import { findStartPositions, generateMap } from './mapgen';
 import { hashSeed, shuffle } from './rng';
 import { newDiplomacy } from './diplomacy';
+import { newSpaceProgram } from './victory';
 import { noWars } from './war';
 import { STATE_VERSION, type GameMap, type GameState, type Player, type Unit, type Coord } from './types';
 
@@ -54,6 +55,8 @@ export function createGame(opts: NewGameOptions): GameState {
     scienceRate: RULES.defaultScienceRate,
     techs: [...STARTING_TECHS],
     researching: null,
+    culture: 0,
+    space: newSpaceProgram(),
   }));
 
   const state: GameState = {
@@ -71,6 +74,9 @@ export function createGame(opts: NewGameOptions): GameState {
     diplomacy: newDiplomacy(playerCount),
     aiPlans: players.map(() => null),
     log: [],
+    victory: null,
+    keepPlaying: false,
+    warned: [],
   };
 
   players.forEach((p, i) => {

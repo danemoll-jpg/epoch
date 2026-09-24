@@ -19,7 +19,7 @@ import {
   type TechId,
 } from '../data/techs';
 import { UNITS, UNIT_IDS, type UnitTypeId } from '../data/units';
-import { WONDERS, type WonderDef } from '../data/wonders';
+import { WONDER_LIST, type WonderDef } from '../data/wonders';
 import { CivName } from './conquest';
 import { addLog } from './log';
 import type { ActionResult, GameState, Player } from './types';
@@ -80,7 +80,7 @@ export function techUnlocks(tech: TechId): TechUnlocks {
   return {
     units: UNIT_IDS.filter((u) => UNITS[u].requires === tech),
     buildings: BUILDING_IDS.filter((b) => BUILDINGS[b].requires === tech),
-    wonders: WONDERS.filter((w) => w.requires === tech),
+    wonders: WONDER_LIST.filter((w) => w.requires === tech),
   };
 }
 

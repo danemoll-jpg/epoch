@@ -27,6 +27,7 @@ import { UNITS } from '../data/units';
 import { CivName, civName, civPossessive, civVerb } from './conquest';
 import { visibleTiles } from './fog';
 import { distance, tileIndex } from './grid';
+import { aiVictoryGoal } from './aiGoals';
 import { addLog } from './log';
 import { nextFloat } from './rng';
 import { attackStrength, winChance } from './combat';
@@ -488,10 +489,13 @@ export function warScore(state: GameState, ai: number, target: number): number {
   // Only a war it could win: its best attack (as an army) must beat their best city defender.
   if (winChance(bestAttack(state, ai), bestCityDefense(state, target)) < D.warMinAttackChance) return -Infinity;
   const aggression = civDef(state, ai).aggression;
+  // An AI going for a domination victory (Milestone 6) is keener.
+  const conquest = aiVictoryGoal(state, ai) === 'domination' ? RULES.ai.victory.dominationWarBonus : 0;
   return (
     (Math.min(ratio, 4) - D.warMinStrengthRatio) * D.warStrengthWeight +
     (aggression - 3) * D.warAggressionWeight -
-    (state.diplomacy.opinion[ai]?.[target] ?? 0) * D.warOpinionWeight
+    (state.diplomacy.opinion[ai]?.[target] ?? 0) * D.warOpinionWeight +
+    conquest
   );
 }
 

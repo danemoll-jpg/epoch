@@ -10,6 +10,7 @@ import { moveUnitToward } from './movement';
 import { rushBuy, setBuild, setFocus, setScienceRate } from './production';
 import { setResearch } from './tech';
 import { endHumanTurn } from './turn';
+import { checkVictory, keepPlaying, launchSpaceship } from './victory';
 import type { ActionResult, BuildItem, Coord, GameState } from './types';
 
 export type Action =
@@ -29,9 +30,18 @@ export type Action =
   | { type: 'tradeTech'; partner: number; get: TechId; give: TechId | null }
   | { type: 'giveGold'; target: number; amount: number }
   | { type: 'answerOffer'; offerId: number; accept: boolean }
+  | { type: 'launchSpaceship' }
+  | { type: 'keepPlaying' }
   | { type: 'endTurn' };
 
 export function applyAction(state: GameState, action: Action): ActionResult {
+  const res = runAction(state, action);
+  // A capture can win the game on the spot (domination).
+  if (res.ok) checkVictory(state);
+  return res;
+}
+
+function runAction(state: GameState, action: Action): ActionResult {
   switch (action.type) {
     case 'move':
       return moveUnitToward(state, action.unitId, action.to);
@@ -63,6 +73,10 @@ export function applyAction(state: GameState, action: Action): ActionResult {
       return giveGold(state, action.target, action.amount);
     case 'answerOffer':
       return answerOffer(state, action.offerId, action.accept);
+    case 'launchSpaceship':
+      return launchSpaceship(state);
+    case 'keepPlaying':
+      return keepPlaying(state);
     case 'endTurn':
       return endHumanTurn(state);
   }

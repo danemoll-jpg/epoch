@@ -23,6 +23,7 @@
           <span id="turnLabel"></span>
           <span id="eraLabel"></span>
           <button id="diploBtn" type="button" aria-label="Diplomacy: the civs you have met">🤝 Diplomacy</button>
+          <button id="victoryBtn" type="button" aria-label="Victory progress: who is close to winning">🏆</button>
         </div>
         <div class="line">
           <span id="goldLabel"></span>
@@ -105,12 +106,27 @@
         </section>
       </div>
 
+      <div id="victoryOverlay" class="overlay" hidden>
+        <section id="victoryPanel" role="dialog" aria-modal="true" aria-label="Victory progress">
+          <div class="techHead">
+            <div>
+              <h2>Victory progress</h2>
+              <div id="victoryStatus" class="sub"></div>
+            </div>
+            <button id="victoryCloseBtn" type="button" class="closeBtn" aria-label="Close victory progress">✕</button>
+          </div>
+          <div id="victoryBody" class="scroll"></div>
+        </section>
+      </div>
+
       <div id="endOverlay" class="overlay" hidden>
-        <section class="dialog" role="dialog" aria-modal="true">
+        <section id="endPanel" class="dialog" role="dialog" aria-modal="true">
+          <div id="endBanner"></div>
           <h2 id="endTitle"></h2>
           <p id="endText"></p>
+          <div id="endStats" class="scroll"></div>
           <div class="row">
-            <button id="endCloseBtn" type="button">Look at the map</button>
+            <button id="endCloseBtn" type="button" class="bigBtn">Keep playing</button>
             <button id="endNewBtn" type="button" class="bigBtn">New Game</button>
           </div>
         </section>
@@ -131,6 +147,8 @@
             <h2>Game</h2>
             <p id="menuInfo"></p>
             <div class="row">
+              <button id="victoryMenuBtn" type="button">Victory progress</button>
+              <button id="aboutBtn" type="button">About / Credits</button>
               <button id="restoreBtn" type="button">Restore a backup</button>
               <button id="newGameBtn" type="button">New Game</button>
               <button id="menuCloseBtn" type="button">Close</button>
@@ -142,6 +160,13 @@
             <div id="backupList" class="scroll"></div>
             <div class="row">
               <button id="backupsBackBtn" type="button">Back</button>
+            </div>
+          </div>
+          <div id="menuAbout" hidden>
+            <h2>About Epoch</h2>
+            <div id="aboutBody" class="scroll"></div>
+            <div class="row">
+              <button id="aboutBackBtn" type="button">Back</button>
             </div>
           </div>
           <div id="menuConfirm" hidden>

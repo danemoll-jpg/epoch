@@ -12,8 +12,13 @@ export type UnitTypeId =
 export interface UnitDef {
   id: UnitTypeId;
   name: string;
-  /** Short placeholder glyph (1–2 letters) drawn on the map until the art pass. */
+  /** Short glyph (1–2 letters): the fallback drawn while (or if) its icon can't be shown. */
   glyph: string;
+  /**
+   * The unit's icon: a file `src/assets/icons/<icon>.svg`, credited in icons.ts (Round 7,
+   * Dan's picks from game-icons.net).
+   */
+  icon: string;
   /** Production needed to build one. */
   cost: number;
   moves: number;
@@ -31,32 +36,32 @@ export interface UnitDef {
 }
 
 function unit(
-  id: UnitTypeId, name: string, glyph: string, cost: number,
+  id: UnitTypeId, name: string, glyph: string, icon: string, cost: number,
   attack: number, defense: number, moves: number, requires?: TechId,
 ): UnitDef {
-  return { id, name, glyph, cost, moves, sight: 1, attack, defense, canFoundCity: false, popCost: 0, requires };
+  return { id, name, glyph, icon, cost, moves, sight: 1, attack, defense, canFoundCity: false, popCost: 0, requires };
 }
 
 export const UNITS: Record<UnitTypeId, UnitDef> = {
   settler: {
-    id: 'settler', name: 'Settler', glyph: 'S', cost: 30,
+    id: 'settler', name: 'Settler', glyph: 'S', icon: 'old-wagon', cost: 30,
     moves: 1, sight: 1, attack: 0, defense: 1, canFoundCity: true, popCost: 1,
   },
-  //                   name          glyph cost att def mv  tech
-  warrior: unit('warrior', 'Warrior', 'W', 10, 1, 1, 1),
-  archer: unit('archer', 'Archer', 'Ar', 20, 3, 2, 1, 'archery'),
-  spearman: unit('spearman', 'Spearman', 'Sp', 20, 1, 3, 1, 'bronze_working'),
-  horseman: unit('horseman', 'Horseman', 'Ho', 20, 2, 1, 2, 'horseback_riding'),
-  chariot: unit('chariot', 'Chariot', 'Ch', 30, 3, 1, 2, 'the_wheel'),
-  legion: unit('legion', 'Legion', 'Lg', 30, 4, 2, 1, 'iron_working'),
-  catapult: unit('catapult', 'Catapult', 'Ca', 40, 6, 1, 1, 'mathematics'),
-  pikeman: unit('pikeman', 'Pikeman', 'Pk', 30, 1, 4, 1, 'feudalism'),
-  knight: unit('knight', 'Knight', 'Kn', 40, 4, 2, 2, 'chivalry'),
-  musketman: unit('musketman', 'Musketman', 'Mu', 40, 3, 6, 1, 'gunpowder'),
-  cannon: unit('cannon', 'Cannon', 'Cn', 50, 8, 1, 1, 'metallurgy'),
-  rifleman: unit('rifleman', 'Rifleman', 'Ri', 50, 5, 8, 1, 'conscription'),
-  artillery: unit('artillery', 'Artillery', 'At', 60, 10, 2, 1, 'machine_tools'),
-  tank: unit('tank', 'Tank', 'Tk', 80, 12, 8, 3, 'automobile'),
+  //                   name          glyph icon              cost att def mv  tech
+  warrior: unit('warrior', 'Warrior', 'W', 'caveman', 10, 1, 1, 1),
+  archer: unit('archer', 'Archer', 'Ar', 'bowman', 20, 3, 2, 1, 'archery'),
+  spearman: unit('spearman', 'Spearman', 'Sp', 'spartan', 20, 1, 3, 1, 'bronze_working'),
+  horseman: unit('horseman', 'Horseman', 'Ho', 'horse-head', 20, 2, 1, 2, 'horseback_riding'),
+  chariot: unit('chariot', 'Chariot', 'Ch', 'chariot', 30, 3, 1, 2, 'the_wheel'),
+  legion: unit('legion', 'Legion', 'Lg', 'centurion-helmet', 30, 4, 2, 1, 'iron_working'),
+  catapult: unit('catapult', 'Catapult', 'Ca', 'catapult', 40, 6, 1, 1, 'mathematics'),
+  pikeman: unit('pikeman', 'Pikeman', 'Pk', 'pikeman', 30, 1, 4, 1, 'feudalism'),
+  knight: unit('knight', 'Knight', 'Kn', 'mounted-knight', 40, 4, 2, 2, 'chivalry'),
+  musketman: unit('musketman', 'Musketman', 'Mu', 'blunderbuss', 40, 3, 6, 1, 'gunpowder'),
+  cannon: unit('cannon', 'Cannon', 'Cn', 'cannon', 50, 8, 1, 1, 'metallurgy'),
+  rifleman: unit('rifleman', 'Rifleman', 'Ri', 'lee-enfield', 50, 5, 8, 1, 'conscription'),
+  artillery: unit('artillery', 'Artillery', 'At', 'mortar', 60, 10, 2, 1, 'machine_tools'),
+  tank: unit('tank', 'Tank', 'Tk', 'tank', 80, 12, 8, 3, 'automobile'),
 };
 
 export const UNIT_IDS = Object.keys(UNITS) as UnitTypeId[];

@@ -10,7 +10,9 @@
 import { growthThreshold } from '../data/rules';
 import { TECHS, TECH_LIST, type TechId } from '../data/techs';
 import type { TerrainId } from '../data/terrain';
-import { UNITS } from '../data/units';
+import { UNITS, UNIT_IDS } from '../data/units';
+import { VICTORY } from '../data/victory';
+import { WONDERS } from '../data/wonders';
 import { applyAction } from '../game/actions';
 import { combatOdds } from '../game/combat';
 import { CivName, civName, civVerb } from '../game/conquest';
@@ -309,6 +311,151 @@ function defeatScenario(): GameState {
   return state;
 }
 
+/**
+ * Round 7 icon check: one of each unit type at map size (two rows north and south of your
+ * capital), plus an army, a veteran, a fortified unit, and a mixed stack, and a few rival
+ * units in their color. Everyone is at peace, so nothing fights.
+ */
+function allUnitsScenario(): GameState {
+  const { state } = withCapital(undefined, {}, 2);
+  state.atWar = [[false, false], [false, false]];
+  // Row 1 (y = 3) and row 2 (y = 7): every type in table order, left to right.
+  UNIT_IDS.forEach((id, i) => {
+    const x = 2 + (i % 12);
+    const y = i < 12 ? 3 : 7;
+    addUnit(state, id, 0, x, y);
+  });
+  addUnit(state, 'legion', 0, 6, 7, { army: true });
+  addUnit(state, 'spearman', 0, 8, 7, { veteran: true });
+  addUnit(state, 'pikeman', 0, 10, 7, { fortified: true });
+  // A mixed stack: a Musketman on top of two Archers.
+  addUnit(state, 'musketman', 0, 12, 7);
+  addUnit(state, 'archer', 0, 12, 7);
+  addUnit(state, 'archer', 0, 12, 7);
+  // Rival units in their own color along the south coast.
+  for (const [i, id] of (['warrior', 'knight', 'rifleman', 'tank'] as const).entries()) addUnit(state, id, 1, 4 + i * 2, 9);
+  addCity(state, 1, 12, 9, { name: RIVAL_CAPITAL, capitalOf: 1, build: { kind: 'unit', id: 'warrior' } });
+  state.players[1]!.citiesFounded = 1;
+  return state;
+}
+
+// ---- wonders and victory scenarios (Milestone 6) ------------------------------------------
+
+/** Your capital building `wonder` with the production one turn short. */
+function wonderScenario(): GameState {
+  const { state, city } = withCapital(undefined, { size: 3, build: { kind: 'wonder', id: 'pyramids' } });
+  state.players[0]!.techs = ['masonry'];
+  city.production = WONDERS.pyramids.cost - 1;
+  return state;
+}
+
+/**
+ * You and Maurya both build the Colossus; theirs is one turn from done, yours is not. Maurya
+ * leans to culture (wonders before buildings), sees no open city site, and has its two
+ * defenders, so it keeps building the Colossus.
+ */
+function wonderRaceScenario(): GameState {
+  const { state, city } = withCapital(undefined, { size: 3, build: { kind: 'wonder', id: 'colossus' } }, 2);
+  state.atWar = [[false, false], [false, false]];
+  addUnit(state, 'warrior', 0, CITY_X, CITY_Y, { fortified: true });
+  city.production = 40;
+  for (const p of state.players) p.techs = ['bronze_working'];
+  const rival = addCity(state, 1, 12, 8, {
+    name: RIVAL_CAPITAL, capitalOf: 1, size: 3, build: { kind: 'wonder', id: 'colossus' }, production: WONDERS.colossus.cost - 1,
+  });
+  state.players[1]!.citiesFounded = 1;
+  addUnit(state, 'spearman', 1, rival.x, rival.y, { fortified: true });
+  addUnit(state, 'spearman', 1, rival.x, rival.y, { fortified: true });
+  // Maurya has only seen the tiles around its city, so it isn't looking to expand.
+  const seen = state.players[1]!.explored;
+  seen.fill(0);
+  for (let y = rival.y - 1; y <= rival.y + 1; y++) for (let x = rival.x - 1; x <= rival.x + 1; x++) seen[tileIndex(state.map, x, y)] = 1;
+  return state;
+}
+
+/**
+ * Three civs: you already hold Maurya's capital (Taxila is left to them); Mali's capital, next
+ * to your Legion army, is the last one you need.
+ */
+function winDominationScenario(): GameState {
+  const { state } = withCapital(undefined, {}, 3);
+  addUnit(state, 'warrior', 0, CITY_X, CITY_Y, { fortified: true });
+  addCity(state, 0, 4, 8, { name: RIVAL_CAPITAL, capitalOf: 1, build: { kind: 'unit', id: 'warrior' } });
+  addUnit(state, 'warrior', 0, 4, 8, { fortified: true });
+  addCity(state, 1, 13, 2, { name: 'Taxila', build: { kind: 'unit', id: 'warrior' } });
+  addUnit(state, 'warrior', 1, 13, 2);
+  state.players[1]!.citiesFounded = 2;
+  addCity(state, 2, ENEMY.x, ENEMY.y, { name: 'Niani', capitalOf: 2, build: { kind: 'unit', id: 'warrior' } });
+  addUnit(state, 'warrior', 2, ENEMY.x, ENEMY.y);
+  state.players[2]!.citiesFounded = 1;
+  addUnit(state, 'legion', 0, FRONT.x, FRONT.y, { army: true });
+  state.rngState = FAIR_DICE;
+  return state;
+}
+
+/** Your capital one turn from finishing a victory wonder, with the goal already reached. */
+function winWonderScenario(kind: 'culture' | 'economic'): GameState {
+  const id = kind === 'culture' ? 'world_council' : 'global_exchange';
+  const { state, city } = withCapital(undefined, { size: 3, build: { kind: 'wonder', id } });
+  const p = state.players[0]!;
+  p.techs = [WONDERS[id].requires];
+  if (kind === 'culture') p.culture = VICTORY.cultureGoal;
+  else p.gold = VICTORY.goldGoal;
+  city.production = WONDERS[id].cost - 1;
+  return state;
+}
+
+function launched(state: GameState, player: number, arrives: number): void {
+  const p = state.players[player]!;
+  p.techs = [VICTORY.spaceship.requires];
+  p.space = { parts: VICTORY.spaceship.parts, launchedTurn: arrives - VICTORY.spaceship.travelTurns, arrivesTurn: arrives };
+}
+
+/** Your spaceship arrives at the start of next turn. */
+function winSpaceScenario(): GameState {
+  const { state } = withCapital(undefined, { size: 3 });
+  state.turn = 200;
+  launched(state, 0, state.turn + 1);
+  return state;
+}
+
+/** Maurya's spaceship arrives at the start of next turn, far out of your reach. */
+function loseSpaceScenario(): GameState {
+  const state = diplomacyBase();
+  state.turn = 200;
+  launched(state, RIVAL, state.turn + 1);
+  return state;
+}
+
+/**
+ * Three civs. Maurya's ship arrives in 3 turns, and its capital, Pataliputra, is next to your
+ * Legion army with one Warrior in it. Mali, far away, keeps this from being a domination win.
+ */
+function stopLaunchScenario(): GameState {
+  const { state } = withCapital(undefined, {}, 3);
+  state.turn = 200;
+  addUnit(state, 'warrior', 0, CITY_X, CITY_Y, { fortified: true });
+  addCity(state, RIVAL, ENEMY.x, ENEMY.y, { name: RIVAL_CAPITAL, capitalOf: RIVAL, size: 3, build: { kind: 'unit', id: 'warrior' } });
+  addUnit(state, 'warrior', RIVAL, ENEMY.x, ENEMY.y);
+  addCity(state, RIVAL, 12, 8, { name: 'Taxila', build: { kind: 'unit', id: 'warrior' } });
+  addUnit(state, 'spearman', RIVAL, 12, 8, { fortified: true });
+  state.players[RIVAL]!.citiesFounded = 2;
+  addCity(state, 2, 13, 2, { name: 'Niani', capitalOf: 2, build: { kind: 'unit', id: 'warrior' } });
+  addUnit(state, 'spearman', 2, 13, 2, { fortified: true });
+  state.players[2]!.citiesFounded = 1;
+  launched(state, RIVAL, state.turn + 3);
+  addUnit(state, 'legion', 0, FRONT.x, FRONT.y, { army: true });
+  state.rngState = FAIR_DICE;
+  return state;
+}
+
+/** Maurya, met and at peace, has culture just past the warning line. */
+function nearWinScenario(): GameState {
+  const state = diplomacyBase();
+  state.players[RIVAL]!.culture = Math.ceil((VICTORY.cultureGoal * (VICTORY.warnPct + 5)) / 100);
+  return state;
+}
+
 /** Research `tech` with the pool one point short of its cost, so it finishes next turn. */
 function oneTurnFromLearning(state: GameState, known: TechId[], tech: TechId): void {
   const p = state.players[0]!;
@@ -436,6 +583,66 @@ export const SCENARIOS: Scenario[] = [
     title: 'Defeat',
     note: `Tap End Turn. Three rival Legions attack ${CAPITAL}, your last city: they beat your Warrior and move in. With no cities and no units left, the Defeated panel appears.`,
     build: defeatScenario,
+  },
+  {
+    id: 'all-units',
+    title: 'All unit icons',
+    note: `One of each unit type (${UNIT_IDS.length}) in two rows north and south of ${CAPITAL}, in table order: Settler, Warrior, Archer … Tank. South row also has a Legion army (gold ring, ×3), a veteran Spearman (★ in its panel), a fortified Pikeman (shield), and a mixed stack (a Musketman with two Archers peeking out behind, badge 3). Rival units along the south coast show their color. Pinch-zoom in and out: the icons should stay sharp. Tap any unit to see its icon in the unit panel.`,
+    build: allUnitsScenario,
+  },
+  {
+    id: 'wonder',
+    title: 'Wonder finishes',
+    note: `Tap End Turn. ${CAPITAL} should finish the ${WONDERS.pyramids.name} (a message says so). Tap ${CAPITAL}: it's listed under Wonders, production is up 25%, and Culture shows ${WONDERS.pyramids.effects.culture}. The ${WONDERS.pyramids.name} is gone from every build list, and 🏆 lists it under Wonders of the world.`,
+    build: wonderScenario,
+  },
+  {
+    id: 'wonder-race',
+    title: 'Wonder race lost',
+    note: `You and ${rivalName(wonderRaceScenario())} are both building the ${WONDERS.colossus.name}; theirs is one turn from done. Tap End Turn: they finish it first. ${CAPITAL} keeps its 40+ production and its panel opens asking for a new choice; the ${WONDERS.colossus.name} isn't in the list any more.`,
+    build: wonderRaceScenario,
+  },
+  {
+    id: 'win-domination',
+    title: 'Win: domination',
+    note: `You already hold ${RIVAL_CAPITAL}, Maurya's capital (★). Tap your Legion army east of ${CAPITAL}, then Niani, Mali's capital next to it (one Warrior: ${frontOdds(winDominationScenario())}%). Attack: you take the last rival capital, and the Domination victory screen appears with New Game and Keep playing.`,
+    build: winDominationScenario,
+  },
+  {
+    id: 'win-culture',
+    title: 'Win: culture',
+    note: `You have ${VICTORY.cultureGoal} culture (the goal), and ${CAPITAL} is one turn from finishing the ${WONDERS.world_council.name}. Tap End Turn: the Culture victory screen appears. Tap Keep playing to go on; the screen won't come back.`,
+    build: () => winWonderScenario('culture'),
+  },
+  {
+    id: 'win-economic',
+    title: 'Win: economic',
+    note: `You have ${VICTORY.goldGoal} gold (the goal), and ${CAPITAL} is one turn from finishing the ${WONDERS.global_exchange.name}. Tap End Turn: the Economic victory screen appears.`,
+    build: () => winWonderScenario('economic'),
+  },
+  {
+    id: 'win-space',
+    title: 'Win: spaceship arrives',
+    note: `Your spaceship was launched ${VICTORY.spaceship.travelTurns} turns ago and arrives on turn ${winSpaceScenario().turn + 1}. Tap End Turn: it arrives and the Technology victory screen appears. (🏆 shows it as launched first.)`,
+    build: winSpaceScenario,
+  },
+  {
+    id: 'lose-space',
+    title: 'Lose: rival spaceship',
+    note: `${CivName(loseSpaceScenario(), RIVAL)}'s spaceship arrives on turn ${loseSpaceScenario().turn + 1}, and you can't reach their capital. Tap End Turn: their ship lands and the Defeat screen names them and the technology victory.`,
+    build: loseSpaceScenario,
+  },
+  {
+    id: 'stop-launch',
+    title: 'Stop a spaceship',
+    note: `${CivName(stopLaunchScenario(), RIVAL)}'s spaceship arrives on turn ${stopLaunchScenario().turn + 3}. Tap your Legion army east of ${CAPITAL}, then ${RIVAL_CAPITAL}, their capital next to it (${frontOdds(stopLaunchScenario())}%). Attack: you take it and a message says their spaceship was lost. Keep tapping End Turn past turn ${stopLaunchScenario().turn + 3}: nobody wins, and 🏆 shows their spaceship as not started.`,
+    build: stopLaunchScenario,
+  },
+  {
+    id: 'near-win-warning',
+    title: 'Near-win warning',
+    note: `${CivName(nearWinScenario(), RIVAL)} ${civVerb(nearWinScenario(), RIVAL, 'has', 'have')} ${nearWinScenario().players[RIVAL]!.culture} culture, past ${VICTORY.warnPct}% of the ${VICTORY.cultureGoal} goal. Tap End Turn: a “Close to winning!” panel warns you, with a Victory progress button. It only warns once: End Turn again and it stays quiet.`,
+    build: nearWinScenario,
   },
   {
     id: 'first-contact',

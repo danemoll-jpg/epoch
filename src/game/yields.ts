@@ -4,6 +4,7 @@
 // first each round), so no tile is ever worked twice and new cities aren't starved out.
 
 import { BUILDINGS } from '../data/buildings';
+import { WONDERS, type WonderDef, type WonderEffects } from '../data/wonders';
 import { RULES } from '../data/rules';
 import { TERRAIN, type Yields } from '../data/terrain';
 import { tileIndex, tilesInRadius } from './grid';
@@ -84,28 +85,71 @@ export function cityYields(state: GameState, city: City): Yields {
   total.food += sp * RULES.specialistYields.food;
   total.production += sp * RULES.specialistYields.production;
   total.trade += sp * RULES.specialistYields.trade;
+  // Wonders (Milestone 6): extra food in their city, and production bonuses.
+  for (const w of cityWonderDefs(city)) total.food += w.effects.food ?? 0;
+  const prodPct = cityWonderPct(city, 'productionPct') + empireWonderPct(state, city.owner, 'productionPct');
+  total.production += Math.floor((total.production * prodPct) / 100);
   return total;
+}
+
+// ---- wonders and culture (Milestone 6) ------------------------------------------------------
+
+function cityWonderDefs(city: City): WonderDef[] {
+  return city.wonders.map((w) => WONDERS[w]).filter(Boolean);
+}
+
+/** Every wonder in a city the player holds. */
+export function empireWonders(state: GameState, owner: number): WonderDef[] {
+  return state.cities.filter((c) => c.owner === owner).flatMap(cityWonderDefs);
+}
+
+function cityWonderPct(city: City, key: 'sciencePct' | 'goldPct' | 'productionPct'): number {
+  return cityWonderDefs(city).reduce((sum, w) => sum + ((w.effects as WonderEffects)[key] ?? 0), 0);
+}
+
+function empireWonderPct(state: GameState, owner: number, key: 'sciencePct' | 'goldPct' | 'productionPct'): number {
+  return empireWonders(state, owner).reduce((sum, w) => sum + (w.effects.empire?.[key] ?? 0), 0);
+}
+
+/** Does any wonder the player holds give this empire-wide effect (e.g. veteran units)? */
+export function empireWonderEffect(state: GameState, owner: number, key: 'veteranUnits'): boolean {
+  return empireWonders(state, owner).some((w) => w.effects.empire?.[key]);
+}
+
+/** Culture the city makes per turn: its buildings (Temple) and wonders. */
+export function cityCulture(_state: GameState, city: City): number {
+  let culture = 0;
+  for (const b of city.buildings) culture += BUILDINGS[b].effects.culture ?? 0;
+  for (const w of cityWonderDefs(city)) culture += w.effects.culture ?? 0;
+  return culture;
+}
+
+/** Culture the player's empire makes per turn. */
+export function empireCulture(state: GameState, playerId: number): number {
+  return state.cities.filter((c) => c.owner === playerId).reduce((sum, c) => sum + cityCulture(state, c), 0);
 }
 
 export function foodSurplus(state: GameState, city: City): number {
   return cityYields(state, city).food - city.size * RULES.foodPerCitizen;
 }
 
-function buildingPct(city: City, key: 'sciencePct' | 'goldPct'): number {
-  return city.buildings.reduce((sum, b) => sum + (BUILDINGS[b].effects[key] ?? 0), 0);
+/** Percent bonus from the city's buildings and wonders, and the owner's empire-wide wonders. */
+function buildingPct(state: GameState, city: City, key: 'sciencePct' | 'goldPct'): number {
+  const buildings = city.buildings.reduce((sum, b) => sum + (BUILDINGS[b].effects[key] ?? 0), 0);
+  return buildings + cityWonderPct(city, key) + empireWonderPct(state, city.owner, key);
 }
 
 /**
  * Splits the city's trade into science and gold by the owner's empire-wide rate, then
- * applies building bonuses (Library, Marketplace) to each part, rounding down.
+ * applies building and wonder bonuses (Library, Marketplace, ...) to each part, rounding down.
  */
 export function cityScienceGold(state: GameState, city: City): { science: number; gold: number } {
   const trade = cityYields(state, city).trade;
   const rate = state.players[city.owner]!.scienceRate;
   const baseScience = Math.round((trade * rate) / 100);
   const baseGold = trade - baseScience;
-  const science = baseScience + Math.floor((baseScience * buildingPct(city, 'sciencePct')) / 100);
-  const gold = baseGold + Math.floor((baseGold * buildingPct(city, 'goldPct')) / 100);
+  const science = baseScience + Math.floor((baseScience * buildingPct(state, city, 'sciencePct')) / 100);
+  const gold = baseGold + Math.floor((baseGold * buildingPct(state, city, 'goldPct')) / 100);
   return { science, gold };
 }
 

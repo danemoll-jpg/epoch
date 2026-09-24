@@ -6,6 +6,8 @@ import type { CityFocus } from '../data/rules';
 import type { TechId } from '../data/techs';
 import type { TerrainId } from '../data/terrain';
 import type { UnitTypeId } from '../data/units';
+import type { ProjectId, VictoryKind } from '../data/victory';
+import type { WonderId } from '../data/wonders';
 
 export interface Coord {
   x: number;
@@ -46,6 +48,19 @@ export interface Player {
   techs: TechId[];
   /** The tech being researched, or null when the player needs to pick one. */
   researching: TechId | null;
+  /** Culture earned so far, all game (Milestone 6). It never goes down. */
+  culture: number;
+  /** The spaceship (technology victory). */
+  space: SpaceProgram;
+}
+
+export interface SpaceProgram {
+  /** Parts built (in the capital). Lost if the capital is captured. */
+  parts: number;
+  /** The turn it was launched, or null. */
+  launchedTurn: number | null;
+  /** It arrives, and wins, at the start of this turn; null until launched. */
+  arrivesTurn: number | null;
 }
 
 export interface Unit {
@@ -65,7 +80,9 @@ export interface Unit {
 
 export type BuildItem =
   | { kind: 'unit'; id: UnitTypeId }
-  | { kind: 'building'; id: BuildingId };
+  | { kind: 'building'; id: BuildingId }
+  | { kind: 'wonder'; id: WonderId }
+  | { kind: 'project'; id: ProjectId };
 
 export interface City {
   id: number;
@@ -83,6 +100,8 @@ export interface City {
   build: BuildItem | null;
   focus: CityFocus;
   buildings: BuildingId[];
+  /** Wonders built here (they go with the city if it's captured). */
+  wonders: WonderId[];
   /**
    * The player whose original capital this is (their first city), or null. It stays set when
    * the city is captured, so "capture every capital" (domination, M6) can be checked.
@@ -100,8 +119,9 @@ export interface City {
  * migration for them in save.ts; otherwise they aren't loaded.
  * 3 = Milestone 3 (techs, research). 4 = Milestone 4 (combat: war, fortify, armies, capitals).
  * 5 = Milestone 5 (diplomacy: contact, peace treaties, opinions, offers, AI war plans).
+ * 6 = Milestone 6 (culture, wonders, spaceship, victory).
  */
-export const STATE_VERSION = 5;
+export const STATE_VERSION = 6;
 
 export interface GameState {
   version: number;
@@ -124,6 +144,18 @@ export interface GameState {
   aiPlans: (AiPlan | null)[];
   /** Short human-readable event log (newest last); the UI shows recent entries. */
   log: LogEntry[];
+  /** The first win (Milestone 6), or null. Kept after "Keep playing" so the record stays. */
+  victory: Victory | null;
+  /** The human chose "Keep playing" after the game was won: nobody else can win now. */
+  keepPlaying: boolean;
+  /** Near-win warnings already given (keys from victory.ts), so each is shown once. */
+  warned: string[];
+}
+
+export interface Victory {
+  winner: number;
+  kind: VictoryKind;
+  turn: number;
 }
 
 /**
@@ -190,7 +222,7 @@ export interface LogEntry {
    */
   publicText?: string;
   /** What kind of event, so the UI can give some of them their own panel. */
-  kind?: 'contact' | 'war' | 'peace' | 'trade' | 'demand' | 'gift' | 'era';
+  kind?: 'contact' | 'war' | 'peace' | 'trade' | 'demand' | 'gift' | 'era' | 'wonder' | 'space' | 'victory' | 'warning';
   /** Where it happened, so the UI can hide rival events the viewer can't see. */
   x?: number;
   y?: number;

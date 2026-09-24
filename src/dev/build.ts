@@ -6,6 +6,7 @@ import type { TerrainId } from '../data/terrain';
 import { UNITS, type UnitTypeId } from '../data/units';
 import { newDiplomacy, table } from '../game/diplomacy';
 import { allAtWar, noWars } from '../game/war';
+import { newSpaceProgram } from '../game/victory';
 import { refreshWorkedTiles } from '../game/yields';
 import { STATE_VERSION, type City, type GameState, type Unit } from '../game/types';
 
@@ -47,6 +48,8 @@ export function makeState(
       scienceRate: 60,
       techs: [],
       researching: null,
+      culture: 0,
+      space: newSpaceProgram(),
     })),
     units: [],
     cities: [],
@@ -55,6 +58,9 @@ export function makeState(
     diplomacy: { ...newDiplomacy(players), met: opts.met === false ? table(players, false) : allAtWar(players) },
     aiPlans: Array.from({ length: players }, () => null),
     log: [],
+    victory: null,
+    keepPlaying: false,
+    warned: [],
   };
 }
 
@@ -96,6 +102,7 @@ export function addCity(
     build: null,
     focus: 'balanced',
     buildings: [],
+    wonders: [],
     capitalOf: null,
     worked: [],
     ...extra,

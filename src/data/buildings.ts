@@ -14,7 +14,7 @@ export interface BuildingEffects {
   defenseBonusPct?: number;
   sciencePct?: number;
   goldPct?: number;
-  /** Placeholder until contentment/culture exist (Milestone 6/7). No effect yet. */
+  /** Culture per turn (Milestone 6): it adds up toward the culture victory. */
   culture?: number;
 }
 
@@ -57,7 +57,7 @@ export const BUILDINGS: Record<BuildingId, BuildingDef> = {
   },
   temple: {
     id: 'temple', name: 'Temple', cost: 30, requires: 'ceremonial_burial',
-    summary: 'Culture (effect comes later)',
+    summary: '1 culture per turn',
     effects: { culture: 1 },
   },
 };

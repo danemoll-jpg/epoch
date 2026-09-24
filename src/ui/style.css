@@ -1101,3 +1101,318 @@ button.bigBtn {
   background: #6b5320;
   border-color: #e6b73f;
 }
+
+/* ---- unit icons in panels (Round 7): the icon on its owner's color, like the map disc ---- */
+
+.udisc {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1.5px solid #fff;
+  color: #fff;
+  vertical-align: middle;
+  margin-right: 6px;
+  box-sizing: border-box;
+}
+
+.uicon {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  line-height: 0;
+}
+
+.uicon svg {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+.uicon.uglyph {
+  line-height: 18px;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+}
+
+#unitInfo .udisc {
+  width: 30px;
+  height: 30px;
+}
+
+#unitInfo .udisc .uicon {
+  width: 21px;
+  height: 21px;
+}
+
+.side .sideName .udisc {
+  width: 34px;
+  height: 34px;
+}
+
+.side .sideName .udisc .uicon {
+  width: 24px;
+  height: 24px;
+}
+
+/* ---- ☰ → About / Credits ---- */
+
+#aboutBody {
+  max-height: min(60vh, 520px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  margin-bottom: 12px;
+}
+
+#aboutBody p {
+  margin: 0 0 8px;
+}
+
+#aboutBody .label {
+  color: var(--muted);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 12px 0 6px;
+}
+
+#aboutBody a {
+  color: #8db4f5;
+}
+
+.credits {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.credits li {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 0;
+  font-size: 14px;
+}
+
+/* ---- victory progress (Milestone 6): one card per civ, stacking in portrait ---- */
+
+#victoryBtn {
+  padding: 0 10px;
+  font-size: 18px;
+  background: #4a3d1a;
+}
+
+#victoryPanel {
+  position: absolute;
+  top: calc(8px + var(--safe-top));
+  bottom: calc(8px + var(--safe-bottom));
+  left: calc(8px + var(--safe-left));
+  right: calc(8px + var(--safe-right));
+  max-width: 980px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  background: #16212e;
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+#victoryBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  padding: 10px 14px 16px;
+}
+
+#victoryBody .label {
+  color: var(--muted);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 16px 0 6px;
+}
+
+.vrules {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 6px 14px;
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+.vcards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+
+.vcard {
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.vcard.me {
+  border-color: #e6b73f;
+}
+
+.vcard.unknown,
+.vcard.out {
+  opacity: 0.65;
+}
+
+.vhead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 16px;
+}
+
+.swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  vertical-align: middle;
+}
+
+.unknownSwatch {
+  background: #555;
+}
+
+.vrow {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 2px 8px;
+  align-items: center;
+  margin: 6px 0;
+  font-size: 14px;
+}
+
+.vrow .bar {
+  grid-column: 1 / -1;
+}
+
+.vlabel {
+  color: var(--muted);
+}
+
+.hot {
+  color: #ff9b6a;
+}
+
+.bar.vbar > div {
+  background: #e6b73f;
+}
+
+.launchBtn {
+  margin-top: 6px;
+  min-height: 52px;
+  background: #7a3b12;
+  border-color: #ff9b6a;
+}
+
+.wonderList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 4px 14px;
+}
+
+.wonderList li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  align-items: baseline;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.wwhere {
+  margin-left: auto;
+  font-size: 14px;
+}
+
+.buildItem.wonder {
+  border-color: #b08a2e;
+}
+
+.buildItem.project {
+  border-color: #ff9b6a;
+}
+
+.wonderName {
+  color: #e6c46a;
+}
+
+/* ---- end of game ---- */
+
+#endPanel {
+  width: min(520px, calc(100vw - 32px));
+  text-align: center;
+}
+
+#endPanel.win {
+  border-color: #e6b73f;
+  box-shadow: 0 0 40px rgba(230, 183, 63, 0.35);
+}
+
+#endBanner {
+  font-size: 48px;
+  line-height: 1.1;
+}
+
+#endPanel h2 {
+  font-size: 26px;
+}
+
+#endPanel p {
+  color: var(--text);
+}
+
+#endPanel .row {
+  justify-content: center;
+}
+
+#endStats {
+  max-height: 40vh;
+  overflow: auto;
+  margin-bottom: 14px;
+}
+
+table.stats {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+table.stats th,
+table.stats td {
+  padding: 6px 6px;
+  border-bottom: 1px solid var(--panel-border);
+  text-align: center;
+}
+
+table.stats tbody th {
+  text-align: left;
+  white-space: nowrap;
+}
+
+table.stats thead th {
+  color: var(--muted);
+  font-weight: 600;
+}

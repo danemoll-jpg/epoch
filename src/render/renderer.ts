@@ -1,5 +1,5 @@
 // Canvas 2D renderer. Reads game state and view state; never changes game state.
-// Placeholder art: colored tiles, simple terrain marks, lettered unit discs, city squares
+// Placeholder art: colored tiles, simple terrain marks, unit discs with icons, city squares
 // with the size number. Armies get a thick gold ring and "×3"; fortified units a small
 // shield; capitals a star; tiles the selected unit can attack a red outline.
 
@@ -12,6 +12,7 @@ import { visibleTiles } from '../game/fog';
 import { tileIndex } from '../game/grid';
 import type { Coord, GameState, Unit } from '../game/types';
 import { worldToScreen, type Camera } from './camera';
+import { iconBitmap } from './icons';
 
 const TERRAIN_COLOR: Record<TerrainId, string> = {
   grassland: '#5d9a3c',
@@ -36,6 +37,8 @@ export interface ViewState {
   openCityId?: number;
   /** A short flash on a tile after a fight or capture: green if we won, red if we lost. */
   flash?: { x: number; y: number; won: boolean };
+  /** Called when a unit icon finishes loading, so the map can be drawn again with it. */
+  onIconReady?: () => void;
 }
 
 export function playerColor(state: GameState, playerId: number): string {
@@ -105,6 +108,7 @@ function drawUnit(
   selected: boolean,
   inCity: boolean,
   behind?: Unit,
+  onIconReady?: () => void,
 ): void {
   // In a city the disc shrinks into the lower-left corner so the city's size stays readable.
   const cx = inCity ? x + s * 0.27 : x + s / 2;
@@ -126,7 +130,7 @@ function drawUnit(
     ctx.fill();
     ctx.stroke();
     ctx.globalAlpha = 0.9;
-    drawGlyph(ctx, behind, bx - (inCity ? 0 : br * 0.2), by - br * 0.2, br * 0.8);
+    drawGlyph(ctx, behind, bx - (inCity ? 0 : br * 0.2), by - br * 0.2, br * 0.8, onIconReady);
     ctx.globalAlpha = 1;
   }
   if (selected) {
@@ -143,7 +147,7 @@ function drawUnit(
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
-  drawGlyph(ctx, unit, cx, cy + s * 0.01, r);
+  drawGlyph(ctx, unit, cx, cy, r, onIconReady);
   if (unit.army) {
     ctx.strokeStyle = '#e6b73f';
     ctx.lineWidth = Math.max(2.5, s * 0.075);
@@ -173,12 +177,23 @@ function drawUnit(
 }
 
 /**
- * The unit's mark inside its disc (radius `r`): its letters for now. The only place a unit's
- * look is drawn, so the icons (next round) replace just this.
+ * The unit's mark inside its disc (radius `r`): its icon (Round 7), drawn white on the owner's
+ * color as on the picker page Dan chose from, from a bitmap cached per icon, color, and pixel
+ * size. Its letters stand in while the icon loads, or if it's missing. The only place a
+ * unit's look is drawn on the map.
  */
-function drawGlyph(ctx: CanvasRenderingContext2D, unit: Unit, cx: number, cy: number, r: number): void {
+function drawGlyph(ctx: CanvasRenderingContext2D, unit: Unit, cx: number, cy: number, r: number, onReady?: () => void): void {
+  const def = UNITS[unit.type];
+  // Icon box: the same share of the disc as on the picker page (20 px in a 29 px disc).
+  const box = r * 1.38;
+  const scale = ctx.getTransform().a || 1;
+  const bmp = iconBitmap(def.icon, '#ffffff', box * scale, onReady ?? (() => {}));
+  if (bmp) {
+    ctx.drawImage(bmp, cx - box / 2, cy - box / 2, box, box);
+    return;
+  }
   ctx.fillStyle = '#ffffff';
-  const glyph = UNITS[unit.type].glyph;
+  const glyph = def.glyph;
   ctx.font = `700 ${Math.round(r * (glyph.length > 1 ? 0.8 : 1.07))}px system-ui, sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -339,7 +354,7 @@ export function render(
     const shown = list.find((u) => u.id === view.selectedUnitId) ?? list.find((u) => u.movesLeft > 0) ?? list[0]!;
     const p = pos(shown.x, shown.y);
     const inCity = state.cities.some((c) => c.x === shown.x && c.y === shown.y);
-    drawUnit(ctx, state, shown, list.length, p.x, p.y, s, shown.id === view.selectedUnitId, inCity, behindUnit(list, shown));
+    drawUnit(ctx, state, shown, list.length, p.x, p.y, s, shown.id === view.selectedUnitId, inCity, behindUnit(list, shown), view.onIconReady);
   }
 
   // Tiles the selected unit can attack.

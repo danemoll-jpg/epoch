@@ -3,7 +3,7 @@ import { BUILDINGS, BUILDING_IDS } from '../src/data/buildings';
 import { ERAS, FINAL_TECH, TECHS, TECH_COST, TECH_IDS, TECH_LIST, techCostFor, type TechId } from '../src/data/techs';
 
 import { UNITS, UNIT_IDS } from '../src/data/units';
-import { WONDERS } from '../src/data/wonders';
+import { WONDER_LIST } from '../src/data/wonders';
 import { applyAction } from '../src/game/actions';
 import { runAiTurn } from '../src/game/ai';
 import { createGame } from '../src/game/newGame';
@@ -86,7 +86,7 @@ describe('tech tree data', () => {
   it('every unit, building, and wonder requirement is a real tech', () => {
     for (const id of UNIT_IDS) if (UNITS[id].requires) expect(TECHS[UNITS[id].requires!]).toBeDefined();
     for (const id of BUILDING_IDS) if (BUILDINGS[id].requires) expect(TECHS[BUILDINGS[id].requires!]).toBeDefined();
-    for (const w of WONDERS) expect(TECHS[w.requires]).toBeDefined();
+    for (const w of WONDER_LIST) expect(TECHS[w.requires]).toBeDefined();
   });
 
   it('the M2 buildings are tied to sensible techs', () => {
@@ -223,7 +223,8 @@ describe('unlocks', () => {
     const c = addCity(s, 0, 1, 1);
     expect(names(buildOptions(s, c))).toEqual(['settler', 'warrior']);
     s.players[0]!.techs.push('pottery', 'archery');
-    expect(names(buildOptions(s, c))).toEqual(['settler', 'warrior', 'archer', 'granary']);
+    // Pottery also unlocks a wonder (Round 7).
+    expect(names(buildOptions(s, c))).toEqual(['settler', 'warrior', 'archer', 'granary', 'hanging_gardens']);
     // Another player's techs don't count.
     const rival = addCity(s, 1, 0, 0);
     expect(names(buildOptions(s, rival))).toEqual(['settler', 'warrior']);

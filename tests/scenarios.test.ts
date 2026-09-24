@@ -2,7 +2,7 @@
 // scenario and this test build the same state (src/dev/scenarios.ts), so they can't drift.
 
 import { describe, expect, it } from 'vitest';
-import { UNITS } from '../src/data/units';
+import { UNITS, UNIT_IDS } from '../src/data/units';
 import { SCENARIOS, type Scenario } from '../src/dev/scenarios';
 import { applyAction } from '../src/game/actions';
 import { attackError, attackStrength, combatOdds, defenseStrength, formArmyError } from '../src/game/combat';
@@ -13,7 +13,9 @@ import { buildOptions, buyError } from '../src/game/production';
 import { deserializeGame, serializeGame } from '../src/game/save';
 import { playerEra } from '../src/game/tech';
 import type { City, GameState } from '../src/game/types';
-import { foodSurplus, tileYields } from '../src/game/yields';
+import { cityCulture, cityYields, foodSurplus, tileYields } from '../src/game/yields';
+import { WONDERS } from '../src/data/wonders';
+import { eventsVisibleTo } from '../src/game/log';
 import { armyCandidates, behindUnit, isMixedStack, stackLabel, unitsOnTile } from '../src/game/stack';
 
 const capital = (s: GameState): City => s.cities.find((c) => c.owner === 0)!;
@@ -40,6 +42,89 @@ function endTurn(s: GameState): void {
 
 /** What each scenario's note promises. A new scenario without an entry here fails the suite. */
 const OUTCOMES: Record<string, (s: GameState) => void> = {
+  wonder: (s) => {
+    const c = capital(s);
+    const before = cityYields(s, c).production;
+    endTurn(s);
+    expect(capital(s).wonders).toEqual(['pyramids']);
+    expect(cityYields(s, capital(s)).production).toBe(before + Math.floor((before * 25) / 100));
+    expect(cityCulture(s, capital(s))).toBe(WONDERS.pyramids.effects.culture);
+    expect(buildOptions(s, capital(s)).some((i) => i.kind === 'wonder' && i.id === 'pyramids')).toBe(false);
+  },
+  'wonder-race': (s) => {
+    const c = capital(s);
+    expect(c.production).toBe(40);
+    endTurn(s);
+    const rival = s.cities.find((x) => x.owner === 1)!;
+    expect(rival.wonders).toEqual(['colossus']);
+    expect(capital(s).build).toBeNull();
+    expect(capital(s).production).toBeGreaterThanOrEqual(40);
+    expect(buildOptions(s, capital(s)).some((i) => i.id === 'colossus')).toBe(false);
+    expect(eventsVisibleTo(s, 0, s.log).some((e) => e.player === 0 && e.text.includes('first'))).toBe(true);
+  },
+  'win-domination': (s) => {
+    expect(s.victory).toBeNull();
+    attackFromFront(s);
+    expect(s.victory).toMatchObject({ winner: 0, kind: 'domination' });
+    // Maurya lost its capital to you but is still in the game (Taxila).
+    expect(s.players[1]!.alive).toBe(true);
+    expect(noteOf('win-domination')).toContain(`${oddsPct(SCENARIOS.find((x) => x.id === 'win-domination')!.build())}%`);
+  },
+  'win-culture': (s) => {
+    endTurn(s);
+    expect(s.victory).toMatchObject({ winner: 0, kind: 'culture' });
+    // Keep playing: no more checks, and the record stays.
+    expect(applyAction(s, { type: 'keepPlaying' }).ok).toBe(true);
+    endTurn(s);
+    expect(s.keepPlaying).toBe(true);
+    expect(s.victory).toMatchObject({ winner: 0, kind: 'culture' });
+  },
+  'win-economic': (s) => {
+    endTurn(s);
+    expect(s.victory).toMatchObject({ winner: 0, kind: 'economic' });
+  },
+  'win-space': (s) => {
+    const arrives = s.players[0]!.space.arrivesTurn;
+    expect(arrives).toBe(s.turn + 1);
+    expect(s.victory).toBeNull();
+    endTurn(s);
+    expect(s.victory).toMatchObject({ winner: 0, kind: 'technology', turn: arrives });
+  },
+  'lose-space': (s) => {
+    endTurn(s);
+    expect(s.victory).toMatchObject({ winner: 1, kind: 'technology' });
+    expect(s.players[0]!.alive).toBe(true);
+  },
+  'stop-launch': (s) => {
+    const arrives = s.players[1]!.space.arrivesTurn!;
+    attackFromFront(s);
+    const pat = s.cities.find((c) => c.capitalOf === 1)!;
+    expect(pat.owner).toBe(0);
+    expect(s.players[1]!.space).toEqual({ parts: 0, launchedTurn: null, arrivesTurn: null });
+    expect(s.log.some((e) => e.kind === 'space' && e.publicText?.includes('lost'))).toBe(true);
+    while (s.turn <= arrives + 1) endTurn(s);
+    expect(s.victory).toBeNull();
+  },
+  'near-win-warning': (s) => {
+    endTurn(s);
+    const warnings = () => s.log.filter((e) => e.kind === 'warning' && e.other === 0);
+    expect(warnings()).toHaveLength(1);
+    expect(warnings()[0]!.text).toContain('culture');
+    endTurn(s);
+    expect(warnings()).toHaveLength(1);
+  },
+  'all-units': (s) => {
+    const mine = s.units.filter((u) => u.owner === 0);
+    expect(new Set(mine.map((u) => u.type))).toEqual(new Set(UNIT_IDS));
+    expect(mine.some((u) => u.army)).toBe(true);
+    expect(mine.some((u) => u.veteran)).toBe(true);
+    expect(mine.some((u) => u.fortified)).toBe(true);
+    expect(isMixedStack(unitsOnTile(s, 12, 7))).toBe(true);
+    expect(s.units.some((u) => u.owner === 1)).toBe(true);
+    // Nothing on the map is at war, so looking around is safe.
+    expect(atWar(s, 0, 1)).toBe(false);
+    expect(noteOf('all-units')).toContain(String(UNIT_IDS.length));
+  },
   grow: (s) => {
     expect(capital(s).size).toBe(2);
     endTurn(s);

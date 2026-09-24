@@ -5,27 +5,46 @@
 // (even with nothing chosen), and an item appears once it's paid for, with the overflow
 // carried over. After a unit, the same unit stays selected; after a building the city asks
 // for a new choice (build = null). A unit with a population cost (Settler) waits until the
-// city is big enough, then takes the population when it's finished.
+// city is big enough, then takes the population when it's finished. Wonders (one per world)
+// and spaceship parts (Milestone 6) are built the same way; wonders can't be bought.
 
 import { BUILDINGS, BUILDING_IDS } from '../data/buildings';
+import { PROJECTS } from '../data/victory';
+import { WONDERS, WONDER_IDS } from '../data/wonders';
 import { CITY_FOCUSES, RULES, growthThreshold, rushBuyCost, type CityFocus } from '../data/rules';
 import { TECHS, type TechId } from '../data/techs';
 import { UNITS, UNIT_IDS } from '../data/units';
 import { addLog } from './log';
 import { hasTech } from './tech';
-import { cityScienceGold, cityYields, foodSurplus, refreshWorkedTiles } from './yields';
+import { addSpaceshipPart, spaceshipError, victoryWonderBlocker } from './victory';
+import { completeWonder, wonderError } from './wonders';
+import { cityCulture, cityScienceGold, cityYields, empireWonderEffect, foodSurplus, refreshWorkedTiles } from './yields';
 import type { ActionResult, BuildItem, City, GameState, Unit } from './types';
 
 export function findCity(state: GameState, cityId: number): City | undefined {
   return state.cities.find((c) => c.id === cityId);
 }
 
+/** The data-table entry behind a build item (undefined if the id is unknown). */
+function itemDef(item: BuildItem): { name: string; cost: number; requires?: TechId } | undefined {
+  switch (item.kind) {
+    case 'unit':
+      return UNITS[item.id];
+    case 'building':
+      return BUILDINGS[item.id];
+    case 'wonder':
+      return WONDERS[item.id];
+    case 'project':
+      return PROJECTS[item.id];
+  }
+}
+
 export function itemCost(item: BuildItem): number {
-  return item.kind === 'unit' ? UNITS[item.id].cost : BUILDINGS[item.id].cost;
+  return itemDef(item)!.cost;
 }
 
 export function itemName(item: BuildItem): string {
-  return item.kind === 'unit' ? UNITS[item.id].name : BUILDINGS[item.id].name;
+  return itemDef(item)!.name;
 }
 
 export function sameItem(a: BuildItem | null, b: BuildItem | null): boolean {
@@ -34,35 +53,39 @@ export function sameItem(a: BuildItem | null, b: BuildItem | null): boolean {
 
 /** The tech an item needs, if any. */
 export function itemRequires(item: BuildItem): TechId | undefined {
-  return item.kind === 'unit' ? UNITS[item.id]?.requires : BUILDINGS[item.id]?.requires;
+  return itemDef(item)?.requires;
 }
 
 /** Why the city can't choose this item at all, or undefined if it can. */
 export function buildChoiceError(state: GameState, city: City, item: BuildItem): string | undefined {
-  if (item.kind === 'building') {
-    if (!BUILDINGS[item.id]) return 'Unknown building';
-    if (city.buildings.includes(item.id)) return 'Already built';
-  } else if (!UNITS[item.id]) {
-    return 'Unknown unit';
-  }
+  if (!itemDef(item)) return `Unknown ${item.kind}`;
+  if (item.kind === 'building' && city.buildings.includes(item.id)) return 'Already built';
   const requires = itemRequires(item);
   if (!hasTech(state.players[city.owner]!, requires)) return `Needs ${TECHS[requires!].name}`;
+  if (item.kind === 'wonder') return wonderError(state, city, item.id);
+  if (item.kind === 'project') return spaceshipError(state, city);
   return undefined;
 }
 
-/** Everything the city could be set to build right now (only what's unlocked), units first. */
+/** Everything the city could be set to build right now (only what's unlocked): units, buildings, wonders, then the spaceship. */
 export function buildOptions(state: GameState, city: City): BuildItem[] {
   const units: BuildItem[] = UNIT_IDS.map((id) => ({ kind: 'unit', id }));
   const buildings: BuildItem[] = BUILDING_IDS.map((id) => ({ kind: 'building', id }));
-  return [...units, ...buildings].filter((item) => !buildChoiceError(state, city, item));
+  const wonders: BuildItem[] = WONDER_IDS.map((id) => ({ kind: 'wonder', id }));
+  const projects: BuildItem[] = [{ kind: 'project', id: 'spaceship' }];
+  return [...units, ...buildings, ...wonders, ...projects].filter((item) => !buildChoiceError(state, city, item));
 }
 
-/** Why the finished item would have to wait (e.g. a Settler in a size-1 city). */
-export function completionBlocker(city: City, item: BuildItem): string | undefined {
+/**
+ * Why the finished item would have to wait (e.g. a Settler in a size-1 city, or the Global
+ * Exchange when the treasury has dropped below the gold goal).
+ */
+export function completionBlocker(state: GameState, city: City, item: BuildItem): string | undefined {
   if (item.kind === 'unit') {
     const pop = UNITS[item.id].popCost;
     if (pop > 0 && city.size <= pop) return `Needs size ${pop + 1}`;
   }
+  if (item.kind === 'wonder') return victoryWonderBlocker(state, city.owner, item.id);
   return undefined;
 }
 
@@ -79,7 +102,7 @@ export function setBuild(state: GameState, cityId: number, item: BuildItem): Act
   const err = buildChoiceError(state, city, item);
   if (err) return { ok: false, reason: err };
   // Switching keeps stored production (no penalty in this milestone).
-  city.build = item.kind === 'unit' ? { kind: 'unit', id: item.id } : { kind: 'building', id: item.id };
+  city.build = { kind: item.kind, id: item.id } as BuildItem;
   return { ok: true };
 }
 
@@ -110,9 +133,9 @@ export function setScienceRate(state: GameState, rate: number): ActionResult {
   return { ok: true };
 }
 
-/** Gold to finish the current item now, or undefined if there's nothing to buy. */
+/** Gold to finish the current item now, or undefined if there's nothing to buy (wonders can't be bought). */
 export function buyCost(city: City): number | undefined {
-  if (!city.build) return undefined;
+  if (!city.build || city.build.kind === 'wonder') return undefined;
   const remaining = itemCost(city.build) - city.production;
   return remaining > 0 ? rushBuyCost(remaining) : undefined;
 }
@@ -120,9 +143,10 @@ export function buyCost(city: City): number | undefined {
 /** Why rush-buying isn't possible, or undefined if it is. */
 export function buyError(state: GameState, city: City): string | undefined {
   if (!city.build) return 'Nothing to buy';
+  if (city.build.kind === 'wonder') return "Wonders can't be bought";
   const cost = buyCost(city);
   if (cost === undefined) return 'Already paid for';
-  const blocker = completionBlocker(city, city.build);
+  const blocker = completionBlocker(state, city, city.build);
   if (blocker) return blocker;
   if (state.players[city.owner]!.gold < cost) return `Needs ${cost} gold`;
   return undefined;
@@ -159,7 +183,7 @@ export function turnsToFinish(state: GameState, city: City): number | undefined 
 }
 
 function spawnUnit(state: GameState, city: City, type: Unit['type']): Unit {
-  const veteran = city.buildings.some((b) => BUILDINGS[b].effects.veteranUnits);
+  const veteran = city.buildings.some((b) => BUILDINGS[b].effects.veteranUnits) || empireWonderEffect(state, city.owner, 'veteranUnits');
   const unit: Unit = {
     id: state.nextId++,
     type,
@@ -206,17 +230,30 @@ function produce(state: GameState, city: City, production: number): void {
   const item = city.build;
   if (!item) return;
   const cost = itemCost(item);
-  if (city.production < cost || completionBlocker(city, item)) return;
+  if (city.production < cost || completionBlocker(state, city, item)) return;
+  // A wonder someone else finished first, or a spaceship part no longer allowed (capital
+  // lost, ship launched): the production stays, and the city asks for a new choice.
+  if ((item.kind === 'wonder' || item.kind === 'project') && buildChoiceError(state, city, item)) {
+    city.build = null;
+    return;
+  }
   city.production -= cost;
   if (item.kind === 'unit') {
     spawnUnit(state, city, item.id);
     city.size -= UNITS[item.id].popCost;
     // Units repeat: the same item stays selected.
-  } else {
+    addLog(state, city.owner, `${city.name} built ${itemName(item)}`, city);
+  } else if (item.kind === 'building') {
     city.buildings.push(item.id);
     city.build = null;
+    addLog(state, city.owner, `${city.name} built ${itemName(item)}`, city);
+  } else if (item.kind === 'wonder') {
+    city.build = null;
+    completeWonder(state, city, item.id);
+  } else {
+    city.build = null;
+    addSpaceshipPart(state, city);
   }
-  addLog(state, city.owner, `${city.name} built ${itemName(item)}`, city);
 }
 
 /**
@@ -232,10 +269,13 @@ export function processCities(state: GameState, playerId: number): void {
     // Read this turn's yields before anything changes the city's size.
     const production = cityYields(state, city).production;
     const { science, gold } = cityScienceGold(state, city);
+    const culture = cityCulture(state, city);
+    // Income first, so a Global Exchange finishing this turn counts this turn's gold.
+    player.gold += gold;
+    player.science += science;
+    player.culture += culture;
     growCity(state, city);
     produce(state, city, production);
-    player.science += science;
-    player.gold += gold;
   }
   refreshWorkedTiles(state);
 }

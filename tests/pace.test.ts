@@ -1,4 +1,4 @@
-// Research pace (Round 6, Q7). A loose check on all-AI games so a change that breaks the era
+// Research pace (Round 6, Q7) and game length (Round 7). A loose check on all-AI games so a change that breaks the era
 // timing gets caught. Targets: Medieval by about turn 50–70, Industrial by 120–150, Modern by
 // 180–220, and someone finishing the tree in about 250 turns. The ranges below are wider
 // than the targets, since three seeds are a small sample. `npm run sim` prints the full report.
@@ -24,5 +24,11 @@ describe('research pace (all-AI simulation)', () => {
     }
     // Wars stay sensible: no one is wiped out early.
     for (const r of runs) expect(r.eliminated, `seed ${r.seed}`).toBeLessThanOrEqual(1);
+    // Round 7: someone wins every game, and never too early (the sim plays on afterwards, so
+    // the era numbers above still cover the whole tree).
+    for (const r of runs) {
+      expect(r.victory, `seed ${r.seed}`).not.toBeNull();
+      expect(r.victory!.turn, `seed ${r.seed}`).toBeGreaterThanOrEqual(150);
+    }
   }, 120_000);
 });
