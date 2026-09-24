@@ -1,14 +1,17 @@
 // City capture and elimination (Milestone 4).
 //
-// A city with no units in it can be captured by an enemy land unit with attack > 0 moving
-// in (see stepError in movement.ts). The captured city changes owner, loses 1 population
+// A city is captured by an enemy land unit with attack > 0 moving into it when it's empty
+// (see stepError in movement.ts), or by winning the fight against its last defender (the
+// winner moves in; see attack in combat.ts). Only civs at war can capture. The captured city changes owner, loses 1 population
 // (never below 1; cities are never destroyed), loses its Walls, and starts its production
 // over with nothing chosen. A civ with no cities and no units is eliminated.
 
 import { CIVS } from '../data/civs';
 import { BUILDINGS } from '../data/buildings';
 import { UNITS } from '../data/units';
+import { recordLoss, updateContacts } from './diplomacy';
 import { updateExplored } from './fog';
+import { RULES } from '../data/rules';
 import { addLog } from './log';
 import { atWar } from './war';
 import { refreshWorkedTiles } from './yields';
@@ -44,6 +47,8 @@ export function captureCity(state: GameState, city: City, newOwner: number): voi
   city.build = null;
   refreshWorkedTiles(state);
   updateExplored(state, newOwner);
+  recordLoss(state, oldOwner, newOwner, RULES.diplomacy.cityLossWeight);
+  updateContacts(state);
   const who = civName(state, newOwner);
   const text =
     city.capitalOf === oldOwner
@@ -62,6 +67,10 @@ export function checkEliminations(state: GameState, by: number, at: Coord): void
     if (hasCity || hasUnit) continue;
     p.alive = false;
     p.researching = null;
-    addLog(state, p.id, `${civName(state, p.id)} has been eliminated`, at, by);
+    state.diplomacy.offers = state.diplomacy.offers.filter((o) => o.from !== p.id && o.to !== p.id);
+    state.aiPlans[p.id] = null;
+    for (let i = 0; i < state.aiPlans.length; i++) if (state.aiPlans[i]?.target === p.id) state.aiPlans[i] = null;
+    const text = `${civName(state, p.id)} has been eliminated`;
+    addLog(state, p.id, text, at, by, { publicText: text });
   }
 }

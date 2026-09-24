@@ -11,7 +11,9 @@ import { growthThreshold } from '../data/rules';
 import { TECHS, TECH_LIST, type TechId } from '../data/techs';
 import type { TerrainId } from '../data/terrain';
 import { UNITS } from '../data/units';
+import { applyAction } from '../game/actions';
 import { combatOdds } from '../game/combat';
+import { civDef, peaceDesire } from '../game/diplomacy';
 import { tileIndex } from '../game/grid';
 import { techCost } from '../game/tech';
 import type { City, GameState } from '../game/types';
@@ -148,6 +150,13 @@ function armyScenario(): GameState {
   return state;
 }
 
+/** Three Legions inside your capital (Dan's round 4 report: they couldn't form an army). */
+function armyInCityScenario(): GameState {
+  const state = battlefield();
+  for (let i = 0; i < 3; i++) addUnit(state, 'legion', 0, CITY_X, CITY_Y);
+  return state;
+}
+
 function captureScenario(): GameState {
   // Here the rival's capital is the city next to you, walled, with one Warrior; its second
   // city is in the corner so it survives the loss.
@@ -161,10 +170,117 @@ function captureScenario(): GameState {
   state.players[1]!.citiesFounded = 2;
   addUnit(state, 'warrior', 1, ENEMY.x, ENEMY.y);
   addUnit(state, 'legion', 0, FRONT.x, FRONT.y);
-  addUnit(state, 'legion', 0, FRONT.x, FRONT.y - 1);
-  // Fixed dice: the first attack wins (it's a 64% shot either way; this scenario is about
-  // what capturing does, so it shouldn't depend on luck).
+  // Fixed dice: the attack wins (it's a 64% shot; this scenario is about what capturing
+  // does, so it shouldn't depend on luck).
   state.rngState = (12345 + 0x6d2b79f5) >>> 0;
+  return state;
+}
+
+/** Your Legion army next to the last rival's only city, held by one Warrior. */
+function victoryScenario(): GameState {
+  const { state } = withCapital(undefined, {}, 2);
+  addUnit(state, 'warrior', 0, CITY_X, CITY_Y, { fortified: true });
+  addCity(state, 1, ENEMY.x, ENEMY.y, { name: RIVAL_CAPITAL, capitalOf: 1, build: { kind: 'unit', id: 'warrior' } });
+  state.players[1]!.citiesFounded = 1;
+  addUnit(state, 'warrior', 1, ENEMY.x, ENEMY.y);
+  addUnit(state, 'legion', 0, FRONT.x, FRONT.y, { army: true });
+  state.rngState = FAIR_DICE;
+  return state;
+}
+
+// ---- diplomacy scenarios (Milestone 5) ------------------------------------------------------
+// Player 1 is Maurya (Ashoka: not aggressive, happy to trade) unless a scenario swaps in the
+// Franks (Charlemagne: the most aggressive). Diplomacy opens from the 🤝 button in the top bar.
+
+const RIVAL = 1;
+
+function rivalName(state: GameState): string {
+  return civDef(state, RIVAL).name;
+}
+
+/** A two-civ game at peace, both met (unless `met` is false), past the early grace period. */
+function diplomacyBase(opts: { met?: boolean; civ?: string } = {}): GameState {
+  const { state } = withCapital(undefined, { size: 3 }, 2);
+  const met = opts.met !== false;
+  state.atWar = [[false, false], [false, false]];
+  state.diplomacy.met = [[false, met], [met, false]];
+  if (opts.civ) state.players[RIVAL]!.civId = opts.civ;
+  state.turn = 30;
+  addUnit(state, 'warrior', 0, CITY_X, CITY_Y, { fortified: true });
+  const name = opts.civ === 'franks' ? 'Aachen' : RIVAL_CAPITAL;
+  addCity(state, RIVAL, 12, 8, { name, capitalOf: RIVAL, size: 3, build: { kind: 'unit', id: 'warrior' } });
+  state.players[RIVAL]!.citiesFounded = 1;
+  addUnit(state, 'spearman', RIVAL, 12, 8, { fortified: true });
+  state.rngState = FAIR_DICE;
+  return state;
+}
+
+/**
+ * Some rules happen on a dice roll at End Turn (an AI's demand, a declaration of war). This
+ * finds the first dice (RNG state) for which one End Turn gives the wanted result, so the
+ * scenario always shows it. Deterministic: same scenario, same dice.
+ */
+function withDice(build: () => GameState, wanted: (s: GameState) => boolean): GameState {
+  for (let i = 0; i < 5000; i++) {
+    const dice = (FAIR_DICE + i * 0x9e3779b9) >>> 0;
+    const trial = build();
+    trial.rngState = dice;
+    applyAction(trial, { type: 'endTurn' });
+    if (wanted(trial)) {
+      const state = build();
+      state.rngState = dice;
+      return state;
+    }
+  }
+  throw new Error('no dice found for the scenario');
+}
+
+function firstContactScenario(): GameState {
+  // Your Warrior at (9, 5) is 2 tiles from their Warrior at (11, 5): out of sight both ways
+  // (units see 1 tile). One step east and you meet.
+  const state = diplomacyBase({ met: false });
+  addUnit(state, 'warrior', 0, FRONT.x, FRONT.y);
+  addUnit(state, 'warrior', RIVAL, FRONT.x + 2, FRONT.y);
+  return state;
+}
+
+function peaceScenario(): GameState {
+  // At war for 10 turns; they've lost 3 units to you and taken none.
+  const state = diplomacyBase();
+  state.atWar = [[false, true], [true, false]];
+  state.diplomacy.warStart = [[null, state.turn - 10], [state.turn - 10, null]];
+  state.diplomacy.warLosses[RIVAL]![0] = 3;
+  addUnit(state, 'legion', 0, FRONT.x, FRONT.y);
+  addUnit(state, 'legion', 0, FRONT.x, FRONT.y - 1);
+  addUnit(state, 'warrior', RIVAL, ENEMY.x, ENEMY.y);
+  return state;
+}
+
+function demandBase(): GameState {
+  // The Franks (the most aggressive leader) with a strong army, next door. You have 100 gold.
+  const state = diplomacyBase({ civ: 'franks' });
+  state.players[0]!.gold = 100;
+  state.players[0]!.techs = ['bronze_working'];
+  state.players[RIVAL]!.techs = ['bronze_working', 'iron_working'];
+  addUnit(state, 'legion', RIVAL, 12, 8, { army: true });
+  return state;
+}
+
+function techTradeScenario(): GameState {
+  // Maurya likes you (friendly), knows Pottery, and lacks your Bronze Working.
+  const state = diplomacyBase();
+  state.diplomacy.opinion[RIVAL]![0] = 5;
+  state.players[0]!.techs = ['bronze_working'];
+  state.players[RIVAL]!.techs = ['pottery', 'alphabet'];
+  return state;
+}
+
+function aiWarBase(): GameState {
+  // The Franks, much stronger, with a Legion army in Aachen, 5 tiles from Babylon.
+  const state = diplomacyBase({ civ: 'franks' });
+  state.players[RIVAL]!.techs = ['bronze_working', 'iron_working'];
+  addUnit(state, 'spearman', RIVAL, 12, 8);
+  addUnit(state, 'legion', RIVAL, 12, 8, { army: true });
   return state;
 }
 
@@ -278,16 +394,58 @@ export const SCENARIOS: Scenario[] = [
     build: armyScenario,
   },
   {
+    id: 'army-in-city',
+    title: 'Army inside a city',
+    note: `Three Legions are inside ${CAPITAL}. Tap ${CAPITAL}, then tap one of the Legions under “Units here”: the city closes and the Legion’s buttons show. Tap Form Army: the three become one army (attack 12, defense 6).`,
+    build: armyInCityScenario,
+  },
+  {
     id: 'capture',
     title: 'Capture a city',
-    note: `Tap the Legion east of ${CAPITAL} and attack ${RIVAL_CAPITAL} (its Warrior: 64%). It wins. Then tap your other Legion and tap ${RIVAL_CAPITAL} to move in: it becomes yours, size 3 → 2, its Walls are gone (the Granary stays), and a message says you took their capital.`,
+    note: `Tap the Legion east of ${CAPITAL} and attack ${RIVAL_CAPITAL} (its only defender, a Warrior: ${frontOdds(captureScenario())}%). It wins and moves straight in: the city becomes yours, size 3 → 2, its Walls are gone (the Granary stays), and a message says you took their capital.`,
     build: captureScenario,
+  },
+  {
+    id: 'victory',
+    title: 'Victory',
+    note: `Tap your Legion army east of ${CAPITAL}, then ${RIVAL_CAPITAL} next to it: their last city, held by one Warrior (${frontOdds(victoryScenario())}%). Tap Attack: your army wins, moves in, and takes the city. Their civ is eliminated, and the Victory panel appears.`,
+    build: victoryScenario,
   },
   {
     id: 'defeat',
     title: 'Defeat',
     note: `Tap End Turn. Three rival Legions attack ${CAPITAL}, your last city: they beat your Warrior and move in. With no cities and no units left, the Defeated panel appears.`,
     build: defeatScenario,
+  },
+  {
+    id: 'first-contact',
+    title: 'First contact',
+    note: `Tap your Warrior east of ${CAPITAL}, then the tile just east of it. You spot a ${civDef(firstContactScenario(), RIVAL).adjective} Warrior and a panel says “You have met ${rivalName(firstContactScenario())}, led by ${civDef(firstContactScenario(), RIVAL).leader}”. Then open 🤝 Diplomacy: they're listed, at peace.`,
+    build: firstContactScenario,
+  },
+  {
+    id: 'peace',
+    title: 'Make peace',
+    note: `You're at war with ${rivalName(peaceScenario())} and winning (they lost 3 units, you lost none). Open 🤝 Diplomacy, pick ${rivalName(peaceScenario())}, and tap Propose Peace. They accept: “${peaceDesire(peaceScenario(), RIVAL, 0).reason}” Their Warrior next to your Legions can't be attacked any more.`,
+    build: peaceScenario,
+  },
+  {
+    id: 'demand',
+    title: 'AI demand',
+    note: 'Tap End Turn. The Franks (strong, aggressive, next door) demand tribute: a panel asks you to Give or Refuse. Refusing makes them angrier (see their attitude in 🤝 Diplomacy) and war more likely.',
+    build: () => withDice(demandBase, (s) => s.diplomacy.offers.some((o) => o.kind === 'demand') && !s.atWar[0]![RIVAL]),
+  },
+  {
+    id: 'tech-trade',
+    title: 'Trade techs',
+    note: `${rivalName(techTradeScenario())} is friendly and knows Pottery. Open 🤝 Diplomacy, pick them, tap Trade Techs, and swap your Bronze Working for their Pottery. They agree, and Granary appears in ${CAPITAL}'s build list.`,
+    build: techTradeScenario,
+  },
+  {
+    id: 'ai-war',
+    title: 'AI declares war',
+    note: `Tap End Turn. The Franks declare war on you (a panel says so). Keep tapping End Turn: their Legion army marches from Aachen toward ${CAPITAL} and attacks within a few turns.`,
+    build: () => withDice(aiWarBase, (s) => s.atWar[0]![RIVAL] === true),
   },
 ];
 

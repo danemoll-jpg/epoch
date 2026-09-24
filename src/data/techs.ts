@@ -141,7 +141,7 @@ export function techCostFor(knownCount: number, tier: number): number {
  * Front-loaded with the techs behind the buildings it builds and a better defender.
  */
 export const AI_TECH_PRIORITY: TechId[] = [
-  'bronze_working', 'pottery', 'alphabet', 'writing', 'ceremonial_burial', 'currency', 'masonry',
+  'bronze_working', 'pottery', 'archery', 'alphabet', 'writing', 'iron_working', 'ceremonial_burial', 'currency', 'masonry',
   'code_of_laws', 'monarchy', 'feudalism', 'literacy', 'mathematics', 'mysticism', 'philosophy',
   'trade', 'banking', 'construction', 'engineering', 'invention', 'gunpowder',
 ];

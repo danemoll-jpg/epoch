@@ -18,7 +18,7 @@ const playersParam = Number(params.get('players'));
 const playerCount =
   Number.isInteger(playersParam) && playersParam >= 1 && playersParam <= RULES.maxPlayers
     ? playersParam
-    : RULES.milestone1Players;
+    : RULES.defaultPlayers;
 
 function newGame(): GameState {
   // Picking a fresh seed is UI, not game logic, so the clock is fine here.

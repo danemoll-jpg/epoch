@@ -9,28 +9,35 @@ export interface CivDef {
   leader: string;
   /** Placeholder owner color until the art pass. */
   color: string;
+  /**
+   * AI personality, light (Milestone 5), each 1–5. Aggression pushes toward war, demands,
+   * and fighting on; trade willingness toward tech deals and fair prices. Leader-specific
+   * bonuses come in Milestone 8.
+   */
+  aggression: number;
+  tradeWillingness: number;
   cityNames: string[];
 }
 
 export const CIVS: CivDef[] = [
   {
-    id: 'babylon', name: 'Babylon', adjective: 'Babylonian', leader: 'Hammurabi', color: '#3f7fe0',
+    id: 'babylon', name: 'Babylon', adjective: 'Babylonian', leader: 'Hammurabi', color: '#3f7fe0', aggression: 2, tradeWillingness: 4,
     cityNames: ['Babylon', 'Ur', 'Uruk', 'Nippur', 'Lagash', 'Eridu', 'Kish', 'Sippar', 'Larsa', 'Borsippa'],
   },
   {
-    id: 'maurya', name: 'Maurya', adjective: 'Mauryan', leader: 'Ashoka', color: '#e0a030',
+    id: 'maurya', name: 'Maurya', adjective: 'Mauryan', leader: 'Ashoka', color: '#e0a030', aggression: 1, tradeWillingness: 4,
     cityNames: ['Pataliputra', 'Taxila', 'Ujjain', 'Tosali', 'Suvarnagiri', 'Vidisha', 'Mathura', 'Varanasi', 'Kaushambi', 'Sanchi'],
   },
   {
-    id: 'mali', name: 'Mali', adjective: 'Malian', leader: 'Mansa Musa', color: '#d04a4a',
+    id: 'mali', name: 'Mali', adjective: 'Malian', leader: 'Mansa Musa', color: '#d04a4a', aggression: 2, tradeWillingness: 5,
     cityNames: ['Niani', 'Timbuktu', 'Djenné', 'Gao', 'Walata', 'Kangaba', 'Koumbi Saleh', 'Tadmekka', 'Kaba', 'Mema'],
   },
   {
-    id: 'inca', name: 'Inca', adjective: 'Incan', leader: 'Pachacuti', color: '#40b070',
+    id: 'inca', name: 'Inca', adjective: 'Incan', leader: 'Pachacuti', color: '#40b070', aggression: 4, tradeWillingness: 2,
     cityNames: ['Cusco', 'Machu Picchu', 'Quito', 'Ollantaytambo', 'Vilcabamba', 'Tumebamba', 'Cajamarca', 'Huánuco Pampa', 'Pisac', 'Tambo Colorado'],
   },
   {
-    id: 'franks', name: 'Franks', adjective: 'Frankish', leader: 'Charlemagne', color: '#a060d0',
+    id: 'franks', name: 'Franks', adjective: 'Frankish', leader: 'Charlemagne', color: '#a060d0', aggression: 5, tradeWillingness: 2,
     cityNames: ['Aachen', 'Paris', 'Reims', 'Tours', 'Orléans', 'Metz', 'Soissons', 'Lyon', 'Rouen', 'Worms'],
   },
 ];

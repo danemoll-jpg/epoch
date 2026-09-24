@@ -4,7 +4,9 @@
 
 import { BUILDINGS } from '../data/buildings';
 import type { TechId } from '../data/techs';
+import { RULES } from '../data/rules';
 import { UNITS } from '../data/units';
+import { newDiplomacy } from './diplomacy';
 import { STATE_VERSION, type GameState } from './types';
 
 /** Bump together with STATE_VERSION whenever the state shape changes. */
@@ -73,12 +75,42 @@ const MIGRATIONS: Record<number, (s: Raw) => void> = {
     }
     for (const [owner, c] of first) c.capitalOf = owner;
   },
+  // Milestone 4 → 5: diplomacy. Relations carry over as they are (at war stays at war), so
+  // the game doesn't suddenly change. Pairs who can see each other's units or cities right
+  // now count as met; the rest meet as usual. No treaties, opinions, or offers yet.
+  4: (s) => {
+    const players = s.players as Raw[];
+    const n = players.length;
+    const d = newDiplomacy(n);
+    const w = s.map.width as number;
+    const radius = (u: Raw) => (u.type ? (UNITS[u.type as keyof typeof UNITS]?.sight ?? 1) : RULES.citySight);
+    const seen: Set<number>[] = players.map(() => new Set<number>());
+    const things: Raw[] = [...(s.units as Raw[]), ...(s.cities as Raw[]).map((c) => ({ ...c, type: undefined }))];
+    for (const t of things) {
+      const r = radius(t);
+      for (let y = t.y - r; y <= t.y + r; y++) {
+        for (let x = t.x - r; x <= t.x + r; x++) {
+          if (x >= 0 && y >= 0 && x < w && y < s.map.height) seen[t.owner]?.add(y * w + x);
+        }
+      }
+    }
+    for (const t of things) {
+      for (let a = 0; a < n; a++) {
+        if (a === t.owner || !seen[a]!.has(t.y * w + t.x)) continue;
+        d.met[a]![t.owner] = true;
+        d.met[t.owner]![a] = true;
+      }
+    }
+    s.diplomacy = d;
+    s.aiPlans = players.map(() => null);
+  },
 };
 
 /** What each migration brought, for the "your game was updated" notice. Keyed like MIGRATIONS. */
 export const MIGRATION_NOTES: Record<number, string> = {
   2: 'the tech tree',
   3: 'combat and armies',
+  4: 'diplomacy',
 };
 
 /** "the tech tree and combat and armies" for a save upgraded from version `from`. */
@@ -102,6 +134,11 @@ function shapeError(s: Record<string, unknown>): string | undefined {
   if (typeof s.currentPlayer !== 'number' || !s.players[s.currentPlayer]) return 'bad current player';
   if (!s.players.every((p) => isObject(p) && Array.isArray(p.techs))) return 'missing techs';
   if (!Array.isArray(s.atWar) || s.atWar.length !== s.players.length) return 'missing war table';
+  const d = s.diplomacy;
+  if (!isObject(d) || !Array.isArray(d.met) || d.met.length !== s.players.length || !Array.isArray(d.offers)) {
+    return 'missing diplomacy';
+  }
+  if (!Array.isArray(s.aiPlans) || s.aiPlans.length !== s.players.length) return 'missing AI plans';
   return undefined;
 }
 

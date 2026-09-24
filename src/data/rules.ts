@@ -13,8 +13,8 @@ export const RULES = {
   mapHeight: 24,
   /** Civs per full game (1 human + 4 AI). */
   maxPlayers: 5,
-  /** Default players when the URL doesn't say (human + 1 AI) until Milestone 5. */
-  milestone1Players: 2,
+  /** Players in a new game when the URL doesn't say (the human + 4 AI rivals). */
+  defaultPlayers: 5,
   startingUnits: ['settler', 'warrior'] as UnitTypeId[],
   /** No city may be founded within this many tiles (Chebyshev) of another city. */
   minCityDistance: 3,
@@ -78,6 +78,119 @@ export const RULES = {
     veteranChancePct: 50,
     /** The AI attacks only when its win chance is at least this (percent). */
     aiAttackMinChancePct: 60,
+  },
+
+  // ---- diplomacy (Milestone 5) ----
+  // Opinion is how one civ feels about another, from −10 to +10. Events move it (below) and
+  // it drifts back toward 0. Attitude: friendly at friendlyAt or more, hostile at hostileAt
+  // or less (and always hostile while at war), neutral in between.
+  diplomacy: {
+    /** After a peace treaty, neither side may declare war for this many turns. */
+    minPeaceTurns: 15,
+    /** The AI won't declare war on the human, or make demands, before this turn. */
+    aiGraceTurns: 20,
+    opinionMin: -10,
+    opinionMax: 10,
+    friendlyAt: 3,
+    hostileAt: -3,
+    /** Each turn at war, each side's opinion of the other changes by this. */
+    warOpinionPerTurn: -0.5,
+    /** Otherwise, opinion moves this much toward 0 per turn. */
+    opinionDecayPerTurn: 0.25,
+    /** The victim's opinion of a civ that declares war on it. */
+    declaredOnOpinion: -6,
+    /** Both sides, when a peace treaty is signed. */
+    peaceOpinion: 2,
+    /** Both sides, per completed tech trade. */
+    tradeOpinion: 1,
+    /** A gift of gold: +1 opinion per this much gold, up to giftOpinionMax per gift. */
+    goldPerOpinion: 25,
+    giftOpinionMax: 4,
+    /** The demanding AI's opinion of you when you pay, or refuse, its demand. */
+    demandPaidOpinion: 1,
+    demandRefusedOpinion: -4,
+    /** An AI's opinion of you when you turn down its peace offer. */
+    peaceRefusedOpinion: -1,
+
+    // AI war decisions: an AI considers war only on a met civ it's at peace with, at least
+    // warMinStrengthRatio times as strong (military strength), with a city within
+    // warMaxDistance tiles of one of its own, and only one war at a time. Score =
+    // (ratio − warMinStrengthRatio) × warStrengthWeight + (aggression − 3) × warAggressionWeight
+    // − opinion × warOpinionWeight; each turn it declares with chance score × warChancePctPerPoint
+    // percent, capped at warMaxChancePct.
+    warMinStrengthRatio: 1.3,
+    warMaxDistance: 12,
+    warStrengthWeight: 2,
+    warAggressionWeight: 1,
+    warOpinionWeight: 0.4,
+    warChancePctPerPoint: 4,
+    warMaxChancePct: 25,
+    /** ...and only if its best attack (as an army) would beat their best fortified city defender this often. */
+    warMinAttackChance: 0.55,
+
+    // AI peace decisions: see peaceDesire in diplomacy.ts for the formula. Positive = wants
+    // peace. Being weaker, losing more than it has taken, war weariness, and a good opinion
+    // push toward peace; aggression pushes away.
+    peaceStrengthWeight: 2,
+    /** Being stronger never counts for more than this against peace. */
+    peaceStrengthMax: 3,
+    peaceScoreWeight: 0.5,
+    peaceAggressionWeight: 1,
+    /** Per turn of war (up to warWearinessMaxTurns): war weariness pushes toward peace. */
+    warWearinessPerTurn: 0.15,
+    warWearinessMaxTurns: 40,
+    peaceOpinionWeight: 0.2,
+    peaceBias: 1,
+    /** An AI won't agree to peace in the first turns of a war unless it's clearly losing. */
+    minWarTurnsBeforePeace: 5,
+    /** How much an AI must want peace before it offers it to you itself. */
+    peaceOfferMinDesire: 1,
+    peaceOfferCooldownTurns: 10,
+    /** A city lost counts this many units in "how the war is going". */
+    cityLossWeight: 4,
+
+    // AI demands of the human: rare and capped.
+    demandCooldownTurns: 25,
+    demandChancePct: 12,
+    demandMinStrengthRatio: 1.5,
+    /** Only civs this aggressive demand (or any civ that's hostile to you). */
+    demandMinAggression: 3,
+    demandGoldPct: 50,
+    demandGoldMin: 20,
+    demandGoldMax: 150,
+
+    // Tech trading. A tech's value is what it would cost the receiver to research.
+    /** An AI's asking price in gold is value × techGoldPerScience × its markup. */
+    techGoldPerScience: 2,
+    /** Markup by trade willingness 1–5 (index 0 = willingness 1). */
+    techMarkup: [1.6, 1.4, 1.25, 1.1, 1.0],
+    /** For a swap, the AI wants the tech it gets to be worth at least this share of what it gives. */
+    swapMinValueRatio: [1.3, 1.15, 1.0, 0.85, 0.75],
+    /** Each AI turn, the chance (percent, × willingness / 5) that an AI trades techs with another AI. */
+    aiTradeChancePct: 15,
+  },
+
+  // ---- AI (Milestone 5) ----
+  ai: {
+    /** City target = land tiles ÷ living civs ÷ this, clamped to the range below. */
+    landTilesPerCity: 10,
+    minTargetCities: 3,
+    maxTargetCities: 10,
+    /** Settlers in the field or in production at once: with one city, and with more. */
+    settlersAtOnceFirst: 1,
+    settlersAtOnce: 2,
+    /** Defenders kept home per city; one more in a city near an enemy while at war. */
+    defendersPerCity: 2,
+    borderDefendersAtWar: 3,
+    /** "Near an enemy": an enemy city within this many tiles. */
+    borderDistance: 6,
+    /** Offensive units kept per city in peacetime, and at war (on top of defenders). */
+    offensePerCityPeace: 0.5,
+    offensePerCityWar: 1.5,
+    /** Units (an army counts as 3) gathered at the staging city before marching. */
+    minAttackForce: 3,
+    /** Gold the AI keeps before rush-buying settlers and buildings. */
+    goldReserve: 40,
   },
 };
 

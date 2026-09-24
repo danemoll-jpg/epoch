@@ -99,8 +99,9 @@ export interface City {
  * Bumped whenever the state shape changes. Older saves are migrated forward when there's a
  * migration for them in save.ts; otherwise they aren't loaded.
  * 3 = Milestone 3 (techs, research). 4 = Milestone 4 (combat: war, fortify, armies, capitals).
+ * 5 = Milestone 5 (diplomacy: contact, peace treaties, opinions, offers, AI war plans).
  */
-export const STATE_VERSION = 4;
+export const STATE_VERSION = 5;
 
 export interface GameState {
   version: number;
@@ -115,13 +116,62 @@ export interface GameState {
   units: Unit[];
   cities: City[];
   nextId: number;
-  /**
-   * atWar[a][b]: are players a and b at war? Symmetric. Everyone is at war with everyone
-   * until diplomacy arrives (Milestone 5).
-   */
+  /** atWar[a][b]: are players a and b at war? Symmetric. Civs start at peace (Milestone 5). */
   atWar: boolean[][];
+  /** Contact, treaties, opinions, and offers between civs (Milestone 5). */
+  diplomacy: Diplomacy;
+  /** Each AI's current war plan (indexed by player id), or null. Always null for humans. */
+  aiPlans: (AiPlan | null)[];
   /** Short human-readable event log (newest last); the UI shows recent entries. */
   log: LogEntry[];
+}
+
+/**
+ * Tables are indexed [a][b] by player id. Symmetric ones say so; the others are one civ's
+ * view of another.
+ */
+export interface Diplomacy {
+  /** Have a and b met? Symmetric. Set the first time either sees the other's unit or city. */
+  met: boolean[][];
+  /** The turn a and b's current peace treaty was signed, or null. Symmetric. */
+  peaceTurn: (number | null)[][];
+  /** The turn a and b's current war began, or null (null while at war = before Milestone 5). */
+  warStart: (number | null)[][];
+  /** How a feels about b, RULES.diplomacy.opinionMin..opinionMax. Drifts back toward 0. */
+  opinion: number[][];
+  /** What a has lost to b in their current war: units (an army counts 3) and cities. */
+  warLosses: number[][];
+  /** The turn a last demanded tribute from b, or null. */
+  lastDemand: (number | null)[][];
+  /** The turn a last offered peace to b, or null. */
+  lastPeaceOffer: (number | null)[][];
+  /** Offers from AIs waiting for the human's answer (a demand or a peace offer). */
+  offers: Offer[];
+}
+
+export type OfferKind = 'demand' | 'peace';
+
+export interface Offer {
+  id: number;
+  from: number;
+  to: number;
+  kind: OfferKind;
+  /** A demand asks for gold or for a tech. */
+  gold?: number;
+  tech?: TechId;
+  turn: number;
+}
+
+/**
+ * An AI's war plan: take `cityId` from `target`. Units gather at `stagingCityId` (one of its
+ * own cities) until the force is big enough, then march.
+ */
+export interface AiPlan {
+  target: number;
+  cityId: number;
+  stagingCityId: number | null;
+  phase: 'gather' | 'march';
+  since: number;
 }
 
 export interface LogEntry {
@@ -129,7 +179,18 @@ export interface LogEntry {
   player: number;
   /** Another player involved (e.g. the defender in a fight): they always see the entry too. */
   other?: number;
+  /** The text for `player` (and for everyone, unless the fields below say otherwise). */
   text: string;
+  /** The text for `other`, when it should read differently (e.g. "... declared war on you!"). */
+  otherText?: string;
+  /**
+   * Civ-level news (an era, a war, a treaty): shown to everyone who has met `player` or
+   * `other`, with this text, wherever it happened. Entries without it are map-level news and
+   * need the tile to be visible.
+   */
+  publicText?: string;
+  /** What kind of event, so the UI can give some of them their own panel. */
+  kind?: 'contact' | 'war' | 'peace' | 'trade' | 'demand' | 'gift' | 'era';
   /** Where it happened, so the UI can hide rival events the viewer can't see. */
   x?: number;
   y?: number;
@@ -138,6 +199,8 @@ export interface LogEntry {
 export interface ActionResult {
   ok: boolean;
   reason?: string;
+  /** A diplomatic proposal's answer: accepted or not, and why, in one line. */
+  answer?: { accepted: boolean; reason: string };
   /** Set by an attack: what happened, for the UI's result message. */
   combat?: CombatReport;
 }
@@ -157,4 +220,6 @@ export interface CombatReport {
   y: number;
   /** The winner became a veteran from this fight. */
   promoted: boolean;
+  /** The attack killed a city's last defender, so the attacker moved in and took this city. */
+  capturedCityId?: number;
 }

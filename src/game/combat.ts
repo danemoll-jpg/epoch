@@ -3,9 +3,10 @@
 // A fight has one result: the attacker wins with probability A / (A + D), where A is the
 // attacker's attack and D the defender's defense, each after its bonuses (see winChance,
 // the one place the formula lives). The loser is destroyed; there are no hit points. The
-// winner may become a veteran. Attacking uses up the attacker's turn, and it stays where it
-// is (capturing a city is a separate move into it). When a tile holds several units, the
-// one with the best defense fights; if it loses, only it dies.
+// winner may become a veteran. Attacking uses up the attacker's turn. An open-field winner
+// stays where it is; but when the attack kills the last defender of an enemy city, the
+// winner advances into the city and captures it at once (round 5, decided by Dan). When a
+// tile holds several units, the one with the best defense fights; if it loses, only it dies.
 //
 // Bonuses are percentages that add up: terrain (hills, forest), fortified, veteran (either
 // side), in a city, and Walls (in a city, against land attacks). They're listed in the
@@ -15,10 +16,12 @@ import { BUILDINGS } from '../data/buildings';
 import { RULES } from '../data/rules';
 import { TERRAIN } from '../data/terrain';
 import { UNITS } from '../data/units';
-import { checkEliminations, civAdjective, civName } from './conquest';
+import { captureCity, checkEliminations, civAdjective, civName } from './conquest';
+import { recordLoss } from './diplomacy';
 import { distance, tileAt } from './grid';
 import { addLog } from './log';
 import { findUnit } from './movement';
+import { updateExplored } from './fog';
 import { nextFloat } from './rng';
 import { atWar } from './war';
 import type { ActionResult, Coord, GameState, Unit } from './types';
@@ -107,7 +110,7 @@ export function attackError(state: GameState, unit: Unit, at: Coord): string | u
   if (distance(unit, at) !== 1) return 'Move next to it first to attack';
   const defender = pickDefender(state, at, unit.owner);
   if (!defender) return 'Nothing to attack there';
-  if (!atWar(state, unit.owner, defender.owner)) return 'You are at peace with them';
+  if (!atWar(state, unit.owner, defender.owner)) return `You are at peace with ${civName(state, defender.owner)}. Declare war in Diplomacy first`;
   return undefined;
 }
 
@@ -146,7 +149,20 @@ export function attack(state: GameState, unitId: number, at: Coord): ActionResul
     ? `${name(unit)} defeated ${name(defender)} (${pct}% odds)`
     : `${name(unit)} was destroyed attacking ${name(defender)} (${pct}% odds)`;
   addLog(state, unit.owner, text, at, defender.owner);
-  checkEliminations(state, winner.owner, at);
+  recordLoss(state, loser.owner, winner.owner, loser.army ? RULES.combat.armySize : 1);
+
+  // The last defender of an enemy city fell: the winner moves in and takes the city.
+  let captured: number | undefined;
+  const city = state.cities.find((c) => c.x === at.x && c.y === at.y && c.owner === defender.owner);
+  if (attackerWon && city && !state.units.some((u) => u.x === at.x && u.y === at.y)) {
+    unit.x = at.x;
+    unit.y = at.y;
+    updateExplored(state, unit.owner);
+    captureCity(state, city, unit.owner);
+    captured = city.id;
+  } else {
+    checkEliminations(state, winner.owner, at);
+  }
   return {
     ok: true,
     combat: {
@@ -161,6 +177,7 @@ export function attack(state: GameState, unitId: number, at: Coord): ActionResul
       x: at.x,
       y: at.y,
       promoted,
+      capturedCityId: captured,
     },
   };
 }

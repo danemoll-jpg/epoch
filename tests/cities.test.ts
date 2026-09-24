@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { RULES, growthThreshold, rushBuyCost } from '../src/data/rules';
 import { UNITS } from '../src/data/units';
 import { applyAction } from '../src/game/actions';
-import { chooseBuild, runAiTurn } from '../src/game/ai';
+import { aiCityTarget, chooseBuild, runAiTurn } from '../src/game/ai';
 import { foundCity } from '../src/game/city';
 import { tileIndex } from '../src/game/grid';
 import { eventsVisibleTo } from '../src/game/log';
@@ -324,30 +324,35 @@ describe('autosave', () => {
 });
 
 describe('AI cities', () => {
-  it('builds a defender first, then settlers, then buildings', () => {
-    const s = makeState(['ggggggggg', 'ggggggggg', 'ggggggggg']);
+  it('builds a defender first, then settlers, then a second defender, then buildings', () => {
+    const s = makeState(['ggggggggggg', 'ggggggggggg', 'ggggggggggg'], { peace: true });
     const c = addCity(s, 1, 1, 1, { size: 2 });
     expect(chooseBuild(s, c)).toEqual({ kind: 'unit', id: 'warrior' });
     addUnit(s, 'warrior', 1, 1, 1);
+    // One defender is enough while expanding.
     expect(chooseBuild(s, c)).toEqual({ kind: 'unit', id: 'settler' });
-    // Three cities plus a settler in the field reaches the target of 4: buildings, in data order.
+    // Two cities plus a settler in the field reaches this small map's target of 3.
     addCity(s, 1, 4, 1);
-    addCity(s, 1, 7, 1);
     addUnit(s, 'settler', 1, 8, 2);
-    // No techs yet: no buildings are unlocked, so it keeps adding defenders.
+    expect(aiCityTarget(s)).toBe(3);
+    // Done expanding: a second defender, then buildings (none unlocked yet), then a few attackers.
     expect(chooseBuild(s, c)).toEqual({ kind: 'unit', id: 'warrior' });
+    addUnit(s, 'warrior', 1, 1, 1);
     s.players[1]!.techs.push('pottery', 'alphabet', 'writing');
     expect(chooseBuild(s, c)).toEqual({ kind: 'building', id: 'granary' });
     c.buildings.push('granary');
     expect(chooseBuild(s, c)).toEqual({ kind: 'building', id: 'library' });
   });
 
-  it('only one city at a time builds a settler', () => {
-    const s = makeState(['ggggggggg', 'ggggggggg', 'ggggggggg']);
+  it(`only ${RULES.ai.settlersAtOnce} settlers are under way at once`, () => {
+    const s = makeState(Array.from({ length: 6 }, () => 'g'.repeat(25)), { peace: true });
     const a = addCity(s, 1, 1, 1, { build: { kind: 'unit', id: 'settler' } });
     const b = addCity(s, 1, 5, 1);
     addUnit(s, 'warrior', 1, a.x, a.y);
     addUnit(s, 'warrior', 1, b.x, b.y);
+    expect(RULES.ai.settlersAtOnce).toBe(2);
+    expect(chooseBuild(s, b)).toEqual({ kind: 'unit', id: 'settler' });
+    addUnit(s, 'settler', 1, 9, 1);
     expect(chooseBuild(s, b)).not.toEqual({ kind: 'unit', id: 'settler' });
   });
 
@@ -366,11 +371,12 @@ describe('AI cities', () => {
     // They moved on to buildings too.
     expect(a.cities.some((c) => c.owner !== 0 && c.buildings.length > 0)).toBe(true);
     // A city that just finished a building shows build: null until its owner's next turn;
-    // after the AI's own turn, every one of its cities has something chosen.
+    // after the AI's own turn, every one of its cities has something chosen, unless there's
+    // nothing it wants (then production is stored).
     for (const p of a.players.filter((p) => p.kind === 'ai')) {
       a.currentPlayer = p.id;
       runAiTurn(a, p.id);
-      expect(a.cities.filter((c) => c.owner === p.id).every((c) => c.build !== null)).toBe(true);
+      expect(a.cities.filter((c) => c.owner === p.id).every((c) => c.build !== null || chooseBuild(a, c) === null)).toBe(true);
     }
     // Every AI city ended up defended or is building its defender.
     for (const c of a.cities.filter((c) => c.owner !== 0)) {

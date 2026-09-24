@@ -26,19 +26,19 @@ import { addCity, addUnit, makeState } from './helpers';
 const attack = (s: GameState, unitId: number, x: number, y: number) => applyAction(s, { type: 'attack', unitId, at: { x, y } });
 
 describe('war', () => {
-  it('every civ starts at war with every other civ, never with itself', () => {
+  it('a new game starts with nobody at war (Milestone 5: civs meet at peace)', () => {
     const s = createGame({ seed: 3, playerCount: 5 });
     for (let a = 0; a < 5; a++) {
-      for (let b = 0; b < 5; b++) expect(atWar(s, a, b)).toBe(a !== b);
+      for (let b = 0; b < 5; b++) expect(atWar(s, a, b)).toBe(false);
     }
   });
 
-  it('peace (set in state, for Milestone 5) blocks attacks', () => {
+  it('peace blocks attacks', () => {
     const s = makeState(['ggg']);
     const w = addUnit(s, 'warrior', 0, 0, 0);
     addUnit(s, 'warrior', 1, 1, 0);
     s.atWar[0]![1] = s.atWar[1]![0] = false;
-    expect(attackError(s, w, { x: 1, y: 0 })).toBe('You are at peace with them');
+    expect(attackError(s, w, { x: 1, y: 0 })).toBe('You are at peace with Maurya. Declare war in Diplomacy first');
   });
 });
 

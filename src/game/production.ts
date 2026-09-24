@@ -83,6 +83,14 @@ export function setBuild(state: GameState, cityId: number, item: BuildItem): Act
   return { ok: true };
 }
 
+/** Builds nothing for now; production is stored until something is chosen. */
+export function clearBuild(state: GameState, cityId: number): ActionResult {
+  const city = ownedCity(state, cityId);
+  if (typeof city === 'string') return { ok: false, reason: city };
+  city.build = null;
+  return { ok: true };
+}
+
 export function setFocus(state: GameState, cityId: number, focus: CityFocus): ActionResult {
   const city = ownedCity(state, cityId);
   if (typeof city === 'string') return { ok: false, reason: city };

@@ -10,10 +10,23 @@ import { UNITS } from '../data/units';
 import { applyAction, type Action } from '../game/actions';
 import { foundCityError } from '../game/city';
 import { attackError, combatOdds, formArmyError, fortifyError, type Strength } from '../game/combat';
-import { civAdjective } from '../game/conquest';
+import { civAdjective, civName } from '../game/conquest';
+import {
+  attitude,
+  civDef,
+  declareWarError,
+  metCivs,
+  offerAcceptError,
+  offerText,
+  strengthRatio,
+  techPrice,
+  techValue,
+  tradeableTechs,
+  treatyLockedUntil,
+} from '../game/diplomacy';
 import { neighbors, tileAt } from '../game/grid';
 import { visibleTiles } from '../game/fog';
-import { eventsVisibleTo } from '../game/log';
+import { entryText, eventsVisibleTo } from '../game/log';
 import { findUnit, reachableThisTurn } from '../game/movement';
 import { migrationSummary } from '../game/save';
 import {
@@ -39,7 +52,19 @@ import {
   techUnlocks,
   turnsToLearn,
 } from '../game/tech';
-import { STATE_VERSION, type ActionResult, type BuildItem, type City, type CombatReport, type Coord, type GameState, type Unit } from '../game/types';
+import {
+  STATE_VERSION,
+  type ActionResult,
+  type BuildItem,
+  type City,
+  type CombatReport,
+  type Coord,
+  type GameState,
+  type LogEntry,
+  type Offer,
+  type Unit,
+} from '../game/types';
+import { atWar } from '../game/war';
 import { cityScienceGold, cityYields, empireIncome, foodSurplus } from '../game/yields';
 import { clampCamera, panBy, screenToWorld, zoomAt, type Camera } from '../render/camera';
 import { playerColor, render, type ViewState } from '../render/renderer';
@@ -86,6 +111,13 @@ export class App {
   private flashTimer: number | undefined;
   /** The end-of-game panel was dismissed to look at the map ("Look at the map"). */
   private endDismissed = false;
+  /** Diplomacy screen view state: the civ picked, which page, the tech asked for, the last answer. */
+  private diploCiv: number | undefined;
+  private diploPage: 'main' | 'trade' | 'confirmWar' = 'main';
+  private tradeGet: TechId | undefined;
+  private diploAnswer: { civ: number; accepted: boolean; reason: string } | undefined;
+  /** Panels waiting to be shown one at a time (first contact, war declared on you, AI offers). */
+  private notices: Notice[] = [];
   private cssW = 0;
   private cssH = 0;
   private frameQueued = false;
@@ -136,6 +168,9 @@ export class App {
     $('rateUp').addEventListener('click', () => this.changeRate(RULES.scienceRateStep));
     $('cityPanel').addEventListener('click', (e) => this.handleCityPanelClick(e));
     $('researchBtn').addEventListener('click', () => this.openTech());
+    $('diploBtn').addEventListener('click', () => this.openDiplo());
+    $('diploOverlay').addEventListener('click', (e) => this.handleDiploClick(e));
+    $('noticeButtons').addEventListener('click', (e) => this.handleNoticeClick(e));
     $('techOverlay').addEventListener('click', (e) => this.handleTechClick(e));
     this.setupMenu();
     this.setupDev();
@@ -167,8 +202,11 @@ export class App {
   }
 
   private dispatchResult(action: Action): ActionResult {
+    const metBefore = new Set(metCivs(this.state, this.human));
     const res = applyAction(this.state, action);
     if (!res.ok && res.reason) this.toast(res.reason, true);
+    // First contact (on our move, or on theirs during End Turn) gets its own panel.
+    for (const civ of metCivs(this.state, this.human)) if (!metBefore.has(civ)) this.queueContact(civ);
     // Cheap (a few tens of KB), and means a reload never loses more than one tap.
     if (res.ok) this.save();
     this.refresh();
@@ -180,15 +218,36 @@ export class App {
     saveToStorage(this.state);
   }
 
+  /** Toasts the entries the player should hear about (first contact has its own panel). */
+  private announce(entries: LogEntry[]): void {
+    for (const e of eventsVisibleTo(this.state, this.human, entries)) {
+      // These have their own panels.
+      const aimedAtMe = e.other === this.human && e.player !== this.human;
+      if (e.kind === 'contact' || (aimedAtMe && (e.kind === 'war' || e.kind === 'demand'))) continue;
+      this.toast(entryText(e, this.human));
+    }
+  }
+
   private endTurn(): void {
     const logStart = this.state.log.length;
     const me = this.state.players[this.human]!;
     const techsBefore = me.techs.length;
     if (!this.dispatch({ type: 'endTurn' })) return;
-    // Report what happened this round: our own events, and rival events we could see.
-    for (const entry of eventsVisibleTo(this.state, this.human, this.state.log.slice(logStart))) {
-      this.toast(entry.text);
+    // Report what happened this round: our own events, and rival events we could see or civ
+    // news from civs we've met. A declaration of war on us gets a panel.
+    for (const entry of this.state.log.slice(logStart)) {
+      if (entry.kind === 'war' && entry.other === this.human && entry.player !== this.human) {
+        this.queueNotice({
+          title: 'War!',
+          text: entryText(entry, this.human),
+          buttons: [
+            { label: 'Diplomacy', run: () => this.openDiplo(entry.player) },
+            { label: 'OK', cls: 'bigBtn' },
+          ],
+        });
+      }
     }
+    this.announce(this.state.log.slice(logStart));
     this.startHumanTurn();
     // Just learned a tech: ask what to research next (on top of any city that needs a build).
     if (me.techs.length > techsBefore && !me.researching && availableTechs(me).length > 0) {
@@ -203,7 +262,7 @@ export class App {
     const logStart = this.state.log.length;
     const cityCountBefore = this.state.cities.length;
     if (this.dispatch({ type: 'foundCity', unitId: id })) {
-      for (const entry of this.state.log.slice(logStart)) this.toast(entry.text);
+      this.announce(this.state.log.slice(logStart));
       this.selectNext(false);
       // A new city needs its first build choice.
       const city = this.state.cities[cityCountBefore];
@@ -247,6 +306,8 @@ export class App {
       this.openCity(idle[0]!.id);
       if (idle.length > 1) this.toast(`${idle.length} cities need something to build`);
     }
+    // Offers from AIs (demands, peace) wait for an answer.
+    for (const o of this.state.diplomacy.offers) if (o.to === this.human) this.queueOffer(o);
     this.refresh();
   }
 
@@ -269,7 +330,12 @@ export class App {
     this.selectedUnitId = undefined;
     this.pendingAttack = undefined;
     this.endDismissed = false;
+    this.notices = [];
+    this.diploCiv = undefined;
+    this.diploAnswer = undefined;
     $('attackOverlay').hidden = true;
+    $('noticeOverlay').hidden = true;
+    $('diploOverlay').hidden = true;
     this.save();
     this.startHumanTurn();
     this.toast(message);
@@ -327,7 +393,7 @@ export class App {
         const enemyCity = this.state.cities.find((c) => c.x === tx && c.y === ty && c.owner !== this.human);
         if (this.dispatch({ type: 'move', unitId: result.unitId, to: { x: tx, y: ty } })) {
           // Captures and eliminations are worth announcing.
-          for (const entry of this.state.log.slice(logStart)) this.toast(entry.text);
+          this.announce(this.state.log.slice(logStart));
           const after = this.selected();
           if (after && after.movesLeft <= 0) this.selectNext(false);
           if (enemyCity && enemyCity.owner === this.human) {
@@ -375,6 +441,14 @@ export class App {
     if (e.target instanceof HTMLButtonElement && (e.key === 'Enter' || e.key === ' ')) return;
     if (!$('menuOverlay').hidden) {
       if (e.key === 'Escape') this.closeMenu();
+      return;
+    }
+    if (!$('noticeOverlay').hidden) {
+      if (e.key === 'Escape' && this.notices[0]?.dismissible !== false) this.closeNotice();
+      return;
+    }
+    if (!$('diploOverlay').hidden) {
+      if (e.key === 'Escape') this.closeDiplo();
       return;
     }
     if (!$('attackOverlay').hidden) {
@@ -442,8 +516,14 @@ export class App {
       const name = city.build ? itemName(city.build) : '';
       if (this.dispatch({ type: 'rushBuy', cityId: city.id })) this.toast(`Bought ${name}; it's ready next turn`);
     } else if (act === 'unit') {
+      // Selecting a unit closes the city so the unit's own buttons (Fortify, Form Army) show.
       this.closeCity();
       this.select(Number(btn.dataset.unit));
+    } else if (act === 'army') {
+      const u = findUnit(this.state, Number(btn.dataset.unit));
+      if (u && this.dispatch({ type: 'formArmy', unitId: u.id })) {
+        this.toast(`${UNITS[u.type].name} army formed: ×${RULES.combat.armyMultiplier} attack and defense`);
+      }
     }
   }
 
@@ -506,14 +586,23 @@ export class App {
       .join('');
 
     const units = this.state.units.filter((u) => u.owner === this.human && u.x === city.x && u.y === city.y);
+    // Three of a kind here: offer Form Army right in the list (round 5: it was hard to find).
+    const armyTypes = new Set<string>();
+    const armyBtns = units
+      .filter((u) => !armyTypes.has(u.type) && !formArmyError(this.state, u) && armyTypes.add(u.type))
+      .map(
+        (u) => `<button type="button" data-act="army" data-unit="${u.id}" class="armyBtn">Form ${UNITS[u.type].name} army
+          <span class="sub">(${RULES.combat.armySize} → 1, ×${RULES.combat.armyMultiplier})</span></button>`,
+      )
+      .join('');
     const unitBtns = units.length
       ? units
           .map(
             (u) => `<button type="button" data-act="unit" data-unit="${u.id}" class="unitItem">
             ${UNITS[u.type].name}${u.army ? ` army ×${RULES.combat.armyMultiplier}` : ''}${u.veteran ? ' ★' : ''}${u.fortified ? ' 🛡' : ''}
-            <span class="sub">moves ${u.movesLeft}/${UNITS[u.type].moves}</span></button>`,
+            <span class="sub">moves ${u.movesLeft}/${UNITS[u.type].moves} · tap to select</span></button>`,
           )
-          .join('')
+          .join('') + armyBtns
       : '<span class="sub">None</span>';
 
     const builtList = city.buildings.length
@@ -525,6 +614,7 @@ export class App {
         <div><h2>${city.name}</h2><div class="sub">Size ${city.size}</div></div>
         <button type="button" data-act="close" class="closeBtn" aria-label="Close city">✕</button>
       </div>
+      ${units.length ? `<div class="section"><div class="label">Units here</div><div class="unitList">${unitBtns}</div></div>` : ''}
       <div class="section">
         <div class="stat">Food ${Math.max(0, city.food)}/${threshold}
           <span class="sub">(${surplus >= 0 ? '+' : ''}${surplus}) · ${growText}</span></div>
@@ -542,7 +632,6 @@ export class App {
       <div class="section"><div class="label">Focus</div><div class="seg">${focusBtns}</div></div>
       <div class="section"><div class="label">Build</div><div class="buildList">${buildBtns}</div></div>
       <div class="section"><div class="label">Buildings</div><div>${builtList}</div></div>
-      <div class="section"><div class="label">Units here</div><div class="unitList">${unitBtns}</div></div>
     `;
     panel.hidden = false;
     panel.scrollTop = scrollTop;
@@ -659,6 +748,8 @@ export class App {
     const pct = Math.round(odds.chance * 100);
     const others = this.state.units.filter((u) => u.x === at.x && u.y === at.y && u.id !== odds.defender.id).length;
     const stackNote = others > 0 ? `<p class="sub">Their best defender fights. If it loses, the other ${plural(others, 'unit')} on that tile stay.</p>` : '';
+    const city = this.state.cities.find((c) => c.x === at.x && c.y === at.y);
+    const takeNote = city && others === 0 ? `<p class="sub">It’s ${esc(city.name)}’s last defender: if you win, your ${esc(UNITS[unit.type].name)} moves in and takes the city.</p>` : '';
     $('attackBody').innerHTML = `
       <h2>Attack?</h2>
       <div class="odds ${pct >= 60 ? 'good' : pct >= 40 ? 'even' : 'bad'}"><b>${pct}%</b><span>chance to win</span></div>
@@ -666,7 +757,7 @@ export class App {
         ${sideHtml(`Your ${this.unitName(odds.attacker)}`, 'Attack', odds.attack)}
         ${sideHtml(this.unitLabel(odds.defender), 'Defense', odds.defense)}
       </div>
-      ${stackNote}
+      ${stackNote}${takeNote}
       <p class="sub">The loser is destroyed. Attacking uses up your unit’s turn.</p>`;
     $('attackOverlay').hidden = false;
     $<HTMLButtonElement>('attackGoBtn').focus({ preventScroll: true });
@@ -685,9 +776,11 @@ export class App {
     const res = this.dispatchResult({ type: 'attack', unitId: p.unitId, at: p.at });
     if (!res.ok || !res.combat) return;
     this.reportCombat(res.combat);
-    // Anything after the fight itself (e.g. a civ eliminated).
-    for (const entry of this.state.log.slice(logStart + 1)) this.toast(entry.text);
+    // Anything after the fight itself (a city taken, a civ eliminated).
+    this.announce(this.state.log.slice(logStart + 1));
     this.selectNext(false);
+    // The last defender fell and the winner moved in: the city is ours, so pick its build.
+    if (res.combat.capturedCityId !== undefined) this.openCity(res.combat.capturedCityId);
   }
 
   private reportCombat(c: CombatReport): void {
@@ -881,6 +974,275 @@ export class App {
     `;
   }
 
+  // ---- notices (first contact, war declared on you, AI offers) ----------------------------
+
+  private queueNotice(n: Notice): void {
+    this.notices.push(n);
+    if (this.notices.length === 1) this.showNotice();
+  }
+
+  private queueContact(civ: number): void {
+    const def = civDef(this.state, civ);
+    this.queueNotice({
+      title: 'First contact',
+      text: `You have met ${def.name}, led by ${def.leader}.`,
+      sub: 'You are at peace. Open Diplomacy to see them, trade techs, or declare war.',
+      buttons: [
+        { label: 'Diplomacy', run: () => this.openDiplo(civ) },
+        { label: 'OK', cls: 'bigBtn' },
+      ],
+    });
+  }
+
+  private queueOffer(o: Offer): void {
+    if (this.notices.some((n) => n.offerId === o.id)) return;
+    const acceptErr = offerAcceptError(this.state, o);
+    const peace = o.kind === 'peace';
+    this.queueNotice({
+      title: peace ? 'Peace offer' : 'Tribute demanded',
+      text: offerText(this.state, o),
+      sub: peace
+        ? 'Accept to end the war now; your treaty then holds for a while.'
+        : `Give it, or refuse${acceptErr ? ` (${acceptErr})` : ''}. Refusing makes ${civDef(this.state, o.from).leader} angrier, and war more likely.`,
+      offerId: o.id,
+      dismissible: false,
+      buttons: [
+        { label: 'Refuse', cls: 'bigBtn', run: () => this.answerOffer(o.id, false) },
+        {
+          label: peace ? 'Accept peace' : 'Give',
+          cls: 'bigBtn',
+          disabled: !!acceptErr,
+          run: () => this.answerOffer(o.id, true),
+        },
+      ],
+    });
+  }
+
+  private answerOffer(offerId: number, accept: boolean): void {
+    const res = this.dispatchResult({ type: 'answerOffer', offerId, accept });
+    if (res.answer) this.toast(res.answer.reason, !res.answer.accepted);
+  }
+
+  private showNotice(): void {
+    const n = this.notices[0];
+    $('noticeOverlay').hidden = !n;
+    if (!n) return;
+    $('noticeTitle').textContent = n.title;
+    $('noticeText').innerHTML = `${esc(n.text)}${n.sub ? `<span class="sub">${esc(n.sub)}</span>` : ''}`;
+    $('noticeButtons').innerHTML = n.buttons
+      .map((b, i) => `<button type="button" data-i="${i}" class="${b.cls ?? ''}" ${b.disabled ? 'disabled' : ''}>${esc(b.label)}</button>`)
+      .join('');
+  }
+
+  private closeNotice(): void {
+    this.notices.shift();
+    this.showNotice();
+  }
+
+  private handleNoticeClick(e: MouseEvent): void {
+    const btn = (e.target as HTMLElement).closest('button');
+    const n = this.notices[0];
+    if (!btn || btn.disabled || !n) return;
+    const b = n.buttons[Number(btn.dataset.i)];
+    this.closeNotice();
+    b?.run?.();
+  }
+
+  // ---- diplomacy screen ------------------------------------------------------------------
+
+  private openDiplo(civ?: number): void {
+    const met = metCivs(this.state, this.human);
+    this.diploCiv = civ ?? (this.diploCiv !== undefined && met.includes(this.diploCiv) ? this.diploCiv : met[0]);
+    this.diploPage = 'main';
+    this.tradeGet = undefined;
+    this.diploAnswer = undefined;
+    $('diploOverlay').hidden = false;
+    this.renderDiplo();
+  }
+
+  private closeDiplo(): void {
+    $('diploOverlay').hidden = true;
+  }
+
+  private handleDiploClick(e: MouseEvent): void {
+    const target = e.target as HTMLElement;
+    if (target === $('diploOverlay')) {
+      this.closeDiplo();
+      return;
+    }
+    const btn = target.closest('button');
+    if (!btn || btn.disabled) return;
+    if (btn.id === 'diploCloseBtn') {
+      this.closeDiplo();
+      return;
+    }
+    const civ = this.diploCiv;
+    const d = btn.dataset;
+    if (d.civ !== undefined) {
+      this.diploCiv = Number(d.civ);
+      this.diploPage = 'main';
+      this.tradeGet = undefined;
+      this.diploAnswer = undefined;
+    } else if (civ === undefined) {
+      return;
+    } else if (d.act === 'war') {
+      this.diploPage = 'confirmWar';
+    } else if (d.act === 'warYes') {
+      this.diploPage = 'main';
+      if (this.dispatch({ type: 'declareWar', target: civ })) {
+        this.diploAnswer = { civ, accepted: true, reason: `You are at war with ${civName(this.state, civ)}.` };
+      }
+    } else if (d.act === 'back') {
+      this.diploPage = 'main';
+      this.tradeGet = undefined;
+    } else if (d.act === 'peace') {
+      this.showAnswer(civ, this.dispatchResult({ type: 'proposePeace', target: civ }));
+    } else if (d.act === 'trade') {
+      this.diploPage = 'trade';
+      this.tradeGet = undefined;
+      this.diploAnswer = undefined;
+    } else if (d.get) {
+      this.tradeGet = d.get as TechId;
+    } else if (d.act === 'buy' && this.tradeGet) {
+      this.finishTrade(civ, this.dispatchResult({ type: 'tradeTech', partner: civ, get: this.tradeGet, give: null }));
+    } else if (d.give && this.tradeGet) {
+      this.finishTrade(civ, this.dispatchResult({ type: 'tradeTech', partner: civ, get: this.tradeGet, give: d.give as TechId }));
+    } else if (d.gold) {
+      this.showAnswer(civ, this.dispatchResult({ type: 'giveGold', target: civ, amount: Number(d.gold) }));
+    }
+    this.renderDiplo();
+  }
+
+  private showAnswer(civ: number, res: ActionResult): void {
+    if (res.answer) this.diploAnswer = { civ, ...res.answer };
+  }
+
+  private finishTrade(civ: number, res: ActionResult): void {
+    this.showAnswer(civ, res);
+    if (res.answer?.accepted) {
+      this.diploPage = 'main';
+      this.tradeGet = undefined;
+    }
+  }
+
+  private renderDiplo(): void {
+    const met = metCivs(this.state, this.human);
+    if (this.diploCiv !== undefined && !met.includes(this.diploCiv)) this.diploCiv = met[0];
+    $('diploStatus').textContent = met.length
+      ? `You have met ${plural(met.length, 'civ')} of ${this.state.players.length - 1}.`
+      : '';
+    const listEl = $('diploList');
+    const scroll = listEl.scrollTop;
+    listEl.innerHTML = met.length
+      ? met
+          .map((c) => {
+            const def = civDef(this.state, c);
+            const war = atWar(this.state, this.human, c);
+            const att = attitude(this.state, c, this.human);
+            return `<button type="button" data-civ="${c}" class="civRow ${c === this.diploCiv ? 'sel' : ''}">
+              <span class="swatch" style="background:${playerColor(this.state, c)}"></span>
+              <span class="cname">${esc(def.name)}</span>
+              <span class="badge ${war ? 'war' : 'peace'}">${war ? 'War' : 'Peace'}</span>
+              <span class="cmeta">${esc(def.leader)} · <span class="att-${att}">${ATTITUDE_LABEL[att]}</span></span></button>`;
+          })
+          .join('')
+      : '<p class="sub">You haven’t met anyone yet. Explore: civs meet when one sees the other’s units or cities.</p>';
+    listEl.scrollTop = scroll;
+    $('diploDetail').innerHTML = this.diploCiv === undefined ? '' : this.diploDetailHtml(this.diploCiv);
+  }
+
+  private diploDetailHtml(civ: number): string {
+    const me = this.state.players[this.human]!;
+    const def = civDef(this.state, civ);
+    const name = esc(def.name);
+    const war = atWar(this.state, this.human, civ);
+    const att = attitude(this.state, civ, this.human);
+    const start = this.state.diplomacy.warStart[this.human]?.[civ];
+    const lock = treatyLockedUntil(this.state, this.human, civ);
+    const relation = war
+      ? `At war${start !== null && start !== undefined ? ` since turn ${start}` : ''}`
+      : `At peace${lock !== undefined ? ` · treaty holds until turn ${lock}` : ''}`;
+    const cities = this.state.cities.filter((c) => c.owner === civ).length;
+    const answer =
+      this.diploAnswer && this.diploAnswer.civ === civ
+        ? `<div class="answer ${this.diploAnswer.accepted ? 'yes' : 'no'}">${this.diploAnswer.accepted ? '✓' : '✗'} ${esc(this.diploAnswer.reason)}</div>`
+        : '';
+    const head = `
+      <h3><span class="swatch" style="background:${playerColor(this.state, civ)}"></span> ${name}</h3>
+      <div class="sub">Led by ${esc(def.leader)}</div>
+      <dl class="facts">
+        <dt>Relation</dt><dd>${relation}</dd>
+        <dt>Attitude</dt><dd class="att-${att}">${ATTITUDE_LABEL[att]}</dd>
+        <dt>Cities</dt><dd>${cities}</dd>
+        <dt>Military</dt><dd>${strengthWords(strengthRatio(this.state, civ, this.human))}</dd>
+      </dl>${answer}`;
+
+    if (this.diploPage === 'confirmWar') {
+      return `${head}
+        <div class="label">Declare war?</div>
+        <p>Your units will be able to attack ${name}’s, and theirs yours. ${name} won’t forget it.</p>
+        <div class="diploActions">
+          <button type="button" data-act="back" class="bigBtn">Cancel</button>
+          <button type="button" data-act="warYes" class="bigBtn danger">Declare War</button>
+        </div>`;
+    }
+
+    if (this.diploPage === 'trade') {
+      const theirs = tradeableTechs(this.state, civ, this.human);
+      const ours = tradeableTechs(this.state, this.human, civ);
+      const pickTheirs = theirs.length
+        ? `<div class="techPick">${theirs
+            .map(
+              (t) => `<button type="button" data-get="${t}" class="${t === this.tradeGet ? 'sel' : ''}">${TECHS[t].name}
+                <span class="tmeta">worth ${techValue(this.state, this.human, t)} science to you</span></button>`,
+            )
+            .join('')}</div>`
+        : `<p class="sub">${name} knows nothing you could learn right now.</p>`;
+      let offer = '';
+      if (this.tradeGet) {
+        const price = techPrice(this.state, civ, this.human, this.tradeGet);
+        const swap = ours.length
+          ? `<div class="techPick">${ours
+              .map(
+                (t) => `<button type="button" data-give="${t}">Give ${TECHS[t].name}
+                  <span class="tmeta">worth ${techValue(this.state, civ, t)} to them</span></button>`,
+              )
+              .join('')}</div>`
+          : `<p class="sub">You know nothing ${name} could learn right now.</p>`;
+        offer = `
+          <div class="label">What will you offer for ${TECHS[this.tradeGet].name}?</div>
+          <div class="diploActions">
+            <button type="button" data-act="buy" ${me.gold < price ? 'disabled' : ''}>Pay ${price} gold</button>
+          </div>
+          <div class="sub">${me.gold < price ? `You have ${me.gold} gold. ` : ''}Or swap one of yours:</div>
+          ${swap}`;
+      }
+      return `${head}
+        <div class="diploActions"><button type="button" data-act="back">‹ Back</button></div>
+        <div class="label">Their techs you could learn</div>
+        ${pickTheirs}
+        ${offer}`;
+    }
+
+    const warErr = war ? undefined : declareWarError(this.state, this.human, civ);
+    const theirs = tradeableTechs(this.state, civ, this.human).length;
+    const gifts = [25, 50, 100]
+      .map((g) => `<button type="button" data-gold="${g}" ${me.gold < g ? 'disabled' : ''}>Give ${g} gold</button>`)
+      .join('');
+    return `${head}
+      <div class="label">Actions</div>
+      <div class="diploActions">
+        ${war
+          ? '<button type="button" data-act="peace" class="bigBtn">Propose Peace</button>'
+          : `<button type="button" data-act="war" class="bigBtn danger" ${warErr ? 'disabled' : ''}>Declare War</button>`}
+        <button type="button" data-act="trade" class="bigBtn" ${theirs ? '' : 'disabled'}>Trade Techs</button>
+      </div>
+      ${warErr ? `<div class="sub">${esc(warErr)}</div>` : ''}
+      ${theirs ? '' : `<div class="sub">${name} knows no tech you could learn right now.</div>`}
+      <div class="label">Gifts <span class="sub">(you have ${me.gold} gold)</span></div>
+      <div class="diploActions">${gifts}</div>`;
+  }
+
   // ---- dev scenarios (dev server only) ---------------------------------------------------
 
   private setupDev(): void {
@@ -943,6 +1305,7 @@ export class App {
     this.renderCityPanel();
     this.renderEnd();
     if (!$('techOverlay').hidden) this.renderTech();
+    if (!$('diploOverlay').hidden) this.renderDiplo();
     this.requestDraw();
   }
 
@@ -996,6 +1359,10 @@ export class App {
       rb.classList.remove('ready');
     }
     rb.title = `Science +${income.science} per turn`;
+    const met = metCivs(this.state, this.human).length;
+    const wars = metCivs(this.state, this.human).filter((c) => atWar(this.state, this.human, c)).length;
+    $('diploBtn').innerHTML = `🤝 Diplomacy${wars ? ` <span class="sub">· ${wars} at war</span>` : ''}`;
+    $('diploBtn').title = `${met} civ${met === 1 ? '' : 's'} met`;
     $('rateLabel').textContent = `${player.scienceRate}% sci · ${100 - player.scienceRate}% gold`;
     $<HTMLButtonElement>('rateDown').disabled = player.scienceRate <= 0;
     $<HTMLButtonElement>('rateUp').disabled = player.scienceRate >= 100;
@@ -1054,6 +1421,29 @@ function sideHtml(title: string, kind: 'Attack' | 'Defense', st: Strength): stri
   return `<div class="side"><div class="sideName">${esc(title)}</div>
     <div class="sub">${kind} ${num(st.base)}</div><ul>${mods}</ul>
     <div class="total">${num(st.total)}</div></div>`;
+}
+
+/** A panel in the notice queue. `run` is called after the panel closes. */
+interface Notice {
+  title: string;
+  text: string;
+  sub?: string;
+  buttons: { label: string; cls?: string; disabled?: boolean; run?: () => void }[];
+  /** Set for an AI offer, so it's queued once. */
+  offerId?: number;
+  /** False when the panel needs an answer (Esc doesn't close it). */
+  dismissible?: boolean;
+}
+
+const ATTITUDE_LABEL = { friendly: 'Friendly', neutral: 'Neutral', hostile: 'Hostile' } as const;
+
+/** Their military next to yours, in rough words. */
+function strengthWords(ratio: number): string {
+  if (ratio > 1.5) return 'Much stronger than yours';
+  if (ratio > 1.15) return 'Stronger than yours';
+  if (ratio >= 0.87) return 'About the same as yours';
+  if (ratio >= 0.67) return 'Weaker than yours';
+  return 'Much weaker than yours';
 }
 
 function num(n: number): string {

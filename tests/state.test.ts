@@ -40,8 +40,10 @@ describe('game state', () => {
     }
   });
 
-  it('Milestone 1 default spawns 2 players', () => {
-    expect(createGame({ seed: 5 }).players).toHaveLength(2);
+  it('a new game has 5 civs by default (Milestone 5)', () => {
+    expect(RULES.defaultPlayers).toBe(5);
+    expect(createGame({ seed: 5 }).players).toHaveLength(5);
+    expect(createGame({ seed: 5, playerCount: 2 }).players).toHaveLength(2);
   });
 
   it('rejects more players than the game supports', () => {

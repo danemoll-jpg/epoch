@@ -137,8 +137,8 @@ the firewall; allow it on private networks.
   taking 5174; `epoch-play-verify` (port 4176) serves an existing
   `dist-play/` (run `npm run build:play` first) to check the play build.
 
-Dev URL options: `?seed=123` gives a reproducible map, and `?players=5` gives
-a full 5-civ game. **The autosave wins:** if a saved game exists it resumes,
+Dev URL options: `?seed=123` gives a reproducible map, and `?players=2`
+gives a smaller game (the default is 5 civs). **The autosave wins:** if a saved game exists it resumes,
 and `?seed`/`?players` only apply to new games (New Game in the ☰ menu, or
 `?new`). `?new` ignores the save and starts fresh on *every* load, so
 don't leave it in a bookmark. `window.__epoch` exposes `{ app, seed }` for
@@ -148,13 +148,14 @@ debugging, including from Safari's Web Inspector on the iPad.
 completes inside Safari's `pagehide`). Saved after every successful action
 (including End Turn), on `visibilitychange` → hidden, and on `pagehide`.
 The save carries `saveVersion` (= `STATE_VERSION` in `src/game/types.ts`,
-currently 4). **Bump `STATE_VERSION` whenever the state shape changes, and
+currently 5). **Bump `STATE_VERSION` whenever the state shape changes, and
 add a migration** to `MIGRATIONS` in `src/game/save.ts` (keyed by the
 version it upgrades from), plus a line in `MIGRATION_NOTES` for the notice,
 so Dan's game carries forward. Migrated so far: 2 → 3 (M3: no techs,
-science kept as banked, tech-locked builds go back to "choose") and 3 → 4
+science kept as banked, tech-locked builds go back to "choose"), 3 → 4
 (M4: fortify/army off, everyone at war, each civ's first city becomes its
-capital).
+capital), and 4 → 5 (M5: pairs who can see each other now count as met,
+wars carry over as they are, no treaties/opinions/offers/plans yet).
 
 **Backups: a save is never thrown away.** All startup and replace logic
 is in `src/ui/storage.ts` (`loadOrStart`, `backupCurrentSave`,
@@ -175,11 +176,15 @@ on-screen note saying what to do and what should happen. On the iPad, pick
 one from the ☰ menu (the "Dev scenarios" list) instead of typing URLs;
 "Back to my game" (in the note or the menu) drops `?scenario`. **A scenario
 never autosaves**, so the real game can't be overwritten. Current set:
-`grow`, `starve`, `settler`, `rich`, `tech`, `era`, and (M4) `combat`,
-`fortified`, `walls`, `army`, `capture`, `defeat`. The combat ones start
-from `FAIR_DICE` (first roll about 0.48), because `makeState`'s default RNG
-state rolls 0.98 first and would make every first attack lose. Put odds in
-a note by computing them (see `frontOdds`), not by typing numbers. They're compiled out of
+`grow`, `starve`, `settler`, `rich`, `tech`, `era`; (M4) `combat`,
+`fortified`, `walls`, `army`, `army-in-city`, `capture`, `victory`,
+`defeat`; (M5) `first-contact`, `peace`, `demand`, `tech-trade`, `ai-war`.
+The combat ones start from `FAIR_DICE` (first roll about 0.48), because
+`makeState`'s default RNG state rolls 0.98 first and would make every
+first attack lose. A rule that happens on a dice roll at End Turn (a
+demand, a war declaration) uses `withDice(build, wanted)`, which finds the
+first RNG state that gives the result. Put odds and reasons in a note by
+computing them (see `frontOdds`, `peaceDesire`), not by typing them. They're compiled out of
 the production build: `main.ts` imports `src/dev/scenarios.ts` only inside
 `if (import.meta.env.DEV)`, and `npm run build` ends with
 `scripts/check-dist.mjs`, which fails the build if the scenario marker or
@@ -190,7 +195,9 @@ note text appears anywhere in `dist/`.
    (menu label), `note` ("Tap End Turn. X should …"), and `build()`, which
    makes the state with the helpers in `src/dev/build.ts` (`makeState`,
    `addCity`, `addUnit`), or with `withCapital()` in the same file for the
-   usual one-city island.
+   usual one-city island (`diplomacyBase()` for a two-civ game at peace).
+   `makeState` starts everyone met and at war (the M4 setup); pass
+   `{ peace: true }` or `{ met: false }` for M5 tests.
 2. Add its expected outcome to `OUTCOMES` in `tests/scenarios.test.ts`. The
    suite fails for any scenario without one, so a note can't drift from what
    the rules actually do.
@@ -199,33 +206,46 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
 ## Code layout
 - `src/data/`: terrain (yields, move cost, `defensePct`), units (cost,
   `popCost`, attack/defense/moves, `requires` tech), buildings (`requires`
-  tech; Walls' `defenseBonusPct`), `techs.ts` (eras, the 50
-  techs with prereqs/era/tier/description, the tech cost formula, AI
-  research priority), `wonders.ts` (empty shape for M7), civs/leaders/city
-  names, rule constants (`rules.ts`: growth, focus weights, rush-buy
-  formula, science rate, and `RULES.combat`: fortify/veteran/city bonuses,
-  army size and multiplier, veteran chance, AI attack threshold). A tech's unlocks are the `requires` fields
-  on units/buildings/wonders, so adding a unit never touches `techs.ts`.
+  tech; Walls' `defenseBonusPct`; AI building order), `techs.ts` (eras,
+  the 50 techs with prereqs/era/tier/description, the tech cost formula,
+  AI research priority), `wonders.ts` (empty shape for M7), `civs.ts`
+  (civs, leaders, colors, city names, and each leader's `aggression` and
+  `tradeWillingness`, 1–5), rule constants (`rules.ts`: growth, focus
+  weights, rush-buy formula, science rate, `RULES.combat` (fortify/veteran/
+  city bonuses, army size and multiplier, veteran chance, AI attack
+  threshold), `RULES.diplomacy` (treaty length, grace period, opinion
+  events, AI war/peace weights, demand caps, tech prices), and `RULES.ai`
+  (city target, settlers at once, defenders per city, unit caps, attack
+  force, gold reserve)). A tech's unlocks are the `requires` fields on
+  units/buildings/wonders, so adding a unit never touches `techs.ts`.
 - `src/game/`: pure rules. `types.ts` (state + `STATE_VERSION`), `rng.ts`,
   `grid.ts`, `mapgen.ts`, `newGame.ts`, `movement.ts`, `city.ts`
   (founding), `yields.ts` (tile yields, automatic worked tiles, trade
   split), `production.ts` (build/focus/rate/rush-buy actions, the
   tech-gated build list, and the end-of-turn city update), `tech.ts`
   (research action, end-of-turn research, eras, unlocks, AI research
-  choice), `combat.ts` (odds with named modifiers, `winChance` = the one
-  formula, attack, fortify, armies), `conquest.ts` (city capture,
-  elimination), `war.ts` (the `atWar` table), `fog.ts`, `log.ts` (event
-  log + fog filter; an entry's `other` player always sees it),
-  `turn.ts`, `ai.ts`, `save.ts` (serialize/deserialize with version
-  check and migrations), and `actions.ts` (the single `applyAction` entry point the UI
-  uses).
+  choice, `learnTech`), `combat.ts` (odds with named modifiers,
+  `winChance` = the one formula, attack (a win over a city's last defender
+  captures it), fortify, armies), `conquest.ts` (city capture,
+  elimination), `war.ts` (the `atWar` table), `diplomacy.ts` (contact,
+  declare war, peace and `peaceDesire`, opinions/attitude, tech trades and
+  prices, gifts, AI offers to the human and `answerOffer`, and
+  `runAiDiplomacy`: the AI's war, peace, demand, and trade choices),
+  `fog.ts`, `log.ts` (event log; `eventsVisibleTo`: your own and your
+  `other` entries, civ-level news with `publicText` if you've met a civ
+  involved, map-level news only in sight; `entryText` gives each viewer
+  their wording), `turn.ts`, `ai.ts` (build choice with the city target
+  and caps, guards, explorer, war plans in `state.aiPlans`), `save.ts`
+  (serialize/deserialize with version check and migrations), and
+  `actions.ts` (the single `applyAction` entry point the UI uses).
 - `src/render/`: `camera.ts` and `renderer.ts` (Canvas 2D; read-only on
   state).
 - `src/dev/`: dev/test only, never in the production build. `build.ts`
   (hand-made state builder shared by tests and scenarios) and
   `scenarios.ts`.
-- `src/ui/`: `app.ts` (view state, HUD, city panel, tech screen, menu, dev
-  scenario banner, dispatch),
+- `src/ui/`: `app.ts` (view state, HUD, city panel, tech screen,
+  diplomacy screen, notice panels for first contact / war / AI offers,
+  menu, dev scenario banner, dispatch),
   `tap.ts` (pure tap rule, unit-tested), `storage.ts` (localStorage
   autosave, backups, startup load), `input.ts` (Pointer Events, Safari gesture guards; touch
   scrolling is allowed only inside `.scroll` elements), `style.css`.
@@ -253,6 +273,11 @@ and never runs a command himself.
 - Don't restart it mid-round.
 - Report that it's running, with the exact LAN address.
 - If it can't stay running after your session ends, say so plainly.
+- Start it detached so it outlives the chat session, e.g. from PowerShell:
+  `Start-Process -WindowStyle Hidden cmd -ArgumentList '/c','npm run play:lan > play-lan.log 2>&1' -WorkingDirectory C:/Users/danmo/epoch`
+  (stop any old one on port 4173 first). `play-lan.log` is git-ignored.
+  This PC has two LAN addresses: Wi-Fi 192.168.0.214 and Ethernet
+  10.0.0.224 (as of 2026-09-24; check with `ipconfig`).
 
 ## Reporting back (every round)
 When you finish a round of work, update `TODO.md` and this file, and commit
@@ -273,9 +298,11 @@ the local commits waiting. Then wait for Dan to say "push."
 - **Milestones 1–4:** done and tested by Dan on the iPad. That covers the
   skeleton, cities and economy, the tech tree, combat and armies, and save
   safety.
+- **Round 5 (M4 follow-ups + Milestone 5):** done by the coding agent,
+  waiting for Dan's iPad checks. See the Round 5 report in TODO.md.
 - Going live in the hub is deferred by Dan.
 
-**The current objective is Round 5:**
+**The current objective is Round 5 (done, awaiting Dan's checks):**
 - **Part A, Dan's round 4 feedback:**
   - keep the play server current at the end of each round;
   - winning the last fight at a city captures it;

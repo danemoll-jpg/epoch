@@ -67,5 +67,3 @@ export const BUILDING_IDS = Object.keys(BUILDINGS) as BuildingId[];
 /** Order the AI works through buildings once its cities are defended and it has expanded. */
 export const AI_BUILDING_ORDER: BuildingId[] = ['granary', 'library', 'marketplace', 'temple', 'barracks', 'walls'];
 
-/** How many cities an AI tries to reach with settlers before switching to buildings. */
-export const AI_TARGET_CITIES = 4;

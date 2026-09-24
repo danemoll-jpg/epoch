@@ -346,9 +346,100 @@ Steps, Technical Notes.
     - Walls aren't drawn on the map (placeholder art). The odds panel lists
       them when you attack a walled city.
 
+* **Round 5 — Combat follow-ups + Milestone 5 (5 civs, diplomacy, a
+  smarter AI) — done by the coding agent (2026-09-24). Waiting for Dan's
+  iPad checks (a)–(c).** Nothing pushed.
+  - **Result:** 231 unit tests passing (44 new). Type-check and production
+    build are clean, and the dev-code leak check passes on `dist/` and
+    `dist-play/`. Preview-verified on desktop and in iPad-sized touch
+    emulation (1024×768 landscape, 768×1024 portrait). The play server is
+    running this build (A1).
+  - **Per-item status (coding round 5):**
+
+    | # | Item | Status | Verified by |
+    |---|------|--------|-------------|
+    | 0 | Commit docs first | Done (`7d400bd`), then re-read both. Nothing from last round's report was dropped | n/a |
+    | A1 | Keep the play server current | Done. Standing rule followed: at the end of this round, after tests and the docs commit, `npm run play:lan` was started **as its own background process** (not tied to this chat session), serving this build on port 4173. Addresses: see "Play server" below | Fetched the page over both LAN addresses after starting it (HTTP 200, version 5 build) |
+    | A2 | Winning an attack on a city captures it | Done. When an attack kills a city's **last** defender, the winner moves in and captures it at once, with the same capture rules (owner, −1 size, Walls gone, capital flag kept, elimination check). The attacker's turn still ends. An open-field win stays put. Only land units with attack > 0 can attack at all, so only they capture. The odds panel says "It's X's last defender: if you win, your Legion moves in and takes the city", and the city panel opens after a capture. `CombatReport.capturedCityId` reports it. The `capture` scenario now needs one Legion (note updated). The AI uses the same attack, so its captures follow the rule too, and its war plan marches on a city and attacks it | unit-tested (`capture`, `victory`, and `ai-war` scenario outcomes); preview-verified (`capture`: one Legion took Pataliputra and its panel opened) |
+    | A3 | "Legions can't form an army" | Done. **Reproduced the rules first: they were fine.** Three Legions inside a city form an army through the real action, and the old path (city panel → tap a unit row → the unit panel shows Form Army) also worked in a fresh scenario. **Likely cause: the button was hard to reach.** Tapping a city tile always opens the city panel, which hides the unit panel (where Form Army and Fortify live). The "Units here" list sat at the very bottom of the city panel, below the long build list. Fortified units are also skipped by Next Unit, so the Legions couldn't be selected any other way. **Fix:** "Units here" is now the first section of the city panel, each row says "tap to select", and when 3 of a type are there a **Form <Type> army** button appears right in that list. New scenario `army-in-city` | unit-tested (`army-in-city` outcome); preview-verified in landscape emulation (Form Legion army in the city panel → "Legion army ×3") |
+    | A4 | `victory` scenario | Done. Your Legion army next to the last rival's only city (one Warrior, 91%). Attack → the army moves in → the rival is eliminated → the **Victory panel shows** | unit-tested; preview-verified (the Victory panel was seen on screen for the first time) |
+    | B1 | 5 civs by default | Done. `RULES.defaultPlayers = 5` (replaces `milestone1Players`). `?players=` still works | unit-tested; preview-verified (a new game had 5 civs) |
+    | B2 | Meeting civs | Done. `state.diplomacy.met` (symmetric). Two civs meet the first time either one's unit or city sees the other's (checked after every move, founding, capture, and turn start). First contact shows a **"You have met Maurya, led by Ashoka"** panel with Diplomacy / OK. Unmet civs don't appear in diplomacy. **Event rule finished:** log entries can carry `publicText` (civ-level news: eras, wars, treaties, trades, eliminations), shown to anyone who has met a civ involved; map-level news (a city founded, a fight) still needs the tile in sight. Entries also carry `otherText` so the victim reads "Franks declared war on you!" | unit-tested; preview-verified (`first-contact`) |
+    | B3 | War and peace | Done. New games start at peace (`atWar` all false; newly met civs stay at peace). At peace, attacks are refused ("You are at peace with Maurya. Declare war in Diplomacy first") and so is entering their city ("You are at peace with Maurya"). **Declare War** is an action with an on-screen confirm. **Propose Peace** gets accepted or refused at once. After a treaty, war can't be declared for `minPeaceTurns` (15); the screen shows "treaty holds until turn N". The AI declares war and makes peace on its own (B8). Declarations and treaties are logged and announced | unit-tested; preview-verified (`peace`, `ai-war`) |
+    | B4 | AI personalities | Done. Each leader in `civs.ts` has `aggression` and `tradeWillingness` (1–5): Hammurabi 2/4, Ashoka 1/4, Mansa Musa 2/5, Pachacuti 4/2, Charlemagne 5/2. They feed war choice, peace answers, demands, trade prices, and swap fairness | unit-tested |
+    | B5 | Diplomacy screen | Done. **🤝 Diplomacy** in the top bar (shows "· N at war"). Met civs are listed with color, leader, War/Peace badge, and attitude. The detail shows relation (with treaty lock), attitude (friendly/neutral/hostile from recent events), city count, and rough military ("Stronger than yours"…). Actions: Declare War (confirm step) or Propose Peace; **Trade Techs** (pick one of their techs you can learn, then pay their gold price or swap one of yours they can learn); **Give 25/50/100 gold**. Every answer shows as a green ✓ or red ✗ line with a one-line reason in our own words. Side-by-side in landscape, stacked in portrait, 52 px close button, backdrop/Esc closes | preview-verified in 1024×768 landscape and 768×1024 portrait emulation |
+    | B6 | AI demands | Done. A stronger (≥ 1.5× military), aggressive (aggression ≥ 3) or hostile AI may demand gold (half your gold, 20–150) or a tech. You get a **Tribute demanded** panel: Give or Refuse (it can't be closed without answering; unanswered at End Turn counts as a refusal). Refusing drops their opinion by 4, which raises their war score. Caps: not before turn 20, **once per 25 turns per civ**, a 12% roll, and only one demand waiting at a time | unit-tested (cap over 200 turns, refusal raises war score); preview-verified (`demand`: Refuse → attitude Hostile) |
+    | B7 | Tech trading | Done. AIs trade only techs they have for techs they lack, or sell for gold. Never while at war or hostile. The receiver learns at once (era news too), and the giver keeps it. A tech can only go to a civ that knows its prerequisites (so the tree stays consistent). AI-to-AI swaps happen occasionally (15% × willingness/5 per AI turn), when both think the swap is fair; they're logged as "X and Y traded knowledge" and shown if you've met either | unit-tested; preview-verified (`tech-trade`: Bronze Working for Pottery, then Granary in the build list) |
+    | B8 | AI competence | Done; see numbers below. **Expansion:** the city target is land tiles ÷ living civs ÷ 10 (3–10 cities; 6 on the default map), while a valid site is known within 8 tiles; 2 settlers under way at once (1 with one city). **Defender cap:** 1 defender per city while expanding, 2 after, 3 in a border city at war. The best defenders stay home (armies never do unless alone). Unit production is capped (defenders + 0.5 attackers per city in peace, 1.5 at war); past buildings and caps it builds nothing and stores production. Spare gold (above 40) rush-buys settlers and buildings. **War on purpose:** a war plan per AI (`state.aiPlans`) picks the closest known enemy city, gathers a force (3 units, an army counts 3) at its nearest own city, then marches and attacks with the odds rule. It declares war only on a met civ it's ≥1.3× stronger than, within 12 tiles, one war at a time, and only if its best attack as an army beats their best fortified city defender ≥55% of the time. **Peace when losing:** `peaceDesire` (weaker, losing more than it took, war weariness, opinion, low aggression). It stays deterministic (a 100-turn 5-AI game is identical twice). The research priority now includes Archery and Iron Working | unit-tested (war/peace choices both ways, determinism, sim city count and unit cap); sim numbers below |
+    | B9 | Early-game fairness | Done. Peace on meeting, plus `aiGraceTurns` = 20: no war declarations on (and no demands of) the human before turn 20 | unit-tested |
+    | B10 | Save migration v4 → v5 | Done. `STATE_VERSION` 5. Pairs whose units/cities see each other right now count as met; **relations carry over as they are** (M4 had everyone at war, so a migrated game stays at war with everyone, met or not, until peace is made). No treaties, opinions, offers, or plans yet. v2 and v3 saves chain through. The pre-upgrade save is kept as a backup | unit-tested; preview-verified (the preview browser's old v4 save loaded as v5, with "Upgraded from version 4" in backup slot 1) |
+    | B11 | Dev scenarios | Done: `first-contact`, `peace`, `demand`, `tech-trade`, `ai-war` (plus A3's `army-in-city` and A4's `victory`). Dice-dependent ones (`demand`, `ai-war`) find their own fixed dice at load (`withDice`: the first RNG state for which one End Turn gives the result), so they always show it. Notes compute their numbers and reasons from the rules | unit-tested (each outcome); preview-verified (all seven) |
+    | B12 | Unit tests | Done: 44 new, 231 total. `tests/diplomacy.test.ts` (30): contact (units, cities, both ways), peace blocks attacks and city entry, declaring war and its log texts, the treaty lock, AI peace answers both ways and repeatable, early-war refusal, war score both ways plus grace, treaty, and "can't win" cases, deterministic declaration, AI-AI peace, peace offers with cooldown, demand conditions and caps, paying and refusing, expiry at End Turn, tech-trade rules (prerequisites, swap, gold price, hostile/war refusal, stingy AI), gifts, event visibility with "met", the AI city count and unit cap in a 100-turn sim, and v4 → v5 (and v2 → v5). `tests/scenarios.test.ts`: the 7 new scenarios and the updated `capture` | `npm test` |
+
+  - **B8 numbers** (all-AI simulation, 5 civs, seeds 8/13/21/33/42, 120
+    turns; averages per civ):
+
+    | | Round 4 AI | Round 5 AI |
+    |---|---|---|
+    | Cities at turn 50 | 3.9 | 4.8 |
+    | Cities at turn 100 | 4.1 (capped at 4) | 5.8 |
+    | Units at turn 120 | 32.1 (up to 57) | 18.1 |
+    | Wars declared per game | 0 (everyone always at war) | 2.4 |
+    | Peace treaties per game | 0 | 1.4 |
+    | Cities captured per game | 3.0 | 1.8 |
+    | Civs eliminated by turn 120 | 0 | 0.2 |
+    | Time per round of AI turns | 12 ms | 5 ms |
+
+    With a human who founds a capital, builds its best defender, and
+    fortifies (and does nothing else), the first war on the human came on
+    turns 55, 66, 79, and 101 in four seeds (none in the fifth), and the
+    human was eliminated in 1 of 5 by turn 120. A human who builds nothing
+    at all gets attacked around turns 28–36 and usually loses.
+  - **Play server (A1):** running `npm run play:lan` on port 4173. This PC
+    has two LAN addresses: **http://192.168.0.214:4173/** (Wi-Fi) and
+    **http://10.0.0.224:4173/** (Ethernet). Use the one on the iPad's
+    Wi-Fi network (most likely the 192.168.0.x one). It was started as a
+    separate background process so it survives this chat session ending.
+    It stops if the PC restarts, sleeps long enough to drop the network, or
+    someone closes the Node process. **Simplest fix if it's down:** start a
+    new coding round; the agent restarts it at the end of each round.
+  - **Decisions worth reviewing:**
+    - Relations in a migrated M4 game stay "everyone at war", as the item
+      said. Dan's play save is from `play:lan`, so it'll be at war with
+      every civ, met or not, until he makes peace (Ashoka and Mansa Musa
+      accept easily after a few turns).
+    - Attitude is always Hostile while at war.
+    - An AI declares war only if it could actually take a city (its best
+      attack as an army beats your best fortified city defender ≥ 55%). So
+      a human with Spearmen is safe from Warrior-only rivals.
+    - A tech can only be traded to someone who knows its prerequisites.
+    - Peace offers and demands you don't answer count as refused when you
+      end your turn. The panels can't be closed without an answer.
+    - AI tech prices in gold are high (value × 1.5 × markup 1.0–1.6), e.g.
+      54 gold for Pottery early on. Swaps are the practical way to trade.
+    - Offer texts name the leader ("Charlemagne of Franks demands…").
+  - **Also changed:**
+    - The top bar has **🤝 Diplomacy** on its first line, so the second
+      line doesn't slide under the city panel in landscape.
+    - New `src/game/diplomacy.ts`. `learnTech` (tech.ts) is shared by
+      research, trades, and tribute. New `clearBuild` action (the AI's
+      "build nothing").
+    - Eliminations are civ-level news now (shown to anyone who met them).
+  - **Observed, not fixed:**
+    - Research is still slow (Q7), which limits AI wars: until Archery or
+      Iron Working, the "could it win" check keeps most AIs at peace.
+    - Some civs stay at 1–3 cities when boxed in on a small landmass. That's
+      the map, not a bug.
+    - Grammar with plural civ names ("Franks declared war on you!") reads
+      a little oddly. Leader names are used in the offer panels.
+
 ## Current Objective (Focus Area)
 
 ### Round 5 — Combat follow-ups + Milestone 5 (full AI roster and diplomacy)
+**Status (coding round 5):** all items done (0, A1–A4, B1–B12). See the
+report under Completed Tasks. **Waiting for Dan's iPad checks (a)–(c).**
+Nothing pushed.
+
 **Goal:**
 - Apply Dan's feedback from round 4.
 - Keep an always-current play server running for him.

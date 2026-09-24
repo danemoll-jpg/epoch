@@ -7,6 +7,7 @@ import { RULES } from '../data/rules';
 import { TERRAIN } from '../data/terrain';
 import { UNITS } from '../data/units';
 import { distance, tileAt } from './grid';
+import { updateContacts } from './diplomacy';
 import { updateExplored } from './fog';
 import { addLog } from './log';
 import { findUnit } from './movement';
@@ -64,6 +65,7 @@ export function foundCity(state: GameState, unitId: number): ActionResult & { ci
   state.units = state.units.filter((u) => u.id !== unitId);
   refreshWorkedTiles(state);
   updateExplored(state, unit.owner);
+  updateContacts(state);
   const civName = CIVS.find((c) => c.id === player.civId)?.name ?? 'A civ';
   addLog(state, unit.owner, `${civName} founded ${city.name}`, city);
   return { ok: true, city };

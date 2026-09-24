@@ -4,6 +4,7 @@
 
 import { UNITS } from '../data/units';
 import { runAiTurn } from './ai';
+import { expireOffers, updateContacts } from './diplomacy';
 import { updateExplored } from './fog';
 import { processCities } from './production';
 import { processResearch } from './tech';
@@ -14,6 +15,7 @@ function startTurnFor(state: GameState, playerId: number): void {
     if (u.owner === playerId) u.movesLeft = UNITS[u.type].moves;
   }
   updateExplored(state, playerId);
+  updateContacts(state);
 }
 
 /**
@@ -55,6 +57,8 @@ export function runUntilHuman(state: GameState): void {
 export function endHumanTurn(state: GameState): ActionResult {
   const p = state.players[state.currentPlayer];
   if (!p || p.kind !== 'human') return { ok: false, reason: 'Not your turn' };
+  // Offers left unanswered count as refused.
+  expireOffers(state, p.id);
   endTurn(state);
   runUntilHuman(state);
   return { ok: true };

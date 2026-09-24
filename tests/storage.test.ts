@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { createGame } from '../src/game/newGame';
 import { serializeGame } from '../src/game/save';
-import type { GameState } from '../src/game/types';
+import { STATE_VERSION, type GameState } from '../src/game/types';
 import {
   BACKUP_PREFIX,
   MAX_BACKUPS,
@@ -105,6 +105,8 @@ describe('startup never discards a save', () => {
     raw.saveVersion = 3;
     raw.state.version = 3;
     delete raw.state.atWar;
+    delete raw.state.diplomacy;
+    delete raw.state.aiPlans;
     for (const u of raw.state.units) delete u.fortified, delete u.army;
     const old = JSON.stringify(raw);
     store.setItem(SAVE_KEY, old);
@@ -112,7 +114,7 @@ describe('startup never discards a save', () => {
     expect(res.state.turn).toBe(9);
     expect(res.notice).toContain('combat and armies');
     expect(newestBackup(store)).toBe(old);
-    expect(JSON.parse(store.getItem(SAVE_KEY)!).saveVersion).toBe(4);
+    expect(JSON.parse(store.getItem(SAVE_KEY)!).saveVersion).toBe(STATE_VERSION);
   });
 
   it('if the backup can’t be written, the old save is left untouched and autosave is off', () => {
@@ -137,7 +139,7 @@ describe('backups', () => {
     const list = listBackups(store);
     expect(list.map((b) => b.turn)).toEqual([5, 4, 3]);
     expect(list.map((b) => b.reason)).toEqual(['game 5', 'game 4', 'game 3']);
-    expect(list[0]).toMatchObject({ slot: 1, backedUpAt: 5000, savedAt: 5000, saveVersion: 4, loadable: true });
+    expect(list[0]).toMatchObject({ slot: 1, backedUpAt: 5000, savedAt: 5000, saveVersion: STATE_VERSION, loadable: true });
   });
 
   it('lists unloadable backups with a plain reason', () => {

@@ -8,12 +8,13 @@ import { UNITS } from '../data/units';
 import { updateExplored } from './fog';
 import { findStartPositions, generateMap } from './mapgen';
 import { hashSeed, shuffle } from './rng';
-import { allAtWar } from './war';
+import { newDiplomacy } from './diplomacy';
+import { noWars } from './war';
 import { STATE_VERSION, type GameMap, type GameState, type Player, type Unit, type Coord } from './types';
 
 export interface NewGameOptions {
   seed: number;
-  /** Total players including the human. Defaults to the Milestone 1 count (2). */
+  /** Total players including the human. Defaults to RULES.defaultPlayers (5). */
   playerCount?: number;
   width?: number;
   height?: number;
@@ -22,7 +23,7 @@ export interface NewGameOptions {
 const MAX_MAP_ATTEMPTS = 30;
 
 export function createGame(opts: NewGameOptions): GameState {
-  const playerCount = opts.playerCount ?? RULES.milestone1Players;
+  const playerCount = opts.playerCount ?? RULES.defaultPlayers;
   if (playerCount < 1 || playerCount > RULES.maxPlayers || playerCount > CIVS.length) {
     throw new Error(`playerCount must be 1..${Math.min(RULES.maxPlayers, CIVS.length)}`);
   }
@@ -66,7 +67,9 @@ export function createGame(opts: NewGameOptions): GameState {
     units: [],
     cities: [],
     nextId: 1,
-    atWar: allAtWar(playerCount),
+    atWar: noWars(playerCount),
+    diplomacy: newDiplomacy(playerCount),
+    aiPlans: players.map(() => null),
     log: [],
   };
 

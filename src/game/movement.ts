@@ -9,7 +9,10 @@ import { TERRAIN } from '../data/terrain';
 import { UNITS } from '../data/units';
 import { capturableCity, captureCity } from './conquest';
 import { distance, inBounds, neighbors, tileAt } from './grid';
+import { civName } from './conquest';
+import { updateContacts } from './diplomacy';
 import { updateExplored } from './fog';
+import { atWar } from './war';
 import type { ActionResult, Coord, GameState, Unit } from './types';
 
 export function findUnit(state: GameState, unitId: number): Unit | undefined {
@@ -36,7 +39,14 @@ export function stepError(state: GameState, unit: Unit, to: Coord): string | und
   if (!inBounds(state.map, to.x, to.y)) return 'Off the map';
   if (distance(unit, to) !== 1) return 'Not adjacent';
   if (unit.movesLeft <= 0) return 'No moves left';
-  if (!isEnterable(state, unit.owner, to.x, to.y) && !capturableCity(state, unit, to)) return 'Tile is impassable';
+  if (!isEnterable(state, unit.owner, to.x, to.y) && !capturableCity(state, unit, to)) {
+    // Say why when it's a civ we're at peace with.
+    const other =
+      state.cities.find((c) => c.x === to.x && c.y === to.y && c.owner !== unit.owner)?.owner ??
+      state.units.find((u) => u.x === to.x && u.y === to.y && u.owner !== unit.owner)?.owner;
+    if (other !== undefined && !atWar(state, unit.owner, other)) return `You are at peace with ${civName(state, other)}`;
+    return 'Tile is impassable';
+  }
   const cost = moveCost(state, to.x, to.y);
   const full = UNITS[unit.type].moves;
   if (cost > unit.movesLeft && unit.movesLeft < full) return 'Not enough moves left';
@@ -56,6 +66,7 @@ export function moveUnit(state: GameState, unitId: number, to: Coord): ActionRes
   unit.movesLeft = Math.max(0, unit.movesLeft - cost);
   unit.fortified = false;
   updateExplored(state, unit.owner);
+  updateContacts(state);
   if (captured) captureCity(state, captured, unit.owner);
   return { ok: true };
 }

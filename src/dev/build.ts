@@ -4,7 +4,8 @@
 
 import type { TerrainId } from '../data/terrain';
 import { UNITS, type UnitTypeId } from '../data/units';
-import { allAtWar } from '../game/war';
+import { newDiplomacy, table } from '../game/diplomacy';
+import { allAtWar, noWars } from '../game/war';
 import { refreshWorkedTiles } from '../game/yields';
 import { STATE_VERSION, type City, type GameState, type Unit } from '../game/types';
 
@@ -13,8 +14,15 @@ const LEGEND: Record<string, TerrainId> = {
   m: 'mountains', d: 'desert', c: 'coast', o: 'ocean',
 };
 
-/** rows like ['ggg', 'gmo'] — one letter per tile. Two players, player 0 human. */
-export function makeState(rows: string[], opts: { players?: number; exploreAll?: boolean } = {}): GameState {
+/**
+ * rows like ['ggg', 'gmo'] — one letter per tile. Two players, player 0 human. Everyone has
+ * met and is at war (the Milestone 4 setup most rule tests want) unless `peace` is set;
+ * `met: false` starts with nobody met (and at peace).
+ */
+export function makeState(
+  rows: string[],
+  opts: { players?: number; exploreAll?: boolean; peace?: boolean; met?: boolean } = {},
+): GameState {
   const height = rows.length;
   const width = rows[0]!.length;
   const tiles = rows.flatMap((r) => [...r].map((ch) => ({ terrain: LEGEND[ch]! })));
@@ -43,7 +51,9 @@ export function makeState(rows: string[], opts: { players?: number; exploreAll?:
     units: [],
     cities: [],
     nextId: 100,
-    atWar: allAtWar(players),
+    atWar: opts.peace || opts.met === false ? noWars(players) : allAtWar(players),
+    diplomacy: { ...newDiplomacy(players), met: opts.met === false ? table(players, false) : allAtWar(players) },
+    aiPlans: Array.from({ length: players }, () => null),
     log: [],
   };
 }

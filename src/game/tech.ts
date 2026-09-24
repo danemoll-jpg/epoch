@@ -20,6 +20,7 @@ import {
 } from '../data/techs';
 import { UNITS, UNIT_IDS, type UnitTypeId } from '../data/units';
 import { WONDERS, type WonderDef } from '../data/wonders';
+import { civName } from './conquest';
 import { addLog } from './log';
 import type { ActionResult, GameState, Player } from './types';
 import { empireIncome } from './yields';
@@ -108,13 +109,30 @@ export function processResearch(state: GameState, playerId: number): void {
   const tech = player.researching;
   const cost = techCost(player, tech);
   if (player.science < cost) return;
-  const eraBefore = playerEra(player);
   player.science -= cost;
-  player.techs.push(tech);
   player.researching = null;
-  addLog(state, playerId, `Learned ${TECHS[tech].name}`);
+  learnTech(state, playerId, tech, `Learned ${TECHS[tech].name}`);
+}
+
+/**
+ * Adds a tech to what the player knows (by research, or a trade: Milestone 5), logs it, and
+ * announces a new era. Research on it stops (the pool stays banked).
+ */
+export function learnTech(state: GameState, playerId: number, tech: TechId, text: string): void {
+  const player = state.players[playerId]!;
+  if (knows(player, tech)) return;
+  const eraBefore = playerEra(player);
+  player.techs.push(tech);
+  if (player.researching === tech) player.researching = null;
+  addLog(state, playerId, text);
   const eraAfter = playerEra(player);
-  if (eraAfter !== eraBefore) addLog(state, playerId, `Entered the ${eraName(eraAfter)} era`);
+  if (eraAfter !== eraBefore) {
+    const era = eraName(eraAfter);
+    addLog(state, playerId, `Entered the ${era} era`, undefined, undefined, {
+      publicText: `${civName(state, playerId)} entered the ${era} era`,
+      kind: 'era',
+    });
+  }
 }
 
 /**

@@ -5,6 +5,7 @@ import type { CityFocus } from '../data/rules';
 import type { TechId } from '../data/techs';
 import { foundCity } from './city';
 import { attack, formArmy, fortify } from './combat';
+import { answerOffer, declareWar, giveGold, proposePeace, tradeTech } from './diplomacy';
 import { moveUnitToward } from './movement';
 import { rushBuy, setBuild, setFocus, setScienceRate } from './production';
 import { setResearch } from './tech';
@@ -22,6 +23,12 @@ export type Action =
   | { type: 'rushBuy'; cityId: number }
   | { type: 'setScienceRate'; rate: number }
   | { type: 'setResearch'; tech: TechId }
+  | { type: 'declareWar'; target: number }
+  | { type: 'proposePeace'; target: number }
+  /** Ask `partner` for `get`, paying with the tech `give`, or with gold when give is null. */
+  | { type: 'tradeTech'; partner: number; get: TechId; give: TechId | null }
+  | { type: 'giveGold'; target: number; amount: number }
+  | { type: 'answerOffer'; offerId: number; accept: boolean }
   | { type: 'endTurn' };
 
 export function applyAction(state: GameState, action: Action): ActionResult {
@@ -46,6 +53,16 @@ export function applyAction(state: GameState, action: Action): ActionResult {
       return setScienceRate(state, action.rate);
     case 'setResearch':
       return setResearch(state, action.tech);
+    case 'declareWar':
+      return declareWar(state, state.currentPlayer, action.target);
+    case 'proposePeace':
+      return proposePeace(state, action.target);
+    case 'tradeTech':
+      return tradeTech(state, action.partner, action.get, action.give);
+    case 'giveGold':
+      return giveGold(state, action.target, action.amount);
+    case 'answerOffer':
+      return answerOffer(state, action.offerId, action.accept);
     case 'endTurn':
       return endHumanTurn(state);
   }

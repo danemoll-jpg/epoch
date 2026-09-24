@@ -22,6 +22,7 @@
           <span id="civLabel"></span>
           <span id="turnLabel"></span>
           <span id="eraLabel"></span>
+          <button id="diploBtn" type="button" aria-label="Diplomacy: the civs you have met">🤝 Diplomacy</button>
         </div>
         <div class="line">
           <span id="goldLabel"></span>
@@ -78,6 +79,22 @@
         </section>
       </div>
 
+      <div id="diploOverlay" class="overlay" hidden>
+        <section id="diploPanel" role="dialog" aria-modal="true" aria-label="Diplomacy">
+          <div class="techHead">
+            <div>
+              <h2>Diplomacy</h2>
+              <div id="diploStatus" class="sub"></div>
+            </div>
+            <button id="diploCloseBtn" type="button" class="closeBtn" aria-label="Close diplomacy">✕</button>
+          </div>
+          <div id="diploBody">
+            <div id="diploList" class="scroll"></div>
+            <div id="diploDetail" class="scroll"></div>
+          </div>
+        </section>
+      </div>
+
       <div id="attackOverlay" class="overlay" hidden>
         <section id="attackPanel" class="dialog" role="dialog" aria-modal="true" aria-label="Attack">
           <div id="attackBody"></div>
@@ -96,6 +113,15 @@
             <button id="endCloseBtn" type="button">Look at the map</button>
             <button id="endNewBtn" type="button" class="bigBtn">New Game</button>
           </div>
+        </section>
+      </div>
+
+      <!-- News that needs an answer or a moment: first contact, war declared on you, AI offers. -->
+      <div id="noticeOverlay" class="overlay" hidden>
+        <section id="noticePanel" class="dialog" role="dialog" aria-modal="true">
+          <h2 id="noticeTitle"></h2>
+          <p id="noticeText"></p>
+          <div id="noticeButtons" class="row"></div>
         </section>
       </div>
 
