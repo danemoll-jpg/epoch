@@ -160,6 +160,8 @@ button:not(:disabled):active {
   align-items: center;
   pointer-events: none;
   width: min(520px, calc(100vw - 32px));
+  /* Above the menu and tech screen, so "Learned X" / new-era news is never hidden. */
+  z-index: 20;
 }
 
 .toast {
@@ -252,7 +254,8 @@ button:not(:disabled):active {
 
 #cityPanel {
   position: absolute;
-  top: calc(8px + var(--safe-top));
+  /* Starts below the ☰ button so the menu stays reachable while a city is open. */
+  top: calc(60px + var(--safe-top));
   right: calc(8px + var(--safe-right));
   bottom: calc(88px + var(--safe-bottom));
   width: min(380px, calc(100vw - 16px - var(--safe-left) - var(--safe-right)));
@@ -453,4 +456,266 @@ button:not(:disabled):active {
 
 button.danger {
   background: #8a2f2f;
+}
+
+/* ---- research button (top bar) ---- */
+
+#eraLabel {
+  color: var(--muted);
+}
+
+#researchBtn {
+  padding: 0 12px;
+  font-weight: 600;
+  background: #23405a;
+}
+
+#researchBtn.ready {
+  background: var(--accent);
+  color: #1b1405;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+#researchBtn.ready .sub {
+  color: #4a3a10;
+}
+
+/* ---- tech screen: tree beside the details in landscape, details above the tree in portrait ---- */
+
+#techPanel {
+  position: absolute;
+  top: calc(8px + var(--safe-top));
+  bottom: calc(8px + var(--safe-bottom));
+  left: calc(8px + var(--safe-left));
+  right: calc(8px + var(--safe-right));
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  background: #16212e;
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.techHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.techHead h2 {
+  margin: 0 0 2px;
+  font-size: 22px;
+}
+
+.techHead .prompt {
+  color: var(--accent);
+  font-size: 15px;
+}
+
+#techBody {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 340px;
+}
+
+#techTree,
+#techDetail {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  min-height: 0;
+  padding: 8px 14px 16px;
+}
+
+#techDetail {
+  border-left: 1px solid var(--panel-border);
+  background: rgba(0, 0, 0, 0.15);
+}
+
+@media (orientation: portrait) {
+  #techBody {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 42%) 1fr;
+  }
+  #techDetail {
+    order: -1;
+    border-left: none;
+    border-bottom: 1px solid var(--panel-border);
+  }
+}
+
+#techTree h3 {
+  margin: 10px 0 6px;
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.techGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 6px;
+}
+
+.tech {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  text-align: left;
+  padding: 6px 10px;
+  min-height: 52px;
+}
+
+.tech .tmeta {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.tech.known {
+  background: #1e3b2a;
+  border-color: #3f7a55;
+}
+
+.tech.available {
+  background: #243447;
+  border-color: #8cc4ee;
+}
+
+.tech.current {
+  background: #5a4a14;
+  border-color: var(--accent);
+}
+
+.tech.locked {
+  background: #1a222c;
+  color: #8793a0;
+}
+
+.tech.sel {
+  outline: 3px solid #ffe066;
+  outline-offset: 1px;
+}
+
+#techDetail h3 {
+  margin: 6px 0 2px;
+  font-size: 20px;
+}
+
+#techDetail p {
+  margin: 8px 0 10px;
+}
+
+#techDetail .label {
+  color: var(--muted);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 12px 0 4px;
+}
+
+#techDetail ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+#techDetail li {
+  margin-bottom: 4px;
+}
+
+.prereqs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.prereqs .have {
+  color: #7fcf95;
+}
+
+.prereqs .need {
+  color: #e08a8a;
+}
+
+.researchBtn {
+  width: 100%;
+  min-height: 52px;
+  background: #2f6b45;
+  font-size: 17px;
+}
+
+/* ---- dev scenarios (dev server only) ---- */
+
+#devBanner {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(88px + var(--safe-bottom));
+  width: min(560px, calc(100vw - 16px));
+  box-sizing: border-box;
+  padding: 10px 12px;
+  background: rgba(70, 30, 90, 0.94);
+  border: 1px solid #c08ce0;
+  border-radius: 12px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  z-index: 4;
+}
+
+#devBanner[hidden] {
+  display: none;
+}
+
+#devBannerText {
+  flex: 1;
+  font-size: 14px;
+}
+
+#devBanner .row {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+#devBannerClose {
+  padding: 0;
+}
+
+#devMenu {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--panel-border);
+}
+
+#devMenu .label {
+  color: #c08ce0;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+}
+
+.devList {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.devList button {
+  background: #3a2550;
+  padding: 0 8px;
+  font-size: 14px;
+}
+
+.devList button.on {
+  border-color: #c08ce0;
 }

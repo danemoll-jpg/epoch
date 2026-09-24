@@ -1,5 +1,7 @@
-// Building table. Every building is available without techs until Milestone 3, which adds
-// tech requirements. Costs and effect numbers are placeholders; there's no upkeep yet.
+// Building table. `requires` is the tech that unlocks each building. Costs and effect
+// numbers are placeholders; there's no upkeep yet.
+
+import type { TechId } from './techs';
 
 export type BuildingId = 'granary' | 'barracks' | 'walls' | 'library' | 'marketplace' | 'temple';
 
@@ -23,36 +25,38 @@ export interface BuildingDef {
   /** One-line player-facing summary of the effect. */
   summary: string;
   effects: BuildingEffects;
+  /** Tech needed to build it. */
+  requires?: TechId;
 }
 
 export const BUILDINGS: Record<BuildingId, BuildingDef> = {
   granary: {
-    id: 'granary', name: 'Granary', cost: 40,
+    id: 'granary', name: 'Granary', cost: 40, requires: 'pottery',
     summary: 'Keeps half the food box after growth',
     effects: { foodKeptPct: 50 },
   },
   barracks: {
-    id: 'barracks', name: 'Barracks', cost: 30,
+    id: 'barracks', name: 'Barracks', cost: 30, requires: 'bronze_working',
     summary: 'New units start as veterans',
     effects: { veteranUnits: true },
   },
   walls: {
-    id: 'walls', name: 'Walls', cost: 40,
+    id: 'walls', name: 'Walls', cost: 40, requires: 'masonry',
     summary: 'Stronger city defense (from combat on)',
     effects: { defenseBonusPct: 100 },
   },
   library: {
-    id: 'library', name: 'Library', cost: 60,
+    id: 'library', name: 'Library', cost: 60, requires: 'writing',
     summary: '+50% science',
     effects: { sciencePct: 50 },
   },
   marketplace: {
-    id: 'marketplace', name: 'Marketplace', cost: 60,
+    id: 'marketplace', name: 'Marketplace', cost: 60, requires: 'currency',
     summary: '+50% gold',
     effects: { goldPct: 50 },
   },
   temple: {
-    id: 'temple', name: 'Temple', cost: 30,
+    id: 'temple', name: 'Temple', cost: 30, requires: 'ceremonial_burial',
     summary: 'Culture (effect comes later)',
     effects: { culture: 1 },
   },

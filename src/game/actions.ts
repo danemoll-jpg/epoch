@@ -2,9 +2,11 @@
 // the AI also calls directly.
 
 import type { CityFocus } from '../data/rules';
+import type { TechId } from '../data/techs';
 import { foundCity } from './city';
 import { moveUnitToward } from './movement';
 import { rushBuy, setBuild, setFocus, setScienceRate } from './production';
+import { setResearch } from './tech';
 import { endHumanTurn } from './turn';
 import type { ActionResult, BuildItem, Coord, GameState } from './types';
 
@@ -15,6 +17,7 @@ export type Action =
   | { type: 'setFocus'; cityId: number; focus: CityFocus }
   | { type: 'rushBuy'; cityId: number }
   | { type: 'setScienceRate'; rate: number }
+  | { type: 'setResearch'; tech: TechId }
   | { type: 'endTurn' };
 
 export function applyAction(state: GameState, action: Action): ActionResult {
@@ -31,6 +34,8 @@ export function applyAction(state: GameState, action: Action): ActionResult {
       return rushBuy(state, action.cityId);
     case 'setScienceRate':
       return setScienceRate(state, action.rate);
+    case 'setResearch':
+      return setResearch(state, action.tech);
     case 'endTurn':
       return endHumanTurn(state);
   }

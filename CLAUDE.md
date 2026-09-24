@@ -135,29 +135,68 @@ debugging, including from Safari's Web Inspector on the iPad.
 **Autosave:** `localStorage` key `epoch.autosave` (synchronous, so it
 completes inside Safari's `pagehide`). Saved after every successful action
 (including End Turn), on `visibilitychange` → hidden, and on `pagehide`.
-The save carries `saveVersion` (= `STATE_VERSION` in `src/game/types.ts`).
-**Bump `STATE_VERSION` whenever the state shape changes**; older saves then
-start a new game with an on-screen notice instead of crashing.
+The save carries `saveVersion` (= `STATE_VERSION` in `src/game/types.ts`,
+currently 3). **Bump `STATE_VERSION` whenever the state shape changes, and
+add a migration** to `MIGRATIONS` in `src/game/save.ts` (keyed by the
+version it upgrades from) so Dan's game carries forward. A version with no
+migration path starts a new game with an on-screen notice instead of
+crashing. 2 → 3 (M3) is migrated: no techs, nothing researched, science
+kept as banked, and a city building something now tech-locked goes back to
+"choose" with its production kept.
+
+**Dev scenarios (dev server only):** `?scenario=<id>` loads a small
+hand-made game with a hard-to-reach rule one End Turn away, with an
+on-screen note saying what to do and what should happen. On the iPad, pick
+one from the ☰ menu (the "Dev scenarios" list) instead of typing URLs;
+"Back to my game" (in the note or the menu) drops `?scenario`. **A scenario
+never autosaves**, so the real game can't be overwritten. Current set:
+`grow`, `starve`, `settler`, `rich`, `tech`, `era`. They're compiled out of
+the production build: `main.ts` imports `src/dev/scenarios.ts` only inside
+`if (import.meta.env.DEV)`, and `npm run build` ends with
+`scripts/check-dist.mjs`, which fails the build if the scenario marker or
+note text appears anywhere in `dist/`.
+
+**Adding a scenario (e.g. combat odds in M4):**
+1. Append an entry to `SCENARIOS` in `src/dev/scenarios.ts`: `id`, `title`
+   (menu label), `note` ("Tap End Turn. X should …"), and `build()`, which
+   makes the state with the helpers in `src/dev/build.ts` (`makeState`,
+   `addCity`, `addUnit`), or with `withCapital()` in the same file for the
+   usual one-city island.
+2. Add its expected outcome to `OUTCOMES` in `tests/scenarios.test.ts`. The
+   suite fails for any scenario without one, so a note can't drift from what
+   the rules actually do.
+Nothing else to wire up: the ☰ menu lists every entry automatically.
 
 ## Code layout
-- `src/data/`: terrain, units (incl. cost, `popCost`), buildings,
-  civs/leaders/city names, rule constants (`rules.ts`: growth, focus
-  weights, rush-buy formula, science rate, etc.).
+- `src/data/`: terrain, units (cost, `popCost`, attack/defense/moves,
+  `requires` tech), buildings (`requires` tech), `techs.ts` (eras, the 50
+  techs with prereqs/era/tier/description, the tech cost formula, AI
+  research priority), `wonders.ts` (empty shape for M7), civs/leaders/city
+  names, rule constants (`rules.ts`: growth, focus weights, rush-buy
+  formula, science rate, etc.). A tech's unlocks are the `requires` fields
+  on units/buildings/wonders, so adding a unit never touches `techs.ts`.
 - `src/game/`: pure rules. `types.ts` (state + `STATE_VERSION`), `rng.ts`,
   `grid.ts`, `mapgen.ts`, `newGame.ts`, `movement.ts`, `city.ts`
   (founding), `yields.ts` (tile yields, automatic worked tiles, trade
-  split), `production.ts` (build/focus/rate/rush-buy actions and the
-  end-of-turn city update), `fog.ts`, `log.ts` (event log + fog filter),
+  split), `production.ts` (build/focus/rate/rush-buy actions, the
+  tech-gated build list, and the end-of-turn city update), `tech.ts`
+  (research action, end-of-turn research, eras, unlocks, AI research
+  choice), `fog.ts`, `log.ts` (event log + fog filter),
   `turn.ts`, `ai.ts`, `save.ts` (serialize/deserialize with version
-  check), and `actions.ts` (the single `applyAction` entry point the UI
+  check and migrations), and `actions.ts` (the single `applyAction` entry point the UI
   uses).
 - `src/render/`: `camera.ts` and `renderer.ts` (Canvas 2D; read-only on
   state).
-- `src/ui/`: `app.ts` (view state, HUD, city panel, menu, dispatch),
+- `src/dev/`: dev/test only, never in the production build. `build.ts`
+  (hand-made state builder shared by tests and scenarios) and
+  `scenarios.ts`.
+- `src/ui/`: `app.ts` (view state, HUD, city panel, tech screen, menu, dev
+  scenario banner, dispatch),
   `tap.ts` (pure tap rule, unit-tested), `storage.ts` (localStorage
   autosave), `input.ts` (Pointer Events, Safari gesture guards; touch
   scrolling is allowed only inside `.scroll` elements), `style.css`.
-- `tests/`: Vitest suites plus `helpers.ts` for hand-built map states.
+- `tests/`: Vitest suites. `helpers.ts` re-exports `src/dev/build.ts`.
+- `scripts/check-dist.mjs`: post-build check that no dev code shipped.
 - A player's `id` always equals its index in `state.players`.
 
 ## Hub integration (how Dan's games are deployed)
@@ -190,17 +229,16 @@ the local commits waiting. Then wait for Dan to say "push."
 **Milestone 1 (playable skeleton) is done and CONFIRMED by Dan on his iPad**
 over the local network. Going live in the hub is deferred by Dan.
 
-**Milestone 2 (cities, economy, and autosave) is coded (84 tests) and tested
-by Dan on the iPad.** Growth and starvation still need to be seen on the
-iPad through the new dev scenarios, and a Safari-reload check of autosave
-is still pending.
+**Milestone 2 (cities, economy, and autosave) is coded and tested by Dan on
+the iPad.** Growth and starvation can now be seen on demand through the dev
+scenarios; a Safari-reload check of autosave is still pending.
 
-**The current objective is Round 3:**
-- **Part A, M2 wrap-up:** drop the two local hub commits, and add dev test
-  scenarios.
-- **Part B, Milestone 3:** the tech tree.
-
-See items 0, A1–A3, and B1–B9 in TODO.md.
+**Round 3 (M2 wrap-up + Milestone 3, the tech tree) is coded (2026-09-23):
+122 tests passing,** preview-verified on desktop and in iPad-sized touch
+emulation. **Waiting for Dan's iPad checks** (a)–(c) in TODO.md. Item A1
+(dropping the two local hub commits) was **not done**: the command was
+blocked by a permission check, so Dan needs to run it or allow it. Nothing
+has been pushed. Per-item status is in TODO.md.
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.

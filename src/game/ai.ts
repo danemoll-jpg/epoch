@@ -1,19 +1,21 @@
 // Minimal AI. It doesn't need to be smart: settlers found a city (right away for the
-// capital, otherwise at a decent nearby spot), one warrior stays home in each city and the
+// capital, otherwise at a decent nearby spot), one defender stays home in each city and the
 // rest walk toward unexplored territory. Cities follow simple build rules (see
-// chooseBuild). It only uses the same action functions the human player uses, and only
-// looks at tiles it has explored.
+// chooseBuild), and research follows a priority list in data (see chooseAiResearch). It
+// only uses the same action functions the human player uses, and only looks at tiles it
+// has explored.
 
 import { AI_BUILDING_ORDER, AI_TARGET_CITIES } from '../data/buildings';
 import { RULES } from '../data/rules';
 import { TERRAIN } from '../data/terrain';
-import { UNITS } from '../data/units';
+import { UNITS, UNIT_IDS, type UnitTypeId } from '../data/units';
 import { distance, neighbors, tileIndex } from './grid';
 import { foundCity, foundCityError } from './city';
 import { siteScore } from './mapgen';
 import { findUnit, isEnterable, moveUnitToward } from './movement';
-import { buyError, rushBuy, sameItem, setBuild, setFocus } from './production';
+import { buildChoiceError, buyError, rushBuy, sameItem, setBuild, setFocus } from './production';
 import { nextFloat } from './rng';
+import { chooseAiResearch, setResearch } from './tech';
 import type { BuildItem, City, Coord, GameState, Unit } from './types';
 
 /** Breadth-first step distances over explored, enterable tiles. */
@@ -101,16 +103,29 @@ function hasExplorer(state: GameState, playerId: number): boolean {
   });
 }
 
+/** The unlocked military unit with the best defense (cheaper wins a tie). */
+export function bestDefender(state: GameState, city: City): UnitTypeId {
+  let best: UnitTypeId = 'warrior';
+  for (const id of UNIT_IDS) {
+    const def = UNITS[id];
+    if (def.canFoundCity || buildChoiceError(state, city, { kind: 'unit', id })) continue;
+    const cur = UNITS[best];
+    if (def.defense > cur.defense || (def.defense === cur.defense && def.cost < cur.cost)) best = id;
+  }
+  return best;
+}
+
 /**
  * Build rules, first match wins:
- * 1. No defender at home → Warrior.
+ * 1. No defender at home → the best unlocked defender.
  * 2. Fewer cities (counting settlers in the field and in production) than the target → Settler,
  *    from one city at a time. A size-1 city switches to Food focus so the Settler can finish.
- * 3. The next building in AI_BUILDING_ORDER it doesn't have.
- * 4. Warrior.
+ * 3. The next unlocked building in AI_BUILDING_ORDER it doesn't have.
+ * 4. The best unlocked defender.
  */
 export function chooseBuild(state: GameState, city: City): BuildItem {
-  if (defendersIn(state, city).length === 0) return { kind: 'unit', id: 'warrior' };
+  const defender: BuildItem = { kind: 'unit', id: bestDefender(state, city) };
+  if (defendersIn(state, city).length === 0) return defender;
   const owner = city.owner;
   const myCities = state.cities.filter((c) => c.owner === owner);
   const settlersOut = state.units.filter((u) => u.owner === owner && UNITS[u.type].canFoundCity).length;
@@ -118,8 +133,8 @@ export function chooseBuild(state: GameState, city: City): BuildItem {
   if (myCities.length + settlersOut + settlerCities.length < AI_TARGET_CITIES && settlerCities.length === 0) {
     return { kind: 'unit', id: 'settler' };
   }
-  const next = AI_BUILDING_ORDER.find((b) => !city.buildings.includes(b));
-  return next ? { kind: 'building', id: next } : { kind: 'unit', id: 'warrior' };
+  const next = AI_BUILDING_ORDER.find((b) => !buildChoiceError(state, city, { kind: 'building', id: b }));
+  return next ? { kind: 'building', id: next } : defender;
 }
 
 function manageCities(state: GameState, playerId: number): void {
@@ -172,6 +187,11 @@ function explore(state: GameState, unit: Unit): void {
 }
 
 export function runAiTurn(state: GameState, playerId: number): void {
+  const player = state.players[playerId]!;
+  if (!player.researching) {
+    const tech = chooseAiResearch(player);
+    if (tech) setResearch(state, tech);
+  }
   const mine = state.units.filter((u) => u.owner === playerId).map((u) => u.id);
   for (const id of mine) {
     const unit = findUnit(state, id);

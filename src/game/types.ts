@@ -3,6 +3,7 @@
 
 import type { BuildingId } from '../data/buildings';
 import type { CityFocus } from '../data/rules';
+import type { TechId } from '../data/techs';
 import type { TerrainId } from '../data/terrain';
 import type { UnitTypeId } from '../data/units';
 
@@ -34,10 +35,17 @@ export interface Player {
   citiesFounded: number;
   alive: boolean;
   gold: number;
-  /** Accumulated science. Buys nothing until the tech tree (Milestone 3). */
+  /**
+   * The science pool: progress toward the current research, or banked science while
+   * nothing is being researched. Learning a tech takes its cost out; the rest carries over.
+   */
   science: number;
   /** Percent of trade that becomes science (0–100, 10% steps); the rest is gold. */
   scienceRate: number;
+  /** Known techs, in the order they were learned. */
+  techs: TechId[];
+  /** The tech being researched, or null when the player needs to pick one. */
+  researching: TechId | null;
 }
 
 export interface Unit {
@@ -78,8 +86,12 @@ export interface City {
   worked: number[];
 }
 
-/** Bumped whenever the state shape changes; saves from another version aren't loaded. */
-export const STATE_VERSION = 2;
+/**
+ * Bumped whenever the state shape changes. Older saves are migrated forward when there's a
+ * migration for them in save.ts; otherwise they aren't loaded.
+ * 3 = Milestone 3 (techs, research).
+ */
+export const STATE_VERSION = 3;
 
 export interface GameState {
   version: number;

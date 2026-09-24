@@ -118,10 +118,11 @@ function drawUnit(
   ctx.fill();
   ctx.stroke();
   ctx.fillStyle = '#ffffff';
-  ctx.font = `700 ${Math.round(r * 1.07)}px system-ui, sans-serif`;
+  const glyph = UNITS[unit.type].glyph;
+  ctx.font = `700 ${Math.round(r * (glyph.length > 1 ? 0.8 : 1.07))}px system-ui, sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(UNITS[unit.type].glyph, cx, cy + s * 0.01);
+  ctx.fillText(glyph, cx, cy + s * 0.01);
   if (stackCount > 1) {
     const bx = cx + r * 0.85;
     const by = cy - r * 0.85;

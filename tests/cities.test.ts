@@ -152,6 +152,7 @@ describe('production', () => {
     const c = addCity(s, 0, 1, 1, { build: { kind: 'unit', id: 'warrior' }, production: 10 });
     processCities(s, 0);
     expect(c.build).toEqual({ kind: 'unit', id: 'warrior' });
+    s.players[0]!.techs.push('ceremonial_burial'); // Temple needs it
     setBuild(s, c.id, { kind: 'building', id: 'temple' });
     c.production = 30;
     processCities(s, 0);
@@ -333,6 +334,9 @@ describe('AI cities', () => {
     addCity(s, 1, 4, 1);
     addCity(s, 1, 7, 1);
     addUnit(s, 'settler', 1, 8, 2);
+    // No techs yet: no buildings are unlocked, so it keeps adding defenders.
+    expect(chooseBuild(s, c)).toEqual({ kind: 'unit', id: 'warrior' });
+    s.players[1]!.techs.push('pottery', 'alphabet', 'writing');
     expect(chooseBuild(s, c)).toEqual({ kind: 'building', id: 'granary' });
     c.buildings.push('granary');
     expect(chooseBuild(s, c)).toEqual({ kind: 'building', id: 'library' });
@@ -370,8 +374,9 @@ describe('AI cities', () => {
     }
     // Every AI city ended up defended or is building its defender.
     for (const c of a.cities.filter((c) => c.owner !== 0)) {
-      const defended = a.units.some((u) => u.owner === c.owner && u.x === c.x && u.y === c.y && u.type === 'warrior');
-      expect(defended || c.build?.id === 'warrior').toBe(true);
+      const military = (id: string) => id !== 'settler';
+      const defended = a.units.some((u) => u.owner === c.owner && u.x === c.x && u.y === c.y && military(u.type));
+      expect(defended || (c.build?.kind === 'unit' && military(c.build.id))).toBe(true);
     }
   });
 });

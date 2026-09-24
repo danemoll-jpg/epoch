@@ -21,10 +21,11 @@
           <span id="title">Epoch</span>
           <span id="civLabel"></span>
           <span id="turnLabel"></span>
+          <span id="eraLabel"></span>
         </div>
         <div class="line">
           <span id="goldLabel"></span>
-          <span id="scienceLabel"></span>
+          <button id="researchBtn" type="button" aria-label="Research: open the tech screen"></button>
           <span id="rateCtl">
             <button id="rateDown" type="button" aria-label="Less science, more gold">−</button>
             <span id="rateLabel"></span>
@@ -50,6 +51,31 @@
 
       <button id="endTurnBtn" type="button">End Turn</button>
 
+      <!-- Dev scenarios only (never shown in the production build). -->
+      <div id="devBanner" hidden>
+        <div id="devBannerText"></div>
+        <div class="row">
+          <button id="devBackBtn" type="button">Back to my game</button>
+          <button id="devBannerClose" type="button" aria-label="Hide this note">✕</button>
+        </div>
+      </div>
+
+      <div id="techOverlay" class="overlay" hidden>
+        <section id="techPanel" role="dialog" aria-modal="true" aria-label="Technology">
+          <div class="techHead">
+            <div>
+              <h2>Technology</h2>
+              <div id="techStatus" class="sub"></div>
+            </div>
+            <button id="techCloseBtn" type="button" class="closeBtn" aria-label="Close tech screen">✕</button>
+          </div>
+          <div id="techBody">
+            <div id="techTree" class="scroll"></div>
+            <div id="techDetail" class="scroll"></div>
+          </div>
+        </section>
+      </div>
+
       <div id="menuOverlay" class="overlay" hidden>
         <div class="dialog" role="dialog" aria-modal="true">
           <div id="menuMain">
@@ -59,6 +85,7 @@
               <button id="newGameBtn" type="button">New Game</button>
               <button id="menuCloseBtn" type="button">Close</button>
             </div>
+            <div id="devMenu" hidden></div>
           </div>
           <div id="menuConfirm" hidden>
             <h2>Start a new game?</h2>

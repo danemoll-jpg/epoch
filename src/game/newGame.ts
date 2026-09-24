@@ -3,6 +3,7 @@
 
 import { CIVS } from '../data/civs';
 import { RULES } from '../data/rules';
+import { STARTING_TECHS } from '../data/techs';
 import { UNITS } from '../data/units';
 import { updateExplored } from './fog';
 import { findStartPositions, generateMap } from './mapgen';
@@ -49,6 +50,8 @@ export function createGame(opts: NewGameOptions): GameState {
     gold: RULES.startingGold,
     science: 0,
     scienceRate: RULES.defaultScienceRate,
+    techs: [...STARTING_TECHS],
+    researching: null,
   }));
 
   const state: GameState = {

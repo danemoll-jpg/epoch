@@ -9,8 +9,10 @@
 
 import { BUILDINGS, BUILDING_IDS } from '../data/buildings';
 import { CITY_FOCUSES, RULES, growthThreshold, rushBuyCost, type CityFocus } from '../data/rules';
+import { TECHS, type TechId } from '../data/techs';
 import { UNITS, UNIT_IDS } from '../data/units';
 import { addLog } from './log';
+import { hasTech } from './tech';
 import { cityScienceGold, cityYields, foodSurplus, refreshWorkedTiles } from './yields';
 import type { ActionResult, BuildItem, City, GameState, Unit } from './types';
 
@@ -30,24 +32,29 @@ export function sameItem(a: BuildItem | null, b: BuildItem | null): boolean {
   return !!a && !!b && a.kind === b.kind && a.id === b.id;
 }
 
+/** The tech an item needs, if any. */
+export function itemRequires(item: BuildItem): TechId | undefined {
+  return item.kind === 'unit' ? UNITS[item.id]?.requires : BUILDINGS[item.id]?.requires;
+}
+
 /** Why the city can't choose this item at all, or undefined if it can. */
-export function buildChoiceError(city: City, item: BuildItem): string | undefined {
+export function buildChoiceError(state: GameState, city: City, item: BuildItem): string | undefined {
   if (item.kind === 'building') {
     if (!BUILDINGS[item.id]) return 'Unknown building';
     if (city.buildings.includes(item.id)) return 'Already built';
   } else if (!UNITS[item.id]) {
     return 'Unknown unit';
   }
+  const requires = itemRequires(item);
+  if (!hasTech(state.players[city.owner]!, requires)) return `Needs ${TECHS[requires!].name}`;
   return undefined;
 }
 
-/** Everything the city could be set to build right now, units first. */
-export function buildOptions(city: City): BuildItem[] {
+/** Everything the city could be set to build right now (only what's unlocked), units first. */
+export function buildOptions(state: GameState, city: City): BuildItem[] {
   const units: BuildItem[] = UNIT_IDS.map((id) => ({ kind: 'unit', id }));
-  const buildings: BuildItem[] = BUILDING_IDS.filter((id) => !city.buildings.includes(id)).map(
-    (id) => ({ kind: 'building', id }),
-  );
-  return [...units, ...buildings];
+  const buildings: BuildItem[] = BUILDING_IDS.map((id) => ({ kind: 'building', id }));
+  return [...units, ...buildings].filter((item) => !buildChoiceError(state, city, item));
 }
 
 /** Why the finished item would have to wait (e.g. a Settler in a size-1 city). */
@@ -69,7 +76,7 @@ function ownedCity(state: GameState, cityId: number): City | string {
 export function setBuild(state: GameState, cityId: number, item: BuildItem): ActionResult {
   const city = ownedCity(state, cityId);
   if (typeof city === 'string') return { ok: false, reason: city };
-  const err = buildChoiceError(city, item);
+  const err = buildChoiceError(state, city, item);
   if (err) return { ok: false, reason: err };
   // Switching keeps stored production (no penalty in this milestone).
   city.build = item.kind === 'unit' ? { kind: 'unit', id: item.id } : { kind: 'building', id: item.id };

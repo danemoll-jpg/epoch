@@ -1,14 +1,17 @@
 import './ui/style.css';
 import { RULES } from './data/rules';
+import type { Scenario } from './dev/scenarios';
 import { createGame } from './game/newGame';
 import type { GameState } from './game/types';
-import { App } from './ui/app';
+import { App, type AppOptions } from './ui/app';
 import { preventBrowserGestures } from './ui/input';
 import { loadFromStorage, saveToStorage } from './ui/storage';
 
 // URL options for testing: ?seed=123 for a reproducible map, ?players=5 for a full table,
 // ?new to ignore the autosave and start fresh. Without ?new, a saved game always resumes
 // (and ?seed / ?players only apply to new games).
+// Dev server only: ?scenario=<id> loads a hand-made test scenario (see src/dev/scenarios.ts).
+// A scenario is never autosaved, so the real game is untouched; drop ?scenario to go back.
 const params = new URLSearchParams(location.search);
 const seedParam = Number(params.get('seed'));
 const playersParam = Number(params.get('players'));
@@ -23,26 +26,59 @@ function newGame(): GameState {
   return createGame({ seed, playerCount });
 }
 
-let state: GameState | undefined;
-let notice: string | undefined;
-const saved = params.has('new') ? undefined : loadFromStorage();
-if (saved?.kind === 'ok') {
-  state = saved.state;
-  notice = `Resumed your game (turn ${state.turn})`;
-} else if (saved?.kind === 'incompatible') {
-  notice = 'Your saved game is from an older version of Epoch and can’t be loaded, so a new game has started.';
-} else if (saved?.kind === 'corrupt') {
-  console.warn('Epoch: saved game unreadable:', saved.error);
-  notice = 'Your saved game couldn’t be read, so a new game has started.';
-}
-if (!state) {
-  state = newGame();
-  saveToStorage(state);
+async function boot(): Promise<void> {
+  let state: GameState | undefined;
+  let notice: string | undefined;
+  const opts: AppOptions = { newGame };
+
+  // import.meta.env.DEV is false in the production build, so Vite drops this branch and the
+  // dev/scenarios chunk entirely (scripts/check-dist.mjs verifies it after every build).
+  if (import.meta.env.DEV) {
+    const dev = await import('./dev/scenarios');
+    opts.devScenarios = dev.SCENARIOS.map((s) => ({ id: s.id, title: s.title }));
+    const id = params.get('scenario');
+    if (id) {
+      const scenario: Scenario | undefined = dev.findScenario(id);
+      if (scenario) {
+        state = scenario.build();
+        opts.scenario = { id: scenario.id, title: scenario.title, note: scenario.note };
+        opts.autosave = false;
+        console.info(`Epoch: ${dev.SCENARIO_MARKER}: loaded "${id}" (not saved)`);
+      } else {
+        notice = `No dev scenario called “${id}”; showing your game.`;
+      }
+    }
+  }
+
+  if (!state) {
+    const saved = params.has('new') ? undefined : loadFromStorage();
+    if (saved?.kind === 'ok') {
+      state = saved.state;
+      notice ??= saved.migratedFrom
+        ? `Your saved game was updated for the tech tree (turn ${state.turn}). Tap the research button to pick a tech.`
+        : `Resumed your game (turn ${state.turn})`;
+    } else if (saved?.kind === 'incompatible') {
+      notice = 'Your saved game is from an older version of Epoch and can’t be loaded, so a new game has started.';
+    } else if (saved?.kind === 'corrupt') {
+      console.warn('Epoch: saved game unreadable:', saved.error);
+      notice = 'Your saved game couldn’t be read, so a new game has started.';
+    }
+    if (!state) {
+      state = newGame();
+      saveToStorage(state);
+    } else if (saved?.kind === 'ok' && saved.migratedFrom) {
+      // Write the upgraded save back right away.
+      saveToStorage(state);
+    }
+  }
+
+  preventBrowserGestures();
+  opts.notice = notice;
+  const app = new App(state, opts);
+
+  // Debug handle for diagnosing device-only bugs (e.g. from Safari's Web Inspector).
+  (window as unknown as { __epoch: unknown }).__epoch = { app, seed: state.seed };
+  console.info(`Epoch: seed ${state.seed}, ${state.players.length} players, turn ${state.turn}`);
 }
 
-preventBrowserGestures();
-const app = new App(state, { newGame, notice });
-
-// Debug handle for diagnosing device-only bugs (e.g. from Safari's Web Inspector).
-(window as unknown as { __epoch: unknown }).__epoch = { app, seed: state.seed };
-console.info(`Epoch: seed ${state.seed}, ${state.players.length} players, turn ${state.turn}`);
+void boot();

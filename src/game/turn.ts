@@ -6,6 +6,7 @@ import { UNITS } from '../data/units';
 import { runAiTurn } from './ai';
 import { updateExplored } from './fog';
 import { processCities } from './production';
+import { processResearch } from './tech';
 import type { ActionResult, GameState } from './types';
 
 function startTurnFor(state: GameState, playerId: number): void {
@@ -16,11 +17,12 @@ function startTurnFor(state: GameState, playerId: number): void {
 }
 
 /**
- * Ends the current player's turn (their cities grow, produce, and earn) and starts the next
- * living player's turn.
+ * Ends the current player's turn (their cities grow, produce, and earn; research advances)
+ * and starts the next living player's turn.
  */
 export function endTurn(state: GameState): ActionResult {
   processCities(state, state.currentPlayer);
+  processResearch(state, state.currentPlayer);
   const n = state.players.length;
   let next = state.currentPlayer;
   for (let i = 0; i < n; i++) {

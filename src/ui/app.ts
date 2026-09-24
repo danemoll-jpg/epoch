@@ -4,6 +4,7 @@
 import { BUILDINGS } from '../data/buildings';
 import { CIVS } from '../data/civs';
 import { CITY_FOCUSES, RULES, growthThreshold, type CityFocus } from '../data/rules';
+import { ERAS, TECHS, TECH_LIST, type TechId } from '../data/techs';
 import { TERRAIN } from '../data/terrain';
 import { UNITS } from '../data/units';
 import { applyAction, type Action } from '../game/actions';
@@ -23,6 +24,17 @@ import {
   sameItem,
   turnsToFinish,
 } from '../game/production';
+import {
+  availableTechs,
+  eraName,
+  knows,
+  playerEra,
+  researchError,
+  techCost,
+  techLeadsTo,
+  techUnlocks,
+  turnsToLearn,
+} from '../game/tech';
 import type { BuildItem, City, GameState, Unit } from '../game/types';
 import { cityScienceGold, cityYields, empireIncome, foodSurplus } from '../game/yields';
 import { clampCamera, panBy, screenToWorld, zoomAt, type Camera } from '../render/camera';
@@ -45,6 +57,12 @@ export interface AppOptions {
   newGame: () => GameState;
   /** Shown once at startup, e.g. "Resumed your game". */
   notice?: string;
+  /** False while a dev scenario is loaded, so it can never overwrite the real autosave. */
+  autosave?: boolean;
+  /** Dev server only: the scenario being played (its note is shown on screen). */
+  scenario?: { id: string; title: string; note: string };
+  /** Dev server only: scenarios offered in the ☰ menu. */
+  devScenarios?: { id: string; title: string }[];
 }
 
 export class App {
@@ -54,6 +72,9 @@ export class App {
   private camera: Camera = { cx: 0, cy: 0, tileSize: 52 };
   private selectedUnitId: number | undefined;
   private openCityId: number | undefined;
+  /** The tech highlighted on the tech screen, and its prompt line (view state only). */
+  private techSelected: TechId | undefined;
+  private techPrompt: string | undefined;
   private cssW = 0;
   private cssH = 0;
   private frameQueued = false;
@@ -88,7 +109,10 @@ export class App {
     $('rateDown').addEventListener('click', () => this.changeRate(-RULES.scienceRateStep));
     $('rateUp').addEventListener('click', () => this.changeRate(RULES.scienceRateStep));
     $('cityPanel').addEventListener('click', (e) => this.handleCityPanelClick(e));
+    $('researchBtn').addEventListener('click', () => this.openTech());
+    $('techOverlay').addEventListener('click', (e) => this.handleTechClick(e));
     this.setupMenu();
+    this.setupDev();
     window.addEventListener('keydown', (e) => this.handleKey(e));
 
     // Autosave when the tab is hidden or unloaded: Safari may kill a background tab
@@ -122,17 +146,25 @@ export class App {
   }
 
   private save(): void {
+    if (this.opts.autosave === false) return;
     saveToStorage(this.state);
   }
 
   private endTurn(): void {
     const logStart = this.state.log.length;
+    const me = this.state.players[this.human]!;
+    const techsBefore = me.techs.length;
     if (!this.dispatch({ type: 'endTurn' })) return;
     // Report what happened this round: our own events, and rival events we could see.
     for (const entry of eventsVisibleTo(this.state, this.human, this.state.log.slice(logStart))) {
       this.toast(entry.text);
     }
     this.startHumanTurn();
+    // Just learned a tech: ask what to research next (on top of any city that needs a build).
+    if (me.techs.length > techsBefore && !me.researching && availableTechs(me).length > 0) {
+      const learned = TECHS[me.techs[me.techs.length - 1]!].name;
+      this.openTech(`You learned ${learned}. Choose what to research next.`);
+    }
   }
 
   private foundCity(): void {
@@ -262,6 +294,10 @@ export class App {
       if (e.key === 'Escape') this.closeMenu();
       return;
     }
+    if (!$('techOverlay').hidden) {
+      if (e.key === 'Escape') this.closeTech();
+      return;
+    }
     const k = e.key.toLowerCase();
     if (k === 'enter') this.endTurn();
     else if (k === 'b' || k === 'f') this.foundCity();
@@ -365,7 +401,7 @@ export class App {
         aria-pressed="${city.focus === f}">${FOCUS_LABEL[f]}</button>`,
     ).join('');
 
-    const buildBtns = buildOptions(city)
+    const buildBtns = buildOptions(this.state, city)
       .map((item) => {
         const itemCostV = itemCost(item);
         const perTurn = y.production;
@@ -427,7 +463,11 @@ export class App {
 
   private setupMenu(): void {
     $('menuBtn').addEventListener('click', () => {
-      $('menuInfo').textContent = `Turn ${this.state.turn} · seed ${this.state.seed}. Your game saves automatically.`;
+      const sc = this.opts.scenario;
+      $('menuInfo').textContent = sc
+        ? `Dev scenario “${sc.title}” · turn ${this.state.turn}. Not saved; your real game is untouched.`
+        : `Turn ${this.state.turn} · seed ${this.state.seed}. Your game saves automatically.`;
+      $('newGameBtn').hidden = !!sc;
       $('menuMain').hidden = false;
       $('menuConfirm').hidden = true;
       $('menuOverlay').hidden = false;
@@ -450,6 +490,163 @@ export class App {
 
   private closeMenu(): void {
     $('menuOverlay').hidden = true;
+  }
+
+  // ---- tech screen ---------------------------------------------------------------------
+
+  /** Opens the tech screen. `prompt` is shown above the status line (e.g. after learning a tech). */
+  private openTech(prompt?: string): void {
+    const me = this.state.players[this.human]!;
+    this.techSelected = me.researching ?? availableTechs(me)[0] ?? this.techSelected;
+    this.techPrompt = prompt;
+    $('techOverlay').hidden = false;
+    this.renderTech();
+    // Bring the highlighted tech into view in the tree.
+    $('techTree').querySelector('.tech.sel')?.scrollIntoView({ block: 'center' });
+  }
+
+  private closeTech(): void {
+    $('techOverlay').hidden = true;
+  }
+
+  private handleTechClick(e: MouseEvent): void {
+    const target = e.target as HTMLElement;
+    // Tapping the dimmed backdrop closes the screen.
+    if (target === $('techOverlay')) {
+      this.closeTech();
+      return;
+    }
+    const btn = target.closest('button');
+    if (!btn || btn.disabled) return;
+    if (btn.id === 'techCloseBtn') {
+      this.closeTech();
+    } else if (btn.dataset.tech) {
+      this.techSelected = btn.dataset.tech as TechId;
+      this.renderTech();
+    } else if (btn.dataset.act === 'research' && this.techSelected) {
+      const tech = this.techSelected;
+      if (this.dispatch({ type: 'setResearch', tech })) {
+        this.toast(`Researching ${TECHS[tech].name}`);
+        this.closeTech();
+      }
+    }
+  }
+
+  private techStatus(tech: TechId): 'known' | 'current' | 'available' | 'locked' {
+    const me = this.state.players[this.human]!;
+    if (knows(me, tech)) return 'known';
+    if (me.researching === tech) return 'current';
+    return researchError(me, tech) ? 'locked' : 'available';
+  }
+
+  private renderTech(): void {
+    const me = this.state.players[this.human]!;
+    const income = empireIncome(this.state, this.human).science;
+    const current = me.researching;
+    const status = current
+      ? `Researching ${TECHS[current].name}: ${Math.min(me.science, techCost(me, current))}/${techCost(me, current)} · +${income} science per turn`
+      : `Nothing being researched${me.science > 0 ? ` · ${me.science} science banked` : ''} · +${income} per turn`;
+    $('techStatus').innerHTML = this.techPrompt
+      ? `<b class="prompt">${esc(this.techPrompt)}</b><br>${esc(status)}`
+      : esc(status);
+
+    const treeEl = $('techTree');
+    const scrollTop = treeEl.scrollTop;
+    treeEl.innerHTML = ERAS.map((era) => {
+      const techs = TECH_LIST.filter((t) => t.era === era.id);
+      const known = techs.filter((t) => knows(me, t.id)).length;
+      const btns = techs
+        .map((t) => {
+          const st = this.techStatus(t.id);
+          let meta: string;
+          if (st === 'known') meta = '✓ Known';
+          else if (st === 'locked') meta = 'Locked';
+          else {
+            const turns = turnsToLearn(this.state, this.human, t.id);
+            meta = `${st === 'current' ? 'Researching · ' : ''}${turns === undefined ? '—' : plural(turns, 'turn')}`;
+          }
+          const sel = t.id === this.techSelected ? ' sel' : '';
+          return `<button type="button" class="tech ${st}${sel}" data-tech="${t.id}">
+            <span class="tname">${t.name}</span><span class="tmeta">${meta}</span></button>`;
+        })
+        .join('');
+      return `<div class="era"><h3>${era.name} <span class="sub">${known}/${techs.length} known</span></h3>
+        <div class="techGrid">${btns}</div></div>`;
+    }).join('');
+    treeEl.scrollTop = scrollTop;
+
+    $('techDetail').innerHTML = this.techSelected ? this.techDetailHtml(this.techSelected) : '';
+  }
+
+  private techDetailHtml(tech: TechId): string {
+    const me = this.state.players[this.human]!;
+    const def = TECHS[tech];
+    const st = this.techStatus(tech);
+    const cost = techCost(me, tech);
+    const turns = turnsToLearn(this.state, this.human, tech);
+    const stateText =
+      st === 'known' ? 'Known' : st === 'current' ? 'Researching now' : st === 'available' ? 'Available' : 'Locked';
+
+    const prereqs = def.prereqs.length
+      ? def.prereqs
+          .map((p) => `<span class="${knows(me, p) ? 'have' : 'need'}">${knows(me, p) ? '✓' : '✗'} ${TECHS[p].name}</span>`)
+          .join(' ')
+      : '<span class="sub">None</span>';
+
+    const u = techUnlocks(tech);
+    const unlockParts = [
+      ...u.buildings.map((b) => `<li><b>${BUILDINGS[b].name}</b> <span class="sub">building · ${BUILDINGS[b].summary}</span></li>`),
+      ...u.units.map((id) => `<li><b>${UNITS[id].name}</b> <span class="sub">unit · ${unitSummary(id)}</span></li>`),
+      ...u.wonders.map((w) => `<li><b>${w.name}</b> <span class="sub">wonder · ${w.summary}</span></li>`),
+    ];
+    const unlocks = unlockParts.length
+      ? `<ul>${unlockParts.join('')}</ul>`
+      : '<div class="sub">Nothing to build yet; its uses come in later milestones.</div>';
+    const leads = techLeadsTo(tech).map((t) => TECHS[t].name).join(', ');
+
+    let action = '';
+    if (st === 'available') {
+      action = `<button type="button" data-act="research" class="researchBtn">Research this${turns === undefined ? '' : ` · ${plural(turns, 'turn')}`}</button>`;
+    } else if (st === 'current') {
+      action = `<div class="sub">Being researched${turns === undefined ? '' : `, ${plural(turns, 'turn')} left`}.</div>`;
+    } else if (st === 'locked') {
+      action = `<div class="sub">${esc(researchError(me, tech) ?? '')}</div>`;
+    }
+
+    return `
+      <h3>${def.name}</h3>
+      <div class="sub">${eraName(def.era)} era · ${stateText}${st === 'known' ? '' : ` · cost ${cost}`}</div>
+      <p>${def.description}</p>
+      ${action}
+      <div class="label">Requires</div><div class="prereqs">${prereqs}</div>
+      <div class="label">Unlocks</div>${unlocks}
+      ${leads ? `<div class="label">Leads to</div><div class="sub">${leads}</div>` : ''}
+    `;
+  }
+
+  // ---- dev scenarios (dev server only) ---------------------------------------------------
+
+  private setupDev(): void {
+    const { scenario, devScenarios } = this.opts;
+    if (scenario) {
+      $('devBannerText').innerHTML = `<b>Dev scenario: ${esc(scenario.title)}</b><br>${esc(scenario.note)}`;
+      $('devBanner').hidden = false;
+      $('devBannerClose').addEventListener('click', () => ($('devBanner').hidden = true));
+      $('devBackBtn').addEventListener('click', () => gotoScenario(undefined));
+    }
+    if (devScenarios?.length) {
+      const menu = $('devMenu');
+      const back = scenario ? '<button type="button" data-scenario="">Back to my game</button>' : '';
+      menu.innerHTML = `<div class="label">Dev scenarios (not saved)</div>
+        <div class="devList">${devScenarios
+          .map((s) => `<button type="button" data-scenario="${s.id}" class="${s.id === scenario?.id ? 'on' : ''}">${esc(s.title)}</button>`)
+          .join('')}${back}</div>`;
+      menu.hidden = false;
+      menu.addEventListener('click', (e) => {
+        const btn = (e.target as HTMLElement).closest('button');
+        if (btn && btn.dataset.scenario !== undefined) gotoScenario(btn.dataset.scenario || undefined);
+      });
+    }
   }
 
   // ---- view ------------------------------------------------------------------------------
@@ -487,6 +684,7 @@ export class App {
   private refresh(): void {
     this.updateHud();
     this.renderCityPanel();
+    if (!$('techOverlay').hidden) this.renderTech();
     this.requestDraw();
   }
 
@@ -521,9 +719,23 @@ export class App {
     const civ = CIVS.find((c) => c.id === player.civId);
     $('civLabel').innerHTML = `<span class="swatch" style="background:${playerColor(this.state, this.human)}"></span>${civ?.name ?? ''} · ${civ?.leader ?? ''}`;
     $('turnLabel').textContent = `Turn ${this.state.turn}`;
+    $('eraLabel').textContent = `${eraName(playerEra(player))} era`;
     const income = empireIncome(this.state, this.human);
     $('goldLabel').innerHTML = `Gold <b>${player.gold}</b> <span class="sub">(+${income.gold})</span>`;
-    $('scienceLabel').innerHTML = `Science <b>${player.science}</b> <span class="sub">(+${income.science})</span>`;
+    const rb = $<HTMLButtonElement>('researchBtn');
+    if (player.researching) {
+      const t = turnsToLearn(this.state, this.human, player.researching);
+      rb.innerHTML = `🔬 ${TECHS[player.researching].name} <span class="sub">(${t ?? '—'})</span>`;
+      rb.classList.remove('ready');
+    } else if (availableTechs(player).length > 0) {
+      const banked = player.science > 0 ? ` <span class="sub">· ${player.science} banked</span>` : '';
+      rb.innerHTML = `🔬 Choose research${banked}`;
+      rb.classList.add('ready');
+    } else {
+      rb.innerHTML = '🔬 All techs known';
+      rb.classList.remove('ready');
+    }
+    rb.title = `Science +${income.science} per turn`;
     $('rateLabel').textContent = `${player.scienceRate}% sci · ${100 - player.scienceRate}% gold`;
     $<HTMLButtonElement>('rateDown').disabled = player.scienceRate <= 0;
     $<HTMLButtonElement>('rateUp').disabled = player.scienceRate >= 100;
@@ -574,8 +786,22 @@ function bar(value: number, max: number, cls: string): string {
 function unitSummary(id: BuildItem['id']): string {
   const def = UNITS[id as keyof typeof UNITS];
   if (!def) return '';
-  const parts = [`attack ${def.attack}, defense ${def.defense}`];
+  const parts = [`attack ${def.attack} · defense ${def.defense} · moves ${def.moves}`];
   if (def.canFoundCity) parts.push('founds a city');
   if (def.popCost > 0) parts.push(`costs ${def.popCost} population`);
   return parts.join(' · ');
+}
+
+function esc(text: string): string {
+  return text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+}
+
+/** Reloads with ?scenario=<id>, or without it (back to the real, autosaved game). */
+function gotoScenario(id: string | undefined): void {
+  const params = new URLSearchParams(location.search);
+  params.delete('new');
+  if (id) params.set('scenario', id);
+  else params.delete('scenario');
+  const q = params.toString();
+  location.href = location.pathname + (q ? `?${q}` : '');
 }

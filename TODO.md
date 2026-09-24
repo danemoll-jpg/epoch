@@ -170,9 +170,76 @@ Steps, Technical Notes.
     AI by turn 40. Production is low, and the first Settler takes ~15 turns.
     Fine for M2; revisit in the balance pass or M5.
 
+* **Round 3 — M2 wrap-up + Milestone 3 (tech tree) — coding done
+  (2026-09-23). Waiting for Dan's iPad checks (a)–(c) below.**
+  - **Result:** 122 unit tests passing (38 new). Type-check and production
+    build are clean, and the build now ends with a dev-code leak check.
+    Preview-verified on desktop and in iPad-sized touch emulation (768×1024
+    portrait, 1024×768 landscape). Nothing pushed.
+  - **Per-item status (coding round 3):**
+
+    | # | Item | Status | Verified by |
+    |---|------|--------|-------------|
+    | 0 | Commit docs first | Done (`6b04831`), then re-read both. Nothing from last round's report was dropped without being reconciled | n/a |
+    | A1 | Hub: drop the two local commits | **Not done: blocked.** I confirmed the hub is exactly `00d47a9` + `298b281` ahead of `origin/main`, nothing behind, the working tree clean, and no stashes. `git reset --hard origin/main` was then **refused by the session's permission check** (it counts as modifying a shared resource), so I stopped, as the item says to. The hub is unchanged: still 2 local commits, net-zero diff, not pushed. **Dan: run it yourself in `C:\Users\danmo\game-hub`, or allow it and I'll do it** | `git log origin/main..HEAD` in the hub |
+    | A2 | Dev test scenarios | Done. Load with `?scenario=<id>` or ☰ menu → "Dev scenarios". The set is `grow`, `starve`, `settler`, `rich`, `tech`, plus `era` (reaching the Medieval era). Each shows a purple note banner saying what to do and what should happen, with a "Back to my game" button. **Never autosaves**: the save call is skipped entirely, so the real game can't be overwritten. Scenarios are built with `src/dev/build.ts`, the same builder the tests use (moved from `tests/helpers.ts`, which now re-exports it). **Dev only:** imported only under `import.meta.env.DEV`. `npm run build` runs `scripts/check-dist.mjs`, which fails if the scenario marker or note text appears in `dist/` | unit-tested (each scenario does what its note says after one End Turn, through the real End Turn action). Build check passes on the real build and **fails on a dev-mode build** (proves it catches a leak). Preview-verified: `starve` shrank 3 → 2, `era` reached Medieval, the real save was byte-identical before and after, and "Back to my game" returned to turn 8 |
+    | A3 | Easy to add scenarios | Done. A new scenario is one array entry plus one expected-outcome entry, and the suite fails if a scenario has no outcome check. How-to in CLAUDE.md ("Adding a scenario") | unit-tested (the check itself) |
+    | B1 | Tech data | Done. `src/data/techs.ts` has **50 techs**: Ancient 14, Medieval 13, Industrial 13, Modern 10. Each has 0–2 prerequisites, an era, a tier (its depth in the tree), and our own one-line description. The tree ends at **Space Flight** (for the M6 spaceship). Unlocks are declared on the unit or building (`requires`), and `techUnlocks()` reads them | unit-tested (tree validity, see B9) |
+    | B2 | Research | Done. Pick from techs whose prerequisites are known. Science goes into one pool per player. At end of turn, if the pool covers the cost, the tech is learned and the overflow carries over. **At most one tech per turn.** With nothing picked, science banks. Switching keeps the pool (no penalty). Cost = `16 + 10·known + 0.6·known² + 4·(tier−1)`, all in data. No starting techs (`STARTING_TECHS = []`) | unit-tested; preview-verified |
+    | B3 | Unlocks | Done. Buildings: Granary ← Pottery, Library ← Writing, Marketplace ← Currency, Barracks ← Bronze Working, Walls ← Masonry, Temple ← Ceremonial Burial. **13 new units**, with attack, defense, and moves in data: Archer, Spearman, Horseman, Chariot, Legion, Catapult, Pikeman, Knight, Musketman, Cannon, Rifleman, Artillery, and Tank. They can be built and moved; there's no combat. The build list shows "attack · defense · moves" and offers only unlocked items, and `setBuild` refuses locked ones ("Needs Writing"). Wonders: `src/data/wonders.ts` holds the data shape (`requires`, cost, effects) with an empty table, and the tech screen already lists wonder unlocks | unit-tested; preview-verified (the build list went from Settler/Warrior to also offering Granary after Pottery) |
+    | B4 | Era | Done. Derived rather than stored: the latest era among known techs (Ancient with none). Shown in the top bar ("Ancient era"). Learning the first tech of a new era logs "Entered the Medieval era", which shows as a toast | unit-tested; preview-verified (`era` scenario) |
+    | B5 | Tech screen | Done. Opens from the research button in the top bar. The tree is grouped by era, with "n/14 known" counts. Each tech is marked known (green), available (blue), researching (gold), or locked (grey), with turns to learn. Tapping one shows its era, cost, description, requirements (✓/✗), unlocks, and "leads to", plus a **Research this · N turns** button when it's available. Landscape: tree on the left, details on the right. Portrait: details on top, tree below. Only the two panes scroll. It has a 52 px close button, and a backdrop tap or Esc also closes it. **Prompt:** after you learn a tech, the screen opens with "You learned X. Choose what to research next." Toasts now sit above overlays, so the news isn't hidden | preview-verified on desktop and in 768×1024 portrait and 1024×768 landscape emulation (the tree scrolls, the page doesn't) |
+    | B6 | HUD research readout | Done. The top-bar button reads "🔬 Writing (6)". With nothing picked, it's a pulsing gold "🔬 Choose research · 25 banked". Tapping it opens the tech screen | preview-verified |
+    | B7 | AI research | Done. The AI picks the first available tech from `AI_TECH_PRIORITY` in data (Bronze Working, Pottery, Alphabet, Writing, … Gunpowder), otherwise the shallowest available one, through the same `setResearch` action as the player. It now builds its best unlocked defender instead of always a Warrior, and only unlocked buildings. No RNG is involved | unit-tested (deterministic 5-player 40-turn run; every AI learns at least one tech legally and always has research picked) |
+    | B8 | Don't wipe Dan's game | Done: **M2 saves are migrated**, not discarded. `STATE_VERSION` goes 2 → 3. Players get no techs and no research. Science earned in M2 stays banked, so Dan can spend it right away. A city building something that's now locked (e.g. a Library) goes back to "choose", with its stored production kept. On load the game says "Your saved game was updated for the tech tree (turn N)…" and writes the upgraded save back. Migrations live in `MIGRATIONS` in `save.ts`, keyed by the version they upgrade from | unit-tested (a v2 save migrates, plays on, and re-saves as v3; unit builds survive; v1 and future versions are still refused); preview-verified (a planted v2 save resumed at turn 7 with 40 science banked) |
+    | B9 | Unit tests | Done: 38 new, in `tests/tech.test.ts` and `tests/scenarios.test.ts`. They cover: prerequisites enforced; the cost formula; overflow, banking, and one tech per turn; switching keeps the pool; unlocks gate the build list and `setBuild`; the era calculation and announcement; AI research determinism; M2 save migration; tree validity (prerequisites exist, no cycles, every tech reachable, tiers = depth, era order); and every scenario's outcome | `npm test` |
+
+  - **Dan's iPad checks for this round** (from "Done means"):
+    - (a) ☰ → Dev scenarios → `City grows`, `City starves`, `Settler costs
+      a citizen`: after End Turn, each should do what its purple note says.
+      This finishes confirming M2.
+    - (b) Autosave survives a Safari tab reload, if not already confirmed.
+      Your M2 game should come back migrated, with its turn number and
+      banked science.
+    - (c) Pick research, finish a tech, and see a newly unlocked building
+      in a city's build list. The `tech` scenario does this in one turn. In
+      the real game, Pottery → Granary is the quickest.
+  - **Also changed:**
+    - The city panel in landscape now starts below the ☰ button. It used
+      to cover the button, so the menu (and now the scenario list) couldn't
+      be reached while a city was open.
+    - `main.ts` now boots through an async function so the dev-only import
+      can be dynamic.
+    - The production `index.html` still contains the empty, hidden shells
+      for the dev banner and dev menu. They're harmless: no scenario code
+      or text ships.
+  - **Decisions worth reviewing:**
+    - Research uses one science pool (progress = banked science), with no
+      penalty for switching.
+    - At most one tech per turn, even with a big pool.
+    - The next-tech prompt opens only right after a tech is learned. At
+      game start and after migration there's no pop-up; the research button
+      pulses gold instead.
+    - Rival tech discoveries aren't announced. They have no map tile, so
+      the M2 fog rule hides them.
+    - Unit numbers are our own placeholders, e.g. Spearman 1/3, Pikeman
+      1/4, Musketman 3/6, Rifleman 5/8, and Tank 12/8 with 3 moves.
+    - Unit glyphs are now 2 letters (Ar, Sp, Kn…), drawn smaller on the
+      map.
+  - **Observed, not fixed (balance):** research is slow in a real game.
+    With seed 8, AIs have about 2 techs by turn 25, 4 by turn 50, and 9–10
+    by turn 100. At that pace, the 50-tech tree would take far longer than
+    a 2–3 hour game. The main limit is low science income (small cities,
+    and AIs stop at 4 cities), not just the cost formula. Both are in data.
+    Tune in the balance pass, or sooner if Dan finds it slow.
+
 ## Current Objective (Focus Area)
 
 ### Round 3 — Milestone 2 wrap-up + Milestone 3 (tech tree)
+**Status (coding round 3):** all items done **except A1** (hub reset
+blocked by a permission check; Dan to run it or allow it). See the report
+under Completed Tasks. **Waiting for Dan's iPad checks (a)–(c).**
+
 **Goal:** close out M2's loose ends, and give Dan a way to see
 hard-to-reach rules (like starvation) on the iPad on demand. Then add the
 tech tree, so the science from M2 buys something. Placeholder art only.
