@@ -484,32 +484,24 @@ what was pushed.
 ## Where things stand
 **Always check `TODO.md` for the current objective before starting work.**
 
-- **Round 11 (Milestone 8, leaders) is done and waiting for Dan's review.**
-  Dan's 12 leaders with starting techs, era bonuses, unique actions, his
-  portraits, the New Game screen, 9 new buildings, and conquerors that win
-  by domination in the sim. See the Round 11 entry in TODO.md.
-- **Milestones 1–7, naval, and air** are done and accepted. The full unit
-  roster (land, sea, and air) has Dan's icons, plus wonders, culture, the
-  four victories, diplomacy, barbarians, villages, resources, huts, and
-  Great People.
+- **Milestones 1–8, naval, and air** are done and approved. That covers the
+  full unit roster with Dan's icons; wonders, culture, and the four
+  victories; diplomacy; barbarians, villages, resources, huts, and Great
+  People; and **Dan's 12 leaders** with starting techs, bonuses, portraits,
+  and the New Game setup.
 - **The play server:** http://10.0.0.224:4173/.
 - The epoch repo is pushed every round until Netlify is set up.
 
-**Round 11 (Milestone 8), revised with Dan's own roster (done, pending
-review):**
-- **12 leaders:** Hatshepsut, Caligula, Charlemagne, Mansa Musa, Henry VIII,
-  Louis XIV, Peter the Great, Simón Bolívar, JFK, Viktor Yushchenko, Angela
-  Merkel, and Kim Jong Un;
-- each with a **starting tech**, a starting bonus, and era bonuses, plus
-  unique actions and projects (Pilgrimage, Dissolution, Versailles,
-  Moonshot, National Challenge, Liberation);
-- a small building expansion (Factory, University, Bank…);
-- a New Game setup screen;
-- portrait support;
-- domination tuning.
+**The current objective is Round 12:**
+- **Religion** (Dan's own twist): founding with names Dan chooses, spread,
+  Missionaries, holy cities, and diplomacy effects. It feeds culture, with
+  no religious victory. Plus Henry VIII's national church.
+- **Roads and railroads**, bought with gold, Civ Rev style: faster
+  movement and road trade; Railroad upgrades them automatically.
+- A picker page for the Missionary and religion icons.
 
-See items 0, A1–A2, B1, C1–C3, D1–D2, and E1–E3 in TODO.md (all done).
-Next: Round 12 (religion + roads), then M9 (polish).
+See items 0, A1, B1–B6, C1–C8, and D1–D4 in TODO.md. After this: M9
+(polish, art, sound, the menu, difficulty, and balance).
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.
