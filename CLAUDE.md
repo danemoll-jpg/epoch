@@ -540,28 +540,24 @@ what was pushed.
 ## Where things stand
 **Always check `TODO.md` for the current objective before starting work.**
 
-- **Milestones 1–8, naval, and air** are done and approved. That covers the
-  full unit roster with Dan's icons; wonders, culture, and the four
-  victories; diplomacy; barbarians, villages, resources, huts, and Great
-  People; and **Dan's 12 leaders** with starting techs, bonuses, portraits,
-  and the New Game setup.
-- **Round 12 (religion, roads and railroads)** is done and waiting for Dan's
-  review; the report is in TODO.md. Dan's Missionary, religion, and
-  holy-city icon picks are wired in (2026-09-25).
+- **Milestones 1–8, naval, air, and Round 12 (religion and roads)** are done
+  and approved. The game is feature-complete apart from polish: all units
+  with Dan's icons, wonders, culture, the four victories, diplomacy,
+  barbarians, resources, huts, Great People, Dan's 12 leaders with
+  portraits, religion, and roads.
 - **The play server:** http://10.0.0.224:4173/.
 - The epoch repo is pushed every round until Netlify is set up.
 
-**The last round was Round 12** (the next one comes from the planning
-session):
-- **Religion** (Dan's own twist): founding with names Dan chooses, spread,
-  Missionaries, holy cities, and diplomacy effects. It feeds culture, with
-  no religious victory. Plus Henry VIII's national church.
-- **Roads and railroads**, bought with gold, Civ Rev style: faster
-  movement and road trade; Railroad upgrades them automatically.
-- A picker page for the Missionary and religion icons.
+**The current objective is Round 13 (M9, part 1 of 3):**
+- a main menu and Settings;
+- difficulty levels (Novice, Normal, Veteran, Legendary) and map sizes
+  (Small, Normal, Large);
+- How to Play, plus a searchable Almanac generated from data, plus
+  first-game tips;
+- a sound engine, with a CC0 sound picker page for Dan.
 
-See items 0, A1, B1–B6, C1–C8, and D1–D4 in TODO.md. After this: M9
-(polish, art, sound, the menu, difficulty, and balance).
+See items 0, A1–A2, B1–B2, C1–C3, D1–D3, and E1–E3 in TODO.md. Round 14
+(the art pass) and Round 15 (balance and go-live prep) are queued.
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.

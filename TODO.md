@@ -1165,196 +1165,9 @@ Steps, Technical Notes.
       target, because the new science buildings speed late research. Era
       medians are still on target.
 
-## Current Objective (Focus Area)
+* **Round 12 — Religion + Roads and railroads — done, APPROVED by Dan (2026-09-25).** The agent's report follows, moved here from Current Objective.
 
-### Round 12 — Religion (Dan's twist) + Roads and railroads
-**Goal:** two systems Dan found missing:
-- **religion**, which is Dan's own addition, since Civ Rev 1 had none;
-- **roads and railroads**, bought with gold the Civ Rev way, with no worker
-  units.
-
-Both feed the existing systems (culture, diplomacy, movement, and trade)
-rather than adding new victories.
-
-**Items for the coding agent. Report status on each one individually:**
-
-0. **Commit the updated docs first:** `CLAUDE.md` and `TODO.md` as their own
-   commit, then re-read them.
-
-**Part A — Icon candidates (Dan approves art first)**
-
-A1. **Picker page** `docs/religion-road-icon-candidates.html` (same format as
-    before; the play server serves it at `/docs/…`), with 2–3 game-icons.net
-    candidates each for:
-    - the **Missionary** unit;
-    - a **religion symbol** used in the city panel and on the map, if a
-      marker is used there. Offer **generic, invented symbols** (e.g. a
-      sun disc, a flame, a star, an eye, a tree, a spiral), **not
-      real-world religious symbols**. Offer 6–8 different symbols, since
-      each founded religion needs its own;
-    - a **holy city** marker.
-
-    Until Dan picks: letters for the Missionary and colored dots for the
-    religions. The picks are wired in next round.
-
-**Part B — Religion (all numbers in data)**
-
-B1. **Founding:**
-    - **3–5 religions per game at most** (in data);
-    - each "founding tech" (e.g. **Mysticism**, **Astronomy**,
-      **Philosophy**, **Monotheism**, and a new Medieval **Theology**)
-      lets **the first civ to learn it** found a religion in its best city
-      (the capital by default), which becomes the **holy city**;
-    - **Naming:** when Dan founds one, an on-screen panel lets him **type a
-      name** or tap "Suggest" for a generic invented name. The AI gets
-      generic invented names from a list of our own, e.g. "Faith of the
-      Dawn", "The Ember Way", "Order of the Silver Star". **Invented names
-      only, never real-world religions;**
-    - each religion has a color and a symbol (from A1 once picked).
-
-B2. **Spread:**
-    - each city has **one majority religion**, or none;
-    - **passive spread:** each turn, cities within a few tiles of a city of
-      that religion (closer and more followers mean a higher chance) may
-      convert. The holy city, Temples, Cathedrals, and trade (roads, B8)
-      raise the pressure. Seeded;
-    - **Missionary** (Monotheism or the founding tech; costs production;
-      a limited number of charges, e.g. 2): moves like a land unit, then
-      "Spread religion" converts the city it stands in or next to (your own
-      city, or a rival's you're at peace with). Needs an icon (A1);
-    - a **Great Artist** can also be spent to convert a city.
-
-B3. **Effects:**
-    - **Holy city:** +3 culture and +2 gold a turn, plus +1 gold per city
-      (anywhere) following its religion, up to a cap, for the founder;
-    - **Follower cities** of any religion: +1 culture with a Temple, +2 with
-      a Cathedral;
-    - **Diplomacy:** civs whose **capitals share a religion** get +2
-      opinion, and different religions −1. Show it in the diplomacy detail
-      ("Shares your faith");
-    - **Converting a rival's city** gives the founder +20 gold and +10
-      culture;
-    - **it feeds culture. There's no religious victory;**
-    - **capturing a holy city** passes its holy-city income to the new
-      owner. The religion itself keeps its founder for naming only.
-
-B4. **Henry VIII hook (Dan's leader):** Henry may **found a national
-    religion once, even if he wasn't first**. As a once-per-game action
-    from the Medieval era, it converts his capital (and makes it a holy
-    city) when he has at least one Temple. Give it funny event text in the
-    spirit of Dan's notes. His **Dissolution** keeps working as before.
-
-B5. **UI:**
-    - the city panel gets a religion line (symbol, name, "holy city");
-    - a **Religion screen**, from ☰ or Diplomacy, lists each religion: its
-      founder, holy city, number of follower cities, and whether it's
-      yours;
-    - map tinting is optional. At least a small symbol dot on followed
-      cities, if it isn't cluttered;
-    - touch-first, portrait and landscape.
-
-B6. **The AI:** founds when it can, builds a Missionary or two when it has a
-    religion and nearby unconverted cities, prefers converting civs it
-    wants as friends, and stays deterministic.
-
-**Part C — Roads and railroads (Civ Rev style: bought with gold, no
-workers)**
-
-C1. **Buying roads:**
-    - in the city panel, **"Build road to…"** lists your other cities (and
-      friendly ones within a range), each with a **gold cost**
-      (per tile in data, only counting tiles without a road);
-    - the road is laid at once along the best **land** path, with no water
-      or mountains. A single-tile option isn't needed;
-    - cities always count as having a road on their own tile.
-
-C2. **Movement:**
-    - moving along a road costs **1/3 of a move** per tile;
-    - enemies use roads too;
-    - pathing, reachable tiles, the AI, and the highlights all account for
-      it.
-
-C3. **Railroads:**
-    - the **Railroad** tech upgrades **all your roads automatically** to
-      rails, with no gold;
-    - rails cost **1/10 of a move** per tile, or keep it simple and make
-      them "free within your territory", saying which;
-    - rails also give **+1 production** on worked rail tiles (in data).
-
-C4. **Trade on roads:** worked road tiles give **+1 trade** (in data),
-    which is Civ-like and makes roads worth buying for the economy.
-
-C5. **Ownership:** roads belong to no one. Everyone moves on them, and
-    captured areas keep them. **No pillaging.**
-
-C6. **Leader hooks:**
-    - **Merkel** ("infrastructure"): roads cost her 50% less;
-    - **Hatshepsut** ("trade"): +1 extra gold per worked road tile in her
-      cities;
-    - both through the existing bonus system. Update the bonus table.
-
-C7. **The AI:** buys roads between its nearby cities, cheapest-first when it
-    has spare gold, and toward its war target at war. Deterministic.
-
-C8. **Map drawing:** roads are thin brown lines between tile centers, and
-    rails are darker lines with ties. Both stay readable zoomed out and
-    don't hide units or resources.
-
-**Part D — Wrap-up**
-
-D1. **Save migration v10 → v11:** no religions (founding techs already
-    learned don't retroactively found anything; the next unfounded one can
-    still be founded), no roads, no Missionaries. Backups are kept.
-
-D2. **Dev scenarios, each with a note:**
-    - `found-religion`: naming panel;
-    - `missionary`;
-    - `religion-spread`: passive, over a few turns;
-    - `holy-city-income`;
-    - `shared-faith`: a diplomacy opinion;
-    - `henry-national-church`;
-    - `build-road`: the cost and the laid road;
-    - `road-speed`: a unit covers 3 road tiles with 1 move;
-    - `railroad`: an automatic upgrade and speed;
-    - `all-religion-symbols`: for Dan's icon check.
-
-D3. **Sim report:**
-    - religions founded per game and by whom;
-    - follower cities at turn 150;
-    - roads (tiles) per civ at turns 100 and 200;
-    - the era pace;
-    - the victory mix, including domination, which is still present;
-    - no win before turn 150.
-
-D4. **Unit tests:**
-    - founding (first only, the limit, naming);
-    - spread (seeded);
-    - Missionary charges and targets;
-    - holy city and follower effects;
-    - diplomacy opinion;
-    - Henry's national church;
-    - road cost and pathing;
-    - movement costs on roads and rails;
-    - the rail upgrade;
-    - road trade and rail production;
-    - the Merkel and Hatshepsut hooks;
-    - AI roads and religion (deterministic);
-    - the migration;
-    - every new scenario;
-    - `pace.test.ts` passing.
-
-**Done means:**
-- every item (0, A1, B1–B6, C1–C8, D1–D4) is reported individually;
-- tests pass;
-- it's preview-verified on desktop and in iPad emulation;
-- the epoch repo is **pushed**, and the play server is **restarted**.
-
-Dan then:
-- (a) picks icons on the picker page;
-- (b) tries the religion and road scenarios;
-- (c) founds and names a religion in a real game, and buys a road.
-
-**Round 12 report (coding agent, 2026-09-24): done, waiting for Dan.**
+**Round 12 report (coding agent, 2026-09-24): done. APPROVED by Dan (2026-09-25)**, with religion icons picked and wired in.
 Version 0.12.0, save format 11. `npm test`: **655 pass** (70 new: 31 in
 `tests/religion.test.ts`, 19 in `tests/roads.test.ts`, 20 in the scenario
 suite). Lint and build clean; the dev-code check passes.
@@ -1463,13 +1276,196 @@ suite). Lint and build clean; the dev-code check passes.
   has rays like the Sun disc, but it's gold on dark and the religion disc
   is white on color.
 
+
+## Current Objective (Focus Area)
+
+### Round 13 — Milestone 9, part 1: main menu, difficulty, map size, an in-game guide, and sound
+**Goal:** make Epoch feel like a finished game when it opens:
+- a title screen;
+- difficulty levels and map sizes;
+- an in-game reference so family and friends can learn it;
+- sound, with Dan approving the sounds first, as he does with art.
+
+**M9 is split into three rounds:**
+- **13 (this one):** the menu, difficulty, map size, the guide, and sound;
+- **14:** the art pass (terrain, cities, and building icons);
+- **15:** the balance pass and go-live prep.
+
+**Items for the coding agent. Report status on each one individually:**
+
+0. **Commit the updated docs first:** `CLAUDE.md` and `TODO.md` as their own
+   commit, then re-read them.
+
+**Part A — Title screen and flow**
+
+A1. **Main menu**, shown when the game opens. Buttons:
+    - **Continue**, if there's a saved game. It shows the leader portrait,
+      civ, turn, and era;
+    - **New Game**, which goes to the setup screen;
+    - **Restore a backup**;
+    - **How to Play** (the guide, C1);
+    - **Settings** (A2);
+    - **About / Credits**.
+
+    Also:
+    - a simple, handsome title treatment with the "Epoch" wordmark as text
+      (no image needed yet; the art pass may add one);
+    - touch-first, portrait and landscape;
+    - ☰ gets a **Main menu** item that returns here (the game is
+      autosaved first);
+    - dev scenarios stay reachable in dev builds as before.
+
+A2. **Settings** (saved per device, separate from game saves):
+    - sound effects on/off with volume, and music on/off with volume, once
+      B exists;
+    - **animation speed** (normal / fast), for AI turns and combat flashes;
+    - **confirm End Turn when units can still move** (on/off);
+    - **text size** (normal / large).
+
+**Part B — Difficulty and map size**
+
+B1. **Difficulty levels**, with our own names (default Normal = today's
+    balance):
+
+    | Level | For whom | What changes (numbers in data) |
+    |---|---|---|
+    | **Novice** | first-timers | player +25% production and science; AIs −15% production and science, less aggressive, no demands before turn 60 |
+    | **Normal** | the default | today's numbers |
+    | **Veteran** | a challenge | AIs +15% production, science, and gold, a little more aggressive |
+    | **Legendary** | the brave | AIs +30% production, science, and gold, a free Warrior and Settler at the start, more aggressive, war earlier |
+
+    - pick it on the setup screen;
+    - it's stored in the save, shown on the victory progress screen, and
+      part of the end-screen stats;
+    - the sim can run at any level. **Report victory mix and win turns at
+      Novice, Normal, and Legendary** (Normal should match today's).
+
+B2. **Map size** on the setup screen: **Small** (e.g. 24×18, up to 3
+    rivals), **Normal** (32×24, today's), and **Large** (e.g. 44×32, up to
+    5 rivals, only if performance on the iPad stays smooth):
+    - villages, huts, resources, and landmass rules scale with it;
+    - victory thresholds scale if needed, so games still end around
+      ~200–250 turns;
+    - **check Large on iPad-sized emulation for frame rate and AI turn
+      time, and report both.**
+
+**Part C — The in-game guide ("How to Play" + reference)**
+
+C1. **How to Play**, from the main menu and ☰: short illustrated pages
+    covering:
+    - moving and founding cities;
+    - cities (growth, focus, and building);
+    - research and eras;
+    - combat, armies, and fleets;
+    - ships and aircraft;
+    - diplomacy;
+    - villages, huts, and Great People;
+    - religion and roads;
+    - **the four ways to win**.
+
+    Use the game's own icons in the pages. Write it for a new player in
+    plain words.
+
+C2. **Reference ("the Almanac")**, searchable, with a card for every:
+    - unit: stats, tech, and cost;
+    - building: effect, tech, and cost;
+    - wonder;
+    - tech: what it unlocks, and prerequisites;
+    - resource;
+    - Great Person type;
+    - leader: all bonuses and the starting tech.
+
+    Everything is generated from the data files, so it never goes out of
+    date. Tapping a unit, building, or tech name anywhere in the game
+    (build list, tech screen) can open its card.
+
+C3. **First-game tips (optional, can be turned off):** a few one-time hints
+    the first time something happens, e.g. first city, first tech, first
+    contact, first war, and first village. Turn them off in Settings.
+
+**Part D — Sound (Dan makes the sounds himself with ElevenLabs; DECIDED
+2026-09-25)**
+
+D1. **The sound list and drop-in folder:** Dan will generate the sound
+    effects (and maybe music) with **ElevenLabs** and drop the files in. So:
+    - create `src/assets/sounds/` and a **`docs/SOUNDS.md` for Dan**. It
+      should list **each sound event, its exact file name** (e.g.
+      `tech-learned.mp3`), the ideal length, and a one-line description of
+      the feel;
+    - the events: tap/select, unit move, found city, city grows, building
+      done, tech learned, era reached, combat win, combat loss, war declared
+      (on you), wonder built, victory, defeat, and new turn (a soft cue),
+      about 14 in all;
+    - the format: **MP3**, iPad Safari friendly. Short effects **0.3–2 s**,
+      the victory and defeat stings 3–6 s. Trimmed, with no silence at the
+      start. The engine normalizes volume, so Dan doesn't have to;
+    - **music (optional):** `music-1.mp3` … `music-3.mp3`, 1–3 min, calm,
+      and loopable (the engine crossfades loops);
+    - any file that's missing simply plays nothing. There's no code change
+      when files arrive: the next build picks them up.
+
+D2. **`docs/sounds.html` check page** (served at `/docs/…` by the play
+    server): a button per event that plays the current file (or shows
+    "missing"), with the volume normalized as in the game, so Dan can check
+    each one on the iPad.
+
+D3. **Sound engine:**
+    - Web Audio;
+    - it **unlocks on the first tap**, which iPad Safari requires;
+    - it respects the Settings on/off and volume for effects and music
+      separately;
+    - AI turns don't spam sounds; only a few, e.g. war declared on you, or
+      a city lost;
+    - nothing plays while the page is hidden;
+    - no sound in dev scenarios unless Settings allows;
+    - credit ElevenLabs in About / Credits once files exist ("Sound effects
+      generated with ElevenLabs").
+
+**Part E — Wrap-up**
+
+E1. **Save migration v11 → v12:** existing games get difficulty Normal and
+    map size Normal. Backups are kept.
+
+E2. **Dev scenarios:**
+    - `main-menu`;
+    - `settings`;
+    - `difficulty-legendary-start`;
+    - `large-map` (for a performance check);
+    - `almanac`;
+    - `how-to-play`;
+    - `first-game-tips`.
+
+E3. **Unit tests:**
+    - difficulty modifiers applied correctly, per level;
+    - map size scaling (villages, huts, resources, fair starts on each
+      size);
+    - settings persistence (separate from saves);
+    - Almanac cards generated for every data entry (none missing);
+    - the sound engine respecting settings, as logic;
+    - the migration;
+    - every new scenario;
+    - `pace.test.ts` passing at Normal.
+
+**Done means:**
+- every item (0, A1–A2, B1–B2, C1–C3, D1–D3, E1–E3) is reported
+  individually;
+- tests pass;
+- it's preview-verified on desktop and in iPad emulation;
+- the epoch repo is **pushed**, and the play server is **restarted**.
+
+Dan then:
+- (a) makes the sounds in ElevenLabs from `docs/SOUNDS.md` (Claude gives
+  him prompts), drops them in, and checks them on `docs/sounds.html`;
+- (b) tries the main menu, Settings, How to Play, and the Almanac;
+- (c) starts a Novice or Legendary game on a Small or Large map.
+
 **Open questions (defaults in bold; the coding agent proceeds on the default
 unless Dan decides otherwise):**
-- **Q1 — Working title:** **"Epoch" as a codename for now.**
-- **Q24 — Religions per game:** **up to 5.**
-- **Q25 — Railroad upgrade:** **automatic and free** when Railroad is
-  learned.
-- **Q26 — Pillaging roads:** **no.**
+- **Q1 — Working title:** **"Epoch" for now.** A real name is needed before
+  going live in the hub. **Dan, think about it before round 15.**
+- **Q27 — Difficulty names:** **Novice / Normal / Veteran / Legendary.**
+- **Q28 — Music:** **optional**, made by Dan with ElevenLabs if he wants
+  it.
 
 ## Next Steps (Do Not Start Yet)
 
@@ -1512,8 +1508,24 @@ milestone before it. None has been decided against.
   a credit). Tests: every unit has a bundled, credited icon (366 pass).
   Preview-verified on desktop (`all-ships`: all 9 drawn, Carrier distinct
   from the Battleship). Only the aircraft icons remain (round 10).
-- **Milestone 9 — Polish:** an original art pass, sound, a main menu, and
-  difficulty levels.
+- **Round 14 — M9 part 2, the art pass (Dan approves art first):**
+  - **terrain:** nicer original terrain drawing (shading, hills, forests,
+    waves), or tile art. Offer options on a picker page;
+  - **cities:** city looks that grow with size (e.g. hut → town → city →
+    metropolis), and walls shown;
+  - **building icons** in the build list, via a game-icons picker;
+  - an optional title-screen art or wordmark;
+  - wire in round 13's picked sounds and music.
+- **Round 15 — M9 part 3, balance and go-live prep:**
+  - **balance:** culture wins too common; England, Rome, and Russia rarely
+    win; AI roads come late; Theology goes unused with one religion per
+    civ; the tech tree finishing early;
+  - **iPad performance;**
+  - **Add to Home Screen** app icon and name (a web app manifest) and
+    offline support, so it plays like an app from the hub;
+  - the **real game name** (Dan decides);
+  - then **go live**: Netlify site, hub card, and an IP review for family
+    and friends.
 - **Cloud saves (optional, later).** This would let a game continue across
   devices. It would need its **own** Firebase setup in this repo, the way
   Sole Match and Mexican Train have theirs, since the hub has no Firebase.
