@@ -661,34 +661,25 @@ what was pushed.
 ## Where things stand
 **Always check `TODO.md` for the current objective before starting work.**
 
-- **Round 15 is done (awaiting Dan's review):** the name, the balance
-  pass and full sim matrix, Add to Home Screen, offline with the update
-  banner, UI polish, `docs/GO-LIVE.md` with the hub card drafted (the hub
-  repo untouched). Version 0.15.0.
-- **Everything through Round 14 is done and approved:**
-  - all game systems;
-  - the menu, difficulty, and map sizes up to Huge and Epic, with the AI in
-    a Web Worker;
-  - the minimap;
-  - Dan's picked art (Painted terrain, Bold buildings cities, building and
-    wonder icons);
-  - Dan's ElevenLabs sounds and Suno music per era.
+- **Everything through Round 15 is done and approved (version 0.15.0):**
+  - all game systems, difficulty, map sizes up to Huge and Epic, the AI in a
+    Web Worker, the minimap;
+  - Dan's picked art, portraits, app icon, ElevenLabs sounds, and Suno music;
+  - the name **"Epoch: From Stone to Stars"** (short name "Epoch", in
+    `src/data/game.ts`), the Round 15 balance pass, Add to Home Screen,
+    offline with the update banner, and `docs/GO-LIVE.md`.
+- **Go-live:** Dan follows `docs/GO-LIVE.md`. **Live URL: not yet recorded**
+  (Round 16 item 0 records it here).
 - **The play server:** http://10.0.0.224:4173/.
-- The epoch repo is pushed every round **until Netlify is set up. After
-  go-live, pushing is Dan's call again** (Round 15 D4).
+- **Pushing: once Dan says the site is live, pushing is Dan's call** (see
+  Pushing rules). Commit as usual, push only when told, and list the
+  waiting commits in the report.
 
-**Round 15's objective (M9, part 3 of 3; done, see TODO.md's report):**
-- the game's name in one place: **"Epoch: From Stone to Stars"** (DECIDED by
-  Dan; short name "Epoch");
-- the balance pass (victory mix, weak leaders, Legendary pacing, AI roads,
-  Theology, tree length) and a full sim matrix;
-- Add to Home Screen, a manifest and icons, offline with a safe
-  update-available banner, and UI polish;
-- go-live prep: `docs/GO-LIVE.md`, a hub card drafted but **not pushed**,
-  and an IP review.
-
-See items 0, A1, B1–B7, C1–C3, D1–D4, and E1–E2 in TODO.md. Round 16
-(cloud saves with Firebase) is queued after go-live.
+**Round 16's objective: cloud saves with Firebase** (Google sign-in, local
+saves stay primary, background sync, up to 5 cloud slots, conflict prompts
+with backups, compression, rules in the repo, a sync indicator), plus the
+portraits as WebP. See items 0, A1–A2, B1–B6, and C1–C4 in TODO.md. **Don't
+start until Dan's relay gives the live URL and the Firebase config.**
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.

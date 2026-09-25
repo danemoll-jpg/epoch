@@ -72,7 +72,7 @@ In the hub repo (`danemoll-jpg/game-hub`), add this to the end of the list in `g
     name: 'Epoch: From Stone to Stars',
     tagline: 'Lead a people from the first village to the stars: build cities, trade and fight with up to five rivals, and win by conquest, culture, wealth, or a flight to the stars.',
     icon: '🏛️',
-    url: 'https://REPLACE-WITH-THE-NETLIFY-NAME.netlify.app/',
+    url: 'https://epoch-fsts.netlify.app/',
     tags: ['solo', 'strategy', '2–3 hours'],
     accent: '#4a7fd6',
   },
