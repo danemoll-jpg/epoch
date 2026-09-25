@@ -2,7 +2,8 @@
 // when a sound may play, how loud, and which few sounds an End Turn earns. The engine itself
 // (src/ui/sound.ts) only loads files and plays what these functions allow.
 
-import { SOUNDS, SOUND_RULES, type SoundId } from '../data/sounds';
+import { MUSIC, SOUNDS, SOUND_RULES, type SoundId } from '../data/sounds';
+import type { EraId } from '../data/techs';
 import { eraIndex, playerEra } from '../game/tech';
 import type { GameState } from '../game/types';
 import type { Settings } from './settings';
@@ -99,4 +100,23 @@ export function turnSounds(before: TurnSnapshot, after: TurnSnapshot, news: { wa
   if (after.victory !== before.victory || after.alive !== before.alive) return [];
   out.sort((a, b) => SOUNDS[b].priority - SOUNDS[a].priority);
   return out.length ? out.slice(0, SOUND_RULES.maxPerTurn) : ['new-turn'];
+}
+
+/** Where the player is, for the music: the main menu / New Game screen, or a game in an era. */
+export type MusicContext = 'menu' | EraId;
+
+/**
+ * Round 14 (C1): the track to play, from the files this build has (`present`): the era's own
+ * track in a game, else the theme; on the menu, the theme. The theme is `music-theme.mp3`, or
+ * Round 13's `music-1.mp3` when that's all there is. Undefined: no music at all.
+ */
+export function musicTrackFor(context: MusicContext, present: readonly string[]): string | undefined {
+  const has = (f: string) => present.includes(f);
+  if (context !== 'menu') {
+    const era = MUSIC.eras[context];
+    if (era && has(era)) return era;
+  }
+  if (has(MUSIC.theme)) return MUSIC.theme;
+  if (has(MUSIC.legacyTheme)) return MUSIC.legacyTheme;
+  return undefined;
 }

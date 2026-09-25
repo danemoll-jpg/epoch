@@ -3,13 +3,19 @@
 
 import { RULES } from '../data/rules';
 import { UNITS } from '../data/units';
-import { distance, tileIndex, tilesInRadius } from './grid';
+import { distance, tileIndex } from './grid';
 import type { GameState, Unit } from './types';
 
 export function visibleTiles(state: GameState, playerId: number): boolean[] {
   const vis = new Array<boolean>(state.map.tiles.length).fill(false);
+  const { width: w, height: h } = state.map;
+  // Round 14: plain loops (this runs after every move, for every civ that hasn't met everyone).
   const mark = (x: number, y: number, r: number) => {
-    for (const t of tilesInRadius(state.map, { x, y }, r)) vis[tileIndex(state.map, t.x, t.y)] = true;
+    const y0 = Math.max(0, y - r);
+    const y1 = Math.min(h - 1, y + r);
+    const x0 = Math.max(0, x - r);
+    const x1 = Math.min(w - 1, x + r);
+    for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) vis[ty * w + tx] = true;
   };
   for (const u of state.units) if (u.owner === playerId) mark(u.x, u.y, UNITS[u.type].sight);
   for (const c of state.cities) if (c.owner === playerId) mark(c.x, c.y, RULES.citySight);

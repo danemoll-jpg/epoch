@@ -37,6 +37,26 @@ export function bonusListHtml(civId: string, activeEra?: number): string {
   return `<ul class="bonusList">${rows.join('')}</ul>`;
 }
 
+/**
+ * Round 14 (A1): a note under the map sizes: a big map's computer turns take longer, and one
+ * marked best on a computer says so on a touch device (an iPad).
+ */
+export function sizeNote(size: MapSizeId, touch = isTouchDevice()): string {
+  const m = MAP_SIZES[size];
+  if (m.bestOnComputer && touch) return `<div class="sub optNote warnNote">${esc(m.name)} runs best on a computer: on an iPad, the rivals' turns can take a few seconds late in the game. You can still play it here.</div>`;
+  if (m.bestOnComputer || size === 'huge') return `<div class="sub optNote">${esc(m.name)} maps have the longest turns; the rivals move in the background while you look around.</div>`;
+  return '';
+}
+
+/**
+ * A touch-first device (an iPad or phone): its main pointer is a finger. An iPad asking for
+ * desktop sites says it's a Mac, but a Mac has no touch points.
+ */
+export function isTouchDevice(): boolean {
+  if (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches) return true;
+  return typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1 && /Macintosh|iPad/.test(navigator.userAgent);
+}
+
 export class SetupScreen {
   private civ: string | undefined = undefined;
   private rivals = MAP_SIZES[DEFAULT_MAP_SIZE].defaultRivals;
@@ -86,6 +106,7 @@ export class SetupScreen {
       <div class="sub optNote">${esc(DIFFICULTIES[this.difficulty].summary)}</div>
       <div class="label">Map</div>
       <div class="optRow">${sizes}</div>
+      ${sizeNote(this.mapSize)}
       <div class="label">Leader</div>
       <div class="setupControls row">
         <button type="button" data-act="random" class="${this.civ ? '' : 'on'}" aria-pressed="${!this.civ}">🎲 Random civ</button>

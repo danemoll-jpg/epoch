@@ -136,6 +136,40 @@ button:not(:disabled):active {
   background: var(--panel);
 }
 
+/* Round 14: the minimap, top right under the menu button. */
+#minimap {
+  position: absolute;
+  top: calc(60px + var(--safe-top));
+  right: calc(8px + var(--safe-right));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  z-index: 3;
+}
+#minimap[hidden] {
+  display: none;
+}
+#minimapCanvas {
+  display: block;
+  border-radius: 6px;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  background: #05080c;
+  touch-action: none;
+  cursor: crosshair;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+#minimap.folded #minimapCanvas {
+  display: none;
+}
+#minimapToggle {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  font-size: calc(18px * var(--ts));
+  background: var(--panel);
+}
+
 #title {
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -245,6 +279,37 @@ button:not(:disabled):active {
 
 #endTurnBtn:disabled {
   animation: none;
+}
+
+/* Round 14: shown while the computer turns run in the background (the map still pans). */
+#rivalsMoving {
+  position: absolute;
+  right: calc(12px + var(--safe-right));
+  bottom: calc(84px + var(--safe-bottom));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(10, 14, 20, 0.88);
+  color: #fff;
+  font-size: calc(15px * var(--ts));
+  pointer-events: none;
+  z-index: 5;
+}
+#rivalsMoving[hidden] {
+  display: none;
+}
+#rivalsMoving .spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 @keyframes pulse {
@@ -700,6 +765,33 @@ button.danger {
   margin-top: 16px;
   padding-top: 12px;
   border-top: 1px solid var(--panel-border);
+}
+
+#devArt {
+  margin-top: 8px;
+}
+#devArt .label {
+  font-size: calc(13px * var(--ts));
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.devArtRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.devArtRow span {
+  min-width: 64px;
+  font-size: calc(14px * var(--ts));
+}
+.devArtRow button {
+  min-width: 48px;
+  min-height: 44px;
+}
+.devArtRow button.on {
+  background: var(--accent);
+  color: #1b1405;
 }
 
 #devMenu .label {
@@ -1863,6 +1955,26 @@ button.primary {
   text-shadow: 0 2px 0 #5a4210, 0 0 28px rgba(230, 183, 63, 0.35);
   line-height: 1.05;
 }
+/* Round 14 (B4): the wordmark in beaten gold (a gradient through the letters), where the
+   browser can clip a background to text; plain gold otherwise. */
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .wordmark .wm {
+    background: linear-gradient(180deg, #fff1c2 0%, #f0cf62 38%, #c9952a 62%, #f5dc8a 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: none;
+    filter: drop-shadow(0 2px 0 #4a360c) drop-shadow(0 0 18px rgba(230, 183, 63, 0.35));
+  }
+}
+/* Round 14 (B4): Dan's title picture (src/assets/title/), darkened down the middle so the
+   menu stays readable. */
+#mainMenu.pictured {
+  background:
+    linear-gradient(90deg, rgba(8, 12, 18, 0.35), rgba(8, 12, 18, 0.82) 30%, rgba(8, 12, 18, 0.82) 70%, rgba(8, 12, 18, 0.35)),
+    var(--title-bg) center / cover no-repeat,
+    #0b1016;
+}
 .wordmark .wmSub {
   color: var(--muted);
   font-style: italic;
@@ -2187,6 +2299,9 @@ button.alink {
 }
 .optNote {
   margin-bottom: 10px;
+}
+.optNote.warnNote {
+  color: #f0cf62;
 }
 .endLevel {
   margin: 0 0 6px;

@@ -45,17 +45,18 @@ export function activeBonuses(player: Player): Bonus[] {
   return out;
 }
 
-// Cached per player object: the list only changes when the era (or the civ) does.
-const cache = new WeakMap<Player, { civId: string; era: number; effects: LeaderEffect[] }>();
+// Cached per player object: the list only changes when the era (or the civ) does, and the era
+// only when the techs do. Round 14: checked by the techs list and its length rather than by
+// working out the era on every call (that was a sixth of a big map's AI turn).
+const cache = new WeakMap<Player, { civId: string; techs: readonly string[]; count: number; effects: LeaderEffect[] }>();
 
 /** Every effect on for this player now. */
 export function effects(player: Player | undefined): LeaderEffect[] {
   if (!player) return [];
-  const era = eraOf(player);
   const hit = cache.get(player);
-  if (hit && hit.civId === player.civId && hit.era === era) return hit.effects;
+  if (hit && hit.civId === player.civId && hit.techs === player.techs && hit.count === player.techs.length) return hit.effects;
   const list = activeBonuses(player).flatMap((b) => b.effects);
-  cache.set(player, { civId: player.civId, era, effects: list });
+  cache.set(player, { civId: player.civId, techs: player.techs, count: player.techs.length, effects: list });
   return list;
 }
 

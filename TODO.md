@@ -1349,6 +1349,94 @@ included); `npm run build` clean, with the dev-code leak check passing.
 ## Current Objective (Focus Area)
 
 ### Round 14 — M9 part 2: bigger maps, the art pass, and era music
+
+**Round 14 report (coding agent, 2026-09-25): done, waiting for Dan's picks.**
+Version 0.14.0, save format still 12 (nothing in the state changed, so no
+migration). Tests: **754 pass** (`npm test`, `pace.test.ts` included; 34 new);
+`npm run build` clean, dev-code leak check passing on `dist/` and `dist-play/`.
+
+| # | Item | Status | Verified by |
+|---|------|--------|-------------|
+| 0 | Commit docs first | Done (`a218edf`), then re-read both. Nothing from last round's report was dropped | n/a |
+| A1 | Huge and Epic | Done. **Huge 64×44, Epic 80×56**, both up to 5 rivals, in `mapSizes.ts` and on the New Game screen (5 sizes). **Epic is offered everywhere**; on a touch device (an iPad) picking it shows "Epic runs best on a computer…", on a computer a plain note that big maps have the longest turns. Scaled: continents (5–6 on Huge, 6–7 on Epic), villages (8–20 / 10–26), huts (10–30 / 12–38), resources (a chance per tile, so they follow the area), start spacing (11 / 13), the smallest start landmass (30 / 36), fair starts (Round 13's per-size test now covers both). **Victory goals and tech costs, calibrated in the sim** (8 games each, table below): Huge ×1.65 goals (culture 11550, gold 14850) and techs +35%; Epic ×1.5 (10500, 13500) and techs +25%. The tech change is a new per-size `techCostPct`, 0 on Small/Normal/Large | unit-tested (sizes, caps, fair starts, goals, tech cost, the touch note); preview-verified (setup screen at 1024×768 and in phone emulation for the touch note) |
+| A2 | Maps that feel big | Done. **(1) Default view:** a game opens at about **12×9 tiles** around your capital (85 px tiles on a 1024×768 iPad; was 52). **(2) Zoom-out cap:** pinching out stops at **40 tiles across the longer side, never under 28 px** (was 22 px with no area cap). **(3) Minimap** (top right, under ☰): the explored world in terrain colors, fog dimmed, every known city as a dot in its owner's color, and a gold frame for the view; **tap to jump, drag to pan**; 🗺 folds it (a device setting, `minimap`); hidden while the city panel covers that corner in landscape. **(4) Landmasses on Huge and Epic:** continents of different sizes (a random head start per continent center), wider channels, and 5 / 8 **chains of small islands** in the open sea. Small, Normal, and Large maps are unchanged (the new rules are off for them) | unit-tested (default view, cap, minimap maths, landmass shapes on 6 seeds each); preview-verified at 1024×768 (`minimap`, `huge-map`) |
+| A3 | Performance | Done. **(1) Web Worker:** End Turn runs in `src/ui/turnWorker.ts` on a copy of the game; the page shows **"Rivals are moving…"** by the End Turn button (held meanwhile; other actions wait with a toast), and the map still pans and zooms. The worker loads when the game opens, so the first End Turn doesn't wait for it. If a worker can't start or fails, the same job runs on the page. **(2) Speed-ups** (profiled a turn-180 Huge game): unit path search is now A* with a heap and per-search lookups of cities and units (it re-sorted its whole list at every step and scanned every unit and city for every neighbor: half of all AI time); leader bonuses are cached by the techs list instead of working out the era on every tile yield (a sixth of AI time); road paths use the same heap (same results as before); visibility marks tiles with plain loops. **Same late Huge game: 629 → 143 ms per game turn** (4.4×). **(3) Drawing:** only on-screen tiles were drawn already; the terrain is now **pre-drawn in chunks** (about 512 device px each) once the zoom holds, redrawn only when you explore beside them. **(4) Timings:** table below; `huge-map` and `epic-map` scenarios for Dan's iPad | unit-tested (worker job gives the identical game over 5 End Turns; a failing job reports instead of throwing; paths still cheapest, checked against brute force with roads, rails, and rivals; ship paths stay at sea; a late Huge End Turn under 1.5 s in Node); preview-verified (worker in the dev server and in the real play build; "Rivals are moving…" shown and End Turn held; frame times below). **Not measured on a real iPad** |
+| B1 | Terrain style picker | Done: **`docs/terrain-style-candidates.html`**. Three complete styles drawn in code (`src/render/art.ts`), plus today's look for comparison: **A Painted** (a tint that drifts slowly across the map, shaded hills, tree clusters, sandy shores, lighter shallows, **shimmering water**), **B Storybook** (bright colors, **bold outlines along every coast**, lollipop trees, outlined mountains, a cactus now and then, like the portraits), **C Clean flat** (muted colors, small geometric marks, no gradients). Each shows the same demo map (every terrain, a coast and an island, cities, units, an army, a ship, resources, a hut, a barbarian village, a road, a railroad, fog) **at 3 zoom levels (26, 46, 76 px)**, drawn by the game's own renderer (the page bundles it), so what Dan sees is what the game draws. Picker: Pick buttons, a "together" view of both picks, Copy my picks / Share (with the http fallback the other pages have). **Not wired as the default: Dan hasn't picked yet**, so the game keeps today's look; dev builds can switch (☰ → Art style) | preview-verified at 1100 px (all styles, both city styles, picking); the page is built by `node scripts/make-art-page.mjs` |
+| B2 | City looks | Done, **on the same page**. Looks by size in data (`src/data/cityLooks.ts`): **village 1–3, town 4–7, city 8–12, metropolis 13+** (3, 5, 7, 9 buildings), and **by the owner's era** (huts, stone and tile, brick and chimneys, glass towers). Two candidates: **A Little towns** (soft houses on a neutral patch ringed in the owner's color, an owner's pennant) and **B Bold buildings** (outlined, roofs in the owner's color). The size is a small badge; the capital star, religion disc, holy-city badge, and "!" stay on top. **Walls are drawn** (a stone wall with corner towers) in every style, **including today's look, which the game shows now** | unit-tested (thresholds); preview-verified (`city-growth-looks`, `walls-drawn`, the page) |
+| B3 | Building icon picker | Done: **`docs/building-icon-candidates.html`**: **3 candidates for each of the 17 buildings**, a **generic wonder** icon (3), and **2 for each of the 16 wonders** (86 icons from game-icons.net, CC BY 3.0, in `docs/building-icon-candidates/` with `SOURCES.md`; made by `node scripts/make-building-icons-page.mjs`). Each is shown large, in a build-list row (28 px), and as a small chip, with overview grids; the same picker as the other icon pages (`epoch.buildingIconPicks`). Wired in after Dan picks | preview-verified (the page, picking) |
+| B4 | Title art | Done, the code half; **I recommend Dan make the picture** with an AI image generator. **`docs/TITLE-ART.md`**: 2048×1536 landscape (plus an optional 1536×2048 portrait), JPG under 800 KB, no text in it, dark overall, interest at the sides (the middle is darkened for the menu), and a starting prompt. Drop `title-background.jpg` in `src/assets/title/` and the main menu shows it, no code change. The **wordmark** is now beaten gold (a gradient through the letters) | preview-verified (the wordmark at 1024×768); the picture hook was not seen (no picture yet) |
+| C1 | Music per era | Done. `music-theme.mp3` on the **main menu and the New Game screen**; in a game, **your era's track**, crossfading (4 s) at a new era; each track **loops by crossfading into itself**; a missing era track plays the theme; **`music-1.mp3` stands in for a missing theme**. Only the playing track stays decoded (an era track is tens of MB decoded). `docs/SOUNDS.md` and `docs/sounds.html` list the five files (the page shows which are present before anything plays); About / Credits says **"Music generated with Suno."** Dan's 19 files are committed (his `music-industrial.mp3.mp3` renamed to `music-industrial.mp3`); nothing is named `music-1.mp3`, so no rename is needed | unit-tested (the track choice and every fallback); preview-verified (the engine played Ancient, then crossfaded to Medieval after End Turn reached the Medieval era; the play build's sounds page shows 5 of 5; the credits line). **Not heard by me** (no audio here) |
+| D1 | Save migration | **Not needed:** nothing in the saved state changed (the minimap and art choice are device or view state; map sizes are data). `STATE_VERSION` stays 12; a Huge or Epic game saves and loads | unit-tested |
+| D2 | Dev scenarios | Done, all 7: `huge-map` and `epic-map` (late games at turn 151 from saved fixtures, all revealed; End Turn toasts its time), `minimap`, `city-growth-looks`, `walls-drawn`, `terrain-styles`, `era-music` (sound on in this one, with Theme / Ancient / Medieval / Industrial / Modern / Game buttons in its note) | unit-tested (each outcome); preview-verified (all 7) |
+| D3 | Unit tests | Done: `tests/round14.test.ts` (20) and the 7 scenario outcomes; `pace.test.ts` passes | `npm test`: 754 pass |
+
+- **End Turn timing table.** Node on this PC (`npm run sim -- perf`, 2 games
+  per size, 250 turns, the most rivals). "End Turn" = your cities' end of turn,
+  then every rival and the barbarians (your own moves aren't counted):
+
+  | Map | turns 1–50 | 51–100 | 101–150 | 151–200 | 201–250 | slowest turn |
+  |---|---|---|---|---|---|---|
+  | Normal 32×24, 4 rivals | 8 ms | 15 ms | 19 ms | 26 ms | 36 ms | 64 ms |
+  | Large 44×32, 5 rivals | 10 ms | 41 ms | 79 ms | 128 ms | 142 ms | 239 ms |
+  | Huge 64×44, 5 rivals | 14 ms | 44 ms | 61 ms | 100 ms | 138 ms | 326 ms |
+  | Epic 80×56, 5 rivals | 16 ms | 44 ms | 57 ms | 103 ms | 195 ms | 384 ms |
+
+  In the browser at iPad size (1024×768, this PC, DPR 1), End Turn from tap to
+  your turn again (the worker's time plus copying the game both ways):
+  **Large** (`large-map`, t62) 52–61 ms; **Huge** (`huge-map`, t151) 69–189 ms;
+  **Epic** (`epic-map`, t151) 131–199 ms (199 ms was the first End Turn, with
+  the worker already loaded; before that change the first one took 557 ms).
+  The longest the page itself stood still during an End Turn: 66–86 ms (the
+  copy back). **Frames:** 2–5 ms on the Huge map with the pre-drawn terrain
+  (about 15 ms for the one frame that redraws the chunks after a zoom).
+  **Before the speed-ups** (the same turn-180 Huge game, 20 turns, in Node):
+  629 ms per game turn; after: 143 ms.
+  **iPad estimate:** Round 13 guessed an iPad at 2–3× slower than this PC and
+  DPR 2. That puts late Huge at roughly 0.3–0.5 s typical and 1 s at worst,
+  and Epic at 0.4–0.6 s typical, 1.2 s at worst: under the 1.5 s target, and the
+  screen doesn't freeze either way. **Only Dan can confirm it** (`huge-map`,
+  `epic-map`). Epic stays labeled "best on a computer" on the iPad as
+  planned; the numbers say it may not need the label (Dan's call after timing).
+- **Victory calibration** (`npm run sim -- sizes`, seeds 101…150, the most rivals):
+
+  | Map | Goals | Techs | Victory mix | Win turns | Median |
+  |---|---|---|---|---|---|
+  | Huge, first try | ×1.25 | as Normal | culture 7, economic 1 | 169–243 | 185 |
+  | Epic, first try | ×1.25 | as Normal | economic 7, culture 1 | 173–192 | 181 |
+  | **Huge (kept)** | **×1.65** | **+35%** | technology 3, culture 3, economic 2 | 176–217 | **198** |
+  | **Epic (kept)** | **×1.5** | **+25%** | culture 5, economic 3 | 192–215 | **207** |
+
+  Why: every civ reaches its 10-city cap on a big map (6 on Normal), so
+  culture, gold, and science all come faster. (The first tries also had
+  narrower channels; the kept rows are on today's maps.)
+- **Readings I chose (tell me if you want them different):** Epic is offered on
+  every device (labeled on touch devices), per Q29; the tech cost goes up on
+  Huge and Epic only (the older sizes are untouched); the zoom-out cap is 40
+  tiles across the longer side and at least 28 px; the minimap folds instead of
+  being turned off in Settings; walls are drawn now in today's look too; while
+  the rivals move you can pan and zoom but not act; the art switch is dev-only
+  (the game shows today's look until you pick); the title picture is yours to
+  make (`docs/TITLE-ART.md`).
+- **Note on the path search:** A* can pick a different path of the same cost
+  than the old search, so the same seed now plays slightly differently (Normal
+  included). The pace test passes; one test's allowance (units per city in a
+  seed-33 game) went from 3 to 4 extra. Normal's pace is unchanged:
+  `npm run sim -- leaders` (seeds 101…164) gives culture 5, technology 3,
+  economic 1, domination 1, wins t176–213, **median 189** (Round 12: 194;
+  Round 13's Normal difficulty row: 192).
+- **Dan, next:** (a) pick on the play server:
+  http://10.0.0.224:4173/docs/terrain-style-candidates.html (one terrain
+  style, one city style) and
+  http://10.0.0.224:4173/docs/building-icon-candidates.html (34 subjects), and
+  paste the Copy my picks text to the planning session; (b) on `dev:lan`, open
+  ☰ → Dev scenarios → "Map size: late in a Huge game" (and the Epic one) on the
+  iPad and on the PC and read the End Turn toast; play a Huge game on either;
+  (c) listen: the main menu plays the theme, a game your era's track
+  (`era-music` jumps through them); (d) optionally, make the title picture from
+  `docs/TITLE-ART.md`.
+
+**The plan as given (kept for reference):**
+
 **Goal:**
 - **Maps that feel big** (Dan: "Large looked kind of small overall");
 - a real **art pass** for terrain, cities, and building icons, with Dan

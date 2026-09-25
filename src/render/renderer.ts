@@ -21,7 +21,8 @@ import { BARBARIAN_CIV, BARBARIANS } from '../data/barbarians';
 import { CIVS } from '../data/civs';
 import { MAP_ICONS } from '../data/icons';
 import { RULES } from '../data/rules';
-import type { TerrainId } from '../data/terrain';
+import { TERRAIN } from '../data/terrain';
+import { cityLook } from '../data/cityLooks';
 import { UNITS } from '../data/units';
 import { behindUnit } from '../game/stack';
 import { unitVisibleTo, visibleTiles } from '../game/fog';
@@ -33,17 +34,9 @@ import { cityReligion, holyReligion, symbolOf } from '../game/religion';
 import type { Coord, GameState, Unit } from '../game/types';
 import { worldToScreen, type Camera } from './camera';
 import { iconBitmap } from './icons';
+import { DEFAULT_ART, drawCityArt, drawShimmer, drawTerrainTile, type ArtChoice, type TileInfo } from './art';
+import { eraIndex, playerEra } from '../game/tech';
 
-const TERRAIN_COLOR: Record<TerrainId, string> = {
-  grassland: '#5d9a3c',
-  plains: '#a7a24a',
-  forest: '#2f6a32',
-  hills: '#8a7a4a',
-  mountains: '#7d7773',
-  desert: '#d9c27a',
-  coast: '#3f86b8',
-  ocean: '#1f4f80',
-};
 
 export interface ViewState {
   camera: Camera;
@@ -59,6 +52,68 @@ export interface ViewState {
   flash?: { x: number; y: number; won: boolean };
   /** Called when a unit icon finishes loading, so the map can be drawn again with it. */
   onIconReady?: () => void;
+  /** Round 14: the terrain and city styles (today's look unless a dev build switched). */
+  art?: ArtChoice;
+  /** Round 14: ms clock for the painted style's water shimmer. */
+  time?: number;
+  /** Round 14: pre-drawn terrain chunks, reused while the zoom stays the same. */
+  chunks?: TerrainChunks;
+}
+
+/**
+ * Round 14 (A3): the explored terrain, pre-drawn in square chunks of tiles at the current tile
+ * size and style, so a frame is a few image copies instead of every tile's shapes. A chunk is
+ * redrawn when the viewer explores a tile in or beside it. Used only once the zoom has held
+ * for a frame (while pinching, tiles are drawn directly, since every frame has a new size).
+ */
+export class TerrainChunks {
+  private key = '';
+  private lastSize = 0;
+  private readonly chunks = new Map<number, { canvas: HTMLCanvasElement; sig: number }>();
+  /** Tiles per chunk side at the current size (about 512 device pixels a chunk). */
+  n = 8;
+
+  /** Whether the cache can be used this frame; clears it when the size, scale, style, or map change. */
+  ready(s: number, scale: number, style: string, mapKey: string): boolean {
+    const stable = s === this.lastSize;
+    this.lastSize = s;
+    if (!stable) return false;
+    const key = `${s}|${scale}|${style}|${mapKey}`;
+    if (key !== this.key) {
+      this.key = key;
+      this.chunks.clear();
+      this.n = Math.max(2, Math.min(16, Math.floor(512 / (s * scale))));
+    }
+    return true;
+  }
+
+  get(id: number, sig: number, make: (canvas: HTMLCanvasElement) => void): HTMLCanvasElement {
+    const hit = this.chunks.get(id);
+    if (hit && hit.sig === sig) return hit.canvas;
+    const canvas = hit?.canvas ?? document.createElement('canvas');
+    make(canvas);
+    this.chunks.set(id, { canvas, sig });
+    // Keep memory in check on a big map: forget the oldest chunks past a few screens' worth.
+    if (this.chunks.size > 160) {
+      const first = this.chunks.keys().next().value;
+      if (first !== undefined) this.chunks.delete(first);
+    }
+    return canvas;
+  }
+}
+
+/** What the viewer knows of a tile for drawing it: its terrain and which sides meet the other kind. */
+export function tileInfo(state: GameState, explored: number[], tx: number, ty: number): TileInfo {
+  const { map } = state;
+  const terrain = map.tiles[tileIndex(map, tx, ty)]!.terrain;
+  const water = TERRAIN[terrain].isWater;
+  // Unexplored neighbors count as the same kind, so an edge never gives away hidden land.
+  const other = (x: number, y: number) => {
+    if (x < 0 || y < 0 || x >= map.width || y >= map.height) return false;
+    const k = tileIndex(map, x, y);
+    return explored[k] === 1 && TERRAIN[map.tiles[k]!.terrain].isWater !== water;
+  };
+  return { terrain, x: tx, y: ty, water, edge: { n: other(tx, ty - 1), e: other(tx + 1, ty), s: other(tx, ty + 1), w: other(tx - 1, ty) } };
 }
 
 export function playerColor(state: GameState, playerId: number): string {
@@ -299,57 +354,6 @@ function drawResource(ctx: CanvasRenderingContext2D, x: number, y: number, s: nu
   ctx.restore();
 }
 
-function drawTerrainMark(ctx: CanvasRenderingContext2D, t: TerrainId, x: number, y: number, s: number): void {
-  ctx.save();
-  switch (t) {
-    case 'forest':
-      ctx.fillStyle = '#1f4d22';
-      for (const [ox, oy] of [[0.3, 0.55], [0.62, 0.42], [0.55, 0.78]] as const) {
-        ctx.beginPath();
-        ctx.moveTo(x + ox * s, y + (oy - 0.22) * s);
-        ctx.lineTo(x + (ox + 0.13) * s, y + oy * s);
-        ctx.lineTo(x + (ox - 0.13) * s, y + oy * s);
-        ctx.closePath();
-        ctx.fill();
-      }
-      break;
-    case 'hills':
-      ctx.strokeStyle = '#5e5230';
-      ctx.lineWidth = Math.max(1, s * 0.05);
-      ctx.beginPath();
-      ctx.arc(x + s * 0.35, y + s * 0.7, s * 0.2, Math.PI, 0);
-      ctx.moveTo(x + s * 0.85, y + s * 0.6);
-      ctx.arc(x + s * 0.65, y + s * 0.6, s * 0.2, 0, Math.PI, true);
-      ctx.stroke();
-      break;
-    case 'mountains':
-      ctx.fillStyle = '#56504c';
-      ctx.beginPath();
-      ctx.moveTo(x + s * 0.5, y + s * 0.15);
-      ctx.lineTo(x + s * 0.88, y + s * 0.85);
-      ctx.lineTo(x + s * 0.12, y + s * 0.85);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = '#eeeeee';
-      ctx.beginPath();
-      ctx.moveTo(x + s * 0.5, y + s * 0.15);
-      ctx.lineTo(x + s * 0.61, y + s * 0.36);
-      ctx.lineTo(x + s * 0.39, y + s * 0.36);
-      ctx.closePath();
-      ctx.fill();
-      break;
-    case 'desert':
-      ctx.fillStyle = '#c4aa60';
-      for (const [ox, oy] of [[0.3, 0.35], [0.7, 0.5], [0.4, 0.75]] as const) {
-        ctx.fillRect(x + ox * s, y + oy * s, s * 0.08, s * 0.08);
-      }
-      break;
-    default:
-      break;
-  }
-  ctx.restore();
-}
-
 function drawUnit(
   ctx: CanvasRenderingContext2D,
   state: GameState,
@@ -538,30 +542,63 @@ export function render(
   const y1 = Math.min(map.height - 1, Math.ceil(cam.cy + height / 2 / s) + 1);
   const pos = (tx: number, ty: number) => worldToScreen(cam, width, height, tx, ty);
 
-  for (let ty = y0; ty <= y1; ty++) {
-    for (let tx = x0; tx <= x1; tx++) {
-      const i = tileIndex(map, tx, ty);
-      if (explored[i] !== 1) continue;
-      const p = pos(tx, ty);
-      const t = map.tiles[i]!.terrain;
-      ctx.fillStyle = TERRAIN_COLOR[t];
-      ctx.fillRect(p.x, p.y, s + 0.5, s + 0.5);
-      if (s >= 18) drawTerrainMark(ctx, t, p.x, p.y, s);
+  const art = view.art ?? DEFAULT_ART;
+  const scale = ctx.getTransform().a || 1;
+  const chunks = view.chunks;
+  if (chunks && chunks.ready(s, scale, art.terrain, `${state.seed}|${map.width}x${map.height}`)) {
+    // Pre-drawn chunks (Round 14), each placed on whole device pixels with a pixel of overlap.
+    const n = chunks.n;
+    const cols = Math.ceil(map.width / n);
+    for (let cy = Math.floor(y0 / n); cy <= Math.floor(y1 / n); cy++) {
+      for (let cx = Math.floor(x0 / n); cx <= Math.floor(x1 / n); cx++) {
+        // The chunk's signature: which tiles in and around it are explored.
+        let sig = 0;
+        for (let ty = Math.max(0, cy * n - 1); ty <= Math.min(map.height - 1, cy * n + n); ty++) {
+          for (let tx = Math.max(0, cx * n - 1); tx <= Math.min(map.width - 1, cx * n + n); tx++) {
+            if (explored[tileIndex(map, tx, ty)] === 1) sig = (Math.imul(sig, 31) + ty * map.width + tx + 1) | 0;
+          }
+        }
+        if (sig === 0) continue;
+        const px = Math.ceil(n * s * scale) + 1;
+        const canvas = chunks.get(cy * cols + cx, sig, (c) => {
+          c.width = px;
+          c.height = px;
+          const g = c.getContext('2d')!;
+          g.setTransform(scale, 0, 0, scale, 0, 0);
+          g.clearRect(0, 0, px, px);
+          for (let ty = cy * n; ty < Math.min(map.height, cy * n + n); ty++) {
+            for (let tx = cx * n; tx < Math.min(map.width, cx * n + n); tx++) {
+              if (explored[tileIndex(map, tx, ty)] !== 1) continue;
+              drawTerrainTile(g, art.terrain, tileInfo(state, explored, tx, ty), (tx - cx * n) * s, (ty - cy * n) * s, s);
+            }
+          }
+        });
+        const p = pos(cx * n, cy * n);
+        const dx = Math.round(p.x * scale) / scale;
+        const dy = Math.round(p.y * scale) / scale;
+        ctx.drawImage(canvas, dx, dy, px / scale, px / scale);
+      }
+    }
+  } else {
+    for (let ty = y0; ty <= y1; ty++) {
+      for (let tx = x0; tx <= x1; tx++) {
+        if (explored[tileIndex(map, tx, ty)] !== 1) continue;
+        const p = pos(tx, ty);
+        drawTerrainTile(ctx, art.terrain, tileInfo(state, explored, tx, ty), p.x, p.y, s);
+      }
     }
   }
-
-  // Faint grid over explored land so tiles read as squares.
-  ctx.strokeStyle = 'rgba(0,0,0,0.18)';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  for (let ty = y0; ty <= y1; ty++) {
-    for (let tx = x0; tx <= x1; tx++) {
-      if (explored[tileIndex(map, tx, ty)] !== 1) continue;
-      const p = pos(tx, ty);
-      ctx.rect(Math.round(p.x) + 0.5, Math.round(p.y) + 0.5, s, s);
+  // The painted style's water shimmers (drawn every frame, over the chunks).
+  if (art.terrain === 'painted' && view.time !== undefined) {
+    for (let ty = y0; ty <= y1; ty++) {
+      for (let tx = x0; tx <= x1; tx++) {
+        const i = tileIndex(map, tx, ty);
+        if (explored[i] !== 1 || !visible[i] || !TERRAIN[map.tiles[i]!.terrain].isWater) continue;
+        const p = pos(tx, ty);
+        drawShimmer(ctx, tileInfo(state, explored, tx, ty), p.x, p.y, s, view.time);
+      }
     }
   }
-  ctx.stroke();
 
   // Round 12: roads and rails, under everything that stands on a tile.
   drawRoads(ctx, state, explored, x0, x1, y0, y1, s, pos);
@@ -625,16 +662,19 @@ export function render(
     if (explored[tileIndex(map, city.x, city.y)] !== 1) continue;
     const p = pos(city.x, city.y);
     const inset = s * 0.12;
-    ctx.fillStyle = playerColor(state, city.owner);
-    ctx.strokeStyle = city.id === view.openCityId ? '#ffe066' : '#111';
-    ctx.lineWidth = Math.max(2, s * 0.06);
-    ctx.fillRect(p.x + inset, p.y + inset, s - inset * 2, s - inset * 2);
-    ctx.strokeRect(p.x + inset, p.y + inset, s - inset * 2, s - inset * 2);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = `800 ${Math.round(s * 0.36)}px system-ui, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(String(city.size), p.x + s / 2, p.y + s / 2 + s * 0.02);
+    // Round 14: the city's look (its size and its owner's era pick it in the new styles), and
+    // its walls.
+    const look = cityLook(city.size);
+    const owner = state.players[city.owner];
+    drawCityArt(ctx, art.city, {
+      look: look.id,
+      buildings: look.buildings,
+      era: owner ? eraIndex(playerEra(owner)) : 0,
+      color: playerColor(state, city.owner),
+      walls: city.buildings.includes('walls'),
+      size: city.size,
+      open: city.id === view.openCityId,
+    }, p.x, p.y, s);
     if (city.capitalOf !== null) drawStar(ctx, p.x + inset, p.y + inset, s * 0.13);
     // Round 12: its religion (lower right), and the holy-city badge (upper right).
     const faith = cityReligion(state, city);
@@ -717,8 +757,12 @@ export function render(
     for (let tx = x0; tx <= x1; tx++) {
       const i = tileIndex(map, tx, ty);
       if (explored[i] === 1 && !visible[i]) {
+        // Edges snapped to whole pixels, so neighbors meet without overlapping (an overlap
+        // is dimmed twice and shows as a grid line).
         const p = pos(tx, ty);
-        ctx.fillRect(p.x, p.y, s + 0.5, s + 0.5);
+        const ax = Math.round(p.x);
+        const ay = Math.round(p.y);
+        ctx.fillRect(ax, ay, Math.round(p.x + s) - ax, Math.round(p.y + s) - ay);
       }
     }
   }

@@ -7,6 +7,7 @@
 // they do, science keeps banking in the pool. Switching research keeps the pool (no penalty).
 // One tech at most per turn. A player's era is the latest era among the techs they know.
 
+import { DEFAULT_MAP_SIZE, MAP_SIZES } from '../data/mapSizes';
 import { BUILDINGS, BUILDING_IDS, type BuildingId } from '../data/buildings';
 import {
   AI_TECH_PRIORITY,
@@ -60,7 +61,8 @@ export function availableTechs(player: Player): TechId[] {
 export function techCost(state: GameState, playerId: number, tech: TechId): number {
   const player = state.players[playerId]!;
   const base = techCostFor(player.techs.length, TECHS[tech].tier);
-  const pct = techCostPct(state, playerId, tech);
+  // Round 14: big maps (more cities each) research slower, so games keep their pace.
+  const pct = techCostPct(state, playerId, tech) + MAP_SIZES[state.mapSize ?? DEFAULT_MAP_SIZE].techCostPct;
   return pct === 0 ? base : Math.max(1, Math.round((base * (100 + pct)) / 100));
 }
 

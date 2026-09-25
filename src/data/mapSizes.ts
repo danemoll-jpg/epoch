@@ -9,7 +9,7 @@ import { BARBARIANS, HUTS } from './barbarians';
 import { RULES } from './rules';
 import { VICTORY } from './victory';
 
-export type MapSizeId = 'small' | 'normal' | 'large';
+export type MapSizeId = 'small' | 'normal' | 'large' | 'huge' | 'epic';
 
 export interface MapSizeDef {
   id: MapSizeId;
@@ -29,6 +29,16 @@ export interface MapSizeDef {
   villages: { min: number; max: number };
   huts: { min: number; max: number };
   victoryPct: number;
+  /**
+   * Round 14: techs cost this much more (percent; 0 = as on Normal). On the biggest maps every
+   * civ has more cities and more science, and games ended by the spaceship ~20 turns early.
+   */
+  techCostPct: number;
+  /**
+   * Round 14: offered everywhere, but the setup screen notes on a touch device that it runs
+   * best on a computer (its computer turns are slow on an iPad).
+   */
+  bestOnComputer?: boolean;
 }
 
 export const MAP_SIZES: Record<MapSizeId, MapSizeDef> = {
@@ -45,6 +55,7 @@ export const MAP_SIZES: Record<MapSizeId, MapSizeDef> = {
     villages: { min: 2, max: 5 },
     huts: { min: 3, max: 8 },
     victoryPct: 100,
+    techCostPct: 0,
   },
   normal: {
     id: 'normal',
@@ -59,6 +70,7 @@ export const MAP_SIZES: Record<MapSizeId, MapSizeDef> = {
     villages: { min: BARBARIANS.minVillages, max: BARBARIANS.maxVillages },
     huts: { min: HUTS.minHuts, max: HUTS.maxHuts },
     victoryPct: 100,
+    techCostPct: 0,
   },
   large: {
     id: 'large',
@@ -75,10 +87,47 @@ export const MAP_SIZES: Record<MapSizeId, MapSizeDef> = {
     // More civs and more cities make culture and gold faster: without this, Large games ended
     // around turn 169 in the sim (Normal: ~195).
     victoryPct: 125,
+    techCostPct: 0,
+  },
+  // Round 14 (Dan: "Large looked kind of small overall"): a few big continents of different
+  // sizes (continentWeight) plus chains of small islands in the open sea.
+  huge: {
+    id: 'huge',
+    name: 'Huge',
+    summary: '64×44 · up to 5 rivals · big continents and island chains',
+    width: 64,
+    height: 44,
+    maxRivals: 5,
+    defaultRivals: 5,
+    shape: { continentsMin: 5, continentsMax: 6, continentSpacing: 14, continentWeight: 6, channelWidth: 3.5, channelDepth: 0.7, islandChains: 5, minStartLandmass: 30 },
+    minStartDistance: 11,
+    villages: { min: 8, max: 20 },
+    huts: { min: 10, max: 30 },
+    // Calibrated in the sim (Round 14, 8 games each): with Large's ×1.25 and no tech change,
+    // Huge games ended around turn 185 and Epic ones around 181, sooner than Normal (~192): every
+    // civ has more cities, so more culture, gold, and science. These bring them to about 200.
+    victoryPct: 165,
+    techCostPct: 35,
+  },
+  epic: {
+    id: 'epic',
+    name: 'Epic',
+    summary: '80×56 · up to 5 rivals · the biggest world, the longest turns',
+    width: 80,
+    height: 56,
+    maxRivals: 5,
+    defaultRivals: 5,
+    shape: { continentsMin: 6, continentsMax: 7, continentSpacing: 16, continentWeight: 7, channelWidth: 3.5, channelDepth: 0.7, islandChains: 8, minStartLandmass: 36 },
+    minStartDistance: 13,
+    villages: { min: 10, max: 26 },
+    huts: { min: 12, max: 38 },
+    victoryPct: 150,
+    techCostPct: 25,
+    bestOnComputer: true,
   },
 };
 
-export const MAP_SIZE_IDS: MapSizeId[] = ['small', 'normal', 'large'];
+export const MAP_SIZE_IDS: MapSizeId[] = ['small', 'normal', 'large', 'huge', 'epic'];
 
 export const DEFAULT_MAP_SIZE: MapSizeId = 'normal';
 

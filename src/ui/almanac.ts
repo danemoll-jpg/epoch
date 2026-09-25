@@ -203,7 +203,9 @@ function mapSizeCards(): AlmanacCard[] {
       row('Size', `${m.width}×${m.height} tiles`) +
       row('Rivals', `up to ${m.maxRivals}`) +
       row('Goals', `culture ${g.culture}, gold ${g.gold}`) +
-      row('Villages', `${m.villages.min}–${m.villages.max}, huts ${m.huts.min}–${m.huts.max}`);
+      row('Villages', `${m.villages.min}–${m.villages.max}, huts ${m.huts.min}–${m.huts.max}`) +
+      (m.techCostPct ? row('Techs', `cost +${m.techCostPct}%`) : '') +
+      (m.bestOnComputer ? row('Best on', 'a computer (its rivals’ turns are slow on an iPad)') : '');
     return card(`mapSize:${id}`, 'mapSize', `${m.name} map`, 'Map size', disc('🗺'), facts);
   });
 }

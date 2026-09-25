@@ -41,8 +41,8 @@
     <label class="sub">Volume <input id="vol" type="range" min="0" max="100" step="10" value="80"> <span id="volText">80%</span></label>
   </div>
   <div id="effects"></div>
-  <h2>Music (optional)</h2>
-  <p class="sub">Plays 20 seconds of each track (tap again to stop). In the game, tracks crossfade into each other.</p>
+  <h2>Music</h2>
+  <p class="sub">The theme plays on the main menu and the New Game screen; in a game, the track for your era plays (crossfading when a new era begins), and the theme stands in for any era track that's missing. Each track loops. Play plays 20 seconds (tap again to stop). <span id="musicNote"></span></p>
   <div id="music"></div>
 </main>
 <script>
@@ -64,7 +64,14 @@
     ['defeat.mp3', 'Defeat', 'A slow, somber horn line.'],
     ['new-turn.mp3', 'New turn', 'A very soft, calm cue.'],
   ];
-  const MUSIC = [['music-1.mp3', 'Music 1'], ['music-2.mp3', 'Music 2'], ['music-3.mp3', 'Music 3']];
+  // Round 14: the theme and the four era tracks (src/data/sounds.ts MUSIC).
+  const MUSIC = [
+    ['music-theme.mp3', 'Theme', 'Main menu and New Game screen; stands in for any missing era track.'],
+    ['music-ancient.mp3', 'Ancient era', 'In a game, while you are in the Ancient era.'],
+    ['music-medieval.mp3', 'Medieval era', 'In a game, while you are in the Medieval era.'],
+    ['music-industrial.mp3', 'Industrial era', 'In a game, while you are in the Industrial era.'],
+    ['music-modern.mp3', 'Modern era', 'In a game, while you are in the Modern era.'],
+  ];
 
   let ctx;
   const cache = new Map();
@@ -149,6 +156,28 @@
   }
   rows(EFFECTS, document.getElementById('effects'), false);
   rows(MUSIC, document.getElementById('music'), true);
+
+  // Which music files are here, shown before anything is played (a HEAD request, no download).
+  async function exists(file) {
+    for (const url of [`sounds/${file}`, `../src/assets/sounds/${file}`]) {
+      try {
+        const r = await fetch(url, { method: 'HEAD' });
+        const type = r.headers.get('content-type') || '';
+        if (r.ok && !type.includes('text/html')) return true;
+      } catch (e) { /* try the next place */ }
+    }
+    return false;
+  }
+  (async () => {
+    let n = 0;
+    for (const row of document.querySelectorAll('#music .row')) {
+      const ok = await exists(row.dataset.file);
+      if (ok) n++;
+      row.querySelector('.status').innerHTML = ok ? '<span class="ok">✓ present</span> (tap Play to hear it)' : '<span class="missing">missing</span>' + (row.dataset.file === 'music-theme.mp3' ? '' : ' (the theme plays instead)');
+    }
+    const old = await exists('music-1.mp3');
+    document.getElementById('musicNote').textContent = `${n} of ${MUSIC.length} present.` + (old ? ' music-1.mp3 (the Round 13 name) is here too: it plays as the theme only when music-theme.mp3 is missing. Please rename it to music-theme.mp3.' : '');
+  })();
 
   document.getElementById('vol').addEventListener('input', (e) => { document.getElementById('volText').textContent = `${e.target.value}%`; });
   document.getElementById('all').addEventListener('click', async () => {

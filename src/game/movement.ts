@@ -17,6 +17,7 @@
 // Roads (Round 12, see roads.ts): a land unit stepping from one road tile (or city) to another
 // pays 1/3 of a move, 1/10 on rails, so moves can be fractional. Everyone uses every road.
 
+import { ROADS } from '../data/roads';
 import { TERRAIN } from '../data/terrain';
 import { UNITS } from '../data/units';
 import { capturableCity, captureCity } from './conquest';
@@ -24,12 +25,13 @@ import { distance, inBounds, neighbors, tileAt } from './grid';
 import { civName } from './conquest';
 import { updateContacts } from './diplomacy';
 import { updateExplored } from './fog';
-import { airRoom, cargoCapacity, cargoRoom, carriedBy, hovers, isAir, isShip, isWaterAt, shipTerrainError, shipWithRoom, terrainAllows } from './naval';
+import { airRoom, cargoCapacity, cargoRoom, carriedBy, hovers, isAir, isCoastal, isShip, isWaterAt, shipTerrainError, shipWithRoom, terrainAllows } from './naval';
 import { rebase, rebaseTargets } from './air';
 import { roadStepCost } from './roads';
 import { atWar } from './war';
 import { enterTile, pendingVillage } from './villages';
-import type { ActionResult, Coord, GameState, Unit } from './types';
+import { MinHeap } from './heap';
+import type { ActionResult, City, Coord, GameState, RoadKind, Unit } from './types';
 
 export function findUnit(state: GameState, unitId: number): Unit | undefined {
   return state.units.find((u) => u.id === unitId);
@@ -216,40 +218,100 @@ export function findPath(state: GameState, unit: Unit, to: Coord): Coord[] | und
   if (known(key(to)) && !canEnter(state, unit, to.x, to.y) && !boardGoal) return undefined;
   const start = key(unit);
   const goal = key(to);
-  const cost = new Map<number, number>([[start, 0]]);
-  const prev = new Map<number, number>();
-  const done = new Set<number>();
-  // Maps are small, so a plain Dijkstra over an array frontier is plenty fast.
-  const frontier: number[] = [start];
-  while (frontier.length) {
-    frontier.sort((a, b) => cost.get(a)! - cost.get(b)!);
-    const cur = frontier.shift()!;
-    if (done.has(cur)) continue;
-    done.add(cur);
+  // Round 14: A* with a binary heap (it was Dijkstra re-sorting its whole frontier every step,
+  // the slowest thing in a big map's AI turn). The estimate is the tiles left times the
+  // cheapest step there can be (a rail, a road, or 1), so it never overestimates and the path
+  // is still a cheapest one. Ties go to the tile queued first.
+  const n = map.width * map.height;
+  const cost = new Float64Array(n).fill(Infinity);
+  const prev = new Int32Array(n).fill(-1);
+  const done = new Uint8Array(n);
+  const cheapest = cheapestStep(state, unit);
+  const gx = to.x;
+  const gy = to.y;
+  const estimate = (k: number) => Math.max(Math.abs((k % map.width) - gx), Math.abs(Math.floor(k / map.width) - gy)) * cheapest;
+  // Who's where, looked up once per search instead of scanning every unit and city at every
+  // step (canEnter and stepCost, done by hand with the same rules).
+  const look = pathLookups(state, unit.owner);
+  const walker = !isShip(unit) && !hovers(unit);
+  const enter = (k: number) => {
+    if (look.others[k]) return false;
+    const x = k % map.width;
+    const y = Math.floor(k / map.width);
+    if (!isShip(unit)) return terrainAllows(state, unit.type, unit.owner, x, y);
+    // A ship: water it may sail, or one of its owner's coastal cities.
+    const city = look.city[k];
+    if (city && !TERRAIN[map.tiles[k]!.terrain].isWater) return city.owner === unit.owner && isCoastal(state, city);
+    return terrainAllows(state, unit.type, unit.owner, x, y);
+  };
+  const road = (k: number): RoadKind | undefined => {
+    const city = look.city[k];
+    if (city) return look.rail[city.owner] ? 'rail' : 'road';
+    return map.tiles[k]!.road;
+  };
+  const step = (from: number, k: number): number => {
+    const terrain = TERRAIN[map.tiles[k]!.terrain].moveCost;
+    const a = road(from);
+    const b = a ? road(k) : undefined;
+    if (!a || !b) return terrain;
+    return Math.min(terrain, a === 'rail' && b === 'rail' ? ROADS.railMoveCost : ROADS.roadMoveCost);
+  };
+  const heap = new MinHeap();
+  let order = 0;
+  cost[start] = 0;
+  heap.push(estimate(start), order++, start);
+  while (heap.size) {
+    const cur = heap.pop();
+    if (done[cur]) continue;
+    done[cur] = 1;
     if (cur === goal) break;
     const c = { x: cur % map.width, y: Math.floor(cur / map.width) };
-    for (const n of neighbors(map, c)) {
-      const k = key(n);
-      if (done.has(k)) continue;
+    for (const nb of neighbors(map, c)) {
+      const k = key(nb);
+      if (done[k]) continue;
       const isKnown = known(k);
-      if (isKnown && !canEnter(state, unit, n.x, n.y) && !(k === goal && boardGoal)) continue;
-      const nc = cost.get(cur)! + (isKnown && !isShip(unit) && !hovers(unit) ? stepCost(state, unit, c, n) : 1);
-      if (nc < (cost.get(k) ?? Infinity)) {
-        cost.set(k, nc);
-        prev.set(k, cur);
-        frontier.push(k);
+      if (isKnown && !enter(k) && !(k === goal && boardGoal)) continue;
+      const nc = cost[cur]! + (isKnown && walker ? step(cur, k) : 1);
+      if (nc < cost[k]!) {
+        cost[k] = nc;
+        prev[k] = cur;
+        heap.push(nc + estimate(k), order++, k);
       }
     }
   }
-  if (goal === start || !prev.has(goal)) return undefined;
+  if (goal === start || prev[goal] === -1) return undefined;
   const path: Coord[] = [];
   let k = goal;
   while (k !== start) {
     path.unshift({ x: k % map.width, y: Math.floor(k / map.width) });
-    k = prev.get(k)!;
+    k = prev[k]!;
   }
   return path;
 }
+
+/** For one path search: each tile's city, tiles holding other owners' units or cities, who knows Railroad. */
+function pathLookups(state: GameState, owner: number): { city: (City | undefined)[]; others: Uint8Array; rail: boolean[] } {
+  const n = state.map.width * state.map.height;
+  const city: (City | undefined)[] = new Array(n);
+  const others = new Uint8Array(n);
+  for (const c of state.cities) {
+    const k = c.y * state.map.width + c.x;
+    city[k] = c;
+    if (c.owner !== owner) others[k] = 1;
+  }
+  for (const u of state.units) if (u.owner !== owner) others[u.y * state.map.width + u.x] = 1;
+  return { city, others, rail: state.players.map((p) => p.techs.includes(ROADS.railTech)) };
+}
+
+/** The cheapest single step a unit could ever take on this map now (for A*'s estimate). */
+function cheapestStep(state: GameState, unit: Unit): number {
+  if (isShip(unit) || hovers(unit)) return 1;
+  // A city counts as road, and as rail once its owner knows Railroad.
+  if (state.players.some((p) => p.techs.includes(ROADS.railTech)) || state.map.tiles.some((t) => t.road === 'rail')) return Math.min(ROADS.railMoveCost, 1);
+  if (state.cities.length || state.map.tiles.some((t) => t.road)) return Math.min(ROADS.roadMoveCost, 1);
+  return 1;
+}
+
 
 /**
  * Moves the unit along the cheapest path toward `to` for as long as its moves last this

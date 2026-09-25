@@ -4,8 +4,8 @@
 // key. Nothing plays while the page is hidden. Every rule about when and how loud is in
 // soundLogic.ts; this file only loads, decodes, and plays.
 
-import { MUSIC_FILES, SOUNDS, SOUND_RULES, type SoundId } from '../data/sounds';
-import { effectiveGain, measure, normalizeGain, soundAllowed, type SoundContext } from './soundLogic';
+import { SOUNDS, SOUND_RULES, type SoundId } from '../data/sounds';
+import { effectiveGain, measure, musicTrackFor, normalizeGain, soundAllowed, type MusicContext, type SoundContext } from './soundLogic';
 import type { Settings } from './settings';
 
 /** File name → bundled URL, for every sound file present at build time. */
@@ -15,6 +15,11 @@ const FILES: Record<string, string> = Object.fromEntries(
     url,
   ]),
 );
+
+/** Round 14: any music file in this build (About / Credits then credits Suno). */
+export function musicPresent(): boolean {
+  return Object.keys(FILES).some((f) => f.startsWith('music-'));
+}
 
 /** Which sound files this build has (for About / Credits and the Settings screen). */
 export function soundFilesPresent(): string[] {
@@ -30,7 +35,9 @@ export class SoundEngine {
   private ctx: AudioContext | undefined;
   private unlocked = false;
   private readonly loaded = new Map<string, Promise<Loaded | undefined>>();
-  private music: { src: AudioBufferSourceNode; gain: GainNode; track: number } | undefined;
+  private music: { src: AudioBufferSourceNode; gain: GainNode; file: string } | undefined;
+  /** Round 14: the menu, or the player's era (picks the track). */
+  private musicContext: MusicContext = 'menu';
   private musicTimer: number | undefined;
   private queueTimer: number | undefined;
 
@@ -122,19 +129,31 @@ export class SoundEngine {
     if (rest.length) this.queueTimer = window.setTimeout(() => this.playSequence(rest), SOUND_RULES.spacingMs);
   }
 
-  /** Starts, stops, or re-levels the music to match the settings and the page. */
+  /** Round 14 (C1): the menu or the player's era; a different track crossfades in. */
+  setMusicContext(context: MusicContext): void {
+    if (context === this.musicContext) return;
+    this.musicContext = context;
+    this.updateMusic();
+  }
+
+  /** Starts, stops, switches, or re-levels the music to match the settings, the page, and the context. */
   updateMusic(): void {
     const allowed = soundAllowed(this.context(), 'music');
-    const tracks = MUSIC_FILES.filter((f) => FILES[f]);
-    if (!allowed || !tracks.length || !this.ctx) {
+    const file = musicTrackFor(this.musicContext, Object.keys(FILES));
+    if (!allowed || !file || !this.ctx) {
       this.stopMusic();
       return;
     }
-    if (this.music) {
-      this.music.gain.gain.value = this.musicGain(tracks[this.music.track % tracks.length]!);
+    if (this.music && this.music.file === file) {
+      // Already playing (a slower load of another track, if any, is no longer wanted).
+      this.wanted = file;
+      this.music.gain.gain.value = this.musicGain(file);
       return;
     }
-    void this.startTrack(0);
+    // Already on its way: don't start it twice.
+    if (this.wanted === file) return;
+    // A new track (or none playing): crossfade to it.
+    void this.startTrack(file);
   }
 
   private musicGains = new Map<string, number>();
@@ -143,13 +162,24 @@ export class SoundEngine {
     return effectiveGain(this.settings(), 'music', this.musicGains.get(file) ?? 1);
   }
 
-  /** Plays track `n`, fading in; near its end the next one fades in over it (the crossfade). */
-  private async startTrack(n: number): Promise<void> {
-    const tracks = MUSIC_FILES.filter((f) => FILES[f]);
-    if (!tracks.length || !this.ctx) return;
-    const file = tracks[n % tracks.length]!;
+  /** Which track is starting (so a slow load that's been overtaken doesn't start). */
+  private wanted: string | undefined;
+
+  /**
+   * Plays `file`, fading in over whatever played before; `fade` seconds before it ends, it
+   * starts again, crossfading into itself (the loop). A decoded track takes a lot of memory,
+   * so only the tracks playing are kept.
+   */
+  private async startTrack(file: string): Promise<void> {
+    if (!this.ctx) return;
+    this.wanted = file;
     const l = await this.load(file);
-    if (!l || !soundAllowed(this.context(), 'music')) return;
+    if (this.wanted !== file) return;
+    if (!l || !soundAllowed(this.context(), 'music')) {
+      // Not playing after all (missing, or the page went quiet): let a later call try again.
+      this.wanted = this.music?.file;
+      return;
+    }
     this.musicGains.set(file, l.gain);
     const ctx = this.ctx;
     const src = ctx.createBufferSource();
@@ -162,11 +192,14 @@ export class SoundEngine {
     src.connect(gain).connect(ctx.destination);
     src.start();
     const old = this.music;
-    this.music = { src, gain, track: n };
+    this.music = { src, gain, file };
     if (old) this.fadeOut(old, fade);
-    // Start the next track `fade` seconds before this one ends.
+    // Forget decoded music no longer playing (an era track is tens of MB decoded).
+    for (const k of [...this.loaded.keys()]) if (k.startsWith('music-') && k !== file) this.loaded.delete(k);
     if (this.musicTimer !== undefined) clearTimeout(this.musicTimer);
-    this.musicTimer = window.setTimeout(() => void this.startTrack(n + 1), Math.max(1, l.buffer.duration - fade) * 1000);
+    this.musicTimer = window.setTimeout(() => {
+      if (this.music?.file === file) void this.startTrack(file);
+    }, Math.max(1, l.buffer.duration - fade) * 1000);
   }
 
   private fadeOut(m: { src: AudioBufferSourceNode; gain: GainNode }, sec: number): void {
@@ -183,6 +216,7 @@ export class SoundEngine {
   }
 
   private stopMusic(): void {
+    this.wanted = undefined;
     if (this.musicTimer !== undefined) clearTimeout(this.musicTimer);
     this.musicTimer = undefined;
     if (this.music) this.fadeOut(this.music, 0.5);

@@ -120,6 +120,10 @@ npm run sim      # pace/war/victory/naval/barbarian/Great People/air report on 5
 npm run sim -- leaders   # Round 11: victory mix and wins per leader, 10 games of 5 civs from the 12 (SEEDS=20 for more)
 npm run sim -- difficulty  # Round 13: victory mix, win turns, stand-in wins at Novice/Normal/Legendary (SEEDS=, LEVELS=)
 npm run sim -- sizes       # Round 13: the same at each map size with its most rivals, plus ms per turn (SIZES=)
+npm run sim -- perf        # Round 14: End Turn time per map size, by stretch of turns (SIZES=, SEEDS=2, TURNS=250)
+npm run sim -- map-fixtures  # Round 14: remake the late Huge/Epic saves the huge-map/epic-map scenarios load
+node scripts/make-art-page.mjs            # Round 14: rebuild docs/terrain-style-candidates.html after changing src/render/art.ts
+node scripts/make-building-icons-page.mjs # Round 14: rebuild docs/building-icon-candidates.html (fetches missing SVGs)
 ```
 **iPad over the local network:**
 ```
@@ -141,7 +145,9 @@ the firewall; allow it on private networks.
   never gets them. Since Round 11 it also copies `docs/portraits.html` and
   the portraits (into `dist-play/docs/portraits/`), and since Round 13
   the sound check page `docs/sounds.html` with Dan's sound files (into
-  `dist-play/docs/sounds/`).
+  `dist-play/docs/sounds/`). Round 14's two picker pages
+  (`terrain-style-candidates.html`, `building-icon-candidates.html`) are
+  `-candidates.html` pages, so they're copied the same way.
 - **Sim reports also go to `sim-report.txt`** (git-ignored, appended): Vitest 5
   hides a passing test's console output, so read the file after `npm run sim`.
 - **Each address has its own saved game.** Safari keeps `localStorage` per
@@ -195,9 +201,21 @@ follows one; a founding tech any civ already knows is "lapsed"
 can; no roads; no Missionaries; Theology is simply unknown), and 11 → 12
 (Round 13: `difficulty` 'normal' and `mapSize` 'normal').
 
+**Round 14: End Turn runs in a Web Worker.** `src/ui/turnRunner.ts` sends a
+copy of the state to `src/ui/turnWorker.ts`, which runs `runTurnJob`
+(`src/game/turnJob.ts`: exactly `applyAction(state, endTurn)`) and posts the
+new state back; the page shows "Rivals are moving…", holds End Turn, and
+refuses other actions meanwhile (the map still pans). If the worker can't
+start or fails, the same job runs on the page. Nothing in `src/game/` may
+keep state between calls outside the game state (module caches must be
+keyed by the objects they describe, as `leaders.ts` and `mapgen.ts` do), or
+the worker and the page could disagree.
+
 **Settings (Round 13)** live apart from saves, per device:
 `epoch.settings` (`src/ui/settings.ts`, `loadSettings`/`saveSettings`,
-store as a parameter) and `epoch.tipsSeen` (first-game tips already shown).
+store as a parameter; Round 14 added `minimap`) and `epoch.tipsSeen`
+(first-game tips already shown). Dev builds also keep `epoch.devArt`
+(☰ → Art style, the art candidates) on the device.
 Nothing that replaces a save touches them.
 
 **Backups: a save is never thrown away.** All startup and replace logic
@@ -239,7 +257,12 @@ never autosaves**, so the real game can't be overwritten. Current set:
 `road-speed`, `railroad`, `all-religion-symbols`; (round 13) `main-menu`,
 `settings`, `difficulty-legendary-start`, `large-map` (60 AI turns on a
 Large map, all revealed; End Turn toasts its time), `almanac`,
-`how-to-play`, `first-game-tips`. A scenario can open a screen at load
+`how-to-play`, `first-game-tips`; (round 14) `huge-map`, `epic-map` (both load
+a late-game save from `src/dev/fixtures/`, made by `npm run sim --
+map-fixtures`; End Turn toasts its time and where it ran), `minimap`,
+`city-growth-looks`, `walls-drawn`, `terrain-styles` (all three: switch styles
+with ☰ → Art style, dev only), `era-music` (sound on, with a Music switch in its
+note: `sound`/`musicSwitch` on a scenario). A scenario can open a screen at load
 (`opens: 'mainMenu' | 'settings' | 'almanac' | 'howToPlay' | 'setup'`) and
 show every tip afresh (`freshTips`, without touching the device's list);
 scenarios are silent unless Settings → Sound in dev scenarios. The religion ones use
@@ -284,6 +307,25 @@ note text appears anywhere in `dist/`.
 Nothing else to wire up: the ☰ menu lists every entry automatically.
 
 ## Code layout
+- Round 14: `src/data/mapSizes.ts` has Huge (64×44) and Epic (80×56; its
+  `bestOnComputer` note shows on a touch device), each with `techCostPct`
+  (+35% / +25%) and higher goals (×1.65 / ×1.5), and shape rules `continentWeight` (continents of
+  different sizes), wider channels, and `islandChains` (off on the older
+  sizes, so their maps are unchanged). `src/data/cityLooks.ts`: a city's look
+  by size (village 1–3, town 4–7, city 8–12, metropolis 13+). `src/data/sounds.ts`
+  `MUSIC`: the theme and one track per era (`MUSIC_FILES`), plus Round 13's
+  `music-1.mp3` as the theme's fallback. `src/render/art.ts`: the terrain
+  styles (`classic` = today's look, A `painted`, B `storybook`, C `flat`) and
+  city styles (`classic`, A `towns`, B `bold`), drawn in code; `DEFAULT_ART` is
+  what the game shows (today's look until Dan picks). `src/render/minimap.ts`
+  and `camera.ts`'s `defaultTileSize` (about 12×9 tiles at the start) and
+  `minTileSize` (pinch-out cap). `renderer.ts`'s `TerrainChunks` pre-draws the
+  terrain in chunks once the zoom holds. `src/game/heap.ts` (the path
+  searches' heap); `findPath` is A* with per-search lookups, `roadPath` uses
+  the heap (same results as before). `src/dev/artDemo.ts`,
+  `src/dev/artPreview.ts` (the art picker page's script), `src/dev/fixtures/`.
+  `src/ui/titleArt.ts`: Dan's optional title picture (`src/assets/title/`,
+  spec in `docs/TITLE-ART.md`).
 - Round 13 in `src/data/`: `difficulty.ts` (`DIFFICULTIES`: the player's
   and the AIs' production/science/gold percents, aggression toward the
   human, `demandsFromTurn`, `warGraceTurns`, `extraAiUnits`; Normal =
@@ -450,7 +492,8 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   (512×512), bundled. `docs/PORTRAITS.md` explains names, size, framing, and
   the focus/zoom; `docs/portraits.html` shows every size (refresh its data
   with `python scripts/make-portraits-page.py`).
-- `src/assets/sounds/`: Dan's sound files (none yet), named as in
+- `src/assets/sounds/`: Dan's sound files (all 14 effects, the theme, and
+  the four era tracks since Round 14), named as in
   `docs/SOUNDS.md` (his list, with a starting ElevenLabs prompt for each);
   `docs/sounds.html` plays each at the game's loudness (on the play
   server: http://10.0.0.224:4173/docs/sounds.html).
@@ -524,13 +567,14 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   removed so it doesn't look like the Battleship; compare in
   `docs/carrier-trim-candidates.html`).
 - The version shown on the About screen comes from `package.json`
-  (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.13.0 for
-  round 13.
+  (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.14.0 for
+  round 14.
 - **Meeting a civ reveals where its capital is** (Round 11: the tile is
   marked explored), so conquerors can find the capitals domination needs.
 - **Victory goals:** culture 7000 (Round 12, was 6000; religion adds
   culture), gold 9000, on Small and Normal maps; ×1.25 on Large (8750,
-  11250). Read them with `victoryGoals(state.mapSize)`, never `VICTORY`
+  11250); ×1.65 on Huge (11550, 14850) and ×1.5 on Epic (10500, 13500),
+  where techs also cost +35% and +25% (`techCostPct`). Read them with `victoryGoals(state.mapSize)`, never `VICTORY`
   directly (tests and scenarios on the Normal map may).
 - **Religion (Round 12):** the first civ to know a founding tech
   (Mysticism, Astronomy, Philosophy, Monotheism, Theology) founds a
@@ -595,18 +639,21 @@ what was pushed.
   game systems, plus the main menu, difficulty levels, map sizes, How to
   Play, the Almanac, and the sound engine with Dan's ElevenLabs effects and
   Suno theme.
+- **Round 14 (M9 part 2) is done by the coding agent (2026-09-25), waiting
+  for Dan:** Huge and Epic maps, the 12×9 opening view, the zoom-out cap and
+  the minimap, End Turn in a Web Worker with 4× faster AI turns, pre-drawn
+  terrain, the terrain/city style picker page and the building icon picker
+  page (Dan picks; nothing wired until then except walls, drawn in today's
+  look), the gold wordmark and the title picture hook (`docs/TITLE-ART.md`),
+  and music per era with Dan's five Suno tracks. The report and the timing
+  table are under Round 14 in TODO.md.
 - **The play server:** http://10.0.0.224:4173/.
 - The epoch repo is pushed every round until Netlify is set up.
 
-**The current objective is Round 14 (M9, part 2 of 3):**
-- **bigger maps:** Huge (and Epic if the iPad copes), a closer default zoom
-  with a minimap, and AI turns moved into a Web Worker with speed-ups;
-- **the art pass:** terrain style and city look pickers, a building icon
-  picker, and optional title art;
-- **music per era:** `music-theme` plus the four era tracks.
-
-See items 0, A1–A3, B1–B4, C1, and D1–D3 in TODO.md. Round 15 (balance and
-go-live prep) is queued.
+**The current objective:** Dan's picks from Round 14 (terrain style, city
+style, building icons) and his iPad timings of `huge-map` / `epic-map`; then
+Round 15 (balance and go-live prep, in TODO.md's Next Steps), which also wires
+in the picked art.
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.

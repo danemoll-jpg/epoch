@@ -43,16 +43,26 @@ sounds, the most important first (war on you, then a new era, a wonder, a win or
 in battle, a tech, a building, a city growing). A quiet turn gets `new-turn.mp3`.
 From the computer players' turns you only hear war declared on you, or a city lost.
 
-## Music (optional)
+## Music (Round 14: one track per era)
 
-| File name | Length | The feel |
-|---|---|---|
-| `music-1.mp3` | 1–3 min | Calm, unhurried, loopable (no big ending). |
-| `music-2.mp3` | 1–3 min | Same mood, a different tune. |
-| `music-3.mp3` | 1–3 min | Same mood, a different tune. |
+| File name | Length | When it plays | The feel |
+|---|---|---|---|
+| `music-theme.mp3` | 1–3 min | The main menu and the New Game screen; also stands in for any era track that's missing | The game's main theme. |
+| `music-ancient.mp3` | 1–3 min | In a game, while you're in the Ancient era | Drums, flutes, open fields. |
+| `music-medieval.mp3` | 1–3 min | In a game, in the Medieval era | Lutes, choirs, stone halls. |
+| `music-industrial.mp3` | 1–3 min | In a game, in the Industrial era | Brass and strings, steady and busy. |
+| `music-modern.mp3` | 1–3 min | In a game, in the Modern era | A wide, modern orchestral sound. |
 
-The game plays them in turn and **crossfades** from one to the next (4 seconds), so
-they don't need to loop perfectly. Any number from 0 to 3 is fine.
+When you reach a new era, the music **crossfades** (4 seconds) to that era's track.
+Each track **loops**, crossfading into itself, so it doesn't need a perfect loop point
+(no big ending, though). A missing era track plays the theme instead. The game never
+downloads music you don't hear, and only the track playing is kept in memory.
+
+**Round 13's `music-1.mp3`:** if it's there and `music-theme.mp3` isn't, it plays as the
+theme. Please rename it to `music-theme.mp3`.
+
+Check them on the play server: http://10.0.0.224:4173/docs/sounds.html (it lists the
+five music files and which are present).
 
 ## Where the settings are
 
@@ -64,3 +74,4 @@ nothing while the game is in the background. Dev scenarios are silent unless
 ## Credit
 
 Once any file is in, About / Credits says "Sound effects generated with ElevenLabs."
+(Round 14:) once any music file is in, it also says "Music generated with Suno."

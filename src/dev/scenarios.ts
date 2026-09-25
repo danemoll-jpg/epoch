@@ -8,6 +8,9 @@
 // tests/scenarios.test.ts (the test also fails if a scenario has no outcome check).
 
 import { MAP_SIZES, victoryGoals } from '../data/mapSizes';
+import { DEFAULT_VIEW_TILES, ZOOM_OUT_TILES } from '../render/camera';
+import { artDemoState, cityLooksState, LOOK_SIZES } from './artDemo';
+import { FIXTURE_TURN, lateGame } from './fixtures/fixtures';
 import { DIFFICULTIES } from '../data/difficulty';
 import { createGame } from '../game/newGame';
 import { endTurn, playComputerTurn } from '../game/turn';
@@ -60,6 +63,10 @@ export interface Scenario {
   opens?: 'mainMenu' | 'settings' | 'almanac' | 'howToPlay' | 'setup';
   /** Round 13: show every first-game tip again (only for this scenario; the device's list is untouched). */
   freshTips?: boolean;
+  /** Round 14: plays sound and music (other scenarios are silent unless Settings allows it). */
+  sound?: boolean;
+  /** Round 14: shows the dev-only music switch in the scenario note (hear every era's track). */
+  musicSwitch?: boolean;
 }
 
 const CAPITAL = 'Babylon';
@@ -1611,6 +1618,79 @@ const ROUND13_SCENARIOS: Scenario[] = [
   },
 ];
 
+// ---- Round 14: big maps, the art candidates, era music ---------------------------------------
+
+/** The minimap scenario's seed: a new Huge game with everything revealed. */
+export const MINIMAP_SEED = 6420;
+
+function minimapScenario(): GameState {
+  const s = createGame({ seed: MINIMAP_SEED, mapSize: 'huge', playerCount: MAP_SIZES.huge.maxRivals + 1 });
+  s.players[0]!.explored.fill(1);
+  return s;
+}
+
+/** Two cities side by side: yours with Walls, the other without. */
+function wallsDrawnScenario(): GameState {
+  const { state } = withCapital(undefined, { size: 6, buildings: ['walls'] });
+  addCity(state, 0, CITY_X + 3, CITY_Y, { name: 'Ur', size: 6, build: { kind: 'unit', id: 'warrior' } });
+  state.players[0]!.citiesFounded = 2;
+  return state;
+}
+
+/** One End Turn from Monarchy (the Medieval era); the music is on here. */
+function eraMusicScenario(): GameState {
+  const { state } = withCapital(undefined, { size: 3 });
+  oneTurnFromLearning(state, ['alphabet', 'ceremonial_burial', 'code_of_laws'], 'monarchy');
+  return state;
+}
+
+const ROUND14_SCENARIOS: Scenario[] = [
+  {
+    id: 'huge-map',
+    title: 'Map size: late in a Huge game',
+    note: `A Huge map (${MAP_SIZES.huge.width}×${MAP_SIZES.huge.height}) with ${MAP_SIZES.huge.maxRivals} rivals at turn ${FIXTURE_TURN + 1}, played by the computer, all of it revealed. Tap End Turn: “Rivals are moving…” shows by the button while the map still pans and zooms (the rivals move in the background), then the toast says how long it took. Dan: please time it on the iPad and on the PC (the target is under about 1.5 s on the iPad). The minimap (top right) jumps and pans.`,
+    build: () => lateGame('huge'),
+  },
+  {
+    id: 'epic-map',
+    title: 'Map size: late in an Epic game',
+    note: `An Epic map (${MAP_SIZES.epic.width}×${MAP_SIZES.epic.height}) with ${MAP_SIZES.epic.maxRivals} rivals at turn ${FIXTURE_TURN + 1}, all revealed. Tap End Turn: “Rivals are moving…” while they move in the background; the toast says how long. Epic is offered everywhere, marked best on a computer on a touch device.`,
+    build: () => lateGame('epic'),
+  },
+  {
+    id: 'minimap',
+    title: 'Minimap and zoom',
+    note: `A new Huge map, all revealed. The minimap (top right) shows the whole world; the gold frame is what's on screen. Tap anywhere on it: the view jumps there. Drag on it: the view follows your finger. Pinch out as far as it goes: it stops at about ${ZOOM_OUT_TILES} tiles across the longer side (never tinier). A new game opens closer in, about ${DEFAULT_VIEW_TILES.across}×${DEFAULT_VIEW_TILES.down} tiles. 🗺 folds the minimap away (kept on this device).`,
+    build: minimapScenario,
+  },
+  {
+    id: 'city-growth-looks',
+    title: 'Art: city looks by size and era',
+    note: `Four civs, one per era (top to bottom: Ancient, Medieval, Industrial, Modern), each with a village (size ${LOOK_SIZES[0]}), a town (${LOOK_SIZES[1]}), a city (${LOOK_SIZES[2]}), and a metropolis (${LOOK_SIZES[3]}), left to right, and a walled metropolis on the right. Open ☰ → Art style (dev only) and switch Cities between Now, A, and B: A and B grow with size and change with the era; Now is today's square. The capital star stays on the left-hand city of each row.`,
+    build: cityLooksState,
+  },
+  {
+    id: 'walls-drawn',
+    title: 'Art: walls drawn',
+    note: `${CAPITAL} has Walls; Ur, to its east, doesn't. ${CAPITAL} shows a stone wall with towers around its square (today's look too). ☰ → Art style (dev only): switch Cities to A or B; the walls stay.`,
+    build: wallsDrawnScenario,
+  },
+  {
+    id: 'terrain-styles',
+    title: 'Art: terrain styles',
+    note: `A small map with every terrain, a coast and an island, cities, units, an army, a ship, resources, a hut, a barbarian village, a road, a railroad, and fog (the dim tiles). Open ☰ → Art style (dev only) and switch Terrain between Now, A (painted; its water shimmers), B (storybook), and C (clean flat), and Cities between Now, A, and B. The same styles are on docs/terrain-style-candidates.html for picking. Only dev builds can switch; the game keeps today's look until Dan picks.`,
+    build: artDemoState,
+  },
+  {
+    id: 'era-music',
+    title: 'Music: era tracks',
+    note: `Sound is on in this scenario. Tap anywhere first (the iPad needs a tap before any sound). You're in the Ancient era: its track plays (or the theme, if that track is missing). Tap End Turn: you learn ${TECHS.monarchy.name} and reach the Medieval era; the music crossfades to the Medieval track. To hear every track, use the Music buttons here: Theme, Ancient, Medieval, Industrial, Modern (each crossfades in; Game goes back to your era). ☰ → Main menu plays the theme.`,
+    build: eraMusicScenario,
+    sound: true,
+    musicSwitch: true,
+  },
+];
+
 export const SCENARIOS: Scenario[] = [
   {
     id: 'grow',
@@ -1996,6 +2076,7 @@ export const SCENARIOS: Scenario[] = [
   ...LEADER_SCENARIOS,
   ...ROUND12_SCENARIOS,
   ...ROUND13_SCENARIOS,
+  ...ROUND14_SCENARIOS,
 ];
 
 export function findScenario(id: string): Scenario | undefined {

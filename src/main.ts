@@ -53,6 +53,9 @@ async function boot(): Promise<void> {
         // Round 13: some scenarios open a screen straight away, or show every tip afresh.
         opts.opens = scenario.opens;
         opts.freshTips = scenario.freshTips;
+        // Round 14: the era-music scenario plays sound, with a music switch in its note.
+        opts.scenarioSound = scenario.sound;
+        opts.musicSwitch = scenario.musicSwitch;
         opts.autosave = false;
         console.info(`Epoch: ${dev.SCENARIO_MARKER}: loaded "${id}" (not saved)`);
       } else {

@@ -36,7 +36,15 @@ import { RELIGION, RELIGION_SYMBOLS } from '../src/data/religion';
 import { ROADS } from '../src/data/roads';
 import { faithOpinion, holyReligion, religionCityCulture, religionCityGold, spreadTargets } from '../src/game/religion';
 import { roadAt } from '../src/game/roads';
-import { LARGE_MAP_TURNS } from '../src/dev/scenarios';
+import { LARGE_MAP_TURNS, MINIMAP_SEED } from '../src/dev/scenarios';
+import { FIXTURE_TURN } from '../src/dev/fixtures/fixtures';
+import { LOOK_SIZES } from '../src/dev/artDemo';
+import { cityLook } from '../src/data/cityLooks';
+import { MAP_SIZES } from '../src/data/mapSizes';
+import { MUSIC_FILES } from '../src/data/sounds';
+import { visibleTiles } from '../src/game/fog';
+import { ZOOM_OUT_TILES } from '../src/render/camera';
+import { musicTrackFor } from '../src/ui/soundLogic';
 import { findCard, searchAlmanac } from '../src/ui/almanac';
 import { guidePages } from '../src/ui/guide';
 import { dueTips } from '../src/ui/tips';
@@ -68,6 +76,53 @@ function endTurn(s: GameState): void {
 
 /** What each scenario's note promises. A new scenario without an entry here fails the suite. */
 const OUTCOMES: Record<string, (s: GameState) => void> = {
+  // ---- Round 14: big maps, the art candidates, era music ----
+  'huge-map': (s) => lateMapOutcome(s, 'huge'),
+  'epic-map': (s) => lateMapOutcome(s, 'epic'),
+  minimap: (s) => {
+    expect(s.mapSize).toBe('huge');
+    expect(s.seed).toBe(MINIMAP_SEED);
+    expect(s.players[0]!.explored.every((e) => e === 1)).toBe(true);
+    expect(noteOf('minimap')).toContain(`about ${ZOOM_OUT_TILES} tiles`);
+  },
+  'city-growth-looks': (s) => {
+    // Four civs, one per era; each has a city of every look and a walled metropolis.
+    expect(s.players.map((p) => playerEra(p))).toEqual(['ancient', 'medieval', 'industrial', 'modern']);
+    for (const p of s.players) {
+      const mine = s.cities.filter((c) => c.owner === p.id);
+      expect(mine.map((c) => cityLook(c.size).id)).toEqual(['village', 'town', 'city', 'metropolis', 'metropolis']);
+      expect(mine.filter((c) => c.buildings.includes('walls'))).toHaveLength(1);
+    }
+    expect(noteOf('city-growth-looks')).toContain(`a village (size ${LOOK_SIZES[0]})`);
+  },
+  'walls-drawn': (s) => {
+    const walled = s.cities.filter((c) => c.buildings.includes('walls'));
+    expect(walled.map((c) => c.name)).toEqual(['Babylon']);
+    expect(s.cities.find((c) => c.name === 'Ur')!.buildings).toEqual([]);
+  },
+  'terrain-styles': (s) => {
+    // Every terrain, a road and a rail, resources, a hut, a village, and fog.
+    expect(new Set(s.map.tiles.map((t) => t.terrain)).size).toBe(8);
+    expect(s.map.tiles.some((t) => t.road === 'road')).toBe(true);
+    expect(s.map.tiles.some((t) => t.road === 'rail')).toBe(true);
+    expect(s.map.tiles.some((t) => t.hut)).toBe(true);
+    expect(s.villages).toHaveLength(1);
+    expect(s.units.some((u) => u.army)).toBe(true);
+    expect(s.religions).toHaveLength(1);
+    const vis = visibleTiles(s, 0);
+    expect(s.players[0]!.explored.every((e) => e === 1)).toBe(true);
+    expect(vis.some((v) => !v)).toBe(true); // some explored tiles are in fog
+  },
+  'era-music': (s) => {
+    const scenario = SCENARIOS.find((x) => x.id === 'era-music')!;
+    expect(scenario.sound).toBe(true);
+    expect(scenario.musicSwitch).toBe(true);
+    expect(playerEra(s.players[0]!)).toBe('ancient');
+    expect(musicTrackFor(playerEra(s.players[0]!), MUSIC_FILES)).toBe('music-ancient.mp3');
+    expect(applyAction(s, { type: 'endTurn' }).ok).toBe(true);
+    expect(playerEra(s.players[0]!)).toBe('medieval');
+    expect(musicTrackFor(playerEra(s.players[0]!), MUSIC_FILES)).toBe('music-medieval.mp3');
+  },
   // ---- Round 13: the main menu, Settings, difficulty, map size, the guide, and tips ----
   'main-menu': (s) => {
     expect(SCENARIOS.find((x) => x.id === 'main-menu')!.opens).toBe('mainMenu');
@@ -958,6 +1013,21 @@ const OUTCOMES: Record<string, (s: GameState) => void> = {
     expect(s.players[0]!.alive).toBe(false); // the UI shows the Defeated panel
   },
 };
+
+/** Round 14: a late-game big-map fixture, handed to you, whose End Turn runs. */
+function lateMapOutcome(s: GameState, size: 'huge' | 'epic'): void {
+  expect(s.mapSize).toBe(size);
+  expect(s.map.width).toBe(MAP_SIZES[size].width);
+  expect(s.players.filter((p) => p.kind !== 'barbarian')).toHaveLength(MAP_SIZES[size].maxRivals + 1);
+  expect(s.players[0]!.kind).toBe('human');
+  expect(s.currentPlayer).toBe(0);
+  expect(s.turn).toBe(FIXTURE_TURN + 1);
+  expect(s.victory).toBeNull();
+  expect(s.players[0]!.explored.every((e) => e === 1)).toBe(true);
+  expect(s.cities.length).toBeGreaterThan(30);
+  expect(applyAction(s, { type: 'endTurn' }).ok).toBe(true);
+  expect(s.turn).toBe(FIXTURE_TURN + 2);
+}
 
 describe('dev scenarios', () => {
   it('has the starter set, with unique ids and a note each', () => {

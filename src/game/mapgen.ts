@@ -23,22 +23,25 @@ export interface MapGenOptions {
  * Round 8: continent centers, spread out. The channels cut between them are what make
  * several landmasses (the noise alone made one big continent in most seeds).
  */
-function continentCenters(rng: RngHolder, w: number, h: number, shape: typeof RULES.map): Coord[] {
+function continentCenters(rng: RngHolder, w: number, h: number, shape: typeof RULES.map): Array<Coord & { weight: number }> {
   const count = shape.continentsMin + Math.floor(nextFloat(rng) * (shape.continentsMax - shape.continentsMin + 1));
-  const centers: Coord[] = [];
+  const centers: Array<Coord & { weight: number }> = [];
   for (let tries = 0; centers.length < count && tries < 200; tries++) {
-    const c = { x: 3 + nextFloat(rng) * (w - 6), y: 3 + nextFloat(rng) * (h - 6) };
+    const c = { x: 3 + nextFloat(rng) * (w - 6), y: 3 + nextFloat(rng) * (h - 6), weight: 0 };
     if (centers.every((o) => Math.hypot(o.x - c.x, o.y - c.y) >= shape.continentSpacing)) centers.push(c);
   }
+  // Round 14: a head start per continent (only on maps that ask for it, so older sizes keep
+  // their seeds), which makes a few big continents and some small ones.
+  if (shape.continentWeight > 0) for (const c of centers) c.weight = nextFloat(rng) * shape.continentWeight;
   return centers;
 }
 
 /** Lowers the elevation along the lines halfway between continent centers (water channels). */
-function cutChannels(elevation: number[], w: number, h: number, centers: Coord[], shape: typeof RULES.map): void {
+function cutChannels(elevation: number[], w: number, h: number, centers: Array<Coord & { weight: number }>, shape: typeof RULES.map): void {
   if (centers.length < 2) return;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      const d = centers.map((c) => Math.hypot(c.x - x, c.y - y)).sort((a, b) => a - b);
+      const d = centers.map((c) => Math.hypot(c.x - x, c.y - y) - c.weight).sort((a, b) => a - b);
       const gap = d[1]! - d[0]!;
       if (gap < shape.channelWidth) elevation[y * w + x]! -= ((shape.channelWidth - gap) / shape.channelWidth) * shape.channelDepth;
     }
@@ -133,6 +136,8 @@ export function generateMap(rng: RngHolder, opts: MapGenOptions): GameMap {
     terrain[i] = t;
   }
 
+  if (shape.islandChains > 0) raiseIslandChains(rng, terrain, w, h, shape.islandChains);
+
   const map: GameMap = { width: w, height: h, tiles: terrain.map((t) => ({ terrain: t })) };
 
   // Water next to land becomes coast.
@@ -147,6 +152,46 @@ export function generateMap(rng: RngHolder, opts: MapGenOptions): GameMap {
     }
   }
   return map;
+}
+
+/**
+ * Round 14: chains of small islands in the open sea. Each chain starts at a random ocean tile
+ * well away from land and steps along a gently bending line, raising a small islet (1–4
+ * tiles) every couple of tiles. An islet starts only where no land is next to it, so most are their own little landmass.
+ */
+function raiseIslandChains(rng: RngHolder, terrain: TerrainId[], w: number, h: number, chains: number): void {
+  const isLand = (x: number, y: number) => x >= 0 && y >= 0 && x < w && y < h && terrain[y * w + x] !== 'ocean';
+  const clear = (x: number, y: number, r: number) => {
+    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (isLand(x + dx, y + dy)) return false;
+    return x >= 2 && y >= 2 && x < w - 2 && y < h - 2;
+  };
+  const kinds: TerrainId[] = ['grassland', 'plains', 'forest', 'hills', 'grassland', 'plains'];
+  for (let c = 0; c < chains; c++) {
+    let x = 0;
+    let y = 0;
+    let found = false;
+    for (let tries = 0; tries < 60 && !found; tries++) {
+      x = 2 + Math.floor(nextFloat(rng) * (w - 4));
+      y = 2 + Math.floor(nextFloat(rng) * (h - 4));
+      found = clear(x, y, 3);
+    }
+    if (!found) continue;
+    let angle = nextFloat(rng) * Math.PI * 2;
+    const islets = 3 + Math.floor(nextFloat(rng) * 4);
+    for (let k = 0; k < islets; k++) {
+      if (!clear(x, y, 1)) break;
+      const size = 1 + Math.floor(nextFloat(rng) * 4);
+      const tiles = [[0, 0], [1, 0], [0, 1], [1, 1]].slice(0, size);
+      for (const [dx, dy] of tiles) {
+        const tx = x + dx!;
+        const ty = y + dy!;
+        if (tx < w - 1 && ty < h - 1) terrain[ty * w + tx] = kinds[Math.floor(nextFloat(rng) * kinds.length)]!;
+      }
+      angle += (nextFloat(rng) - 0.5) * 1.2;
+      x = Math.round(x + Math.cos(angle) * 3.2);
+      y = Math.round(y + Math.sin(angle) * 3.2);
+    }
+  }
 }
 
 const regionCache = new WeakMap<GameMap, number[]>();

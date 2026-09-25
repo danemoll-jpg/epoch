@@ -9,6 +9,7 @@
 // territory"). Worked road tiles give +1 trade, rail tiles +1 production too (yields.ts).
 // Numbers are in src/data/roads.ts.
 
+import { MinHeap } from './heap';
 import { ROADS } from '../data/roads';
 import { TERRAIN } from '../data/terrain';
 import { CivName } from './conquest';
@@ -69,40 +70,46 @@ export function roadPath(state: GameState, buyer: number, from: City, to: City):
     y0: Math.min(from.y, to.y) - PATH_MARGIN,
     y1: Math.max(from.y, to.y) + PATH_MARGIN,
   };
-  const cost = new Map<number, number>([[start, 0]]);
-  const prev = new Map<number, number>();
-  const done = new Set<number>();
-  const frontier = [start];
-  while (frontier.length) {
-    frontier.sort((a, b) => cost.get(a)! - cost.get(b)! || a - b);
-    const cur = frontier.shift()!;
-    if (done.has(cur)) continue;
-    done.add(cur);
+  // Round 14: a heap, and each tile's city looked up once (the same order as before: the
+  // cheapest first, then the lowest tile index).
+  const n = map.width * map.height;
+  const cost = new Float64Array(n).fill(Infinity);
+  const prev = new Int32Array(n).fill(-1);
+  const done = new Uint8Array(n);
+  const cityTile = new Uint8Array(n);
+  for (const c of state.cities) cityTile[c.y * map.width + c.x] = 1;
+  const heap = new MinHeap();
+  cost[start] = 0;
+  heap.push(0, start, start);
+  while (heap.size) {
+    const cur = heap.pop();
+    if (done[cur]) continue;
+    done[cur] = 1;
     if (cur === goal) break;
     const c = { x: cur % map.width, y: Math.floor(cur / map.width) };
-    for (const n of neighbors(map, c)) {
-      const k = tileIndex(map, n.x, n.y);
-      if (done.has(k) || !roadable(state, k)) continue;
+    for (const nb of neighbors(map, c)) {
+      const k = tileIndex(map, nb.x, nb.y);
+      if (done[k] || !roadable(state, k)) continue;
       if (explored && explored[k] !== 1) continue;
-      if (n.x < box.x0 || n.x > box.x1 || n.y < box.y0 || n.y > box.y1) continue;
+      if (nb.x < box.x0 || nb.x > box.x1 || nb.y < box.y0 || nb.y > box.y1) continue;
       // A city in the way is fine (it has a road); new road tiles cost the most, and a diagonal
       // step a hair more than a straight one, so a road runs straight when it can.
-      const fresh = k !== goal && !roadAt(state, n.x, n.y) ? 1000 : 0;
-      const diagonal = n.x !== c.x && n.y !== c.y ? 0.01 : 0;
-      const nc = cost.get(cur)! + fresh + 1 + diagonal;
-      if (nc < (cost.get(k) ?? Infinity)) {
-        cost.set(k, nc);
-        prev.set(k, cur);
-        frontier.push(k);
+      const fresh = k !== goal && !cityTile[k] && !map.tiles[k]!.road ? 1000 : 0;
+      const diagonal = nb.x !== c.x && nb.y !== c.y ? 0.01 : 0;
+      const nc = cost[cur]! + fresh + 1 + diagonal;
+      if (nc < cost[k]!) {
+        cost[k] = nc;
+        prev[k] = cur;
+        heap.push(nc, k, k);
       }
     }
   }
-  if (!prev.has(goal)) return undefined;
+  if (prev[goal] === -1) return undefined;
   const path: Coord[] = [];
-  let k = prev.get(goal)!;
+  let k = prev[goal]!;
   while (k !== start) {
     path.unshift({ x: k % map.width, y: Math.floor(k / map.width) });
-    k = prev.get(k)!;
+    k = prev[k]!;
   }
   return path;
 }

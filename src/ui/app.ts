@@ -86,18 +86,23 @@ import { atWar } from '../game/war';
 import { cityCulture, cityScienceGold, cityYields, empireCulture, empireIncome, foodSurplus } from '../game/yields';
 import { capitalOf, launchError, victoryProgress, type VictoryProgress } from '../game/victory';
 import { wonderCity } from '../game/wonders';
-import { clampCamera, panBy, screenToWorld, zoomAt, type Camera } from '../render/camera';
+import { clampCamera, defaultTileSize, minTileSize, panBy, screenToWorld, zoomAt, type Camera } from '../render/camera';
+import { drawMinimap, minimapScale, minimapToWorld, MinimapTerrain } from '../render/minimap';
+import { CITY_STYLES, DEFAULT_ART, TERRAIN_STYLES, type ArtChoice } from '../render/art';
 import { iconHtml, unitIconHtml } from '../render/icons';
-import { playerColor, render, type ViewState } from '../render/renderer';
+import { playerColor, render, TerrainChunks, type ViewState } from '../render/renderer';
 import { attachMapInput } from './input';
 import { backupCurrentSave, listBackups, restoreBackup, saveToStorage } from './storage';
+import { TurnRunner } from './turnRunner';
+import { titleBackground } from './titleArt';
 import { resolveTap } from './tap';
 import { armyCandidates, isMixedStack, stackLabel, unitsOnTile } from '../game/stack';
 
 import { portraitHtml } from './portraits';
 import { esc, plural, unitSummary } from './text';
 import { DEFAULT_SETTINGS, flashMs, loadSettings, loadTipsSeen, saveSettings, saveTipsSeen, toastMs, type Settings } from './settings';
-import { SoundEngine, soundFilesPresent } from './sound';
+import { musicPresent, SoundEngine, soundFilesPresent } from './sound';
+import type { MusicContext } from './soundLogic';
 import { snapshot, turnSounds } from './soundLogic';
 import { ALMANAC_CATEGORIES, cardLink, findCard, searchAlmanac, type AlmanacCategory } from './almanac';
 import { guidePages } from './guide';
@@ -159,7 +164,34 @@ export interface AppOptions {
   opens?: 'mainMenu' | 'settings' | 'almanac' | 'howToPlay' | 'setup';
   /** Round 13 (dev scenario): show every first-game tip afresh, without touching the device's list. */
   freshTips?: boolean;
+  /** Round 14 (dev scenario): this scenario plays sound, and shows a music switch in its note. */
+  scenarioSound?: boolean;
+  musicSwitch?: boolean;
 }
+
+/** Round 14: the dev builds' art style switch, kept on this device (never in production). */
+const DEV_ART_KEY = 'epoch.devArt';
+function loadDevArt(): ArtChoice {
+  try {
+    const raw = JSON.parse(localStorage.getItem(DEV_ART_KEY) ?? '{}') as Partial<ArtChoice>;
+    return {
+      terrain: TERRAIN_STYLES.some((t) => t.id === raw.terrain) ? raw.terrain! : DEFAULT_ART.terrain,
+      city: CITY_STYLES.some((c) => c.id === raw.city) ? raw.city! : DEFAULT_ART.city,
+    };
+  } catch {
+    return { ...DEFAULT_ART };
+  }
+}
+function saveDevArt(art: ArtChoice): void {
+  try {
+    localStorage.setItem(DEV_ART_KEY, JSON.stringify(art));
+  } catch {
+    // Storage full or blocked: the switch just won't be remembered.
+  }
+}
+
+/** Round 13/14: dev scenarios whose End Turn toasts how long the computer turns took. */
+const TIMED_SCENARIOS = ['large-map', 'huge-map', 'epic-map'];
 
 export class App {
   state: GameState;
@@ -209,6 +241,15 @@ export class App {
   private guideIndex = 0;
   /** The end screen's sound has played for this result (so it plays once). */
   private endSound: string | undefined;
+  /** Round 14: End Turn runs in a Web Worker; while it does, the game waits (turnBusy). */
+  private readonly turnRunner = new TurnRunner();
+  private turnBusy = false;
+  /** Round 14: pre-drawn terrain, the minimap's terrain layer, and the art style shown. */
+  private readonly chunks = new TerrainChunks();
+  private readonly miniTerrain = new MinimapTerrain();
+  private miniScale = 1;
+  private art: ArtChoice = { ...DEFAULT_ART };
+  private shimmerTimer: number | undefined;
 
   constructor(state: GameState, opts: AppOptions) {
     this.state = state;
@@ -217,7 +258,10 @@ export class App {
     this.placeholder = !!opts.placeholder;
     this.settings = loadSettings();
     this.applySettings();
-    this.sound = new SoundEngine(() => this.settings, !!opts.scenario);
+    this.sound = new SoundEngine(() => this.settings, !!opts.scenario && !opts.scenarioSound);
+    // Round 14 (C1): the theme on the main menu and the New Game screen, the era's track in a game.
+    const watch = new MutationObserver(() => this.updateMusicContext());
+    for (const id of ['mainMenu', 'setupOverlay']) watch.observe($(id), { attributes: true, attributeFilter: ['hidden'] });
     // A scenario keeps its own list of tips seen, so it never uses up the real game's tips.
     const seen = loadTipsSeen();
     this.tipsSeen = opts.freshTips ? [] : seen;
@@ -233,7 +277,7 @@ export class App {
         this.requestDraw();
       },
       onZoom: (f, sx, sy) => {
-        zoomAt(this.camera, this.cssW, this.cssH, f, sx, sy);
+        zoomAt(this.camera, this.cssW, this.cssH, f, sx, sy, minTileSize(this.cssW, this.cssH));
         this.clamp();
         this.requestDraw();
       },
@@ -319,6 +363,11 @@ export class App {
     window.visualViewport?.addEventListener('resize', onResize);
     new ResizeObserver(onResize).observe(this.canvas);
     this.resize();
+    // Round 14 (A2): a game opens close up (about 12×9 tiles), not the whole continent.
+    this.camera.tileSize = defaultTileSize(this.cssW, this.cssH);
+    this.setupMinimap();
+    // Round 14: load the turn worker's code now, not on the first End Turn.
+    window.setTimeout(() => this.turnRunner.warm(), 800);
 
     this.startHumanTurn();
     if (opts.notice) this.toast(opts.notice);
@@ -349,8 +398,19 @@ export class App {
   }
 
   private dispatchResult(action: Action): ActionResult {
+    // Round 14: while the computer turns run in the worker, the game can't change here.
+    if (this.turnBusy) {
+      this.toast('Rivals are moving…');
+      return { ok: false, reason: 'Rivals are moving' };
+    }
     const metBefore = new Set(metCivs(this.state, this.human));
     const res = applyAction(this.state, action);
+    this.afterAction(res, metBefore);
+    return res;
+  }
+
+  /** After any action: its message, first contacts, the autosave, and the screen. */
+  private afterAction(res: ActionResult, metBefore: Set<number>): void {
     if (!res.ok && res.reason) this.toast(res.reason, true);
     // First contact (on our move, or on theirs during End Turn) gets its own panel.
     for (const civ of metCivs(this.state, this.human)) if (!metBefore.has(civ)) this.queueContact(civ);
@@ -358,7 +418,13 @@ export class App {
     if (res.ok) this.save();
     this.refresh();
     this.checkPending();
-    return res;
+  }
+
+  /** Round 14: shows or hides "Rivals are moving…" and holds the End Turn button meanwhile. */
+  private setTurnBusy(on: boolean): void {
+    this.turnBusy = on;
+    $('rivalsMoving').hidden = !on;
+    $<HTMLButtonElement>('endTurnBtn').disabled = on;
   }
 
   /**
@@ -414,16 +480,39 @@ export class App {
       });
       return;
     }
+    if (this.turnBusy) return;
+    void this.runEndTurn();
+  }
+
+  /**
+   * Round 14 (A3): the computer turns run in a Web Worker on a copy of the game, so the page
+   * stays responsive (the map still pans and zooms) while "Rivals are moving…" shows. Nothing
+   * else can change the game until the new state comes back.
+   */
+  private async runEndTurn(): Promise<void> {
     const logStart = this.state.log.length;
-    const me = this.state.players[this.human]!;
-    const techsBefore = me.techs.length;
+    const techsBefore = this.state.players[this.human]!.techs.length;
     const before = snapshot(this.state, this.human);
+    const metBefore = new Set(metCivs(this.state, this.human));
     const t0 = performance.now();
-    if (!this.dispatch({ type: 'endTurn' })) return;
-    // Round 13: how long the computer turns took (the Large-map check reads it).
+    this.setTurnBusy(true);
+    let out;
+    try {
+      out = await this.turnRunner.run(this.state);
+    } finally {
+      this.setTurnBusy(false);
+    }
+    if (out.error || !out.result.ok) {
+      this.toast(out.result.reason ?? 'Something went wrong ending the turn. Your game is as it was; try End Turn again.', true);
+      return;
+    }
+    this.state = out.state;
+    this.afterAction(out.result, metBefore);
+    const me = this.state.players[this.human]!;
+    // Round 13/14: how long the computer turns took (the big-map checks read it).
     const ms = Math.round(performance.now() - t0);
-    console.info(`Epoch: End Turn took ${ms} ms (turn ${this.state.turn}, ${this.state.map.width}×${this.state.map.height})`);
-    if (this.opts.scenario?.id === 'large-map') this.toast(`The computer turns took ${ms} ms`);
+    console.info(`Epoch: End Turn took ${ms} ms (${Math.round(out.ms)} ms of rules, in the ${this.turnRunner.lastWhere}; turn ${this.state.turn}, ${this.state.map.width}×${this.state.map.height})`);
+    if (this.opts.scenario && TIMED_SCENARIOS.includes(this.opts.scenario.id)) this.toast(`The computer turns took ${ms} ms (${this.turnRunner.lastWhere === 'worker' ? 'in the background' : 'on the page'})`);
     // Round 13: a sound or two for what happened (war on you, a tech, a new era, a city grew...).
     const warOnYou = this.state.log.slice(logStart).some((e) => e.kind === 'war' && e.other === this.human && e.player !== this.human);
     this.sound.playSequence(turnSounds(before, snapshot(this.state, this.human), { warOnYou }));
@@ -619,6 +708,7 @@ export class App {
       this.autosave = true;
     }
     this.save();
+    this.camera.tileSize = defaultTileSize(this.cssW, this.cssH);
     this.clamp();
     this.startHumanTurn();
     this.toast(message);
@@ -1152,7 +1242,7 @@ export class App {
       <ul class="credits">${rowsFor('Units')}</ul>
       <div class="label">Map icons</div>
       <ul class="credits">${rowsFor('Map')}</ul>
-      ${soundFilesPresent().length ? '<div class="label">Sounds</div><p class="sub">Sound effects generated with ElevenLabs.</p>' : ''}`;
+      ${soundFilesPresent().length ? `<div class="label">Sounds</div><p class="sub">${soundFilesPresent().some((f) => !f.startsWith('music-')) ? 'Sound effects generated with ElevenLabs.' : ''}${musicPresent() ? ' Music generated with Suno.' : ''}</p>` : ''}`;
   }
 
   // ---- backups (☰ → Restore a backup; in the production build too) ------------------------
@@ -2381,6 +2471,10 @@ export class App {
 
   openMainMenu(): void {
     this.save();
+    // Round 14 (B4): Dan's title picture behind the menu, when there is one.
+    const bg = titleBackground(this.cssH > this.cssW);
+    $('mainMenu').classList.toggle('pictured', !!bg);
+    $('mainMenu').style.setProperty('--title-bg', bg ? `url("${bg}")` : 'none');
     const me = this.state.players[this.human]!;
     const def = civDef(this.state, this.human);
     const cont = $<HTMLButtonElement>('mmContinue');
@@ -2594,6 +2688,22 @@ export class App {
       $('devBanner').hidden = false;
       $('devBannerClose').addEventListener('click', () => ($('devBanner').hidden = true));
       $('devBackBtn').addEventListener('click', () => gotoScenario(undefined));
+      if (this.opts.musicSwitch) {
+        // Round 14: hear each era's track (each crossfades in); Game follows your era again.
+        const row = document.createElement('div');
+        row.className = 'devArtRow devMusic';
+        const choices: [string, MusicContext | undefined][] = [['Theme', 'menu'], ...ERAS.map((e): [string, MusicContext] => [e.name, e.id]), ['Game', undefined]];
+        row.innerHTML = `<span>Music</span>${choices.map(([label, ctx]) => `<button type="button" data-music="${ctx ?? ''}">${label}</button>`).join('')}`;
+        row.addEventListener('click', (e) => {
+          const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-music]');
+          if (!btn) return;
+          this.sound.unlock();
+          this.musicOverride = (btn.dataset.music || undefined) as MusicContext | undefined;
+          for (const b of row.querySelectorAll('button')) b.classList.toggle('on', b === btn && !!btn.dataset.music);
+          this.updateMusicContext();
+        });
+        $('devBannerText').after(row);
+      }
     }
     if (devScenarios?.length) {
       const menu = $('devMenu');
@@ -2607,13 +2717,34 @@ export class App {
         const btn = (e.target as HTMLElement).closest('button');
         if (btn && btn.dataset.scenario !== undefined) gotoScenario(btn.dataset.scenario || undefined);
       });
+      // Round 14: switch between the art candidates (dev builds only, until Dan picks).
+      this.art = loadDevArt();
+      const art = document.createElement('div');
+      art.id = 'devArt';
+      const render = () => {
+        const row = (label: string, kind: 'terrain' | 'city', list: { id: string; letter: string; name: string }[]) =>
+          `<div class="devArtRow"><span>${label}</span>${list
+            .map((st) => `<button type="button" data-art="${kind}" data-id="${st.id}" class="${this.art[kind] === st.id ? 'on' : ''}" title="${esc(st.name)}">${st.letter === '–' ? 'Now' : st.letter}</button>`)
+            .join('')}</div>`;
+        art.innerHTML = `<div class="label">Art style (dev only)</div>${row('Terrain', 'terrain', TERRAIN_STYLES)}${row('Cities', 'city', CITY_STYLES)}`;
+      };
+      render();
+      menu.after(art);
+      art.addEventListener('click', (e) => {
+        const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-art]');
+        if (!btn) return;
+        this.art = { ...this.art, [btn.dataset.art!]: btn.dataset.id } as ArtChoice;
+        saveDevArt(this.art);
+        render();
+        this.requestDraw();
+      });
     }
   }
 
   // ---- view ------------------------------------------------------------------------------
 
   private zoomCenter(f: number): void {
-    zoomAt(this.camera, this.cssW, this.cssH, f, this.cssW / 2, this.cssH / 2);
+    zoomAt(this.camera, this.cssW, this.cssH, f, this.cssW / 2, this.cssH / 2, minTileSize(this.cssW, this.cssH));
     this.requestDraw();
   }
 
@@ -2639,10 +2770,22 @@ export class App {
       this.canvas.height = ph;
     }
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // Turning the iPad can change the cap (it follows the longer side).
+    if (this.cssW > 0) this.camera.tileSize = Math.max(this.camera.tileSize, minTileSize(this.cssW, this.cssH));
     this.requestDraw();
   }
 
+  /** Round 14 (C1): which music fits what's on screen (the menu, or your era in the game). */
+  private updateMusicContext(): void {
+    const menu = !$('mainMenu').hidden || !$('setupOverlay').hidden;
+    this.sound.setMusicContext(this.musicOverride ?? (menu ? 'menu' : playerEra(this.state.players[this.human]!)));
+  }
+
+  /** Round 14 (dev, the era-music scenario): a track picked by hand, until Game is tapped. */
+  private musicOverride: MusicContext | undefined;
+
   private refresh(): void {
+    this.updateMusicContext();
     this.updateHud();
     this.renderCityPanel();
     this.renderEnd();
@@ -2674,11 +2817,93 @@ export class App {
       openCityId: this.openCityId,
       flash: this.flash,
       onIconReady: () => this.requestDraw(),
+      art: this.art,
+      time: performance.now(),
+      chunks: this.chunks,
     };
     // The DPR transform may be reset if the canvas was resized; re-apply every frame.
     const dpr = this.canvas.width / Math.max(1, this.cssW);
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     render(this.ctx, this.state, view, this.cssW, this.cssH);
+    this.drawMinimap();
+    // The painted style's water shimmers: redraw a few times a second while it's shown.
+    if (this.art.terrain === 'painted' && this.shimmerTimer === undefined && !document.hidden) {
+      this.shimmerTimer = window.setTimeout(() => {
+        this.shimmerTimer = undefined;
+        this.requestDraw();
+      }, 120);
+    }
+  }
+
+  // ---- minimap (Round 14, A2) --------------------------------------------------------------
+
+  private setupMinimap(): void {
+    const box = $('minimap');
+    const canvas = $<HTMLCanvasElement>('minimapCanvas');
+    box.classList.toggle('folded', !this.settings.minimap);
+    $('minimapToggle').addEventListener('click', () => {
+      this.settings = { ...this.settings, minimap: !this.settings.minimap };
+      saveSettings(this.settings);
+      box.classList.toggle('folded', !this.settings.minimap);
+      this.requestDraw();
+    });
+    // Tap to jump there; drag to pan (the main view follows the finger).
+    let dragging = false;
+    const jump = (e: PointerEvent) => {
+      const r = canvas.getBoundingClientRect();
+      const w = minimapToWorld(e.clientX - r.left, e.clientY - r.top, this.miniScale, this.state.map.width, this.state.map.height);
+      this.camera.cx = w.x;
+      this.camera.cy = w.y;
+      this.clamp();
+      this.requestDraw();
+    };
+    canvas.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragging = true;
+      canvas.setPointerCapture(e.pointerId);
+      jump(e);
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      e.preventDefault();
+      jump(e);
+    });
+    const end = (e: PointerEvent) => {
+      dragging = false;
+      if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+    };
+    canvas.addEventListener('pointerup', end);
+    canvas.addEventListener('pointercancel', end);
+  }
+
+  private drawMinimap(): void {
+    // Hidden while a side panel covers that corner (the city panel in landscape).
+    const box = $('minimap');
+    const cityOpen = this.openCityId !== undefined && this.cssW > this.cssH;
+    box.hidden = cityOpen;
+    if (cityOpen || !this.settings.minimap) return;
+    const { map } = this.state;
+    const maxW = Math.min(200, Math.max(120, this.cssW * 0.2));
+    const maxH = Math.min(150, Math.max(90, this.cssH * 0.2));
+    const scale = minimapScale(map.width, map.height, maxW, maxH);
+    this.miniScale = scale;
+    const canvas = $<HTMLCanvasElement>('minimapCanvas');
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.round(map.width * scale);
+    const h = Math.round(map.height * scale);
+    if (canvas.style.width !== `${w}px`) {
+      canvas.style.width = `${w}px`;
+      canvas.style.height = `${h}px`;
+    }
+    if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+    }
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    drawMinimap(ctx, this.state, this.human, this.miniTerrain, this.camera, this.cssW, this.cssH, scale);
   }
 
   // ---- HUD -------------------------------------------------------------------------------

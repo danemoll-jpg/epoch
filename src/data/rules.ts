@@ -42,6 +42,13 @@ export const RULES = {
     channelDepth: 0.5,
     /** A civ never starts on a landmass smaller than this many (walkable) tiles. */
     minStartLandmass: 20,
+    /**
+     * Round 14 (big maps): continents of different sizes. Each center gets a random head start
+     * of up to this many tiles, so the channel between two sits closer to the smaller one.
+     */
+    continentWeight: 0,
+    /** Round 14: chains of small islands (3–6 islets each) raised in the open sea. */
+    islandChains: 0,
   },
 
   // ---- cities (Milestone 2) ----

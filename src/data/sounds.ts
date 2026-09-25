@@ -4,6 +4,8 @@
 // `during` says when a sound may play: 'yours' only for things you do or that happen to you on
 // your turn; 'aiTurn' also for the few things worth hearing from the AIs' turns.
 
+import type { EraId } from './techs';
+
 export type SoundId =
   | 'tap'
   | 'unit-move'
@@ -52,8 +54,26 @@ export const SOUND_EVENTS: SoundEvent[] = [
 
 export const SOUNDS: Record<SoundId, SoundEvent> = Object.fromEntries(SOUND_EVENTS.map((e) => [e.id, e])) as Record<SoundId, SoundEvent>;
 
-/** Optional music: calm, loopable tracks the engine crossfades between. */
-export const MUSIC_FILES = ['music-1.mp3', 'music-2.mp3', 'music-3.mp3'];
+/**
+ * Round 14 (C1, DECIDED by Dan): music per era. The theme plays on the main menu and the New
+ * Game screen and stands in for any era track that's missing; in a game, the track for your
+ * current era plays, crossfading when you reach a new one. Each track loops (crossfading into
+ * itself). Dan makes them with Suno.
+ */
+export const MUSIC = {
+  theme: 'music-theme.mp3',
+  eras: {
+    ancient: 'music-ancient.mp3',
+    medieval: 'music-medieval.mp3',
+    industrial: 'music-industrial.mp3',
+    modern: 'music-modern.mp3',
+  } as Record<EraId, string>,
+  /** Round 13's name for the one track: played as the theme when music-theme.mp3 is missing. */
+  legacyTheme: 'music-1.mp3',
+};
+
+/** The five music files, theme first. */
+export const MUSIC_FILES: string[] = [MUSIC.theme, ...Object.values(MUSIC.eras)];
 
 export const SOUND_RULES = {
   /** Every effect is scaled so its loudness (RMS) is about this (0–1), never clipping. */

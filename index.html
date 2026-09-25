@@ -38,6 +38,12 @@
 
       <button id="menuBtn" type="button" aria-label="Game menu">☰</button>
 
+      <!-- Round 14: the minimap (tap to jump, drag to pan); folds down to its button. -->
+      <div id="minimap">
+        <canvas id="minimapCanvas" aria-label="Minimap: tap to jump there, drag to look around"></canvas>
+        <button id="minimapToggle" type="button" aria-label="Show or hide the minimap">🗺</button>
+      </div>
+
       <div id="toasts" aria-live="polite"></div>
 
       <section id="unitPanel" hidden>
@@ -54,6 +60,7 @@
       <section id="cityPanel" class="scroll" hidden aria-label="City"></section>
 
       <button id="endTurnBtn" type="button">End Turn</button>
+      <div id="rivalsMoving" hidden role="status"><span class="spinner" aria-hidden="true"></span>Rivals are moving…</div>
 
       <!-- Dev scenarios only (never shown in the production build). -->
       <div id="devBanner" hidden>

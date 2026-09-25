@@ -26,6 +26,8 @@ export interface Settings {
   tips: boolean;
   /** Dev builds only: let sounds play in a dev scenario (off by default). */
   scenarioSound: boolean;
+  /** Round 14: the minimap in the corner is open (it folds down to a button). */
+  minimap: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -38,6 +40,7 @@ export const DEFAULT_SETTINGS: Settings = {
   textSize: 'normal',
   tips: true,
   scenarioSound: false,
+  minimap: true,
 };
 
 const browserStore = (): KeyValueStore => ({
@@ -64,6 +67,7 @@ export function normalizeSettings(raw: unknown): Settings {
     textSize: r.textSize === 'large' || r.textSize === 'normal' ? r.textSize : d.textSize,
     tips: bool('tips'),
     scenarioSound: bool('scenarioSound'),
+    minimap: bool('minimap'),
   };
 }
 
