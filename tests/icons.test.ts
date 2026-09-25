@@ -9,6 +9,7 @@ import { ICON_CREDITS, MAP_ICONS, usedIcons } from '../src/data/icons';
 import { GREAT_PEOPLE, GREAT_PERSON_KINDS } from '../src/data/greatPeople';
 import { RESOURCES, RESOURCE_IDS } from '../src/data/resources';
 import { UNITS, UNIT_IDS } from '../src/data/units';
+import { RELIGION_SYMBOLS } from '../src/data/religion';
 import credits from '../CREDITS.md?raw';
 
 // The bundled files, read the same way the game reads them (as text, through Vite).
@@ -18,18 +19,17 @@ const USED = usedIcons();
 
 describe('icons', () => {
   it('every unit, ships and aircraft included, has an icon', () => {
-    // Round 12: the Missionary waits for Dan's pick (letters until then).
-    for (const id of UNIT_IDS) if (!UNITS[id].iconPending) expect(UNITS[id].icon, id).toBeDefined();
-    expect(UNIT_IDS.filter((id) => UNITS[id].iconPending)).toEqual(['missionary']);
+    for (const id of UNIT_IDS) expect(UNITS[id].icon, id).toBeDefined();
   });
 
   it('every resource, Great Person, and map feature has an icon', () => {
     for (const id of RESOURCE_IDS) expect(RESOURCES[id].icon, id).toBeTruthy();
     for (const k of GREAT_PERSON_KINDS) expect(GREAT_PEOPLE[k].icon, k).toBeTruthy();
     for (const icon of Object.values(MAP_ICONS)) expect(icon).toBeTruthy();
-    // 24 units + 5 aircraft, and Dan's 24 map picks.
-    expect(USED.filter((u) => u.group === 'Units')).toHaveLength(29);
-    expect(USED.filter((u) => u.group === 'Map')).toHaveLength(24);
+    // 24 units + 5 aircraft + the Missionary, and Dan's 24 map picks + the holy city and 8 religion symbols (Round 12).
+    expect(USED.filter((u) => u.group === 'Units')).toHaveLength(30);
+    expect(USED.filter((u) => u.group === 'Map')).toHaveLength(33);
+    for (const r of RELIGION_SYMBOLS) expect(r.icon, r.id).toBeTruthy();
   });
 
   it.each(USED.map((u) => [u.name, u.icon] as const))('%s has a bundled, credited icon (%s)', (name, icon) => {
@@ -58,8 +58,8 @@ describe('icons', () => {
     expect(bundled.filter((k) => !used.has(k))).toEqual([]);
   });
 
-  it('credits every new author from rounds 9 and 10', () => {
-    for (const author of ['Willdabeast', 'Guard13007', 'Lord Berandas', 'Quoting', 'Skoll']) {
+  it('credits every new author from rounds 9, 10, and 12', () => {
+    for (const author of ['Willdabeast', 'Guard13007', 'Lord Berandas', 'Quoting', 'Skoll', 'Carl Olsen']) {
       expect(Object.values(ICON_CREDITS).some((c) => c.author === author), author).toBe(true);
       expect(credits).toContain(`| ${author} |`);
     }

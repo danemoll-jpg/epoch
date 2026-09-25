@@ -1432,7 +1432,17 @@ suite). Lint and build clean; the dev-code check passes.
   next founding tech nobody knows yet still does.
 
 - **Dan's religion icon picks (2026-09-25), from
-  `docs/religion-road-icon-candidates.html`; not wired in yet:**
+  `docs/religion-road-icon-candidates.html`: wired in the same day** (Dan
+  said go ahead). The Missionary uses the robe; each religion's symbol is
+  drawn white on its color in a disc in the city's **lower-right** corner
+  (not bottom-left as on the picker, because the garrison's disc sits
+  lower-left and would cover it); the holy-city badge is gold on a dark
+  disc in the **top-right** corner (moved left of the "!" badge when that
+  shows). Panels show the same disc, and the badge beside it for a holy
+  city. Credited in `src/data/icons.ts`, `CREDITS.md`, and About / Credits
+  (**Carl Olsen** is a new author). Tests: 665 pass (the icon suite checks
+  all 63 icons). Preview-verified at 768×1024 (`all-religion-symbols`, the
+  Religion screen). The picks:
 
   | Subject | Pick | File | game-icons.net icon | Author |
   |---|---|---|---|---|
@@ -1447,10 +1457,11 @@ suite). Lint and build clean; the dev-code check passes.
   | Wave | A, Breaking wave | `wave-a.svg` | big-wave | Lorc |
   | Holy city | B, Pillar of light | `holy-city-b.svg` | expanded-rays | Lorc |
 
-  Things to watch when these are wired in (from the picker's own notes):
-  Star A is the same shape as the capital star already drawn on a city,
-  and the Holy city pick has rays like the Sun disc. **Carl Olsen is a new
-  author**, so CREDITS.md and About / Credits need them.
+  From the picker's notes: Star A is the same shape as the capital star,
+  but they sit in opposite corners of the city (capital star top left, a
+  religion's disc bottom right), so they don't clash; the holy-city badge
+  has rays like the Sun disc, but it's gold on dark and the religion disc
+  is white on color.
 
 **Open questions (defaults in bold; the coding agent proceeds on the default
 unless Dan decides otherwise):**

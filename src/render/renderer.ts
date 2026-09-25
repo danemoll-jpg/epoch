@@ -12,8 +12,10 @@
 // missing. Aircraft (Round 10) sit in their city behind its ground units, and a Carrier's
 // badge counts the aircraft aboard with its cargo.
 // Round 12: roads are thin brown lines between tile centers and rails darker lines with ties,
-// under everything else on the tile. A city following a religion has a dot in the religion's
-// color (with its symbol's letter) in its lower-right corner; a holy city's dot has a gold ring.
+// under everything else on the tile. A city following a religion has a disc in the religion's
+// color with its symbol (Dan's picks) in white, in its lower-right corner (the garrison sits
+// lower-left); a holy city also has Dan's holy-city badge, gold on a dark disc, top right (left
+// of the "!" badge when that shows). As on his picker page.
 
 import { BARBARIAN_CIV, BARBARIANS } from '../data/barbarians';
 import { CIVS } from '../data/civs';
@@ -246,31 +248,36 @@ function drawRoads(ctx: CanvasRenderingContext2D, state: GameState, explored: nu
   ctx.lineCap = 'butt';
 }
 
-/** Round 12: a religion's dot (its color and symbol letter) in a city's lower-right corner; a gold ring on a holy city. */
-function drawReligionDot(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, color: string, glyph: string, holy: boolean): void {
-  if (holy) {
-    ctx.fillStyle = '#ffd24a';
-    ctx.strokeStyle = '#111';
-    ctx.lineWidth = Math.max(1, r * 0.15);
-    ctx.beginPath();
-    ctx.arc(x, y, r * 1.4, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-  }
-  ctx.fillStyle = color;
-  ctx.strokeStyle = '#111';
-  ctx.lineWidth = Math.max(1, r * 0.2);
+/** A small disc badge with an icon on it (its letter while the icon loads), as on Dan's picker page. */
+function drawBadge(
+  ctx: CanvasRenderingContext2D, x: number, y: number, r: number, fill: string, rim: string, icon: string, iconColor: string, glyph: string, onReady?: () => void,
+): void {
+  ctx.fillStyle = fill;
+  ctx.strokeStyle = rim;
+  ctx.lineWidth = Math.max(1, r * 0.14);
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
+  // The icon fills the same share of the disc as on the picker (12 px in a 19 px disc).
+  if (drawIcon(ctx, icon, iconColor, x, y, r * 1.26, onReady)) return;
   if (r >= 5) {
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = iconColor;
     ctx.font = `800 ${Math.round(r * 1.2)}px system-ui, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(glyph, x, y + r * 0.05);
   }
+}
+
+/** Round 12: a religion's disc (its color, its symbol in white), in a city's lower-right corner. */
+function drawReligionDot(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, color: string, icon: string, glyph: string, onReady?: () => void): void {
+  drawBadge(ctx, x, y, r, color, '#ffffff', icon, '#ffffff', glyph, onReady);
+}
+
+/** Round 12: the holy-city badge, gold on a dark disc with a gold rim. */
+function drawHolyBadge(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, onReady?: () => void): void {
+  drawBadge(ctx, x, y, r, '#262626', '#f0cf62', MAP_ICONS.holyCity, '#f0cf62', '✦', onReady);
 }
 
 /** A resource (Round 9): its icon, white on a small dark badge in the tile's upper-right corner (its letters while the icon loads). */
@@ -629,11 +636,15 @@ export function render(
     ctx.textBaseline = 'middle';
     ctx.fillText(String(city.size), p.x + s / 2, p.y + s / 2 + s * 0.02);
     if (city.capitalOf !== null) drawStar(ctx, p.x + inset, p.y + inset, s * 0.13);
-    // Round 12: its religion, and a gold ring if it's a holy city.
+    // Round 12: its religion (lower right), and the holy-city badge (upper right).
     const faith = cityReligion(state, city);
     if (faith && s >= 14) {
       const sym = symbolOf(faith);
-      drawReligionDot(ctx, p.x + s - inset, p.y + s - inset, Math.max(4, s * 0.11), sym.color, sym.glyph, !!holyReligion(state, city));
+      drawReligionDot(ctx, p.x + s - inset, p.y + s - inset, Math.max(5, s * 0.18), sym.color, sym.icon, sym.glyph, view.onIconReady);
+    }
+    if (holyReligion(state, city) && s >= 14) {
+      const bang = city.owner === view.viewer && city.build === null;
+      drawHolyBadge(ctx, p.x + s - inset - (bang ? s * 0.32 : 0), p.y + inset, Math.max(5, s * 0.18), view.onIconReady);
     }
     if (city.owner === view.viewer && city.build === null) {
       const bx = p.x + s - inset;

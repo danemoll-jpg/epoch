@@ -269,8 +269,7 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   `coastOnly` (Galley), `stealth` (Submarine); Round 10's `range`,
   `airAttack` (strength against aircraft), `evadePct` (Stealth Bomber),
   `airCargo` (Carrier: 3), `hover` (Helicopter), `alsoRequires` (a second
-  tech); Round 12's `spreadsReligion` and `iconPending` (the Missionary:
-  letters until Dan picks its icon); 17 land units counting the Helicopter
+  tech); Round 12's `spreadsReligion` (the Missionary); 17 land units counting the Helicopter
   and the Missionary, 9 ships, 4 based aircraft),
   `icons.ts` (each used icon's CC BY 3.0 credit, `MAP_ICONS` for the
   village/hut/barbarian badge/artifact, and `usedIcons()`, the list the
@@ -281,7 +280,7 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   the 56 techs with prereqs/era/tier/description (Round 12 added the
   Medieval Theology), the tech cost formula, AI research priority),
   `religion.ts` (Round 12: `FOUNDING_TECHS`, the 8 `RELIGION_SYMBOLS`
-  (color, name, stand-in letter), `RELIGION_NAMES` (our invented names for
+  (color, name, Dan's icon, stand-in letter), `RELIGION_NAMES` (our invented names for
   the AI and "Suggest"), and `RELIGION`: max religions 5, **one per civ**
   (`maxPerCiv`), spread radius and pressure weights, chance per pressure,
   switching, holy-city and follower yields, the faith opinion, the
@@ -416,9 +415,10 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   (512×512), bundled. `docs/PORTRAITS.md` explains names, size, framing, and
   the focus/zoom; `docs/portraits.html` shows every size (refresh its data
   with `python scripts/make-portraits-page.py`).
-- `src/assets/icons/`: the 53 icons Dan picked (29 units: 15 land, 9
-  ships, 5 aircraft; 24 map icons: village, hut, barbarian badge, 15
-  resources, 5 Great People, artifact; game-icons.net, CC BY 3.0; the
+- `src/assets/icons/`: the 63 icons Dan picked (30 units: 16 land counting
+  the Missionary, 9 ships, 5 aircraft; 33 map icons: village, hut,
+  barbarian badge, 15 resources, 5 Great People, artifact, and Round 12's
+  holy-city badge and 8 religion symbols; game-icons.net, CC BY 3.0; the
   Carrier's is modified), credited in `CREDITS.md` and on ☰ → About /
   Credits (a credit's `modified` field says what we changed).
 - `src/dev/`: dev/test only, never in the production build. `build.ts`
@@ -461,7 +461,10 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   Missionary (3), 8 religion symbols (2 each; Moon became Mountain, since
   every moon icon is a crescent), and the holy-city marker (3); picks are
   saved under `epoch.religionIconPicks`; `SOURCES.md` has each author.
-  **Not wired in yet** (next round): letters and colored dots until then.
+  Dan's picks are wired in (2026-09-25): on the map a city's religion is
+  its symbol white on the religion's color, lower right (the garrison sits
+  lower left, so not bottom-left as on the picker page), and a holy city
+  has the gold-on-dark badge top right (left of the "!" badge when shown).
 - `docs/bomber-size-candidates.html`: round 10's check of the Bomber icon
   at map size next to the other aircraft (and round 8's Bomber A and C),
   for Dan to decide whether to swap it.
@@ -543,9 +546,8 @@ what was pushed.
   People; and **Dan's 12 leaders** with starting techs, bonuses, portraits,
   and the New Game setup.
 - **Round 12 (religion, roads and railroads)** is done and waiting for Dan's
-  review; the report is in TODO.md. Dan still has to pick the Missionary,
-  religion, and holy-city icons on
-  http://10.0.0.224:4173/docs/religion-road-icon-candidates.html.
+  review; the report is in TODO.md. Dan's Missionary, religion, and
+  holy-city icon picks are wired in (2026-09-25).
 - **The play server:** http://10.0.0.224:4173/.
 - The epoch repo is pushed every round until Netlify is set up.
 

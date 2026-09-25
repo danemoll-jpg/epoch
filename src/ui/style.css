@@ -1697,7 +1697,7 @@ button.primary {
 
 /* ---- Round 12: religion and roads ---- */
 
-/* A religion's dot (its color and symbol letter), in panels; a gold ring on a holy city. */
+/* A religion's disc (its symbol, white on its color), in panels; the holy-city badge next to it. */
 .rdot {
   display: inline-flex;
   align-items: center;
@@ -1714,8 +1714,22 @@ button.primary {
   flex: none;
 }
 
-.rdot.holy {
-  box-shadow: 0 0 0 3px #ffd24a, 0 0 0 4px #111;
+.rdot {
+  border-color: #fff;
+}
+
+.rdot .ricon,
+.rdot .ricon svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+}
+
+/* Dan's holy-city badge: gold on a dark disc with a gold rim. */
+.rdot.holyBadge {
+  background: #262626;
+  border-color: #f0cf62;
+  color: #f0cf62;
 }
 
 .rcards {

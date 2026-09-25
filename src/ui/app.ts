@@ -1938,7 +1938,7 @@ export class App {
       <div><b>Founding</b> <span class="sub">The first civ to learn ${FOUNDING_TECHS.map((t) => TECHS[t].name).join(', ')} founds a religion (${R.maxReligions} at most) in its capital, the holy city.</span></div>
       <div><b>Spreading</b> <span class="sub">Cities near a city of a religion may convert each turn (closer, bigger, holy, Temples, Cathedrals, and roads help). A Missionary (${R.missionaryCharges} spreads) or a Great Artist converts a city at once. Holy cities never change faith.</span></div>
       <div><b>Holy city</b> <span class="sub">+${R.holyCity.culture} culture, +${R.holyCity.gold} gold, and +${R.holyCity.goldPerFollower} gold per follower city (up to +${R.holyCity.maxFollowerGold}), for whoever holds it.</span></div>
-      <div><b>Followers</b> <span class="sub">A Temple makes +${R.followerCulture.temple} culture and a Cathedral +${R.followerCulture.cathedral} in a city that follows any religion. Capitals of the same faith: +${R.sharedFaithOpinion} opinion; different faiths ${R.differentFaithOpinion}.</span></div>
+      <div><b>Followers</b> <span class="sub">A Temple makes +${R.followerCulture.temple} culture and a Cathedral +${R.followerCulture.cathedral} in a city that follows any religion. Capitals of the same faith: +${R.sharedFaithOpinion} opinion; different faiths −${Math.abs(R.differentFaithOpinion)}.</span></div>
     </div>`;
     const still = open.length ? `<p class="sub">Still to be founded: ${open.map((t) => TECHS[t].name).join(', ')}.</p>` : '<p class="sub">Every founding tech has been used.</p>';
     const gone = lapsed.length ? `<p class="sub">Known before religions came (no religion from them): ${lapsed.join(', ')}.</p>` : '';
@@ -2564,10 +2564,11 @@ function movesText(n: number): string {
   return String(Math.round(n * 10) / 10);
 }
 
-/** Round 12: a religion's dot (its color and symbol letter) for panels; a gold ring for a holy city. */
+/** Round 12: a religion's disc (its symbol, white on its color) for panels; with `holy`, the holy-city badge after it. */
 function religionDot(r: Religion, holy = false): string {
   const sym = symbolOf(r);
-  return `<span class="rdot${holy ? ' holy' : ''}" style="background:${sym.color}" title="${esc(sym.name)}">${esc(sym.glyph)}</span>`;
+  const dot = `<span class="rdot" style="background:${sym.color}" title="${esc(sym.name)}">${iconHtml(sym.icon, esc(sym.glyph), 'ricon')}</span>`;
+  return holy ? `${dot}<span class="rdot holyBadge" title="Holy city">${iconHtml(MAP_ICONS.holyCity, '✦', 'ricon')}</span>` : dot;
 }
 
 function esc(text: string): string {

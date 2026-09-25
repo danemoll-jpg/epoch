@@ -8,6 +8,7 @@
 
 import { GREAT_PEOPLE, GREAT_PERSON_KINDS } from './greatPeople';
 import { RESOURCES, RESOURCE_IDS } from './resources';
+import { RELIGION_SYMBOLS } from './religion';
 import { UNITS, UNIT_IDS } from './units';
 
 export interface IconCredit {
@@ -79,6 +80,17 @@ export const ICON_CREDITS: Record<string, IconCredit> = {
   gears: { title: 'Gears', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/gears.html' },
   'laurel-crown': { title: 'Laurel crown', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/laurel-crown.html' },
   amphora: { title: 'Amphora', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/amphora.html' },
+  // Round 12 (Dan's picks, 2026-09-25): the Missionary, the 8 religion symbols, the holy city.
+  robe: { title: 'Robe', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/robe.html' },
+  sun: { title: 'Sun', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/sun.html' },
+  flame: { title: 'Flame', author: 'Carl Olsen', url: 'https://game-icons.net/1x1/carl-olsen/flame.html' },
+  'round-star': { title: 'Round star', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/round-star.html' },
+  'semi-closed-eye': { title: 'Semi closed eye', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/semi-closed-eye.html' },
+  'pine-tree': { title: 'Pine tree', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/pine-tree.html' },
+  vortex: { title: 'Vortex', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/vortex.html' },
+  peaks: { title: 'Peaks', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/peaks.html' },
+  'big-wave': { title: 'Big wave', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/big-wave.html' },
+  'expanded-rays': { title: 'Expanded rays', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/expanded-rays.html' },
 };
 
 /** Icons for things that aren't units, resources, or Great People (Dan's round 9 picks). */
@@ -89,6 +101,8 @@ export const MAP_ICONS = {
   barbarian: 'skull-crossed-bones',
   /** Shown in the "Ancient artifact!" panel. */
   artifact: 'amphora',
+  /** Round 12: the badge on a religion's holy city (gold on dark). */
+  holyCity: 'expanded-rays',
 } as const;
 
 const MAP_ICON_NAMES: Record<keyof typeof MAP_ICONS, string> = {
@@ -96,6 +110,7 @@ const MAP_ICON_NAMES: Record<keyof typeof MAP_ICONS, string> = {
   hut: 'Exploration hut',
   barbarian: 'Barbarian badge',
   artifact: 'Ancient artifact',
+  holyCity: 'Holy city',
 };
 
 export type IconGroup = 'Units' | 'Map';
@@ -107,5 +122,6 @@ export function usedIcons(): { group: IconGroup; name: string; icon: string; uni
     ...(Object.keys(MAP_ICONS) as (keyof typeof MAP_ICONS)[]).map((k) => ({ group: 'Map' as const, name: MAP_ICON_NAMES[k], icon: MAP_ICONS[k] })),
     ...RESOURCE_IDS.map((id) => ({ group: 'Map' as const, name: RESOURCES[id].name, icon: RESOURCES[id].icon })),
     ...GREAT_PERSON_KINDS.map((k) => ({ group: 'Map' as const, name: GREAT_PEOPLE[k].name, icon: GREAT_PEOPLE[k].icon })),
+    ...RELIGION_SYMBOLS.map((r) => ({ group: 'Map' as const, name: `Religion: ${r.name}`, icon: r.icon })),
   ];
 }

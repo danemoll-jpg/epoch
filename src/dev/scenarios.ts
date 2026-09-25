@@ -1447,13 +1447,13 @@ const ROUND12_SCENARIOS: Scenario[] = [
   {
     id: 'found-religion',
     title: 'Religion: found one',
-    note: `You're one End Turn from ${TECHS.mysticism.name}, and nobody has a religion yet. Tap End Turn: you learn it first and found a religion in ${CAPITAL}, now its holy city (a dot with a gold ring on the city). A panel asks for its name: type your own, or tap Suggest for another invented one, then Found it. Tap ${CAPITAL}: its Religion line shows +${RELIGION.holyCity.culture} culture and +${RELIGION.holyCity.gold} gold a turn. ☰ → Religions lists it.`,
+    note: `You're one End Turn from ${TECHS.mysticism.name}, and nobody has a religion yet. Tap End Turn: you learn it first and found a religion in ${CAPITAL}, now its holy city (the religion's disc in the city's lower-right corner, and the gold holy-city badge top right). A panel asks for its name: type your own, or tap Suggest for another invented one, then Found it. Tap ${CAPITAL}: its Religion line shows +${RELIGION.holyCity.culture} culture and +${RELIGION.holyCity.gold} gold a turn. ☰ → Religions lists it.`,
     build: foundReligionScenario,
   },
   {
     id: 'missionary',
     title: 'Religion: a Missionary',
-    note: `Your Missionary (letters “Mi”, ${RELIGION.missionaryCharges} spreads of ${FAITH}) stands between York (yours) and ${RIVAL_CAPITAL} (Maurya, at peace), neither following a religion. Select it: two ✦ Spread buttons. Spread to York (its moves are used up). Tap End Turn, select it again, and spread to ${RIVAL_CAPITAL}: as the faith's founder you get +${RELIGION.conversionReward.gold} gold and +${RELIGION.conversionReward.culture} culture, and the Missionary is used up.`,
+    note: `Your Missionary (the robed figure, ${RELIGION.missionaryCharges} spreads of ${FAITH}) stands between York (yours) and ${RIVAL_CAPITAL} (Maurya, at peace), neither following a religion. Select it: two ✦ Spread buttons. Spread to York (its moves are used up). Tap End Turn, select it again, and spread to ${RIVAL_CAPITAL}: as the faith's founder you get +${RELIGION.conversionReward.gold} gold and +${RELIGION.conversionReward.culture} culture, and the Missionary is used up.`,
     build: missionaryScenario,
   },
   {
@@ -1501,7 +1501,7 @@ const ROUND12_SCENARIOS: Scenario[] = [
   {
     id: 'all-religion-symbols',
     title: 'Religion: all symbols',
-    note: `All ${RELIGION_SYMBOLS.length} religion symbols (${RELIGION_SYMBOLS.map((x) => x.name).join(', ')}), each on its holy city (gold ring), four plain follower dots, and a Missionary (“Mi”) south of ${CAPITAL}. Pinch-zoom to see them at other sizes; ☰ → Religions shows them in the panel. Dan's picks on docs/religion-road-icon-candidates.html replace the letters next round.`,
+    note: `All ${RELIGION_SYMBOLS.length} religion symbols (${RELIGION_SYMBOLS.map((x) => x.name).join(', ')}), each white on its religion's color on its holy city (with the gold holy-city badge top right), four follower cities with just the disc, and a Missionary (the robed figure) south of ${CAPITAL}. Pinch-zoom to see them at other sizes; ☰ → Religions shows them in the panel. These are Dan's picks from docs/religion-road-icon-candidates.html.`,
     build: allReligionSymbolsScenario,
   },
 ];

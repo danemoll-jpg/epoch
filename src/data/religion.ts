@@ -4,8 +4,9 @@
 //
 // Names and symbols are invented, never real-world religions: the AI names its religions from
 // RELIGION_NAMES, and the human types a name or taps "Suggest" (which picks from the same
-// list). Symbols are generic shapes; until Dan picks icons (docs/religion-road-icon-candidates.html)
-// a religion is drawn as a dot in its color with its symbol's letter.
+// list). Symbols are generic shapes: Dan's picks from docs/religion-road-icon-candidates.html
+// (2026-09-25), drawn white on the religion's color; the letter stands in while an icon loads.
+// The holy-city badge is MAP_ICONS.holyCity (icons.ts).
 
 import type { TechId } from './techs';
 
@@ -15,21 +16,23 @@ export const FOUNDING_TECHS: TechId[] = ['mysticism', 'astronomy', 'philosophy',
 export interface ReligionSymbol {
   id: string;
   name: string;
-  /** Drawn inside the dot until the icons are picked. */
+  /** Drawn inside the dot while (or if) the icon can't be shown. */
   glyph: string;
+  /** Its icon, src/assets/icons/<icon>.svg, credited in icons.ts. */
+  icon: string;
   color: string;
 }
 
 /** One per religion, in founding order (a game has at most `maxReligions` + a national church). */
 export const RELIGION_SYMBOLS: ReligionSymbol[] = [
-  { id: 'sun', name: 'Sun disc', glyph: '☀', color: '#d9730d' },
-  { id: 'flame', name: 'Flame', glyph: '♨', color: '#e5532d' },
-  { id: 'star', name: 'Star', glyph: '★', color: '#5b8def' },
-  { id: 'eye', name: 'Eye', glyph: '◉', color: '#9b59b6' },
-  { id: 'tree', name: 'Tree', glyph: '♣', color: '#2ea44f' },
-  { id: 'spiral', name: 'Spiral', glyph: '@', color: '#17a2b8' },
-  { id: 'mountain', name: 'Mountain', glyph: '▲', color: '#8d6e63' },
-  { id: 'wave', name: 'Wave', glyph: '≈', color: '#1f5fa8' },
+  { id: 'sun', name: 'Sun disc', glyph: '☀', icon: 'sun', color: '#d9730d' },
+  { id: 'flame', name: 'Flame', glyph: '♨', icon: 'flame', color: '#e5532d' },
+  { id: 'star', name: 'Star', glyph: '★', icon: 'round-star', color: '#5b8def' },
+  { id: 'eye', name: 'Eye', glyph: '◉', icon: 'semi-closed-eye', color: '#9b59b6' },
+  { id: 'tree', name: 'Tree', glyph: '♣', icon: 'pine-tree', color: '#2ea44f' },
+  { id: 'spiral', name: 'Spiral', glyph: '@', icon: 'vortex', color: '#17a2b8' },
+  { id: 'mountain', name: 'Mountain', glyph: '▲', icon: 'peaks', color: '#8d6e63' },
+  { id: 'wave', name: 'Wave', glyph: '≈', icon: 'big-wave', color: '#1f5fa8' },
 ];
 
 /** Invented names for the AI's religions (and the human's "Suggest"). Never a real religion. */

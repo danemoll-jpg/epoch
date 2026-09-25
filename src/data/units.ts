@@ -83,8 +83,6 @@ export interface UnitDef {
    * `requires` tech (Monotheism) or by a civ that knows its city's religion's founding tech.
    */
   spreadsReligion?: boolean;
-  /** Round 12: its icon is still being picked (letters until then; the icon test allows it). */
-  iconPending?: boolean;
 }
 
 function unit(
@@ -155,9 +153,9 @@ export const UNITS: Record<UnitTypeId, UnitDef> = {
   },
   // Round 12: no attack or defense (it can't fight or guard), two moves, 2 spreads.
   missionary: {
-    id: 'missionary', name: 'Missionary', glyph: 'Mi', domain: 'land', cargo: 0, cost: 30,
+    id: 'missionary', name: 'Missionary', glyph: 'Mi', icon: 'robe', domain: 'land', cargo: 0, cost: 30,
     moves: 2, sight: 1, attack: 0, defense: 0, canFoundCity: false, popCost: 0, requires: 'monotheism',
-    spreadsReligion: true, iconPending: true,
+    spreadsReligion: true,
   },
 };
 

@@ -39,6 +39,7 @@ unchanged except where noted below. The SVG files are in `src/assets/icons/`, an
 | Jet Fighter | Jet fighter | Delapouite | https://game-icons.net/1x1/delapouite/jet-fighter.html | CC BY 3.0 |
 | Stealth Bomber | Stealth bomber | Delapouite | https://game-icons.net/1x1/delapouite/stealth-bomber.html | CC BY 3.0 |
 | Helicopter | Helicopter | Delapouite | https://game-icons.net/1x1/delapouite/helicopter.html | CC BY 3.0 |
+| Missionary | Robe | Lorc | https://game-icons.net/1x1/lorc/robe.html | CC BY 3.0 |
 
 **Modified:** the Carrier icon has its wave lines removed and is cropped a
 little larger, so it reads differently from the Battleship at map size.
@@ -46,7 +47,8 @@ little larger, so it reads differently from the Battleship at map size.
 ## Map icons
 
 The map icons (the barbarian village, the hut, the barbarian badge, the
-artifact, the 15 resources, and the 5 Great People) are from the same site and
+artifact, the 15 resources, the 5 Great People, and since Round 12 the holy
+city and the 8 religion symbols) are from the same site and
 license, recolored in the game, shapes unchanged.
 
 | Subject | Icon | Author | Source | License |
@@ -75,8 +77,17 @@ license, recolored in the game, shapes unchanged.
 | Great Merchant | Two coins | Delapouite | https://game-icons.net/1x1/delapouite/two-coins.html | CC BY 3.0 |
 | Great Engineer | Gears | Lorc | https://game-icons.net/1x1/lorc/gears.html | CC BY 3.0 |
 | Great General | Laurel crown | Lorc | https://game-icons.net/1x1/lorc/laurel-crown.html | CC BY 3.0 |
+| Holy city | Expanded rays | Lorc | https://game-icons.net/1x1/lorc/expanded-rays.html | CC BY 3.0 |
+| Religion: Sun disc | Sun | Lorc | https://game-icons.net/1x1/lorc/sun.html | CC BY 3.0 |
+| Religion: Flame | Flame | Carl Olsen | https://game-icons.net/1x1/carl-olsen/flame.html | CC BY 3.0 |
+| Religion: Star | Round star | Delapouite | https://game-icons.net/1x1/delapouite/round-star.html | CC BY 3.0 |
+| Religion: Eye | Semi closed eye | Lorc | https://game-icons.net/1x1/lorc/semi-closed-eye.html | CC BY 3.0 |
+| Religion: Tree | Pine tree | Lorc | https://game-icons.net/1x1/lorc/pine-tree.html | CC BY 3.0 |
+| Religion: Spiral | Vortex | Lorc | https://game-icons.net/1x1/lorc/vortex.html | CC BY 3.0 |
+| Religion: Mountain | Peaks | Lorc | https://game-icons.net/1x1/lorc/peaks.html | CC BY 3.0 |
+| Religion: Wave | Big wave | Lorc | https://game-icons.net/1x1/lorc/big-wave.html | CC BY 3.0 |
 
 The other candidates Dan chose from (not used in the game) are in
-`docs/icon-candidates/`, `docs/ship-air-icon-candidates/`, and
-`docs/map-icon-candidates/`, credited in
+`docs/icon-candidates/`, `docs/ship-air-icon-candidates/`,
+`docs/map-icon-candidates/`, and `docs/religion-road-icon-candidates/`, credited in
 their `SOURCES.md` files.
