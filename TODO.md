@@ -1346,11 +1346,9 @@ included); `npm run build` clean, with the dev-code leak check passing.
   `dev:lan`, try `large-map` for smoothness and End Turn time.
 
 
-## Current Objective (Focus Area)
+* **Round 14 — M9 part 2: bigger maps, art pass, era music — done, APPROVED by Dan (2026-09-25).** Terrain A (Painted), city style B (Bold buildings), and all building and wonder icons are picked and wired in. The agent's report follows, moved from Current Objective.
 
-### Round 14 — M9 part 2: bigger maps, the art pass, and era music
-
-**Round 14 report (coding agent, 2026-09-25): done, waiting for Dan's picks.**
+**Round 14 report (coding agent, 2026-09-25): done. APPROVED by Dan (2026-09-25).**
 Version 0.14.0, save format still 12 (nothing in the state changed, so no
 migration). Tests: **754 pass** (`npm test`, `pace.test.ts` included; 34 new);
 `npm run build` clean, dev-code leak check passing on `dist/` and `dist-play/`.
@@ -1465,159 +1463,200 @@ migration). Tests: **754 pass** (`npm test`, `pace.test.ts` included; 34 new);
   789 tests pass; preview-verified at 1024×768
   (`huge-map`: build rows, building chips, wonder list, Almanac cards).
 
-**The plan as given (kept for reference):**
 
+## Current Objective (Focus Area)
+
+### Round 15 — M9 part 3: balance, app polish, and getting ready to go live
 **Goal:**
-- **Maps that feel big** (Dan: "Large looked kind of small overall");
-- a real **art pass** for terrain, cities, and building icons, with Dan
-  approving the art first;
-- **Dan's Suno music** played per era.
+- a balance pass on the issues the sims have flagged;
+- make the game install and play like an app from the hub (Add to Home
+  Screen, offline);
+- prepare everything for going live on Netlify.
+
+The actual go-live steps (Netlify site, hub card) need Dan, and they're
+listed at the end.
 
 **Items for the coding agent. Report status on each one individually:**
 
 0. **Commit the updated docs first:** `CLAUDE.md` and `TODO.md` as their own
    commit, then re-read them.
 
-**Part A — Bigger maps (Dan's feedback, 2026-09-25)**
+**Part A — The game's name**
 
-A1. **Two new sizes, in `mapSizes.ts`:**
-    - **Huge**, about **64×44**, up to 5 rivals;
-    - **Epic**, about **80×56**, up to 5 rivals.
+A1. **One place for the name:**
+    - put the game's display name in a single constant or data entry
+      (`GAME_NAME`), used by the title wordmark, `<title>`, the manifest,
+      About, the How to Play text, and so on;
+    - the save and storage keys **stay `epoch.*`** so saves survive a
+      rename;
+    - **The name is DECIDED by Dan (2026-09-25): "Epoch: From Stone to
+      Stars".** Use the full name in `<title>`, About, the manifest's
+      `name`, `GO-LIVE.md`, and the hub card. On the title screen, the gold
+      **EPOCH** wordmark stays large, with **"From Stone to Stars"** as a
+      smaller subtitle under it. The manifest's `short_name` (under the
+      Home Screen icon) is **"Epoch"**.
 
-    **Dan plays on both his PC and his iPad** (confirmed 2026-09-25). So if
-    Epic meets A3's bar on the PC but not on the iPad, **still offer it**,
-    labeled "best on a computer". Show a short note on the setup screen
-    when it's picked on a touch device. Hide Epic only if it's too slow on
-    the PC too.
+**Part B — Balance (numbers in data; report before and after)**
 
-    Scale everything with them: continents, villages, huts, resources, and
-    victory goals, so games still end around turns 200–250. Keep fair
-    starts.
+B1. **Culture wins too often**, especially on Large, Huge, and Epic. Aim
+    for a rough balance across all four victory types over 20+ seeds per
+    size: no type above about 40%, and domination present on Normal and
+    bigger. Levers include culture goals by size, religion and holy-city
+    culture, wonder culture, the Great People rate, and the AI's goal
+    weights. Don't change the rules.
 
-A2. **Make maps *feel* big:**
-    - the **default zoom** at game start shows about a 12×9-tile area
-      around your capital, not the whole continent;
-    - **pinch-zoom-out is capped**, so tiles never get tiny-and-useless.
-      Add a **minimap** (tap to jump, drag to pan) instead;
-    - more varied landmass shapes and sizes on big maps: a few large
-      continents plus island chains.
+B2. **Weak leaders:** England, Rome, and Russia rarely or never win. Tune
+    their bonuses and AI behavior, e.g. Rome losing early wars:
+    - Rome: better war timing, or stronger Ancient/Medieval bonuses;
+    - England: make the culture/economic path pay off;
+    - Russia: make the naval and tech catch-up matter.
 
-A3. **Performance for big maps** (the round 13 report: Large averages
-    277 ms of AI time per turn in Node, and the iPad is slower). **Target:
-    End Turn stays under about 1.5 s on the iPad late in a Huge game, and
-    the screen never freezes.**
-    - move the AI turns into a **Web Worker**, so the UI stays responsive,
-      with a small "Rivals are moving…" indicator;
-    - profile and speed up the hot spots: pathfinding (cache, or
-      hierarchical search on land and sea), visibility updates, AI
-      target search, and the religion and road passes;
-    - draw only visible tiles (probably already the case), and cache the
-      terrain as pre-rendered chunks;
-    - **report End Turn times** for Normal, Large, Huge, and Epic (from the
-      sim and in the browser at iPad size), and a late-game Huge scenario
-      Dan can time on the real iPad (`huge-map`).
+    Report wins per leader over 20+ seeds, before and after, with no
+    leader above about 2× its fair share.
 
-**Part B — Art pass (Dan approves art on picker pages first)**
+B3. **Legendary pacing:** a Legendary game ended at t149. Keep Legendary
+    hard but have wins land at t160 or later.
 
-B1. **Terrain look, a picker page** `docs/terrain-style-candidates.html`:
-    - **2–3 complete terrain styles**, drawn in code (original, no
-      downloaded tiles). Each shows the same map area at 3 zoom levels;
-    - e.g. **(A) painted:** soft gradients, hill shading, tree clusters,
-      animated water shimmer; **(B) storybook:** bold outlines, simple
-      shapes, brighter colors, matching the portraits' cartoon style;
-      **(C) clean flat modern;**
-    - they must work with the unit icons, resources, roads, religion dots,
-      and fog;
-    - Dan picks one, **and it's wired in this round** if he picks before
-      the round ends. Otherwise it's next round, and the current look
-      stays until then.
+B4. **The AI builds roads late:** make roads between nearby cities a
+    mid-game priority when there's spare gold. Report roads per civ at
+    t100 and t200.
 
-B2. **City looks, same page or its own:**
-    - cities that **grow in look with size**: a village at 1–3, a town at
-      4–7, a city at 8–12, a metropolis at 13+ (thresholds in data);
-    - optionally also by era (huts → stone → industrial → modern skyline);
-    - **walls drawn** when a city has Walls;
-    - the capital star and holy-city badge stay;
-    - 2 style candidates, matching the terrain candidates.
+B5. **Theology is never used** (one religion per civ): either make it
+    found a religion for a civ that has none yet (it already can),
+    replace it as a founding tech, or give it another use (e.g. +culture
+    from Cathedrals). Say which.
 
-B3. **Building icons, a game-icons picker page**
-    `docs/building-icon-candidates.html`:
-    - 2–3 candidates for each of the 17 buildings, plus the wonders if
-      there's a sensible icon (otherwise one generic wonder icon);
-    - the icons are used in the build list, the city panel, and the
-      Almanac;
-    - wire them in the round after Dan picks, as before.
+B6. **Tech tree length:** the full tree finishes around t170–200 on
+    Normal. Decide whether that's right against the ~250-turn target, and
+    tune gently if not. Keep the era medians in their target ranges.
 
-B4. **Title screen art (optional):** a wordmark treatment and a background.
-    Say if you'd rather Dan make an AI image. If so, write
-    `docs/TITLE-ART.md` with the spec: size, safe area, and dark vs light
-    text, like `PORTRAITS.md`.
+B7. **Run the full sim matrix:** every size (Small to Epic) × Normal (and
+    Novice and Legendary on Normal size), with the victory mix, median win
+    turn, wins per leader, and era medians. Put it all in one table in the
+    report.
 
-**Part C — Music per era (DECIDED by Dan, 2026-09-25)**
+**Part C — App polish and offline**
 
-C1. **The plan:**
-    - `music-theme.mp3` plays on the **main menu and setup screen**, and is
-      the **fallback everywhere** (Dan currently has only the theme);
-    - `music-ancient.mp3`, `music-medieval.mp3`, `music-industrial.mp3`, and
-      `music-modern.mp3` play **in game for the player's current era**,
-      with a crossfade on era change. A missing era track falls back to
-      the theme;
-    - each track loops with the existing crossfade;
-    - update `docs/SOUNDS.md`, the engine, and `docs/sounds.html` (it lists
-      the 5 music files and which are present);
-    - if Dan saved his theme as `music-1.mp3` (the round 13 name), **treat
-      `music-1.mp3` as the theme when `music-theme.mp3` is missing**, and
-      tell him to rename it;
-    - About / Credits: "Music generated with Suno" once a music file exists,
-      and "Sound effects generated with ElevenLabs" (already there).
+C1. **Add to Home Screen:**
+    - a **web app manifest** with the name (A1), short name, theme and
+      background colors, `display: standalone`, landscape and portrait
+      allowed, and **app icons** (192, 512, maskable 512, and an Apple
+      touch icon 180);
+    - **use Dan's app icon (provided 2026-09-25)**, a gold ring with a
+      stone arrowhead rising to a star on deep blue. The files are in
+      **`docs/app-icon-incoming/`**, already resized by Claude:
+      `app-icon-1024.png` (master), `icon-512.png`, `icon-192.png`,
+      `icon-maskable-512.png` (the emblem at 78% with blue padding, for the
+      mask safe zone), `apple-touch-icon-180.png`, `favicon-48.png`, and
+      `favicon-32.png`;
+    - move them to wherever the build needs them, wire up the manifest,
+      the Apple touch icon, and the favicon, then remove the incoming
+      folder;
+    - use the icon's deep blue (about `#001f57`) for the manifest's
+      `background_color` and `theme_color`, unless the menu's own color
+      fits better;
+    - still write a short `docs/APP-ICON.md`, saying where the files live
+      and how to replace them later;
+    - on the iPad, the game opens full-screen from the Home Screen icon,
+      with no Safari bars, and respects the safe areas (the notch and the
+      home indicator).
 
-**Part D — Wrap-up**
+C2. **Offline and updates:**
+    - a **service worker** that caches the game (code, icons, portraits,
+      sounds, and music) so it runs with no connection after the first
+      load;
+    - **updates are safe:** when a new version is deployed, the game
+      notices and shows a small **"Update available: tap to reload"**, and
+      never reloads by itself mid-game;
+    - the autosave and backups are untouched by updates;
+    - caching must not break the dev server or the play server during
+      development. Disable it on `dev:lan`, and make it safe on
+      `play:lan`;
+    - music is big, so cache it on first play rather than up front, if
+      that keeps the first load fast;
+    - report the total download size, and the first-load time on the play
+      server.
 
-D1. **Save migration v12 → v13** if the state changes (map sizes,
-    minimap). Backups are kept.
+C3. **Final UI polish:**
+    - a pass for anything that looks unfinished on the iPad (portrait and
+      landscape) and on a desktop browser (a large window and a small
+      window);
+    - consistent button sizes, no overlapping panels, and readable text at
+      the Large text setting;
+    - list what you fixed.
 
-D2. **Dev scenarios:**
-    - `huge-map` (a late-game timing check);
-    - `epic-map` (if offered);
-    - `minimap`;
-    - `city-growth-looks` (cities of every size and era);
-    - `walls-drawn`;
-    - `terrain-styles` (switch between the candidates, in dev only);
-    - `era-music` (jump through the eras to hear the switches).
+**Part D — Go-live preparation (the agent prepares; Dan does the live
+steps)**
 
-D3. **Unit tests:**
-    - map size scaling for Huge and Epic (fair starts, goals, villages,
-      and huts);
-    - the zoom cap and default view (as logic);
-    - AI-in-worker results identical to the main thread (same seed, same
-      game);
-    - the city look thresholds;
-    - era music selection with its fallbacks;
-    - the migration;
-    - every new scenario;
+D1. **Production build check:**
+    - `npm run build` produces the Netlify build with no dev code, and all
+      assets are bundled and credited;
+    - `netlify.toml` is still correct (plus headers for the service worker
+      and caching, if needed);
+    - write **`docs/GO-LIVE.md`**: Dan's steps, in order, with nothing
+      technical left out.
+
+D2. **Hub card, prepared but not pushed:**
+    - draft the game's entry for `game-hub/games.js` (name, tagline, icon,
+      accent color, tags) as text in `docs/GO-LIVE.md`;
+    - **do not edit or push the hub repo.** Dan does that once the Netlify
+      address exists.
+
+D3. **IP and content review for the family-and-friends release:**
+    - check that all art, sounds, and music are credited, and no copied
+      Civ text, names, or UI remain;
+    - check that "Civilization" doesn't appear in the game;
+    - list the living people in the leader roster (Merkel, Yushchenko, and
+      Kim Jong Un) as a note for Dan. **No changes**; he already decided
+      they're fine for family and friends;
+    - report anything found.
+
+D4. **After going live, the push rule changes back** (see Technical Notes).
+    Once Dan connects Netlify, a push deploys to the live site. So from the
+    round after go-live, **pushing is Dan's call again.** Update CLAUDE.md's
+    pushing rules to say so, effective when Dan confirms the site is live.
+
+**Part E — Wrap-up**
+
+E1. **Scenarios:** anything new that needs checking (e.g. `update-available`
+    to show the update banner, and `offline` if it can be simulated).
+
+E2. **Tests:**
+    - the name constant used everywhere;
+    - the manifest is valid and the icons exist;
+    - the service-worker update logic (as logic);
+    - the balance targets as loose sim assertions (the victory mix cap and
+      the leader win-share cap);
     - `pace.test.ts` passing.
 
 **Done means:**
-- every item (0, A1–A3, B1–B4, C1, D1–D3) is reported individually,
-  including the **End Turn timing table**;
+- every item (0, A1, B1–B7, C1–C3, D1–D4, E1–E2) is reported individually,
+  including the full sim matrix;
 - tests pass;
-- it's preview-verified;
-- the epoch repo is **pushed**, and the play server is **restarted**.
+- it's preview-verified on desktop and in iPad emulation;
+- the epoch repo is **pushed** (still allowed this round, since Netlify
+  isn't connected yet), and the play server is **restarted**.
 
-Dan then:
-- (a) picks a terrain style, a city style, and building icons on the
-  picker pages;
-- (b) times `huge-map` on the iPad and on his PC, and plays a Huge game on
-  either;
-- (c) checks the menu music and the era switches.
+**Dan then:**
+- (b) optionally makes the title picture (`docs/TITLE-ART.md`). The app
+  icon is done;
+- (c) times `huge-map` and `epic-map` on the iPad, to decide whether Epic
+  keeps its "best on a computer" label;
+- (d) follows `docs/GO-LIVE.md`:
+  - create the Netlify site from the `epoch` repo;
+  - add the card to the hub;
+  - push the hub **himself, or tell the agent to**.
+
+**Then Round 16: cloud saves with Firebase** (queued in Next Steps).
 
 **Open questions (defaults in bold; the coding agent proceeds on the default
 unless Dan decides otherwise):**
-- **Q1 — Working title:** **"Epoch" for now.** Dan should pick a real name
-  before round 15.
-- **Q29 — Biggest map:** **Huge (about 64×44) on every device. Epic (about
-  80×56) where it runs well, labeled "best on a computer" if the iPad
-  struggles.** Dan plays on both his PC and his iPad.
+- **Q1 — The game's real name: DECIDED by Dan (2026-09-25), "Epoch: From
+  Stone to Stars"** (short name "Epoch").
+- **Q30 — App icon: DECIDED. Dan's icon is provided** in
+  `docs/app-icon-incoming/`.
+- **Q31 — Epic's label on the iPad:** **keep "best on a computer"** until
+  Dan times it on the iPad.
 
 ## Next Steps (Do Not Start Yet)
 
@@ -1660,19 +1699,6 @@ milestone before it. None has been decided against.
   a credit). Tests: every unit has a bundled, credited icon (366 pass).
   Preview-verified on desktop (`all-ships`: all 9 drawn, Carrier distinct
   from the Battleship). Only the aircraft icons remain (round 10).
-- **Round 15 — M9 part 3, balance and go-live prep:**
-  - **balance:** culture wins too common; England, Rome, and Russia rarely
-    win; AI roads come late; Theology goes unused with one religion per
-    civ; the tech tree finishing early;
-  - **iPad performance** (whatever's left after round 14's worker and
-    speed-ups);
-  - **wire in round 14's picked terrain, city, and building art** if it
-    wasn't done in round 14;
-  - **Add to Home Screen** app icon and name (a web app manifest) and
-    offline support, so it plays like an app from the hub;
-  - the **real game name** (Dan decides);
-  - then **go live**: Netlify site, hub card, and an IP review for family
-    and friends.
 - **Round 16 — Cloud saves with Firebase (DECIDED by Dan, 2026-09-25:
   yes).** Dan plays on both his PC and his iPad, and wants one game to
   continue across them. It goes **after going live in round 15**, because
