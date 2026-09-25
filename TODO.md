@@ -1455,16 +1455,14 @@ migration). Tests: **754 pass** (`npm test`, `pace.test.ts` included; 34 new);
   generic A Columns, Pyramids B Great pyramid, Hanging Gardens B Fruit tree,
   Colossus A Statue, Oracle A Crystal ball, Great Library B Scroll, Great Wall A
   Castle, War Academy A Sword altar, Grand Bazaar A Pavilion, Grand Cathedral A
-  Domed cathedral, Royal Observatory A Observatory, Grand Workshop B Anvil,
+  Domed cathedral, Royal Observatory A Observatory, Grand Workshop A Gear and
+  hammer (Dan first picked B Anvil, then swapped it, since that's Iron's map icon),
   Broadcast Tower A Radio tower, Global Network A Servers, World Council A
   World, Global Exchange B Paying money, Versailles B Crown. Shown in the city
   panel's build list, its Buildings list (as chips) and Wonders list, and on
   the Almanac cards; credited in `src/data/icons.ts` (`BUILDING_ICONS`,
   `WONDER_ICONS`, `GENERIC_WONDER_ICON`), `CREDITS.md`, and About / Credits.
-  **Note:** the Grand Workshop's anvil is the same icon as the Iron resource on
-  the map (the icon test allows only that one share, since wonders never
-  appear on the map); Grand Workshop A (gear and hammer) is the swap if Dan
-  wants them different. 789 tests pass; preview-verified at 1024×768
+  789 tests pass; preview-verified at 1024×768
   (`huge-map`: build rows, building chips, wonder list, Almanac cards).
 
 **The plan as given (kept for reference):**

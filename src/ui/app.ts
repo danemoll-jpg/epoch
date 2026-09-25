@@ -1251,7 +1251,7 @@ export class App {
       <div class="label">Map icons</div>
       <ul class="credits">${rowsFor('Map')}</ul>
       <div class="label">Building and wonder icons</div>
-      <p class="sub">Also from game-icons.net, same license, shapes unchanged. (The Grand Workshop uses the same anvil as Iron.)</p>
+      <p class="sub">Also from game-icons.net, same license, shapes unchanged.</p>
       <ul class="credits">${rowsFor('Buildings')}</ul>
       ${soundFilesPresent().length ? `<div class="label">Sounds</div><p class="sub">${soundFilesPresent().some((f) => !f.startsWith('music-')) ? 'Sound effects generated with ElevenLabs.' : ''}${musicPresent() ? ' Music generated with Suno.' : ''}</p>` : ''}`;
   }

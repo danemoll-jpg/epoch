@@ -91,8 +91,7 @@ license, recolored in the game, shapes unchanged.
 
 Since Round 14, the icons for the 17 buildings and the wonders (Dan's picks from
 `docs/building-icon-candidates.html`) are from the same site and license, shapes
-unchanged, shown in the city panel and the Almanac. The Grand Workshop uses the
-same anvil as the Iron resource. "Any other wonder" is the generic wonder icon.
+unchanged, shown in the city panel and the Almanac. "Any other wonder" is the generic wonder icon.
 
 | Building or wonder | Icon | Author | Source | License |
 |---|---|---|---|---|
@@ -123,7 +122,7 @@ same anvil as the Iron resource. "Any other wonder" is the generic wonder icon.
 | Grand Bazaar | Medieval pavilion | Delapouite | https://game-icons.net/1x1/delapouite/medieval-pavilion.html | CC BY 3.0 |
 | Grand Cathedral | Saint basil cathedral | Delapouite | https://game-icons.net/1x1/delapouite/saint-basil-cathedral.html | CC BY 3.0 |
 | Royal Observatory | Observatory | Delapouite | https://game-icons.net/1x1/delapouite/observatory.html | CC BY 3.0 |
-| Grand Workshop | Anvil | Lorc | https://game-icons.net/1x1/lorc/anvil.html | CC BY 3.0 |
+| Grand Workshop | Gear hammer | Lorc | https://game-icons.net/1x1/lorc/gear-hammer.html | CC BY 3.0 |
 | Broadcast Tower | Radio tower | Delapouite | https://game-icons.net/1x1/delapouite/radio-tower.html | CC BY 3.0 |
 | Global Network | Server rack | Delapouite | https://game-icons.net/1x1/delapouite/server-rack.html | CC BY 3.0 |
 | World Council | World | Lorc | https://game-icons.net/1x1/lorc/world.html | CC BY 3.0 |

@@ -94,6 +94,7 @@ export const ICON_CREDITS: Record<string, IconCredit> = {
   'big-wave': { title: 'Big wave', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/big-wave.html' },
   'expanded-rays': { title: 'Expanded rays', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/expanded-rays.html' },
   // Buildings and wonders (Dan's round 14 picks, wired in the same day).
+  'gear-hammer': { title: 'Gear hammer', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/gear-hammer.html' },
   'barn': { title: 'Barn', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/barn.html' },
   'barracks': { title: 'Barracks', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/barracks.html' },
   'defensive-wall': { title: 'Defensive wall', author: 'HeavenlyDog', url: 'https://game-icons.net/1x1/heavenly-dog/defensive-wall.html' },
@@ -185,7 +186,7 @@ export const WONDER_ICONS: Partial<Record<WonderId, string>> = {
   grand_bazaar: 'medieval-pavilion',
   grand_cathedral: 'saint-basil-cathedral',
   royal_observatory: 'observatory',
-  grand_workshop: 'anvil',
+  grand_workshop: 'gear-hammer',
   broadcast_tower: 'radio-tower',
   global_network: 'server-rack',
   world_council: 'world',

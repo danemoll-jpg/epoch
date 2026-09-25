@@ -47,14 +47,13 @@ describe('icons', () => {
     expect(credits).toContain(`| ${name} | ${credit!.title} | ${credit!.author} |`);
   });
 
-  it('everything looks different: no icon is used twice (among the map and units, and among buildings and wonders)', () => {
+  it('everything looks different: no icon is used twice', () => {
     const onMap = USED.filter((u) => u.group !== 'Buildings').map((u) => u.icon);
     expect(new Set(onMap).size).toBe(onMap.length);
     const built = USED.filter((u) => u.group === 'Buildings').map((u) => u.icon);
     expect(new Set(built).size).toBe(built.length);
-    // Round 14: a wonder may share a map icon (Dan picked the Iron resource's anvil for the
-    // Grand Workshop; wonders never appear on the map). Only that one does.
-    expect(built.filter((i) => onMap.includes(i))).toEqual(['anvil']);
+    // And none of them repeats a map icon (Dan swapped the Grand Workshop off Iron's anvil).
+    expect(built.filter((i) => onMap.includes(i))).toEqual([]);
   });
 
   it('every building and wonder has an icon (Round 14)', () => {
