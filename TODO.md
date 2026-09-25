@@ -1277,197 +1277,9 @@ suite). Lint and build clean; the dev-code check passes.
   is white on color.
 
 
-## Current Objective (Focus Area)
+* **Round 13 — M9 part 1: menu, difficulty, map sizes, guide, and sound — done, APPROVED by Dan (2026-09-25).** Dan's feedback: **Large looked small overall**, which led to round 14 Part A. The agent's report follows, moved from Current Objective.
 
-### Round 13 — Milestone 9, part 1: main menu, difficulty, map size, an in-game guide, and sound
-**Goal:** make Epoch feel like a finished game when it opens:
-- a title screen;
-- difficulty levels and map sizes;
-- an in-game reference so family and friends can learn it;
-- sound, with Dan approving the sounds first, as he does with art.
-
-**M9 is split into three rounds:**
-- **13 (this one):** the menu, difficulty, map size, the guide, and sound;
-- **14:** the art pass (terrain, cities, and building icons);
-- **15:** the balance pass and go-live prep.
-
-**Items for the coding agent. Report status on each one individually:**
-
-0. **Commit the updated docs first:** `CLAUDE.md` and `TODO.md` as their own
-   commit, then re-read them.
-
-**Part A — Title screen and flow**
-
-A1. **Main menu**, shown when the game opens. Buttons:
-    - **Continue**, if there's a saved game. It shows the leader portrait,
-      civ, turn, and era;
-    - **New Game**, which goes to the setup screen;
-    - **Restore a backup**;
-    - **How to Play** (the guide, C1);
-    - **Settings** (A2);
-    - **About / Credits**.
-
-    Also:
-    - a simple, handsome title treatment with the "Epoch" wordmark as text
-      (no image needed yet; the art pass may add one);
-    - touch-first, portrait and landscape;
-    - ☰ gets a **Main menu** item that returns here (the game is
-      autosaved first);
-    - dev scenarios stay reachable in dev builds as before.
-
-A2. **Settings** (saved per device, separate from game saves):
-    - sound effects on/off with volume, and music on/off with volume, once
-      B exists;
-    - **animation speed** (normal / fast), for AI turns and combat flashes;
-    - **confirm End Turn when units can still move** (on/off);
-    - **text size** (normal / large).
-
-**Part B — Difficulty and map size**
-
-B1. **Difficulty levels**, with our own names (default Normal = today's
-    balance):
-
-    | Level | For whom | What changes (numbers in data) |
-    |---|---|---|
-    | **Novice** | first-timers | player +25% production and science; AIs −15% production and science, less aggressive, no demands before turn 60 |
-    | **Normal** | the default | today's numbers |
-    | **Veteran** | a challenge | AIs +15% production, science, and gold, a little more aggressive |
-    | **Legendary** | the brave | AIs +30% production, science, and gold, a free Warrior and Settler at the start, more aggressive, war earlier |
-
-    - pick it on the setup screen;
-    - it's stored in the save, shown on the victory progress screen, and
-      part of the end-screen stats;
-    - the sim can run at any level. **Report victory mix and win turns at
-      Novice, Normal, and Legendary** (Normal should match today's).
-
-B2. **Map size** on the setup screen: **Small** (e.g. 24×18, up to 3
-    rivals), **Normal** (32×24, today's), and **Large** (e.g. 44×32, up to
-    5 rivals, only if performance on the iPad stays smooth):
-    - villages, huts, resources, and landmass rules scale with it;
-    - victory thresholds scale if needed, so games still end around
-      ~200–250 turns;
-    - **check Large on iPad-sized emulation for frame rate and AI turn
-      time, and report both.**
-
-**Part C — The in-game guide ("How to Play" + reference)**
-
-C1. **How to Play**, from the main menu and ☰: short illustrated pages
-    covering:
-    - moving and founding cities;
-    - cities (growth, focus, and building);
-    - research and eras;
-    - combat, armies, and fleets;
-    - ships and aircraft;
-    - diplomacy;
-    - villages, huts, and Great People;
-    - religion and roads;
-    - **the four ways to win**.
-
-    Use the game's own icons in the pages. Write it for a new player in
-    plain words.
-
-C2. **Reference ("the Almanac")**, searchable, with a card for every:
-    - unit: stats, tech, and cost;
-    - building: effect, tech, and cost;
-    - wonder;
-    - tech: what it unlocks, and prerequisites;
-    - resource;
-    - Great Person type;
-    - leader: all bonuses and the starting tech.
-
-    Everything is generated from the data files, so it never goes out of
-    date. Tapping a unit, building, or tech name anywhere in the game
-    (build list, tech screen) can open its card.
-
-C3. **First-game tips (optional, can be turned off):** a few one-time hints
-    the first time something happens, e.g. first city, first tech, first
-    contact, first war, and first village. Turn them off in Settings.
-
-**Part D — Sound (Dan makes the sounds himself with ElevenLabs; DECIDED
-2026-09-25)**
-
-D1. **The sound list and drop-in folder:** Dan will generate the sound
-    effects (and maybe music) with **ElevenLabs** and drop the files in. So:
-    - create `src/assets/sounds/` and a **`docs/SOUNDS.md` for Dan**. It
-      should list **each sound event, its exact file name** (e.g.
-      `tech-learned.mp3`), the ideal length, and a one-line description of
-      the feel;
-    - the events: tap/select, unit move, found city, city grows, building
-      done, tech learned, era reached, combat win, combat loss, war declared
-      (on you), wonder built, victory, defeat, and new turn (a soft cue),
-      about 14 in all;
-    - the format: **MP3**, iPad Safari friendly. Short effects **0.3–2 s**,
-      the victory and defeat stings 3–6 s. Trimmed, with no silence at the
-      start. The engine normalizes volume, so Dan doesn't have to;
-    - **music (optional):** `music-1.mp3` … `music-3.mp3`, 1–3 min, calm,
-      and loopable (the engine crossfades loops);
-    - any file that's missing simply plays nothing. There's no code change
-      when files arrive: the next build picks them up.
-
-D2. **`docs/sounds.html` check page** (served at `/docs/…` by the play
-    server): a button per event that plays the current file (or shows
-    "missing"), with the volume normalized as in the game, so Dan can check
-    each one on the iPad.
-
-D3. **Sound engine:**
-    - Web Audio;
-    - it **unlocks on the first tap**, which iPad Safari requires;
-    - it respects the Settings on/off and volume for effects and music
-      separately;
-    - AI turns don't spam sounds; only a few, e.g. war declared on you, or
-      a city lost;
-    - nothing plays while the page is hidden;
-    - no sound in dev scenarios unless Settings allows;
-    - credit ElevenLabs in About / Credits once files exist ("Sound effects
-      generated with ElevenLabs").
-
-**Part E — Wrap-up**
-
-E1. **Save migration v11 → v12:** existing games get difficulty Normal and
-    map size Normal. Backups are kept.
-
-E2. **Dev scenarios:**
-    - `main-menu`;
-    - `settings`;
-    - `difficulty-legendary-start`;
-    - `large-map` (for a performance check);
-    - `almanac`;
-    - `how-to-play`;
-    - `first-game-tips`.
-
-E3. **Unit tests:**
-    - difficulty modifiers applied correctly, per level;
-    - map size scaling (villages, huts, resources, fair starts on each
-      size);
-    - settings persistence (separate from saves);
-    - Almanac cards generated for every data entry (none missing);
-    - the sound engine respecting settings, as logic;
-    - the migration;
-    - every new scenario;
-    - `pace.test.ts` passing at Normal.
-
-**Done means:**
-- every item (0, A1–A2, B1–B2, C1–C3, D1–D3, E1–E3) is reported
-  individually;
-- tests pass;
-- it's preview-verified on desktop and in iPad emulation;
-- the epoch repo is **pushed**, and the play server is **restarted**.
-
-Dan then:
-- (a) makes the sounds in ElevenLabs from `docs/SOUNDS.md` (Claude gives
-  him prompts), drops them in, and checks them on `docs/sounds.html`;
-- (b) tries the main menu, Settings, How to Play, and the Almanac;
-- (c) starts a Novice or Legendary game on a Small or Large map.
-
-**Open questions (defaults in bold; the coding agent proceeds on the default
-unless Dan decides otherwise):**
-- **Q1 — Working title:** **"Epoch" for now.** A real name is needed before
-  going live in the hub. **Dan, think about it before round 15.**
-- **Q27 — Difficulty names:** **Novice / Normal / Veteran / Legendary.**
-- **Q28 — Music:** **optional**, made by Dan with ElevenLabs if he wants
-  it.
-
-**Round 13 report (coding agent, 2026-09-25): done, awaiting Dan.** Version
+**Round 13 report (coding agent, 2026-09-25): done. APPROVED by Dan (2026-09-25)**, who checked everything and has his main theme music in. Version
 0.13.0, save format 12. Tests: **718 pass** (`npm test`, `pace.test.ts`
 included); `npm run build` clean, with the dev-code leak check passing.
 
@@ -1533,6 +1345,162 @@ included); `npm run build` clean, with the dev-code leak check passing.
   (c) start a Novice or Legendary game on a Small or Large map; (d) on
   `dev:lan`, try `large-map` for smoothness and End Turn time.
 
+
+## Current Objective (Focus Area)
+
+### Round 14 — M9 part 2: bigger maps, the art pass, and era music
+**Goal:**
+- **Maps that feel big** (Dan: "Large looked kind of small overall");
+- a real **art pass** for terrain, cities, and building icons, with Dan
+  approving the art first;
+- **Dan's Suno music** played per era.
+
+**Items for the coding agent. Report status on each one individually:**
+
+0. **Commit the updated docs first:** `CLAUDE.md` and `TODO.md` as their own
+   commit, then re-read them.
+
+**Part A — Bigger maps (Dan's feedback, 2026-09-25)**
+
+A1. **Two new sizes, in `mapSizes.ts`:**
+    - **Huge**, about **64×44**, up to 5 rivals;
+    - **Epic**, about **80×56**, up to 5 rivals.
+
+    **Dan plays on both his PC and his iPad** (confirmed 2026-09-25). So if
+    Epic meets A3's bar on the PC but not on the iPad, **still offer it**,
+    labeled "best on a computer". Show a short note on the setup screen
+    when it's picked on a touch device. Hide Epic only if it's too slow on
+    the PC too.
+
+    Scale everything with them: continents, villages, huts, resources, and
+    victory goals, so games still end around turns 200–250. Keep fair
+    starts.
+
+A2. **Make maps *feel* big:**
+    - the **default zoom** at game start shows about a 12×9-tile area
+      around your capital, not the whole continent;
+    - **pinch-zoom-out is capped**, so tiles never get tiny-and-useless.
+      Add a **minimap** (tap to jump, drag to pan) instead;
+    - more varied landmass shapes and sizes on big maps: a few large
+      continents plus island chains.
+
+A3. **Performance for big maps** (the round 13 report: Large averages
+    277 ms of AI time per turn in Node, and the iPad is slower). **Target:
+    End Turn stays under about 1.5 s on the iPad late in a Huge game, and
+    the screen never freezes.**
+    - move the AI turns into a **Web Worker**, so the UI stays responsive,
+      with a small "Rivals are moving…" indicator;
+    - profile and speed up the hot spots: pathfinding (cache, or
+      hierarchical search on land and sea), visibility updates, AI
+      target search, and the religion and road passes;
+    - draw only visible tiles (probably already the case), and cache the
+      terrain as pre-rendered chunks;
+    - **report End Turn times** for Normal, Large, Huge, and Epic (from the
+      sim and in the browser at iPad size), and a late-game Huge scenario
+      Dan can time on the real iPad (`huge-map`).
+
+**Part B — Art pass (Dan approves art on picker pages first)**
+
+B1. **Terrain look, a picker page** `docs/terrain-style-candidates.html`:
+    - **2–3 complete terrain styles**, drawn in code (original, no
+      downloaded tiles). Each shows the same map area at 3 zoom levels;
+    - e.g. **(A) painted:** soft gradients, hill shading, tree clusters,
+      animated water shimmer; **(B) storybook:** bold outlines, simple
+      shapes, brighter colors, matching the portraits' cartoon style;
+      **(C) clean flat modern;**
+    - they must work with the unit icons, resources, roads, religion dots,
+      and fog;
+    - Dan picks one, **and it's wired in this round** if he picks before
+      the round ends. Otherwise it's next round, and the current look
+      stays until then.
+
+B2. **City looks, same page or its own:**
+    - cities that **grow in look with size**: a village at 1–3, a town at
+      4–7, a city at 8–12, a metropolis at 13+ (thresholds in data);
+    - optionally also by era (huts → stone → industrial → modern skyline);
+    - **walls drawn** when a city has Walls;
+    - the capital star and holy-city badge stay;
+    - 2 style candidates, matching the terrain candidates.
+
+B3. **Building icons, a game-icons picker page**
+    `docs/building-icon-candidates.html`:
+    - 2–3 candidates for each of the 17 buildings, plus the wonders if
+      there's a sensible icon (otherwise one generic wonder icon);
+    - the icons are used in the build list, the city panel, and the
+      Almanac;
+    - wire them in the round after Dan picks, as before.
+
+B4. **Title screen art (optional):** a wordmark treatment and a background.
+    Say if you'd rather Dan make an AI image. If so, write
+    `docs/TITLE-ART.md` with the spec: size, safe area, and dark vs light
+    text, like `PORTRAITS.md`.
+
+**Part C — Music per era (DECIDED by Dan, 2026-09-25)**
+
+C1. **The plan:**
+    - `music-theme.mp3` plays on the **main menu and setup screen**, and is
+      the **fallback everywhere** (Dan currently has only the theme);
+    - `music-ancient.mp3`, `music-medieval.mp3`, `music-industrial.mp3`, and
+      `music-modern.mp3` play **in game for the player's current era**,
+      with a crossfade on era change. A missing era track falls back to
+      the theme;
+    - each track loops with the existing crossfade;
+    - update `docs/SOUNDS.md`, the engine, and `docs/sounds.html` (it lists
+      the 5 music files and which are present);
+    - if Dan saved his theme as `music-1.mp3` (the round 13 name), **treat
+      `music-1.mp3` as the theme when `music-theme.mp3` is missing**, and
+      tell him to rename it;
+    - About / Credits: "Music generated with Suno" once a music file exists,
+      and "Sound effects generated with ElevenLabs" (already there).
+
+**Part D — Wrap-up**
+
+D1. **Save migration v12 → v13** if the state changes (map sizes,
+    minimap). Backups are kept.
+
+D2. **Dev scenarios:**
+    - `huge-map` (a late-game timing check);
+    - `epic-map` (if offered);
+    - `minimap`;
+    - `city-growth-looks` (cities of every size and era);
+    - `walls-drawn`;
+    - `terrain-styles` (switch between the candidates, in dev only);
+    - `era-music` (jump through the eras to hear the switches).
+
+D3. **Unit tests:**
+    - map size scaling for Huge and Epic (fair starts, goals, villages,
+      and huts);
+    - the zoom cap and default view (as logic);
+    - AI-in-worker results identical to the main thread (same seed, same
+      game);
+    - the city look thresholds;
+    - era music selection with its fallbacks;
+    - the migration;
+    - every new scenario;
+    - `pace.test.ts` passing.
+
+**Done means:**
+- every item (0, A1–A3, B1–B4, C1, D1–D3) is reported individually,
+  including the **End Turn timing table**;
+- tests pass;
+- it's preview-verified;
+- the epoch repo is **pushed**, and the play server is **restarted**.
+
+Dan then:
+- (a) picks a terrain style, a city style, and building icons on the
+  picker pages;
+- (b) times `huge-map` on the iPad and on his PC, and plays a Huge game on
+  either;
+- (c) checks the menu music and the era switches.
+
+**Open questions (defaults in bold; the coding agent proceeds on the default
+unless Dan decides otherwise):**
+- **Q1 — Working title:** **"Epoch" for now.** Dan should pick a real name
+  before round 15.
+- **Q29 — Biggest map:** **Huge (about 64×44) on every device. Epic (about
+  80×56) where it runs well, labeled "best on a computer" if the iPad
+  struggles.** Dan plays on both his PC and his iPad.
+
 ## Next Steps (Do Not Start Yet)
 
 All of these are deferred for **sequencing only**. Each depends on the
@@ -1574,28 +1542,50 @@ milestone before it. None has been decided against.
   a credit). Tests: every unit has a bundled, credited icon (366 pass).
   Preview-verified on desktop (`all-ships`: all 9 drawn, Carrier distinct
   from the Battleship). Only the aircraft icons remain (round 10).
-- **Round 14 — M9 part 2, the art pass (Dan approves art first):**
-  - **terrain:** nicer original terrain drawing (shading, hills, forests,
-    waves), or tile art. Offer options on a picker page;
-  - **cities:** city looks that grow with size (e.g. hut → town → city →
-    metropolis), and walls shown;
-  - **building icons** in the build list, via a game-icons picker;
-  - an optional title-screen art or wordmark;
-  - wire in round 13's picked sounds and music.
 - **Round 15 — M9 part 3, balance and go-live prep:**
   - **balance:** culture wins too common; England, Rome, and Russia rarely
     win; AI roads come late; Theology goes unused with one religion per
     civ; the tech tree finishing early;
-  - **iPad performance;**
+  - **iPad performance** (whatever's left after round 14's worker and
+    speed-ups);
+  - **wire in round 14's picked terrain, city, and building art** if it
+    wasn't done in round 14;
   - **Add to Home Screen** app icon and name (a web app manifest) and
     offline support, so it plays like an app from the hub;
   - the **real game name** (Dan decides);
   - then **go live**: Netlify site, hub card, and an IP review for family
     and friends.
-- **Cloud saves (optional, later).** This would let a game continue across
-  devices. It would need its **own** Firebase setup in this repo, the way
-  Sole Match and Mexican Train have theirs, since the hub has no Firebase.
-  It's deferred until local autosave is proven on the iPad.
+- **Round 16 — Cloud saves with Firebase (DECIDED by Dan, 2026-09-25:
+  yes).** Dan plays on both his PC and his iPad, and wants one game to
+  continue across them. It goes **after going live in round 15**, because
+  sign-in works most reliably on the real Netlify domain.
+  - **Its own Firebase project** for Epoch (the hub has none; Sole Match and
+    Mexican Train each have their own). Dan creates it and pastes the web
+    config. The config isn't secret; the security comes from the rules.
+    Enable Firestore and Auth.
+  - **Sign-in:** **Google sign-in**, so the same account on the PC and the
+    iPad sees the same saves, and each family member has their own. A
+    "Play without signing in" option keeps the game fully local, as today.
+  - **Local stays primary:** the autosave to the device is unchanged. The
+    cloud copy syncs in the background when online (after End Turn, and on
+    `pagehide`), with no waiting and no freezing.
+  - **Save slots:** a few named cloud slots per player, plus "Continue on
+    this device". The main menu shows the cloud and local saves, with turn,
+    leader, and last-played time and device.
+  - **Conflicts:** if the cloud and the device both changed, ask which to
+    keep (showing turn and date for each), and **back up the other**
+    (existing backup system). Never overwrite silently.
+  - **Size:** saves grow on Huge and Epic maps. Compress them, e.g.
+    `CompressionStream` gzip. If a save could exceed Firestore's 1 MB
+    document limit, use Firebase Storage for the blob and keep Firestore
+    for the index.
+  - **Rules:** a user can only read and write their own saves (`uid`
+    match), with size limits. Include `firestore.rules` in the repo, like
+    Sole Match.
+  - **Offline and failure:** the game never blocks on the network. Show a
+    small "Saved to cloud ✓ / Offline, will sync" indicator.
+  - **Tests:** sync logic against a mocked store (conflicts, compression,
+    and failure). Dan checks it for real on both devices.
 - **Before any public release (only if Dan decides to go beyond family and
   friends, or to sell it):** review the leader list, the name, and all art
   and text against the IP rules.

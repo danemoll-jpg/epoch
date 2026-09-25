@@ -591,26 +591,22 @@ what was pushed.
 ## Where things stand
 **Always check `TODO.md` for the current objective before starting work.**
 
-- **Milestones 1–8, naval, air, and Round 12 (religion and roads)** are done
-  and approved. The game is feature-complete apart from polish: all units
-  with Dan's icons, wonders, culture, the four victories, diplomacy,
-  barbarians, resources, huts, Great People, Dan's 12 leaders with
-  portraits, religion, and roads.
+- **Everything through Round 13 is done and approved.** That covers all
+  game systems, plus the main menu, difficulty levels, map sizes, How to
+  Play, the Almanac, and the sound engine with Dan's ElevenLabs effects and
+  Suno theme.
 - **The play server:** http://10.0.0.224:4173/.
 - The epoch repo is pushed every round until Netlify is set up.
 
-**Round 13 (M9, part 1 of 3) is done and awaiting Dan** (report in
-TODO.md: main menu, Settings, difficulty, map sizes, How to Play, the
-Almanac, tips, the sound engine and Dan's sound list). The plan for it was:
-- a main menu and Settings;
-- difficulty levels (Novice, Normal, Veteran, Legendary) and map sizes
-  (Small, Normal, Large);
-- How to Play, plus a searchable Almanac generated from data, plus
-  first-game tips;
-- a sound engine, with a CC0 sound picker page for Dan.
+**The current objective is Round 14 (M9, part 2 of 3):**
+- **bigger maps:** Huge (and Epic if the iPad copes), a closer default zoom
+  with a minimap, and AI turns moved into a Web Worker with speed-ups;
+- **the art pass:** terrain style and city look pickers, a building icon
+  picker, and optional title art;
+- **music per era:** `music-theme` plus the four era tracks.
 
-See items 0, A1–A2, B1–B2, C1–C3, D1–D3, and E1–E3 in TODO.md. Round 14
-(the art pass) and Round 15 (balance and go-live prep) are queued.
+See items 0, A1–A3, B1–B4, C1, and D1–D3 in TODO.md. Round 15 (balance and
+go-live prep) is queued.
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.
