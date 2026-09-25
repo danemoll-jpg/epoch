@@ -191,7 +191,8 @@ button:not(:disabled):active {
 
 #toasts {
   position: absolute;
-  top: calc(104px + var(--safe-top));
+  /* Round 15: just under the top bar (app.ts sets --hud-bottom from its real height). */
+  top: calc(var(--hud-bottom, calc(96px + var(--safe-top))) + 8px + var(--tip-space, 0px));
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -1634,7 +1635,8 @@ table.stats thead th {
 
 #leaderBtn {
   padding: 0 10px 0 4px;
-  min-height: 36px;
+  /* Round 15 (C3): the usual 44 px tap target (was 36). */
+  min-height: 44px;
   background: transparent;
   display: inline-flex;
   align-items: center;
@@ -1976,11 +1978,13 @@ button.primary {
     #0b1016;
 }
 .wordmark .wmSub {
-  color: var(--muted);
-  font-style: italic;
-  font-family: Georgia, serif;
-  font-size: calc(15px * var(--ts));
-  margin-top: 4px;
+  /* Round 15: the game's subtitle ("From Stone to Stars"), smaller under the wordmark. */
+  color: #e9d9a6;
+  font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+  font-size: calc(20px * var(--ts));
+  letter-spacing: 0.14em;
+  margin-top: 8px;
+  text-shadow: 0 1px 0 #000;
 }
 .wordmark .wmRule {
   height: 2px;
@@ -2313,7 +2317,7 @@ button.alink {
   z-index: 9;
   left: 50%;
   transform: translateX(-50%);
-  top: calc(104px + var(--safe-top));
+  top: calc(var(--hud-bottom, calc(96px + var(--safe-top))) + 8px);
   width: min(440px, calc(100vw - 24px));
   box-sizing: border-box;
   background: #1f2d1c;
@@ -2375,4 +2379,58 @@ button.alink {
   margin-right: 4px;
   vertical-align: 0;
   color: #dfe7ef;
+}
+
+/* Round 15: "Update available: tap to reload" (above every panel, just under the top bar). */
+#updateBanner {
+  position: absolute;
+  z-index: 60;
+  left: 50%;
+  transform: translateX(-50%);
+  top: calc(var(--hud-bottom, calc(96px + var(--safe-top))) + 8px);
+  max-width: calc(100vw - 24px);
+  min-height: 44px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: #001f57;
+  color: #fff;
+  font-size: calc(15px * var(--ts));
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+#updateBanner[hidden] {
+  display: none;
+}
+
+/* Round 15 (C3): on a narrow screen the Diplomacy button shows just 🤝, so the top bar keeps
+   to two lines (portrait iPad with Large text, phones). */
+@media (max-width: 600px) {
+  #diploBtn .lbl {
+    display: none;
+  }
+}
+@media (max-width: 900px) {
+  html.largeText #diploBtn .lbl {
+    display: none;
+  }
+}
+
+/* Round 15 (C3): in landscape the city panel sits on the right from under ☰ down; the top bar
+   wraps before it instead of running underneath (small windows, Large text). */
+@media (orientation: landscape) {
+  #app:has(#cityPanel:not([hidden])) #topbar {
+    max-width: calc(100vw - min(380px, calc(100vw - 16px)) - 28px - var(--safe-left) - var(--safe-right));
+  }
+  /* ...and news toasts center on the map beside it rather than over it. */
+  #app:has(#cityPanel:not([hidden])) #toasts {
+    left: calc((100vw - 396px - var(--safe-right)) / 2);
+    width: min(520px, calc(100vw - 396px - 32px - var(--safe-right)));
+  }
+}
+
+/* Round 15 (C3): with a full screen open (tech, diplomacy, victory, …), news toasts move to the
+   bottom edge instead of covering its header and first rows. */
+#app:has(.overlay:not([hidden])) #toasts {
+  top: auto;
+  bottom: calc(12px + var(--safe-bottom));
 }

@@ -227,8 +227,13 @@ describe('Caligula (Rome)', () => {
     });
     expect([r, b]).toEqual([3, 0]);
   });
-  it('medieval: military units cost 20% less', () => {
-    expect(vs('rome', ERA.medieval, (w) => cost(w, { kind: 'unit', id: 'legion' }))).toEqual([24, 30]);
+  // Round 15 (B2): Ancient Triumphs also takes 15% off military units; Legions 20% more, and
+  // armies fight at +25% from the Medieval era (+25% more in the Modern).
+  it('ancient: military units cost 15% less; medieval: 20% more off, and armies +25%', () => {
+    expect(vs('rome', [], (w) => cost(w, { kind: 'unit', id: 'legion' }))).toEqual([26, 30]);
+    expect(vs('rome', ERA.medieval, (w) => cost(w, { kind: 'unit', id: 'legion' }))).toEqual([20, 30]);
+    const [r, b] = vs('rome', ERA.medieval, (w) => attackStrength(addUnit(w.s, 'legion', 0, 5, 4, { army: true }), w.s).total);
+    expect(r).toBeCloseTo(b * 1.25);
   });
   it('industrial: only he can rush-buy wonders, at twice the price (less his discount)', () => {
     const [r, b] = vs('rome', [...ERA.industrial, 'masonry'], (w) => {
@@ -240,17 +245,17 @@ describe('Caligula (Rome)', () => {
     // Not before the Industrial era.
     expect(vs('rome', ['masonry'], (w) => ((w.city.build = { kind: 'wonder', id: 'pyramids' }), buyError(w.s, w.city)))[0]).toBe("Wonders can't be bought");
   });
-  it('modern: armies and fleets fight at +25%', () => {
+  it('modern: armies and fleets fight at +25% more (+50% with Legions)', () => {
     const [r, b] = vs('rome', ERA.modern, (w) => {
       const a = addUnit(w.s, 'legion', 0, 5, 4, { army: true });
       return [attackStrength(a, w.s).total, defenseStrength(w.s, a).total];
     });
-    expect(r[0]).toBeCloseTo(b[0]! * 1.25);
-    expect(r[1]).toBeCloseTo(b[1]! * 1.25);
+    expect(r[0]).toBeCloseTo(b[0]! * 1.5);
+    expect(r[1]).toBeCloseTo(b[1]! * 1.5);
   });
-  it('drawback: 10% less gold', () => {
+  it('drawback: 5% less gold', () => {
     const [r, b] = vs('rome', [], gold);
-    expect(r).toBe(b + Math.floor(-b * 0.1));
+    expect(r).toBe(b + Math.floor(-b * 0.05));
   });
 });
 
@@ -381,9 +386,9 @@ describe('Henry VIII (England)', () => {
 });
 
 describe('Louis XIV (France)', () => {
-  it('start: wonders +50% culture; ancient: luxuries worked give +1 culture', () => {
+  it('start: wonders +25% culture; ancient: luxuries worked give +1 culture', () => {
     const [f, b] = vs('france', [], (w) => cityCulture(w.s, w.city), { city: { wonders: ['oracle'] } });
-    expect(f).toBe(b + Math.floor(b / 2));
+    expect(f).toBe(b + Math.floor(b / 4));
     const [fl, bl] = vs('france', [], (w) => {
       w.s.map.tiles[tileIndex(w.s.map, 2, 2)]!.resource = 'gems';
       return cityCulture(w.s, w.city);
@@ -421,9 +426,9 @@ describe('Louis XIV (France)', () => {
 });
 
 describe('Peter the Great (Russia)', () => {
-  it('start: techs a met civ knows cost 25% less', () => {
+  it('start: techs a met civ knows cost 35% less', () => {
     const [r, b] = vs('russia', ['map_making'], (w) => ((w.s.players[1]!.techs = ['alphabet']), techCost(w.s, 0, 'alphabet')));
-    expect(r).toBe(Math.round(b * 0.75));
+    expect(r).toBe(Math.round(b * 0.65));
   });
   it('ancient: ships in coastal cities +25% production; medieval: first ship of each type half price', () => {
     const rows = ['ccccccccc', 'cgggggggc', 'cgggggggc', 'cgggggggc', 'cgggggggc', 'ccccccccc'];
@@ -434,9 +439,9 @@ describe('Peter the Great (Russia)', () => {
     s.players[0]!.shipsBuilt.push('galley');
     expect(itemCost(s, city, { kind: 'unit', id: 'galley' })).toBe(30);
   });
-  it('industrial: +2 science per met civ; modern: +25% science while behind', () => {
+  it('industrial: +4 science per met civ; modern: +25% science while behind', () => {
     const [r, b] = vs('russia', ERA.industrial, science);
-    expect(r - b).toBe(2);
+    expect(r - b).toBe(4);
     const [rm, bm] = vs('russia', ERA.modern, (w) => ((w.s.players[1]!.techs = ['alphabet', 'writing', 'bronze_working']), science(w)));
     expect(rm).toBeGreaterThan(bm + 2);
   });
@@ -525,7 +530,7 @@ describe('John F. Kennedy (the United States)', () => {
     const nope = world('usa', ERA.medieval);
     expect(applyAction(nope.s, { type: 'setChallenge', tech: 'physics' }).ok).toBe(false);
   });
-  it('modern: the Moonshot (200 culture, +25% science), and half-price spaceship parts that cost 100 gold', () => {
+  it('modern: the Moonshot (200 culture, +25% science), and spaceship parts at 25% less that cost 100 gold', () => {
     const { s, city } = world('usa', [...ERA.modern, 'rocketry'], { city: { size: 6 } });
     const m = { kind: 'project', id: 'moonshot' } as const;
     expect(buildChoiceError(s, city, m)).toBeUndefined();
@@ -539,7 +544,7 @@ describe('John F. Kennedy (the United States)', () => {
     expect(buildChoiceError(s, city, m)).toBe('Already built');
     const rome = world('rome', [...ERA.modern, 'rocketry']);
     expect(buildChoiceError(rome.s, rome.city, m)).toBe('Only United States can build it');
-    expect(vs('usa', ERA.modern, (w) => cost(w, { kind: 'project', id: 'spaceship' }))).toEqual([90, 180]);
+    expect(vs('usa', ERA.modern, (w) => cost(w, { kind: 'project', id: 'spaceship' }))).toEqual([135, 180]);
   });
 });
 
@@ -562,10 +567,10 @@ describe('Viktor Yushchenko (Ukraine)', () => {
     const [u, b] = vs('ukraine', ['alphabet'], (w) => ((w.s.players[1]!.techs = ['writing', 'alphabet']), techPrice(w.s, 1, 0, 'writing')));
     expect(u).toBeLessThan(b);
   });
-  it('medieval: +2 science per met civ ahead; industrial: +5% per civ at peace; modern: resilience', () => {
+  it('medieval: +2 science per met civ ahead; industrial: +4% per civ at peace; modern: resilience', () => {
     const [u, b] = vs('ukraine', ERA.medieval, (w) => ((w.s.players[1]!.techs = ['alphabet', 'pottery', 'archery']), science(w)));
     expect(u - b).toBe(2);
-    expect(vs('ukraine', ERA.industrial, (w) => empirePct(w.s, 0, 'science'))).toEqual([5, 0]);
+    expect(vs('ukraine', ERA.industrial, (w) => empirePct(w.s, 0, 'science'))).toEqual([4, 0]);
     const { s } = world('ukraine', ERA.modern, { peace: false });
     makePeace(s, 0, 1);
     expect(s.players[0]!.culture).toBe(50);

@@ -19,10 +19,15 @@ export const VICTORY = {
   /**
    * Culture: this much culture in total, then build the World Council. Round 12: 6000 → 7000,
    * since religion (holy cities, follower Temples and Cathedrals) adds culture everywhere.
+   * Round 15 (B1): 7000 → 8000 (culture was over half the wins).
    */
-  cultureGoal: 7000,
-  /** Economic: this much gold in the treasury (when starting and finishing), then build the Global Exchange. */
-  goldGoal: 9000,
+  cultureGoal: 8000,
+  /**
+   * Economic: this much gold in the treasury (when starting and finishing), then build the Global
+   * Exchange. Round 15 (B1, B4): 9000 → 13000, since the AIs now link their cities by road
+   * mid-game and roads bring trade.
+   */
+  goldGoal: 13000,
   /** Technology: build the spaceship's parts in your capital, launch it, and it arrives later. */
   spaceship: {
     requires: 'space_flight' as TechId,

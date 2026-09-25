@@ -228,6 +228,12 @@ export interface WinResult {
   captures: number;
   wars: number;
   eliminated: number;
+  /** Round 15: turn each civ (player order) first reached each era. */
+  eraTurns: Partial<Record<EraId, number>>[];
+  /** Round 15: turn each civ knew the whole tree (undefined = not by the end). */
+  treeDone: (number | undefined)[];
+  /** Round 15: road and rail tiles near each civ's cities at turns 100 and 200 (undefined = game over by then). */
+  roadsAt: Record<number, number[]>;
   state: GameState;
 }
 
@@ -241,7 +247,11 @@ export function playToVictory(seed: number, maxTurns = 320, game: SimGame = {}):
   const seenLog = new WeakSet<object>();
   let captures = 0;
   let wars = 0;
+  const eraTurns: Partial<Record<EraId, number>>[] = s.players.map(() => ({ ancient: 1 }));
+  const treeDone: (number | undefined)[] = s.players.map(() => undefined);
+  const roadsAt: Record<number, number[]> = {};
   while (s.turn <= maxTurns && !s.victory) {
+    const turn = s.turn;
     playComputerTurn(s, s.currentPlayer);
     endTurn(s);
     for (const e of s.log) {
@@ -249,6 +259,14 @@ export function playToVictory(seed: number, maxTurns = 320, game: SimGame = {}):
       seenLog.add(e);
       if (/ captured /.test(e.text)) captures++;
       if (e.kind === 'war') wars++;
+    }
+    for (const q of s.players) {
+      const era = playerEra(q);
+      for (const e of ERAS) if (eraIndex(e.id) <= eraIndex(era) && eraTurns[q.id]![e.id] === undefined) eraTurns[q.id]![e.id] = turn;
+      if (treeDone[q.id] === undefined && q.techs.length === TECH_IDS.length) treeDone[q.id] = turn;
+    }
+    if (s.turn !== turn && (turn === 100 || turn === 200)) {
+      roadsAt[turn] = s.players.filter((q) => q.kind !== 'barbarian').map((q) => roadTilesNear(s, q.id).length);
     }
   }
   const civs = s.players.filter((p) => p.kind !== 'barbarian');
@@ -261,6 +279,9 @@ export function playToVictory(seed: number, maxTurns = 320, game: SimGame = {}):
     captures,
     wars,
     eliminated: civs.filter((p) => !p.alive).length,
+    eraTurns: civs.map((p) => eraTurns[p.id]!),
+    treeDone: civs.map((p) => treeDone[p.id]),
+    roadsAt,
     state: s,
   };
 }

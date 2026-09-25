@@ -5,12 +5,18 @@ Read this at the start of every session. It is the short, operational version.
 to work on.
 
 ## ⚠️ Pushing rules
-- **Epoch repo: push at the end of every round** (Dan's standing
-  instruction, 2026-09-24). After tests pass and the docs are committed,
-  `git push` the `epoch` repo to GitHub, then restart the play server.
-  There's no Netlify site for Epoch yet, so nothing deploys. **Once Dan
-  connects Netlify, this rule ends**, and pushing goes back to "only when
-  Dan says," because a push would then deploy to the live site.
+- **Epoch repo, until go-live: push at the end of every round** (Dan's
+  standing instruction, 2026-09-24). After tests pass and the docs are
+  committed, `git push` the `epoch` repo to GitHub, then restart the play
+  server. There's no Netlify site for Epoch yet, so nothing deploys.
+- **Epoch repo, after go-live (Round 15 D4): pushing is Dan's call.** From
+  the moment Dan confirms the Netlify site is live (he follows
+  `docs/GO-LIVE.md`, then says so), every push to `main` deploys to the
+  live site, and players get the "Update available" banner. So from then
+  on: commit at the end of a round as usual, **don't push unless Dan says
+  to**, and say in the report that the commits are waiting to be pushed.
+  Until Dan confirms, the rule above still applies. (Check TODO.md: the
+  planning session records the go-live date there.)
 - **Game hub repo: never push without Dan explicitly saying so.** The hub
   is live on Netlify, so a hub push deploys immediately.
 - Report the push (branch, commit) in the round report.
@@ -122,6 +128,7 @@ npm run sim -- difficulty  # Round 13: victory mix, win turns, stand-in wins at 
 npm run sim -- sizes       # Round 13: the same at each map size with its most rivals, plus ms per turn (SIZES=)
 npm run sim -- perf        # Round 14: End Turn time per map size, by stretch of turns (SIZES=, SEEDS=2, TURNS=250)
 npm run sim -- map-fixtures  # Round 14: remake the late Huge/Epic saves the huge-map/epic-map scenarios load
+npm run sim -- matrix        # Round 15: the full matrix (every size at Normal + Novice/Legendary on Normal, 20 games each); CONFIGS=normal,large to pick, TUNE="VICTORY.goldGoal=12000" to try numbers without editing, TAG= to keep runs apart; JSON in sim-matrix-*.json
 node scripts/make-art-page.mjs            # Round 14: rebuild docs/terrain-style-candidates.html after changing src/render/art.ts
 node scripts/make-building-icons-page.mjs # Round 14: rebuild docs/building-icon-candidates.html (fetches missing SVGs)
 ```
@@ -262,7 +269,9 @@ a late-game save from `src/dev/fixtures/`, made by `npm run sim --
 map-fixtures`; End Turn toasts its time and where it ran), `minimap`,
 `city-growth-looks`, `walls-drawn`, `terrain-styles` (all three: switch styles
 with ☰ → Art style, dev only), `era-music` (sound on, with a Music switch in its
-note: `sound`/`musicSwitch` on a scenario). A scenario can open a screen at load
+note: `sound`/`musicSwitch` on a scenario); (round 15) `update-available`
+(the update banner, `fakeUpdate` on a scenario), `theology` (Theology unlocks
+the Grand Cathedral), `ai-roads` (an AI links its cities). A scenario can open a screen at load
 (`opens: 'mainMenu' | 'settings' | 'almanac' | 'howToPlay' | 'setup'`) and
 show every tip afresh (`freshTips`, without touching the device's list);
 scenarios are silent unless Settings → Sound in dev scenarios. The religion ones use
@@ -568,22 +577,38 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   removed so it doesn't look like the Battleship; compare in
   `docs/carrier-trim-candidates.html`).
 - The version shown on the About screen comes from `package.json`
-  (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.14.0 for
-  round 14.
+  (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.15.0 for
+  round 15.
 - **Meeting a civ reveals where its capital is** (Round 11: the tile is
   marked explored), so conquerors can find the capitals domination needs.
-- **Victory goals:** culture 7000 (Round 12, was 6000; religion adds
-  culture), gold 9000, on Small and Normal maps; ×1.25 on Large (8750,
-  11250); ×1.65 on Huge (11550, 14850) and ×1.5 on Epic (10500, 13500),
-  where techs also cost +35% and +25% (`techCostPct`). Read them with `victoryGoals(state.mapSize)`, never `VICTORY`
-  directly (tests and scenarios on the Normal map may).
+- **Victory goals (Round 15):** culture 8000, gold 13000 on Normal. Each
+  size scales them (`victoryPct`, or its own `culturePct`/`goldPct`): Small
+  9200 / 7800, Large 10000 / 14950, Huge 14000 / 19500, Epic 11600 / 20800;
+  Legendary adds 15% (`goalPct` in `difficulty.ts`). Techs cost +15% on
+  Large, +35% on Huge, +25% on Epic (`techCostPct`). Read the goals with
+  `victoryGoals(state.mapSize, state.difficulty)`, never `VICTORY` directly
+  (tests and scenarios on the Normal map may).
+- **Round 15: the name is in one place,** `src/data/game.ts` (`GAME`: "Epoch:
+  From Stone to Stars", short name "Epoch", the wordmark and subtitle, the
+  icon blue `#001f57`, and `webManifest()`). `index.html` has `%GAME_…%`
+  placeholders that `scripts/pwa-plugin.ts` fills; the same plugin serves
+  and writes `/manifest.webmanifest` and, after a build, writes `sw.js` (the
+  service worker, `src/pwa/sw-template.js`, with this build's version and
+  file list from `src/pwa/files.ts`: everything but the music and
+  `/docs/`; music is cached the first time it plays). `src/pwa/update.ts`
+  registers it (built game only, https or localhost only, so **not on the
+  LAN play server**, which is plain http) and shows "Update available: tap
+  to reload" (`App.showUpdateBanner`); a new version waits for that tap.
+  App icons are in `public/icons/` (`docs/APP-ICON.md`); `netlify.toml` has
+  the cache headers. Saves and settings keys stay `epoch.*`.
 - **Religion (Round 12):** the first civ to know a founding tech
   (Mysticism, Astronomy, Philosophy, Monotheism, Theology) founds a
   religion, **one per civ** (a civ that has one leaves the tech to the
   next civ that knows it); 5 at most, plus Henry VIII's national church.
-  No religious victory.
+  No religious victory. Round 15: Theology also unlocks the Grand Cathedral
+  (it used to be Monotheism's), so it has a use once every civ has a faith.
 - **Roads (Round 12):** bought from the city panel with gold, laid at once;
-  everyone uses them; Railroad upgrades roads near your cities to rails
+  everyone uses them; (Round 15) from turn 50 an AI buys one link a turn between its own cities (up to 80 gold) before rush-buying; Railroad upgrades roads near your cities to rails
   for free. **AI pacing:** before turn 160 an AI won't take the city that
   would win it domination at once when the last rival is another AI (the
   human gets no protection).
@@ -636,6 +661,10 @@ what was pushed.
 ## Where things stand
 **Always check `TODO.md` for the current objective before starting work.**
 
+- **Round 15 is done (awaiting Dan's review):** the name, the balance
+  pass and full sim matrix, Add to Home Screen, offline with the update
+  banner, UI polish, `docs/GO-LIVE.md` with the hub card drafted (the hub
+  repo untouched). Version 0.15.0.
 - **Everything through Round 14 is done and approved:**
   - all game systems;
   - the menu, difficulty, and map sizes up to Huge and Epic, with the AI in
@@ -648,7 +677,7 @@ what was pushed.
 - The epoch repo is pushed every round **until Netlify is set up. After
   go-live, pushing is Dan's call again** (Round 15 D4).
 
-**The current objective is Round 15 (M9, part 3 of 3):**
+**Round 15's objective (M9, part 3 of 3; done, see TODO.md's report):**
 - the game's name in one place: **"Epoch: From Stone to Stars"** (DECIDED by
   Dan; short name "Epoch");
 - the balance pass (victory mix, weak leaders, Legendary pacing, AI roads,

@@ -71,7 +71,7 @@ export const WONDER_LIST: WonderDef[] = [
     empire: { veteranUnits: true }, culture: 2,
   }),
   wonder('grand_bazaar', 'Grand Bazaar', 170, 'trade', '+25% gold in all your cities · 3 culture', { empire: { goldPct: 25 }, culture: 3 }),
-  wonder('grand_cathedral', 'Grand Cathedral', 180, 'monotheism', '8 culture', { culture: 8 }),
+  wonder('grand_cathedral', 'Grand Cathedral', 180, 'theology', '8 culture', { culture: 8 }),
   // ---- Industrial ----
   wonder('royal_observatory', 'Royal Observatory', 240, 'theory_of_gravity', '+25% science in all your cities · 3 culture', {
     empire: { sciencePct: 25 }, culture: 3,

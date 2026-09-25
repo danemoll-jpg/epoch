@@ -1658,6 +1658,104 @@ unless Dan decides otherwise):**
 - **Q31 — Epic's label on the iPad:** **keep "best on a computer"** until
   Dan times it on the iPad.
 
+**Round 15 report (coding agent, 2026-09-25): done, awaiting Dan's review.**
+Version 0.15.0, save format still 12 (nothing in the saved state changed, so
+no migration; old saves load as they are). Tests: **818 pass** (`npm test`,
+`pace.test.ts` and the new `balance.test.ts` included); `npm run build` clean,
+dev-code leak check passing on `dist/` and `dist-play/`.
+
+| # | Item | Status | Verified by |
+|---|------|--------|-------------|
+| 0 | Commit docs first | Done (`369a51d`), then re-read both. Nothing from last round's report was dropped | n/a |
+| A1 | The name in one place | Done. **`src/data/game.ts`** (`GAME`): name "Epoch: From Stone to Stars", short name "Epoch", wordmark EPOCH, subtitle "From Stone to Stars", tagline, and the icon blue. `index.html` has only `%GAME_…%` placeholders, filled at build and in dev by `scripts/pwa-plugin.ts`: `<title>`, the top bar's short name, the wordmark and subtitle (now a proper serif subtitle, pale gold, under the big gold EPOCH), About's heading. About says "Epoch: From Stone to Stars · version 0.15.0" (no more "working title"); How to Play's first page and the first tip ("Welcome to Epoch!") use it; the manifest's `name`/`short_name` come from it; GO-LIVE.md and the hub card use the full name. Saves and settings keys stay `epoch.*` | unit-tested (placeholders, the build fills them, guide, tip, manifest, GO-LIVE); preview-verified (title screen at 1024×768 and 768×1024, the tab title) |
+| B1 | Victory mix | Done, as data (no rule changes). **Culture goal 7000 → 8000, gold goal 9000 → 13000** (the gold rise follows B4: roads bring trade); **each size can now set its own culture and gold percent** (`culturePct`/`goldPct` in `mapSizes.ts`): Small 115/60, Large 125/115, Huge 175/150, Epic 145/160; **conquerors a bit bolder** (`RULES.ai.victory`: strength ratio 1.1 → 1.0, attack force 5 → 4, attack odds 45 → 40%, war offense ×3 → ×4). Result below: **culture is at most 40% on every size** (it was 60% on Small, 55% on Normal); **no kind above 40% except Huge (economic 45%)**; domination appears on Small, Normal, and Large but **not on Huge or Epic** (6 civs, capitals overseas; it never did there). I tried the Victory wonders later in the tree and much bolder conquerors; neither helped, so they're not in | `npm run sim -- matrix` (20 games per row); unit-tested (the goals per size) |
+| B2 | Weak leaders | Done. **Rome** 6 → 9 wins (0.62 → 0.93 of its fair share): Ancient Triumphs also makes military units 15% cheaper, Medieval Legions adds armies +25%, the drawback is −5% gold (was −10%). **England** was no longer weak in the matrix (1.37× before this round's other changes, 1.08× after), so unchanged. **Russia** 3 → 7 (0.25 → 0.58): met techs −35% (was −25%), Western advisers +4 science per met civ (was +2), Modernization +35% (was +25%). Also: the **Franks** Paladins make military units 10% cheaper (0.54 → 0.62); **North Korea**'s drawback is −5% science and gold (was −10%) but it still won only 1 of 54 (**flagged: still weak**); the strong ones trimmed: **France** Splendor +25% wonder culture (was +50%; 1.61 → 1.10), **the United States** Ingenuity +5% science (was +10%) and Moonshot parts 25% cheaper (was half; 1.93 → 1.44), **Ukraine** Partners +4% per civ up to +12% (was +5%/+20%; 1.66 → 1.58). **Every leader is under 2× its fair share** (highest Ukraine 1.58×). Table below | matrix (140 games); unit-tested (every changed bonus) |
+| B3 | Legendary pacing | Done: the AIs get **+25% production, +20% science, +10% gold** (was +30% each), and **Legendary's culture and gold goals are 15% higher** (new `goalPct` in `difficulty.ts`, read by `victoryGoals(size, difficulty)`). **First win t163** over 20 games (was t140), median 185 (was 163); the stand-in player won 0 of 20 (hard as before) | matrix; unit-tested |
+| B4 | AI roads | Done: from **turn 50**, an AI buys one road a turn linking two of its own cities (up to 8 tiles apart), costing **up to 80 gold**, **before** rush-buying anything, keeping only its usual reserve (an AI saving for the economic win buys too) (`ROADS.ai.priorityFromTurn`, `priorityMaxCost`). **Roads per civ, Normal: 2.6 → 9.8 tiles at t100, 7.8 → 11.6 at t200**; every size in the table below | matrix; unit-tested (`ai-roads` scenario outcome) |
+| B5 | Theology | Done: **Theology now unlocks the Grand Cathedral** (it was Monotheism's), and it still founds a religion for a civ that has none. Chosen over "+culture from Cathedrals" because B1 wanted less culture, not more | unit-tested; `theology` preview-verified |
+| B6 | Tree length | **Decided: keep it.** Pace (`npm run sim`, 5 seeds × 300 turns): era medians **Medieval 68, Industrial 130, Modern 204** (targets 50–70, 120–150, 180–220); the **first** civ finishes the tree at t167–184, the **median** civ at t240. Games end at a median of ~t200, so a longer tree would only push technology wins later than the others and the games past 2–3 hours. The ~250 target fits the median civ, not the leader | `npm run sim`; `pace.test.ts` |
+| B7 | Full sim matrix | Done: table below. New `npm run sim -- matrix` (every size at Normal with its most rivals, plus Novice and Legendary on the Normal map; 20 games each, to the first win; JSON per row; `TUNE=` tries numbers without editing data) | `npm run sim -- matrix` |
+| C1 | Add to Home Screen | Done. **Web app manifest** (from `GAME`): name, short name "Epoch", description, `display: standalone`, `orientation: any`, `start_url`/`scope` `/`, theme and background **#001f57** (the icon's blue; the menu's own dark looked flat against the icon). **Dan's icons** moved to `public/icons/` (192, 512, maskable 512, Apple touch 180, favicons 48 and 32; the 1024 master to `docs/app-icon/`, not shipped); `docs/app-icon-incoming/` removed; `index.html` links the manifest, the Apple touch icon, and the favicons, plus `apple-mobile-web-app-title` "Epoch" and a translucent status bar. Safe areas were already honored (`viewport-fit=cover`, every edge panel uses the insets). **`docs/APP-ICON.md`** says where the files live and how to replace them | unit-tested (manifest, every icon exists at its size); preview-verified (icon files served, favicon); **not on an iPad**: Add to Home Screen needs Dan (the Netlify site is best, see C2) |
+| C2 | Offline and updates | Done. **Service worker** (`src/pwa/sw-template.js`, written to `sw.js` by the build with this version's file list): it caches the page, code, icons, portraits, and sound effects on first load, and **the music the first time each track plays** (21 MB, not up front). **Updates:** a new version installs in the background and **waits**; the game shows **"Update available: tap to reload"** under the top bar and never reloads by itself; tapping saves the game first (and waits if the rivals are moving). Checked on load, every 30 minutes, and when the game comes back into view. Saves and backups live in localStorage, which the worker never touches. **Dev server: never registered. Play server: browsers allow a service worker only on https or localhost, so on `http://10.0.0.224:4173` it simply doesn't run** (the play server behaves exactly as before); it runs on Netlify (https) and on localhost. `netlify.toml` has no-cache headers for `sw.js`, `index.html`, and the manifest, and long caching for `/assets/`. **Sizes:** the whole build is **28.6 MB**: to start, **0.7 MB** (page 16 KB, code 517 KB (179 KB gzipped), styles 33 KB); cached for offline in the background **7.7 MB** (37 files, mostly the 12 portraits at ~0.45 MB each); music **20.9 MB** on demand. **First load** (the play build on this PC, localhost, the first visit, before the service worker had cached anything): page ready in **0.28 s**, everything loaded in 2.9 s (with 7 sims running on the CPU); a reload from the cache 0.09 s | unit-tested (the worker run against a fake browser: install, offline, music, takes over only when asked, drops old caches; the page's update rules); preview-verified on the built game at localhost: 37 files cached, **then with the server stopped the game still opened and started a new game**; the banner via `update-available` |
+| C3 | UI polish | Done. Fixed: (1) **the top bar ran under the minimap** in portrait with Large text: the minimap now moves down below the top bar when they'd meet; (2) **🤝 Diplomacy shows just 🤝** on narrow screens (under 600 px, or under 900 px with Large text), so the top bar stays two lines on a portrait iPad; (3) **toasts, tips, and the update banner sit just under the top bar** however tall it is (they were at a fixed 104 px, overlapping the top bar's second line at Large text); (4) **a toast no longer covers a first-game tip** (it lines up under it); (5) **with the city panel open in landscape, the top bar wraps before the panel** instead of running under it (at 800×600 its science-rate buttons were hidden), and **toasts center on the map beside the panel**; (6) **with a full screen open** (tech, diplomacy, victory, settings…) **toasts move to the bottom edge** instead of covering its first rows; (7) **the leader button is 44 px tall** like every other button (was 36); (8) the title's subtitle. Checked every visible button at 1024×768: all ≥ 44 px. Phones (375 px) work but the top bar is tall with Large text; not a target device | preview-verified at 1024×768 and 768×1024 (iPad sizes, Normal and Large text), 800×600 and 1600×1000 (desktop), 375×812 |
+| D1 | Production build | Done: `npm run build` has no dev code (the check passed), the manifest, `sw.js`, and the icons are in `dist/`, and everything is credited: `CREDITS.md` now also lists the sounds (ElevenLabs), the music (Suno), the portraits and app icon (Dan's), and fonts (none bundled); About says the portraits and app icon were made for the game by Dan. `netlify.toml`: Node 24 pinned, cache headers added, SPA redirect kept. **`docs/GO-LIVE.md`**: Dan's steps in order (create the site, pick the name, check on the PC, Add to Home Screen and the offline check on the iPad, the hub card, telling the planning session, rollback) | `npm run build`; unit-tested (GO-LIVE names the game) |
+| D2 | Hub card | Drafted in `docs/GO-LIVE.md` step 5: id `epoch`, name "Epoch: From Stone to Stars", a tagline, icon 🏛️ (the hub uses emoji), accent `#4a7fd6`, tags solo / strategy / 2–3 hours, and a placeholder URL to replace. **The hub repo was not edited or pushed** (read only, to copy the card format) | n/a |
+| D3 | IP review | Done. **"Civilization" appears nowhere in the game** (searched the source's shipped text and the built `dist/`; "Civ Rev" appears only in code comments, which the build strips; checked). No Firaxis/2K names. Unit, building, wonder, and tech names are historical or generic; all leader bonus names and texts are our own. Every icon is credited (game-icons.net, CC BY 3.0); sounds, music, portraits, and app icon credited as above. **Living people in the roster (a note for Dan; no change): Angela Merkel (Germany), Viktor Yushchenko (Ukraine), Kim Jong Un (North Korea).** Found and fixed: About still said "(working title)". Nothing else found | searches of `src/`, `index.html`, `dist/` |
+| D4 | Push rule after go-live | Done: CLAUDE.md's pushing rules now say the epoch repo is pushed every round **until Dan confirms the Netlify site is live**, and after that **only when Dan says** (commits wait, and the report says so). Technical Notes updated the same way | n/a |
+| E1 | Scenarios | Done, 3 new: **`update-available`** (the banner shows under the top bar, stays while you play, tapping it says what the real game would do), **`theology`** (one End Turn from Theology; the Grand Cathedral appears in the build list), **`ai-roads`** (a rival with gold and two unlinked cities buys the road on its turn). **No `offline` scenario:** the dev server never runs the service worker, so it can't be faked honestly there; offline was checked on the built game instead (C2) | unit-tested (each outcome); all 3 preview-verified |
+| E2 | Tests | Done: `tests/round15.test.ts` (22: the name everywhere, the manifest and icon sizes, the service worker against a fake browser, the update rules, the new goals), `tests/balance.test.ts` (8 Normal games: someone wins each, never before 150, no kind over 5 of 8, at least 3 kinds, no leader over half, at least 4 different winners), the 3 scenario outcomes, the changed leader tests; `pace.test.ts` passes | `npm test`: 818 pass |
+
+- **The full sim matrix (B7), after the changes.** 20 all-AI games per row
+  (seeds 101…234), each size with its most rivals, played to the first win.
+  Era medians count a civ that never got there as "later" (— = most games ended
+  before it). Roads = road and rail tiles near each civ's cities.
+
+  | Row | Victory mix | Win turns | Median | Medieval / Industrial / Modern | Roads t100 / t200 | Stand-in wins |
+  |---|---|---|---|---|---|---|
+  | Small (3 rivals) | culture 7, domination 6, technology 4, economic 3 | 166–266 | 200 | 69 / 127 / — | 6.5 / 6.5 | 5 |
+  | Normal (4 rivals) | culture 8, economic 6, technology 5, domination 1 | 162–235 | 196 | 64 / 121 / 200 | 9.8 / 11.6 | 4 |
+  | Large (5) | economic 7, culture 6, technology 6, domination 1 | 168–235 | 200 | 64 / 119 / 197 | 14.3 / 17.2 | 1 |
+  | Huge (5) | economic 9, technology 8, culture 3 | 179–232 | 208 | 70 / 120 / 172 | 18.4 / 20.8 | 1 |
+  | Epic (5) | culture 8, economic 6, technology 6 | 186–221 | 204 | 68 / 111 / 162 | 18.0 / 19.9 | 1 |
+  | Novice, Normal map | culture 9, economic 5, technology 4, domination 2 | 179–237 | 206 | 72 / 135 / — | 9.4 / 11.2 | 16 |
+  | Legendary, Normal map | technology 11, culture 5, economic 3, domination 1 | 163–215 | 185 | 51 / 107 / 167 | 10.4 / 12.0 | 0 |
+
+  **Before (the same seeds, start of this round):**
+
+  | Row | Victory mix | Win turns | Median | Medieval / Industrial / Modern | Roads t100 / t200 |
+  |---|---|---|---|---|---|
+  | Small | culture 12, domination 5, technology 3 | 160–238 | 203 | 70 / 137 / — | 2.9 / 5.9 |
+  | Normal | culture 11, technology 6, domination 2, economic 1 | 176–228 | 192 | 64 / 130 / 189 | 2.6 / 7.8 |
+  | Large | culture 8, technology 8, economic 4 | 168–241 | 191 | 63 / 124 / 184 | 1.4 / 9.5 |
+  | Huge | culture 10, economic 6, technology 4 | 176–243 | 201 | 73 / 128 / 178 | 1.3 / 12.5 |
+  | Epic | culture 9, economic 9, technology 2 | 174–216 | 196 | 72 / 120 / 169 | 1.2 / 11.6 |
+  | Novice | culture 10, technology 6, economic 3, domination 1 | 162–245 | 191 | 75 / 147 / — | 1.3 / 8.3 |
+  | Legendary | technology 7, culture 7, economic 5, domination 1 | 140–201 | 163 | 50 / 108 / 158 | 4.3 / 10.6 |
+
+  **Wins per leader, all 140 games** (fair share = what it would win if every
+  civ in its games were equally likely to win; the civs drawn are the same
+  before and after):
+
+  | Leader | Played | Wins before | ×fair before | Wins after | ×fair after |
+  |---|---|---|---|---|---|
+  | Egypt (Hatshepsut) | 64 | 10 | 0.83 | 14 | 1.16 |
+  | England (Henry VIII) | 54 | 14 | 1.37 | 11 | 1.08 |
+  | France (Louis XIV) | 71 | 22 | 1.61 | 15 | 1.10 |
+  | Franks (Charlemagne) | 68 | 7 | 0.54 | 8 | 0.62 |
+  | Germany (Merkel) | 71 | 12 | 0.91 | 16 | 1.22 |
+  | Gran Colombia (Bolívar) | 53 | 12 | 1.18 | 12 | 1.18 |
+  | Mali (Mansa Musa) | 57 | 8 | 0.74 | 9 | 0.83 |
+  | North Korea (Kim Jong Un) | 54 | 1 | 0.10 | 1 | 0.10 |
+  | Rome (Caligula) | 52 | 6 | 0.62 | 9 | 0.93 |
+  | Russia (Peter the Great) | 64 | 3 | 0.25 | 7 | 0.58 |
+  | Ukraine (Yushchenko) | 67 | 21 | 1.66 | 20 | 1.58 |
+  | United States (JFK) | 65 | 24 | 1.93 | 18 | 1.44 |
+
+  Over all 140: culture 46, technology 44, economic 39, domination 11 (before:
+  culture 67, technology 36, economic 28, domination 9).
+- **Still off target (worth a look, not fixed):** Huge is 45% economic;
+  Legendary is 55% technology (its pacing target is met); no domination on
+  Huge or Epic; **North Korea won 1 of 54** and Russia and the Franks are still
+  under their share (the conquerors struggle to finish the job); Small games
+  can run long (one to t266). 20 games a row is noisy: the same numbers moved
+  a row by 2–3 wins between runs.
+- **Readings I chose (tell me if you want them different):** the theme color
+  is the icon's blue, not the menu's dark; the hub card's emoji 🏛️ and accent
+  `#4a7fd6` (on the felt, the icon blue is too dark and gold is taken); the
+  update banner waits while the rivals move; Theology's new use is the Grand
+  Cathedral; the victory-wonder techs stay where they were; the tree length is
+  kept (B6); the portraits stay PNG (WebP would cut the offline download from
+  7.7 MB to about 2.5 MB; say if you want it).
+- **Heads-up:** on the play server the game can't install offline or show the
+  update banner (http on the LAN; browsers only allow service workers on https),
+  so those are for the Netlify site. Add to Home Screen from the play server
+  still gives a full-screen icon.
+- **Dan, next:** (a) look at the title screen, and a real game at Large text
+  on the iPad (`http://10.0.0.224:4173/`); (b) optionally, the title picture
+  (`docs/TITLE-ART.md`); (c) time `huge-map` and `epic-map` on the iPad
+  (Q31); (d) when ready, follow **`docs/GO-LIVE.md`**, then tell the planning
+  session the site is live (pushing becomes your call from then).
+
 ## Next Steps (Do Not Start Yet)
 
 All of these are deferred for **sequencing only**. Each depends on the
@@ -1764,7 +1862,9 @@ milestone before it. None has been decided against.
     server;
   - nothing deploys from it yet;
   - **once Dan connects Netlify, this stops**, and pushing goes back to
-    "only when Dan says," because a push would then deploy;
+    "only when Dan says," because a push would then deploy (Round 15 D4:
+    effective from the moment Dan confirms the site is live; CLAUDE.md's
+    pushing rules say the same);
   - **the hub repo is never pushed without Dan saying so.** It's live.
 - **Dev scenarios (from Round 3):** dev-only, never in the production build,
   and never allowed to overwrite the real autosave. They're how Dan checks

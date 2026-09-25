@@ -5,6 +5,7 @@
 import { findCiv } from '../data/civs';
 import { RULES } from '../data/rules';
 import { UNITS } from '../data/units';
+import { GAME } from '../data/game';
 import { metCivs } from '../game/diplomacy';
 import type { GameState } from '../game/types';
 import { atWar } from '../game/war';
@@ -22,7 +23,7 @@ export interface Tip {
 export const TIPS: Tip[] = [
   {
     id: 'first-turn',
-    title: 'Welcome!',
+    title: `Welcome to ${GAME.shortName}!`,
     text: 'Tap your Settler, then Found City to build your first city. Move your Warrior by tapping it, then a lit tile, to explore.',
     when: (s, h) => !s.cities.some((c) => c.owner === h) && s.units.some((u) => u.owner === h && UNITS[u.type].canFoundCity),
   },

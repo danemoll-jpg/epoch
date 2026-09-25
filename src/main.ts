@@ -7,6 +7,7 @@ import { App, type AppOptions } from './ui/app';
 import type { SetupChoice } from './ui/setup';
 import { preventBrowserGestures } from './ui/input';
 import { loadOrStart } from './ui/storage';
+import { swWanted, watchForUpdates } from './pwa/update';
 
 // URL options for testing: ?seed=123 for a reproducible map, ?players=5 for a full table,
 // ?new to ignore the autosave and start fresh. Without ?new, a saved game always resumes
@@ -56,6 +57,7 @@ async function boot(): Promise<void> {
         // Round 14: the era-music scenario plays sound, with a music switch in its note.
         opts.scenarioSound = scenario.sound;
         opts.musicSwitch = scenario.musicSwitch;
+        opts.fakeUpdate = scenario.fakeUpdate;
         opts.autosave = false;
         console.info(`Epoch: ${dev.SCENARIO_MARKER}: loaded "${id}" (not saved)`);
       } else {
@@ -83,6 +85,20 @@ async function boot(): Promise<void> {
   // Debug handle for diagnosing device-only bugs (e.g. from Safari's Web Inspector).
   (window as unknown as { __epoch: unknown }).__epoch = { app, seed: state.seed };
   console.info(`Epoch: seed ${state.seed}, ${state.players.length} players, turn ${state.turn}`);
+
+  // Round 15: offline play and "Update available" (built game only; the dev server never
+  // caches). Browsers allow a service worker only on https or localhost, so the LAN play
+  // server (http://10.0.0.x) runs without one, exactly as before.
+  if (swWanted({ prod: import.meta.env.PROD, hasServiceWorker: 'serviceWorker' in navigator, secure: window.isSecureContext })) {
+    watchForUpdates(navigator.serviceWorker, {
+      onUpdate: (apply) => app.showUpdateBanner(apply),
+      reload: () => location.reload(),
+      every: (ms, fn) => void setInterval(fn, ms),
+      onVisible: (fn) => document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') fn();
+      }),
+    }).catch((e) => console.warn('Epoch: offline support unavailable', e));
+  }
 }
 
 void boot();

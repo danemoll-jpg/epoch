@@ -67,6 +67,8 @@ export interface Scenario {
   sound?: boolean;
   /** Round 14: shows the dev-only music switch in the scenario note (hear every era's track). */
   musicSwitch?: boolean;
+  /** Round 15: shows the "Update available" banner as if a new version were waiting. */
+  fakeUpdate?: boolean;
 }
 
 const CAPITAL = 'Babylon';
@@ -1644,6 +1646,46 @@ function eraMusicScenario(): GameState {
   return state;
 }
 
+/** Round 15 (B5): one End Turn from Theology, which now unlocks the Grand Cathedral. */
+function theologyScenario(): GameState {
+  const { state } = withCapital(undefined, { size: 4 });
+  oneTurnFromLearning(state, prereqsOf('theology'), 'theology');
+  return state;
+}
+
+/** Round 15 (B4): an AI at peace, past the road turn, with gold and two cities not yet joined. */
+function aiRoadsScenario(): GameState {
+  const state = diplomacyBase();
+  state.turn = ROADS.ai.priorityFromTurn;
+  addCity(state, RIVAL, 12, 3, { name: 'Kish', size: 2, build: { kind: 'unit', id: 'warrior' } });
+  state.players[RIVAL]!.citiesFounded = 2;
+  state.players[RIVAL]!.gold = 200;
+  state.players[RIVAL]!.explored = state.players[RIVAL]!.explored.map(() => 1);
+  return state;
+}
+
+const ROUND15_SCENARIOS: Scenario[] = [
+  {
+    id: 'theology',
+    title: 'Religion: Theology unlocks the Grand Cathedral',
+    note: `You're one End Turn from ${TECHS.theology.name}. Tap ${CAPITAL}: the ${WONDERS.grand_cathedral.name} isn't in the build list yet. Tap End Turn: you learn ${TECHS.theology.name} (which still founds a religion for a civ that has none), and the ${WONDERS.grand_cathedral.name} (${WONDERS.grand_cathedral.cost} production, ${WONDERS.grand_cathedral.summary}) is in the list. It used to come with ${TECHS.monotheism.name}.`,
+    build: theologyScenario,
+  },
+  {
+    id: 'ai-roads',
+    title: 'Roads: the AI links its cities',
+    note: `${RIVAL_CAPITAL} and Kish (the rival's two cities, east) have no road between them, it's turn ${ROADS.ai.priorityFromTurn}, and the rival has 200 gold. Tap End Turn: on its turn the rival buys the road between them (from turn ${ROADS.ai.priorityFromTurn} a link costing up to ${ROADS.ai.priorityMaxCost} gold comes before its other purchases), drawn at once.`,
+    build: aiRoadsScenario,
+  },
+  {
+    id: 'update-available',
+    title: 'App: update available',
+    note: `As if a new version of the game had been put online while you play: the “Update available: tap to reload” banner shows just under the top bar, and nothing reloads by itself. Keep playing (move a unit, End Turn): the banner stays. Tap it: in the real game it saves, switches to the new version, and reloads to your game; here it only says so. (The dev server never caches the game, so this is the banner alone; the offline part is checked on the built game.)`,
+    build: () => withCapital(undefined, { size: 3 }).state,
+    fakeUpdate: true,
+  },
+];
+
 const ROUND14_SCENARIOS: Scenario[] = [
   {
     id: 'huge-map',
@@ -2077,6 +2119,7 @@ export const SCENARIOS: Scenario[] = [
   ...ROUND12_SCENARIOS,
   ...ROUND13_SCENARIOS,
   ...ROUND14_SCENARIOS,
+  ...ROUND15_SCENARIOS,
 ];
 
 export function findScenario(id: string): Scenario | undefined {

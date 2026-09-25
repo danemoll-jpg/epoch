@@ -590,7 +590,7 @@ export function warScore(state: GameState, ai: number, target: number): number {
 export function runawayProgress(state: GameState, p: number): number {
   const player = state.players[p];
   if (!player) return 0;
-  return Math.max(player.culture / victoryGoals(state.mapSize).culture, player.gold / victoryGoals(state.mapSize).gold);
+  return Math.max(player.culture / victoryGoals(state.mapSize, state.difficulty).culture, player.gold / victoryGoals(state.mapSize, state.difficulty).gold);
 }
 
 /**

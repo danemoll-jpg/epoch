@@ -5,8 +5,36 @@
   command = "npm install && npm run build"
   publish = "dist"
 
+# Round 15: build with the same Node as Dan's PC (Vite 8 and TypeScript 7 need a recent one).
+[build.environment]
+  NODE_VERSION = "24"
+
 # Single-page app: any deep link (e.g. a refresh mid-game) should still serve index.html.
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+
+# Round 15: offline play. The service worker, the page, and the manifest must always be checked
+# for a new version (so an update is noticed); everything under /assets/ has a content hash in
+# its name, so it can be cached for good.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Content-Type = "application/manifest+json"
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

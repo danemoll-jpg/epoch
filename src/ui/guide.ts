@@ -11,6 +11,7 @@ import { WONDERS } from '../data/wonders';
 import { iconHtml, unitIconHtml } from '../render/icons';
 import type { UnitTypeId } from '../data/units';
 import { victoryGoals } from '../data/mapSizes';
+import { GAME } from '../data/game';
 
 export interface GuidePage {
   id: string;
@@ -33,7 +34,7 @@ export function guidePages(): GuidePage[] {
       id: 'moving',
       title: 'Moving and founding cities',
       html: `${pics(unit('settler'), unit('warrior'))}
-        <p>You start with a ${card('unit:settler', 'Settler')} and a ${card('unit:warrior', 'Warrior')}. <b>Tap a unit</b> to select it: the tiles it can reach this turn light up. <b>Tap a lit tile</b> to move there.</p>
+        <p>In <b>${GAME.name}</b> you lead a people from its first village to the space age, against up to five rivals. You start with a ${card('unit:settler', 'Settler')} and a ${card('unit:warrior', 'Warrior')}. <b>Tap a unit</b> to select it: the tiles it can reach this turn light up. <b>Tap a lit tile</b> to move there.</p>
         <p>Hills, forests, and mountains cost more moves. Units see a little way around them; the rest of the world stays dark until you explore it.</p>
         <p>With the Settler selected, tap <b>Found City</b> to build a city where it stands. Good spots have grassland and plains for food, with hills or forest nearby for production. Cities must be at least ${RULES.minCityDistance} tiles apart.</p>
         <p>When every unit has moved, tap <b>End Turn</b>. The computer players then take their turns. <b>Next Unit</b> jumps to a unit that still has orders to give.</p>

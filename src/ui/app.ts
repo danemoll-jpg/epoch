@@ -101,6 +101,7 @@ import { armyCandidates, isMixedStack, stackLabel, unitsOnTile } from '../game/s
 import { portraitHtml } from './portraits';
 import { esc, plural, unitSummary } from './text';
 import { DEFAULT_SETTINGS, flashMs, loadSettings, loadTipsSeen, saveSettings, saveTipsSeen, toastMs, type Settings } from './settings';
+import { GAME } from '../data/game';
 import { musicPresent, SoundEngine, soundFilesPresent } from './sound';
 import type { MusicContext } from './soundLogic';
 import { snapshot, turnSounds } from './soundLogic';
@@ -167,6 +168,8 @@ export interface AppOptions {
   /** Round 14 (dev scenario): this scenario plays sound, and shows a music switch in its note. */
   scenarioSound?: boolean;
   musicSwitch?: boolean;
+  /** Round 15 (dev scenario): show the update banner with a stand-in for the reload. */
+  fakeUpdate?: boolean;
 }
 
 /** Round 14: a building's or wonder's icon for a build-list row (nothing for projects). */
@@ -378,6 +381,14 @@ export class App {
 
     this.startHumanTurn();
     if (opts.notice) this.toast(opts.notice);
+    if (opts.fakeUpdate) {
+      this.showUpdateBanner(() => {
+        this.toast('Here the real game would save, switch to the new version, and reload to your game.');
+        const btn = $<HTMLButtonElement>('updateBanner');
+        btn.disabled = false;
+        btn.textContent = 'Update available: tap to reload';
+      });
+    }
     // Round 13: the main menu first (or a dev scenario's screen).
     switch (opts.opens) {
       case 'mainMenu':
@@ -458,6 +469,25 @@ export class App {
   private save(): void {
     if (!this.autosave || this.placeholder) return;
     saveToStorage(this.state);
+  }
+
+  /**
+   * Round 15: a new version of the game is ready. The banner waits for a tap (never reloads by
+   * itself); the game is saved first, and not while the rivals are moving.
+   */
+  showUpdateBanner(apply: () => void): void {
+    const btn = $<HTMLButtonElement>('updateBanner');
+    btn.hidden = false;
+    btn.onclick = () => {
+      if (this.turnBusy) {
+        this.toast('The rivals are still moving. Tap again in a moment.');
+        return;
+      }
+      this.save();
+      btn.disabled = true;
+      btn.textContent = 'Updating…';
+      apply();
+    };
   }
 
   /** Toasts the entries the player should hear about (first contact has its own panel). */
@@ -1242,8 +1272,8 @@ export class App {
         })
         .join('');
     $('aboutBody').innerHTML = `
-      <p><b>Epoch</b> (working title) · version ${esc(__APP_VERSION__)} · save format ${STATE_VERSION}</p>
-      <p class="sub">A turn-based strategy game made for family and friends.</p>
+      <p><b>${esc(GAME.name)}</b> · version ${esc(__APP_VERSION__)} · save format ${STATE_VERSION}</p>
+      <p class="sub">A turn-based strategy game made for family and friends. The app icon and the leader portraits were made for the game by Dan.</p>
       <div class="label">Unit icons</div>
       <p class="sub">From <a href="${ICON_SITE}" target="_blank" rel="noopener">game-icons.net</a>, used under the
         <a href="${ICON_LICENSE.url}" target="_blank" rel="noopener">${ICON_LICENSE.name}</a> license. Recolored to fit the map; shapes unchanged except where noted.</p>
@@ -1463,12 +1493,12 @@ export class App {
     } else if (mine) {
       banner = '🏆';
       title = `${VICTORY_NAMES[v!.kind]} victory!`;
-      text = `You won on turn ${v!.turn}: ${victoryHow(v!.kind, true, victoryGoals(this.state.mapSize))}.`;
+      text = `You won on turn ${v!.turn}: ${victoryHow(v!.kind, true, victoryGoals(this.state.mapSize, this.state.difficulty))}.`;
     } else {
       banner = '🏳️';
       title = 'Defeat';
       const civ = v!.winner;
-      text = `${CivName(this.state, civ)} won a ${VICTORY_NAMES[v!.kind].toLowerCase()} victory on turn ${v!.turn}: ${victoryHow(v!.kind, false, victoryGoals(this.state.mapSize))}. The game is theirs.`;
+      text = `${CivName(this.state, civ)} won a ${VICTORY_NAMES[v!.kind].toLowerCase()} victory on turn ${v!.turn}: ${victoryHow(v!.kind, false, victoryGoals(this.state.mapSize, this.state.difficulty))}. The game is theirs.`;
     }
     const face = eliminated || mine ? this.human : v!.winner;
     $('endBanner').innerHTML = `${portraitHtml(this.state.players[face]!.civId, 96)} <span>${banner}</span>`;
@@ -1626,8 +1656,8 @@ export class App {
     const S = VICTORY.spaceship;
     const rules = `<div class="vrules">
       <div><b>Domination</b> <span class="sub">Hold every rival's original capital (★). Wiping a civ out counts too.</span></div>
-      <div><b>Culture</b> <span class="sub">Reach ${victoryGoals(this.state.mapSize).culture} culture (Temples and wonders), then build the ${WONDERS.world_council.name}.</span></div>
-      <div><b>Economic</b> <span class="sub">Have ${victoryGoals(this.state.mapSize).gold} gold, then build the ${WONDERS.global_exchange.name} (with production; keep the gold until it's done).</span></div>
+      <div><b>Culture</b> <span class="sub">Reach ${victoryGoals(this.state.mapSize, this.state.difficulty).culture} culture (Temples and wonders), then build the ${WONDERS.world_council.name}.</span></div>
+      <div><b>Economic</b> <span class="sub">Have ${victoryGoals(this.state.mapSize, this.state.difficulty).gold} gold, then build the ${WONDERS.global_exchange.name} (with production; keep the gold until it's done).</span></div>
       <div><b>Technology</b> <span class="sub">Learn Space Flight, build ${S.parts} spaceship parts in your capital, launch, and hold your capital for ${S.travelTurns} turns until it arrives.</span></div>
     </div>`;
     const wonders = WONDER_LIST.map((w) => {
@@ -1671,8 +1701,8 @@ export class App {
       <span class="vval">${value}</span>${bar(pct, 100, 'vbar')}</div>`;
     return `<div class="vcard${me ? ' me' : ''}">${head}${!capital ? ' <span class="sub">· capital lost</span>' : ''}</div>
       ${row('Domination', `${g.capitals.held}/${g.capitals.of} rival capitals`, (g.capitals.held / Math.max(1, g.capitals.of)) * 100)}
-      ${row('Culture', `${g.culture}/${victoryGoals(this.state.mapSize).culture} <span class="sub">(+${g.culturePerTurn}/turn)</span>${building(g.buildingWonder.culture, WONDERS.world_council.name)}${me ? ` <span class="sub">· next Great Person in ${cultureToNextGreatPerson(this.state, p)} culture</span>` : ''}`, (g.culture / victoryGoals(this.state.mapSize).culture) * 100)}
-      ${row('Economic', `${g.gold}/${victoryGoals(this.state.mapSize).gold} gold${building(g.buildingWonder.economic, WONDERS.global_exchange.name)}`, (g.gold / victoryGoals(this.state.mapSize).gold) * 100)}
+      ${row('Culture', `${g.culture}/${victoryGoals(this.state.mapSize, this.state.difficulty).culture} <span class="sub">(+${g.culturePerTurn}/turn)</span>${building(g.buildingWonder.culture, WONDERS.world_council.name)}${me ? ` <span class="sub">· next Great Person in ${cultureToNextGreatPerson(this.state, p)} culture</span>` : ''}`, (g.culture / victoryGoals(this.state.mapSize, this.state.difficulty).culture) * 100)}
+      ${row('Economic', `${g.gold}/${victoryGoals(this.state.mapSize, this.state.difficulty).gold} gold${building(g.buildingWonder.economic, WONDERS.global_exchange.name)}`, (g.gold / victoryGoals(this.state.mapSize, this.state.difficulty).gold) * 100)}
       ${row('Technology', space, g.space.arrivesTurn !== null ? 100 : (g.space.parts / S.parts) * 100)}
       ${launch}</div>`;
   }
@@ -2673,6 +2703,8 @@ export class App {
     this.tipShowing = tip;
     $('tipText').innerHTML = `<b>💡 ${esc(tip.title)}</b><span>${esc(tip.text)}</span>`;
     $('tipCard').hidden = false;
+    // Round 15 (C3): news toasts line up under the tip instead of on top of it.
+    document.documentElement.style.setProperty('--tip-space', `${Math.round($('tipCard').getBoundingClientRect().height) + 8}px`);
   }
 
   private dismissTip(): void {
@@ -2688,6 +2720,7 @@ export class App {
   private hideTip(): void {
     this.tipShowing = undefined;
     $('tipCard').hidden = true;
+    document.documentElement.style.removeProperty('--tip-space');
   }
 
   // ---- dev scenarios (dev server only) ---------------------------------------------------
@@ -2893,6 +2926,7 @@ export class App {
     const box = $('minimap');
     const cityOpen = this.openCityId !== undefined && this.cssW > this.cssH;
     box.hidden = cityOpen;
+    this.placeMinimap();
     if (cityOpen || !this.settings.minimap) return;
     const { map } = this.state;
     const maxW = Math.min(200, Math.max(120, this.cssW * 0.2));
@@ -2915,6 +2949,27 @@ export class App {
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     drawMinimap(ctx, this.state, this.human, this.miniTerrain, this.camera, this.cssW, this.cssH, scale);
+  }
+
+  private hudBottom = '';
+
+  /**
+   * Round 15: the minimap sits under ☰, or lower when the top bar is tall enough to reach it
+   * (portrait, Large text), so the two never overlap.
+   */
+  private placeMinimap(): void {
+    const bar = $('topbar').getBoundingClientRect();
+    // Toasts, tips, and the update banner sit just under the top bar, however tall it is.
+    const hud = `${Math.round(bar.bottom)}px`;
+    if (hud !== this.hudBottom) {
+      this.hudBottom = hud;
+      document.documentElement.style.setProperty('--hud-bottom', hud);
+    }
+    const box = $('minimap');
+    if (box.hidden) return;
+    box.style.top = '';
+    const mini = box.getBoundingClientRect();
+    if (bar.right > mini.left - 4 && bar.bottom > mini.top - 4) box.style.top = `${Math.round(bar.bottom) + 8}px`;
   }
 
   // ---- HUD -------------------------------------------------------------------------------
@@ -2943,7 +2998,8 @@ export class App {
     rb.title = `Science +${income.science} per turn`;
     const met = metCivs(this.state, this.human).length;
     const wars = metCivs(this.state, this.human).filter((c) => atWar(this.state, this.human, c)).length;
-    $('diploBtn').innerHTML = `🤝 Diplomacy${wars ? ` <span class="sub">· ${wars} at war</span>` : ''}`;
+    // Round 15: the word hides on a narrow screen (style.css), leaving 🤝.
+    $('diploBtn').innerHTML = `🤝 <span class="lbl">Diplomacy</span>${wars ? ` <span class="sub">· ${wars} at war</span>` : ''}`;
     $('diploBtn').title = `${met} civ${met === 1 ? '' : 's'} met`;
     $('rateLabel').textContent = `${player.scienceRate}% sci · ${100 - player.scienceRate}% gold`;
     $<HTMLButtonElement>('rateDown').disabled = player.scienceRate <= 0;

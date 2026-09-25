@@ -182,17 +182,19 @@ export const LEADER_BONUSES: Record<string, LeaderBonuses> = {
   rome: {
     start: b('Imperial purse', 'Rush-buying costs 25% less.', { kind: 'rushBuy', pct: -25 }),
     eras: {
-      ancient: b('Triumphs', 'Every fight you win brings 3 culture.', { kind: 'winCulture', culture: 3 }),
-      medieval: b('Legions', 'Military units cost 20% less.', { kind: 'cost', of: 'militaryUnits', pct: -20 }),
+      // Round 15 (B2): Rome lost its early wars; cheaper troops from the start, and armies that hit harder in the Medieval era.
+      ancient: b('Triumphs', 'Every fight you win brings 3 culture, and military units cost 15% less.', { kind: 'winCulture', culture: 3 }, { kind: 'cost', of: 'militaryUnits', pct: -15 }),
+      medieval: b('Legions', 'Military units cost 20% less, and armies fight at +25%.', { kind: 'cost', of: 'militaryUnits', pct: -20 }, { kind: 'armyStrength', pct: 25 }),
       industrial: b('Bread and circuses', 'You alone can rush-buy wonders, at twice the usual price.', { kind: 'buyWonders', mult: 2 }),
       modern: b('Grand armies', 'Armies and fleets fight at +25%.', { kind: 'armyStrength', pct: 25 }),
     },
-    drawback: b('Extravagance', '10% less gold.', { kind: 'empirePct', yield: 'gold', pct: -10 }),
+    drawback: b('Extravagance', '5% less gold.', { kind: 'empirePct', yield: 'gold', pct: -5 }),
   },
   franks: {
     start: b('Gentle conquest', 'Cities you capture lose no population and keep every building.', { kind: 'captureKeep' }),
     eras: {
-      ancient: b('Paladins', 'Mounted units start as veterans.', { kind: 'veteranMounted' }),
+      // Round 15: the Franks won 4 of 68; their knights now cost less too.
+      ancient: b('Paladins', 'Mounted units start as veterans, and military units cost 10% less.', { kind: 'veteranMounted' }, { kind: 'cost', of: 'militaryUnits', pct: -10 }),
       medieval: b('Integration', 'Cities you captured make +2 culture a turn.', { kind: 'capturedCityCulture', culture: 2 }),
       industrial: b('Administration', 'With 8 or more cities, +1 production in every city.', { kind: 'manyCitiesProduction', cities: 8, production: 1 }),
       modern: b('Legacy of empire', 'Every fight you win brings 2 culture.', { kind: 'winCulture', culture: 2 }),
@@ -218,7 +220,8 @@ export const LEADER_BONUSES: Record<string, LeaderBonuses> = {
     drawback: b('Six wives', 'Declaring war on a civ you have a peace treaty with makes every civ cooler toward you.', { kind: 'breakTreaty', opinion: -2 }),
   },
   france: {
-    start: b('Splendor', 'Wonders make 50% more culture.', { kind: 'wonderCulture', pct: 50 }),
+    // Round 15: France won 22 of 71 games; Splendor was +50%.
+    start: b('Splendor', 'Wonders make 25% more culture.', { kind: 'wonderCulture', pct: 25 }),
     eras: {
       ancient: b('Fine taste', 'Wine, Silk, Spices, Gems, and Gold give +1 culture when worked.', { kind: 'resourceCulture', resources: LUXURIES, culture: 1 }),
       medieval: b('The Sun King', 'Your capital makes +1 culture and +1 gold per wonder in it.', { kind: 'capitalWonderYield', culture: 1, gold: 1 }),
@@ -228,12 +231,13 @@ export const LEADER_BONUSES: Record<string, LeaderBonuses> = {
     drawback: b('L’état, c’est moi', 'While a rival holds your capital, culture is halved.', { kind: 'capitalLossCulture', pct: -50 }),
   },
   russia: {
-    start: b('Grand embassy', 'Techs a civ you’ve met already knows cost 25% less.', { kind: 'metTechCost', pct: -25 }),
+    // Round 15 (B2): Russia's catch-up was too small to matter.
+    start: b('Grand embassy', 'Techs a civ you’ve met already knows cost 35% less.', { kind: 'metTechCost', pct: -35 }),
     eras: {
       ancient: b('Shipyards', 'Ships built in coastal cities get +25% production.', { kind: 'shipProduction', pct: 25 }),
       medieval: b('Window on the sea', 'The first ship of each type costs half as much.', { kind: 'firstShipCost', pct: -50 }),
-      industrial: b('Western advisers', '+2 science a turn for each civ you’ve met.', { kind: 'sciencePerMetCiv', science: 2 }),
-      modern: b('Modernization', '+25% science while a civ you’ve met knows more techs than you.', { kind: 'behindSciencePct', pct: 25 }),
+      industrial: b('Western advisers', '+4 science a turn for each civ you’ve met.', { kind: 'sciencePerMetCiv', science: 4 }),
+      modern: b('Modernization', '+35% science while a civ you’ve met knows more techs than you.', { kind: 'behindSciencePct', pct: 35 }),
     },
   },
   gran_colombia: {
@@ -247,12 +251,14 @@ export const LEADER_BONUSES: Record<string, LeaderBonuses> = {
     drawback: b('Hard to hold', '5% less gold for each captured city beyond 3.', { kind: 'capturedGoldPenalty', pct: -5, free: 3 }),
   },
   usa: {
-    start: b('Ingenuity', '+10% science.', { kind: 'empirePct', yield: 'science', pct: 10 }),
+    // Round 15: the United States won 24 of 65 games; Ingenuity was +10%.
+    start: b('Ingenuity', '+5% science.', { kind: 'empirePct', yield: 'science', pct: 5 }),
     eras: {
       ancient: b('Public libraries', 'Libraries and Universities cost 25% less.', { kind: 'cost', of: { buildings: ['library', 'university'] }, pct: -25 }),
       medieval: b('Historic milestone', 'Entering an era before anyone else brings 50 culture.', { kind: 'eraFirstCulture', culture: 50 }),
       industrial: b('National Challenge', 'Name a tech as the national goal: +50% science toward it. A new one once it’s learned.', { kind: 'unique', id: 'challenge' }),
-      modern: b('Moonshot', 'Build the Moonshot (needs Rocketry): 200 culture and +25% science. Spaceship parts cost half the production, but 100 gold each.', { kind: 'unique', id: 'moonshot' }, { kind: 'cost', of: 'spaceship', pct: -50 }, { kind: 'spaceshipGold', gold: 100 }),
+      // Round 15: spaceship parts were half price, and the United States won 2× its share.
+      modern: b('Moonshot', 'Build the Moonshot (needs Rocketry): 200 culture and +25% science. Spaceship parts cost 25% less production, but 100 gold each.', { kind: 'unique', id: 'moonshot' }, { kind: 'cost', of: 'spaceship', pct: -25 }, { kind: 'spaceshipGold', gold: 100 }),
     },
   },
   ukraine: {
@@ -260,7 +266,8 @@ export const LEADER_BONUSES: Record<string, LeaderBonuses> = {
     eras: {
       ancient: b('Open doors', 'A tech received in a trade also brings 20 science, and AIs trade with you more willingly.', { kind: 'tradeScience', science: 20 }, { kind: 'tradeWillingness', delta: 1 }),
       medieval: b('Catching up', '+2 science a turn for each civ you’ve met that knows more techs than you.', { kind: 'sciencePerMetCiv', science: 2, onlyAhead: true }),
-      industrial: b('Partners', '+5% science for each civ you’ve met and are at peace with (up to +20%).', { kind: 'peaceSciencePct', pct: 5, max: 20 }),
+      // Round 15: Ukraine was the strongest leader over the matrix (1.5× its share); was up to +20%.
+      industrial: b('Partners', '+4% science for each civ you’ve met and are at peace with (up to +12%).', { kind: 'peaceSciencePct', pct: 4, max: 12 }),
       modern: b('Resilience', 'Losing a city, or a war ending, brings 50 culture.', { kind: 'resilience', culture: 50 }),
     },
   },
@@ -281,6 +288,7 @@ export const LEADER_BONUSES: Record<string, LeaderBonuses> = {
       industrial: b('Missiles', 'Siege units and bombers attack at +25%.', { kind: 'siegeAttack', pct: 25 }),
       modern: b('Deterrence', 'AIs are much less likely to declare war on you or demand tribute.', { kind: 'deterrence', warScore: 10, demandMult: 0.25 }),
     },
-    drawback: b('Isolation', '10% less science and gold, and AIs are half as willing to trade techs with you.', { kind: 'empirePct', yield: 'science', pct: -10 }, { kind: 'empirePct', yield: 'gold', pct: -10 }, { kind: 'tradeWillingness', mult: 0.5 }),
+    // Round 15: North Korea won 1 game in 54; a lighter drawback.
+    drawback: b('Isolation', '5% less science and gold, and AIs are half as willing to trade techs with you.', { kind: 'empirePct', yield: 'science', pct: -5 }, { kind: 'empirePct', yield: 'gold', pct: -5 }, { kind: 'tradeWillingness', mult: 0.5 }),
   },
 };

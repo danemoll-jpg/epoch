@@ -73,6 +73,7 @@ import type { AiPlan, BuildItem, City, Coord, GameState, Unit } from './types';
 import { aiUseUniques } from './uniques';
 import { aiMissionaryBuild, aiReligion, playMissionary } from './religion';
 import { aiBuyRoads } from './roads';
+import { ROADS } from '../data/roads';
 import { PROJECT_IDS } from '../data/victory';
 
 const AI = RULES.ai;
@@ -405,7 +406,9 @@ function manageCities(state: GameState, playerId: number): void {
   // Spare gold finishes Settlers, buildings, spaceship parts, and (at war) units, cheapest
   // first. An AI saving up for the economic win keeps the goal in the bank.
   const player = state.players[playerId]!;
-  const reserve = ctx.goal === 'economic' ? victoryGoals(state.mapSize).gold + AI.goldReserve : AI.goldReserve;
+  const reserve = ctx.goal === 'economic' ? victoryGoals(state.mapSize, state.difficulty).gold + AI.goldReserve : AI.goldReserve;
+  // Round 15 (B4): from mid-game, a cheap road between two of its cities comes first.
+  if (state.turn >= ROADS.ai.priorityFromTurn) aiBuyRoads(state, playerId, AI.goldReserve, { maxCost: ROADS.ai.priorityMaxCost });
   const buys = citiesOf(state, playerId)
     .filter((c) => {
       if (!c.build || buyError(state, c)) return false;
@@ -430,7 +433,7 @@ function setAiScienceRate(state: GameState, playerId: number, goal: VictoryKind)
   const V = AI.victory;
   const rich = V.richGold + V.richGoldPerCity * citiesOf(state, playerId).length;
   let rate = p.scienceRate;
-  if (goal === 'economic' && p.gold < victoryGoals(state.mapSize).gold) rate = V.economicScienceRate;
+  if (goal === 'economic' && p.gold < victoryGoals(state.mapSize, state.difficulty).gold) rate = V.economicScienceRate;
   else if (p.gold >= rich) rate = V.richScienceRate;
   else if (p.gold <= V.poorGold || rate === V.economicScienceRate) rate = RULES.defaultScienceRate;
   if (rate !== p.scienceRate) setScienceRate(state, rate);

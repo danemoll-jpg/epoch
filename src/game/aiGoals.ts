@@ -27,8 +27,8 @@ export function aiVictoryScores(state: GameState, p: number): Record<VictoryKind
   const { held, of } = capitalsHeld(state, p);
   const progress: Record<VictoryKind, number> = {
     domination: of > 0 ? held / of : 0,
-    culture: Math.min(1, player.culture / victoryGoals(state.mapSize).culture),
-    economic: Math.min(1, player.gold / victoryGoals(state.mapSize).gold),
+    culture: Math.min(1, player.culture / victoryGoals(state.mapSize, state.difficulty).culture),
+    economic: Math.min(1, player.gold / victoryGoals(state.mapSize, state.difficulty).gold),
     technology: player.techs.length / TECH_IDS.length,
   };
   // Round 11: a leader's lean (primary, then secondary) sets the bases; legacy civs keep the

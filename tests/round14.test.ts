@@ -39,13 +39,16 @@ describe('Huge and Epic maps (A1)', () => {
 
   it('victory goals and tech costs scale up on the biggest maps (numbers from the sim)', () => {
     for (const size of ['huge', 'epic'] as const) {
-      const pct = MAP_SIZES[size].victoryPct / 100;
-      expect(victoryGoals(size)).toEqual({ culture: Math.round((VICTORY.cultureGoal * pct) / 50) * 50, gold: Math.round((VICTORY.goldGoal * pct) / 50) * 50 });
+      // Round 15: each goal can have its own percent.
+      const def = MAP_SIZES[size];
+      const c = (def.culturePct ?? def.victoryPct) / 100;
+      const g = (def.goldPct ?? def.victoryPct) / 100;
+      expect(victoryGoals(size)).toEqual({ culture: Math.round((VICTORY.cultureGoal * c) / 50) * 50, gold: Math.round((VICTORY.goldGoal * g) / 50) * 50 });
       expect(victoryGoals(size).culture).toBeGreaterThan(victoryGoals('large').culture);
       expect(MAP_SIZES[size].techCostPct).toBeGreaterThan(0);
     }
-    // The older sizes research as before.
-    for (const size of ['small', 'normal', 'large'] as const) expect(MAP_SIZES[size].techCostPct).toBe(0);
+    // Small and Normal research as before (Round 15: Large +15%).
+    for (const size of ['small', 'normal'] as const) expect(MAP_SIZES[size].techCostPct).toBe(0);
     const huge = createGame({ seed: 2, mapSize: 'huge', playerCount: 2, civ: 'egypt' });
     const normal = createGame({ seed: 2, playerCount: 2, civ: 'egypt' });
     expect(techCost(huge, 0, 'pottery')).toBe(Math.round((techCost(normal, 0, 'pottery') * (100 + MAP_SIZES.huge.techCostPct)) / 100));

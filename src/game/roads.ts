@@ -272,14 +272,14 @@ export function roadConnected(state: GameState, a: Coord, b: Coord, maxSteps: nu
  * own reserve): at war, from its city nearest its war target toward that target; otherwise
  * the cheapest missing link between two of its cities close together. Deterministic.
  */
-export function aiBuyRoads(state: GameState, p: number, reserve: number): boolean {
+export function aiBuyRoads(state: GameState, p: number, reserve: number, priority?: { maxCost: number }): boolean {
   const player = state.players[p]!;
-  const spare = player.gold - reserve - ROADS.ai.reserve;
+  const spare = priority ? Math.min(priority.maxCost, player.gold - reserve) : player.gold - reserve - ROADS.ai.reserve;
   if (spare < roadGoldPerTile(state, p)) return false;
   const mine = state.cities.filter((c) => c.owner === p).sort((a, b) => a.id - b.id);
   const options: { from: City; to: City; cost: number; war: boolean }[] = [];
   const plan = state.aiPlans[p];
-  const target = plan ? state.cities.find((c) => c.id === plan.cityId) : undefined;
+  const target = plan && !priority ? state.cities.find((c) => c.id === plan.cityId) : undefined;
   if (target) {
     const from = mine.slice().sort((a, b) => distance(a, target) - distance(b, target) || a.id - b.id)[0];
     if (from && distance(from, target) <= ROADS.ai.warDistance && !roadTargetError(state, from, target)) {

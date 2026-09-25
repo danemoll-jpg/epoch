@@ -8,6 +8,7 @@
 import { BARBARIANS, HUTS } from './barbarians';
 import { RULES } from './rules';
 import { VICTORY } from './victory';
+import { DIFFICULTIES, type DifficultyId } from './difficulty';
 
 export type MapSizeId = 'small' | 'normal' | 'large' | 'huge' | 'epic';
 
@@ -29,6 +30,9 @@ export interface MapSizeDef {
   villages: { min: number; max: number };
   huts: { min: number; max: number };
   victoryPct: number;
+  /** Round 15: the culture or gold goal's own percent, when it differs from `victoryPct`. */
+  culturePct?: number;
+  goldPct?: number;
   /**
    * Round 14: techs cost this much more (percent; 0 = as on Normal). On the biggest maps every
    * civ has more cities and more science, and games ended by the spaceship ~20 turns early.
@@ -55,6 +59,9 @@ export const MAP_SIZES: Record<MapSizeId, MapSizeDef> = {
     villages: { min: 2, max: 5 },
     huts: { min: 3, max: 8 },
     victoryPct: 100,
+    // Round 15 (B1): 4 civs on a small map made culture 60% of wins and gold almost none.
+    culturePct: 115,
+    goldPct: 60,
     techCostPct: 0,
   },
   normal: {
@@ -87,7 +94,10 @@ export const MAP_SIZES: Record<MapSizeId, MapSizeDef> = {
     // More civs and more cities make culture and gold faster: without this, Large games ended
     // around turn 169 in the sim (Normal: ~195).
     victoryPct: 125,
-    techCostPct: 0,
+    // Round 15 (B1): the gold goal is 13000 now (roads bring trade), so Large keeps about the same gold.
+    goldPct: 115,
+    // Round 15 (B1): technology was half of Large's wins.
+    techCostPct: 15,
   },
   // Round 14 (Dan: "Large looked kind of small overall"): a few big continents of different
   // sizes (continentWeight) plus chains of small islands in the open sea.
@@ -107,6 +117,9 @@ export const MAP_SIZES: Record<MapSizeId, MapSizeDef> = {
     // Huge games ended around turn 185 and Epic ones around 181, sooner than Normal (~192): every
     // civ has more cities, so more culture, gold, and science. These bring them to about 200.
     victoryPct: 165,
+    // Round 15 (B1): culture was the most common win on Huge.
+    culturePct: 175,
+    goldPct: 150,
     techCostPct: 35,
   },
   epic: {
@@ -122,6 +135,9 @@ export const MAP_SIZES: Record<MapSizeId, MapSizeDef> = {
     villages: { min: 10, max: 26 },
     huts: { min: 12, max: 38 },
     victoryPct: 150,
+    // Round 15 (B1): economic was half of Epic's wins at ×1.5 gold; ×1.75 swung it to culture.
+    culturePct: 145,
+    goldPct: 160,
     techCostPct: 25,
     bestOnComputer: true,
   },
@@ -136,9 +152,13 @@ export function mapShape(size: MapSizeId): typeof RULES.map {
   return { ...RULES.map, ...MAP_SIZES[size].shape };
 }
 
-/** The culture and gold goals on this map size (VICTORY's, scaled by `victoryPct`, rounded to 50). */
-export function victoryGoals(size: MapSizeId | undefined): { culture: number; gold: number } {
-  const pct = MAP_SIZES[size ?? DEFAULT_MAP_SIZE].victoryPct;
-  const scale = (n: number) => Math.round((n * pct) / 100 / 50) * 50;
-  return { culture: scale(VICTORY.cultureGoal), gold: scale(VICTORY.goldGoal) };
+/**
+ * The culture and gold goals on this map size (VICTORY's, scaled by `victoryPct`, or the size's
+ * own `culturePct` / `goldPct`), and (Round 15) by the difficulty's `goalPct`; rounded to 50.
+ */
+export function victoryGoals(size: MapSizeId | undefined, difficulty?: DifficultyId): { culture: number; gold: number } {
+  const def = MAP_SIZES[size ?? DEFAULT_MAP_SIZE];
+  const level = DIFFICULTIES[difficulty ?? 'normal'].goalPct;
+  const scale = (n: number, pct: number) => Math.round((n * pct * level) / 10000 / 50) * 50;
+  return { culture: scale(VICTORY.cultureGoal, def.culturePct ?? def.victoryPct), gold: scale(VICTORY.goldGoal, def.goldPct ?? def.victoryPct) };
 }

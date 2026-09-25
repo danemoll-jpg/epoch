@@ -12,3 +12,4 @@ dist-play/
 play-lan.log
 sim-report.txt
 .prof/
+sim-matrix-*.json

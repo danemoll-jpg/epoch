@@ -8,9 +8,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="theme-color" content="#0b1016" />
-    <title>Epoch</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏛️</text></svg>" />
+    <!-- Round 15: the name and colors come from src/data/game.ts (scripts/pwa-plugin.ts fills
+         the %GAME_…% placeholders); the icons are Dan's (docs/APP-ICON.md). -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="%GAME_SHORT_NAME%" />
+    <meta name="application-name" content="%GAME_SHORT_NAME%" />
+    <meta name="theme-color" content="%GAME_THEME_COLOR%" />
+    <title>%GAME_NAME%</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon-180.png" />
+    <link rel="icon" type="image/png" sizes="48x48" href="/icons/favicon-48.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
   </head>
   <body>
     <div id="app">
@@ -18,7 +26,7 @@
 
       <header id="topbar">
         <div class="line">
-          <span id="title">Epoch</span>
+          <span id="title">%GAME_SHORT_NAME%</span>
           <button id="leaderBtn" type="button" aria-label="Your leader and bonuses"><span id="civLabel"></span></button>
           <span id="turnLabel"></span>
           <span id="eraLabel"></span>
@@ -45,6 +53,9 @@
       </div>
 
       <div id="toasts" aria-live="polite"></div>
+
+      <!-- Round 15: a new version is ready (the service worker waits for this tap). -->
+      <button id="updateBanner" type="button" hidden>Update available: tap to reload</button>
 
       <section id="unitPanel" hidden>
         <div id="unitInfo"></div>
@@ -205,10 +216,10 @@
       <!-- Round 13: the main menu (title screen), shown when the game opens. -->
       <div id="mainMenu" hidden>
         <div id="mmInner" class="scroll">
-          <div class="wordmark" aria-label="Epoch">
+          <div class="wordmark" aria-label="%GAME_NAME%">
             <div class="wmRule"></div>
-            <div class="wm">EPOCH</div>
-            <div class="wmSub">an age of empires, one turn at a time</div>
+            <div class="wm">%GAME_WORDMARK%</div>
+            <div class="wmSub">%GAME_SUBTITLE%</div>
           </div>
           <button id="mmContinue" type="button" class="mmContinue" hidden></button>
           <div class="mmList">
@@ -298,7 +309,7 @@
             </div>
           </div>
           <div id="menuAbout" hidden>
-            <h2>About Epoch</h2>
+            <h2>About %GAME_SHORT_NAME%</h2>
             <div id="aboutBody" class="scroll"></div>
             <div class="row">
               <button id="aboutBackBtn" type="button">Back</button>

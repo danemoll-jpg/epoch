@@ -9,7 +9,7 @@ import { attackError, attackStrength, combatOdds, defenseStrength, formArmyError
 import { attitude, hasMet, metCivs } from '../src/game/diplomacy';
 import { distance } from '../src/game/grid';
 import { atWar } from '../src/game/war';
-import { buildOptions, buyCost, buyError, itemCost } from '../src/game/production';
+import { buildChoiceError, buildOptions, buyCost, buyError, itemCost } from '../src/game/production';
 import { createGame } from '../src/game/newGame';
 import { availableTechs } from '../src/game/tech';
 import { empireCulture, empireIncome } from '../src/game/yields';
@@ -35,7 +35,7 @@ import { airliftTargets } from '../src/game/air';
 import { RELIGION, RELIGION_SYMBOLS } from '../src/data/religion';
 import { ROADS } from '../src/data/roads';
 import { faithOpinion, holyReligion, religionCityCulture, religionCityGold, spreadTargets } from '../src/game/religion';
-import { roadAt } from '../src/game/roads';
+import { roadAt, roadConnected } from '../src/game/roads';
 import { LARGE_MAP_TURNS, MINIMAP_SEED } from '../src/dev/scenarios';
 import { FIXTURE_TURN } from '../src/dev/fixtures/fixtures';
 import { LOOK_SIZES } from '../src/dev/artDemo';
@@ -76,6 +76,28 @@ function endTurn(s: GameState): void {
 
 /** What each scenario's note promises. A new scenario without an entry here fails the suite. */
 const OUTCOMES: Record<string, (s: GameState) => void> = {
+  theology: (s) => {
+    const c = capital(s);
+    const gc = { kind: 'wonder', id: 'grand_cathedral' } as const;
+    expect(buildChoiceError(s, c, gc)).toBeDefined();
+    expect(applyAction(s, { type: 'endTurn' }).ok).toBe(true);
+    expect(s.players[0]!.techs).toContain('theology');
+    expect(buildChoiceError(s, c, gc)).toBeUndefined();
+  },
+  'ai-roads': (s) => {
+    const kish = s.cities.find((c) => c.name === 'Kish')!;
+    const cap = s.cities.find((c) => c.capitalOf === 1)!;
+    expect(roadConnected(s, cap, kish, 20)).toBe(false);
+    endTurn(s);
+    expect(roadConnected(s, cap, kish, 20)).toBe(true);
+    expect(s.players[1]!.gold).toBeLessThan(200);
+  },
+  // ---- Round 15: the update banner (the app shows it; the game itself is an ordinary one) ----
+  'update-available': (s) => {
+    expect(SCENARIOS.find((x) => x.id === 'update-available')!.fakeUpdate).toBe(true);
+    expect(s.cities.filter((c) => c.owner === 0)).toHaveLength(1);
+    expect(applyAction(s, { type: 'endTurn' }).ok).toBe(true);
+  },
   // ---- Round 14: big maps, the art candidates, era music ----
   'huge-map': (s) => lateMapOutcome(s, 'huge'),
   'epic-map': (s) => lateMapOutcome(s, 'epic'),
@@ -300,12 +322,15 @@ const OUTCOMES: Record<string, (s: GameState) => void> = {
   },
   'era-bonus': (s) => {
     const legion = () => itemCost(s, capital(s), { kind: 'unit', id: 'legion' });
-    expect(legion()).toBe(UNITS.legion.cost);
+    // Round 15: Rome's Ancient Triumphs already takes 15% off; the Medieval Legions 20% more.
+    const ancient = legion();
+    expect(ancient).toBe(Math.round(UNITS.legion.cost * 0.85));
     endTurn(s);
     expect(playerEra(s.players[0]!)).toBe('medieval');
     expect(s.log.some((e) => e.player === 0 && e.kind === 'leader' && e.text.startsWith('Medieval bonus: Legions'))).toBe(true);
-    expect(legion()).toBe(Math.round(UNITS.legion.cost * 0.8));
-    expect(noteOf('era-bonus')).toContain(`costs ${Math.round(UNITS.legion.cost * 0.8)}`);
+    expect(legion()).toBe(Math.round(UNITS.legion.cost * 0.65));
+    expect(noteOf('era-bonus')).toContain(`costs ${ancient} now`);
+    expect(noteOf('era-bonus')).toContain(`costs ${Math.round(UNITS.legion.cost * 0.65)}`);
   },
   'caligula-buy-wonder': (s) => {
     const c = capital(s);

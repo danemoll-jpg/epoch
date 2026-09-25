@@ -266,11 +266,11 @@ export const RULES = {
       dominationOffenseFactor: 2,
       // Round 11 (D2): conquerors that actually conquer.
       /** A conqueror considers war once it's this much stronger (others: diplomacy.warMinStrengthRatio). */
-      dominationMinStrengthRatio: 1.1,
+      dominationMinStrengthRatio: 1.0, // Round 15 (B1, B2): was 1.1
       /** ...and this much more attack force per city at war. */
-      dominationWarOffenseFactor: 3,
+      dominationWarOffenseFactor: 4, // Round 15: was 3
       /** Units (an army counts 3) it gathers before marching. */
-      dominationAttackForce: 5,
+      dominationAttackForce: 4, // Round 15: was 5
       /** Its peace desire, less this while the war is going its way (or even). */
       dominationStayAtWar: 2,
       /** War weariness counts this share for a conqueror. */
@@ -287,7 +287,7 @@ export const RULES = {
       /** At this strength ratio over its target, it marches without gathering first. */
       dominationRushRatio: 4,
       /** It attacks at these odds or better (percent; others: combat.aiAttackMinChancePct). */
-      dominationAttackMinChancePct: 45,
+      dominationAttackMinChancePct: 40, // Round 15: was 45
       /** Picking a target city: one overseas (no city of ours on its landmass) counts as this many tiles farther. */
       overseasTargetPenalty: 8,
       /** Picking a target city: a rival's capital counts as this many tiles closer. */

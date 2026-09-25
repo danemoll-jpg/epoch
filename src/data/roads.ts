@@ -28,5 +28,12 @@ export const ROADS = {
     reserve: 40,
     /** At war, it also lays a road toward its war target from its nearest city, up to this far. */
     warDistance: 10,
+    /**
+     * Round 15 (B4): from this turn on, linking its own cities comes before rush-buying: one
+     * link a turn costing at most `priorityMaxCost`, with only the usual gold reserve kept back
+     * (an AI saving for the economic win buys it too; roads add trade).
+     */
+    priorityFromTurn: 50,
+    priorityMaxCost: 80,
   },
 };

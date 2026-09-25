@@ -39,6 +39,11 @@ export interface DifficultyDef {
   demandsFromTurn: number;
   warGraceTurns: number;
   extraAiUnits: UnitTypeId[];
+  /**
+   * Round 15: the culture and gold goals, as a percent of the map size's (100 = unchanged).
+   * Legendary's boosted AIs reached them before turn 160; this keeps the pressure but not the rush.
+   */
+  goalPct: number;
 }
 
 const NONE: YieldPcts = { production: 0, science: 0, gold: 0 };
@@ -55,6 +60,7 @@ export const DIFFICULTIES: Record<DifficultyId, DifficultyDef> = {
     demandsFromTurn: 60,
     warGraceTurns: 30,
     extraAiUnits: [],
+    goalPct: 100,
   },
   normal: {
     id: 'normal',
@@ -67,6 +73,7 @@ export const DIFFICULTIES: Record<DifficultyId, DifficultyDef> = {
     demandsFromTurn: GRACE,
     warGraceTurns: GRACE,
     extraAiUnits: [],
+    goalPct: 100,
   },
   veteran: {
     id: 'veteran',
@@ -79,18 +86,21 @@ export const DIFFICULTIES: Record<DifficultyId, DifficultyDef> = {
     demandsFromTurn: GRACE,
     warGraceTurns: GRACE,
     extraAiUnits: [],
+    goalPct: 100,
   },
   legendary: {
     id: 'legendary',
     name: 'Legendary',
     forWhom: 'The brave',
-    summary: 'The AIs get +30% production, science, and gold, a free Warrior and Settler, are more warlike, and may go to war with you sooner.',
+    summary: 'The AIs get +25% production, +20% science, and +10% gold, a free Warrior and Settler, are more warlike, and may go to war with you sooner. The culture and gold goals are 15% higher.',
     player: NONE,
-    ai: { production: 30, science: 30, gold: 30 },
+    // Round 15 (B3): was +30% of each, and games ended as early as turn 140.
+    ai: { production: 25, science: 20, gold: 10 },
     aggression: 1,
     demandsFromTurn: 15,
     warGraceTurns: 12,
     extraAiUnits: ['warrior', 'settler'],
+    goalPct: 115,
   },
 };
 
