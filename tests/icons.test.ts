@@ -6,6 +6,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { ICON_CREDITS, MAP_ICONS, usedIcons } from '../src/data/icons';
+import { WONDER_LIST } from '../src/data/wonders';
 import { GREAT_PEOPLE, GREAT_PERSON_KINDS } from '../src/data/greatPeople';
 import { RESOURCES, RESOURCE_IDS } from '../src/data/resources';
 import { UNITS, UNIT_IDS } from '../src/data/units';
@@ -46,9 +47,18 @@ describe('icons', () => {
     expect(credits).toContain(`| ${name} | ${credit!.title} | ${credit!.author} |`);
   });
 
-  it('everything looks different: no icon is used twice', () => {
-    const icons = USED.map((u) => u.icon);
-    expect(new Set(icons).size).toBe(icons.length);
+  it('everything looks different: no icon is used twice (among the map and units, and among buildings and wonders)', () => {
+    const onMap = USED.filter((u) => u.group !== 'Buildings').map((u) => u.icon);
+    expect(new Set(onMap).size).toBe(onMap.length);
+    const built = USED.filter((u) => u.group === 'Buildings').map((u) => u.icon);
+    expect(new Set(built).size).toBe(built.length);
+    // Round 14: a wonder may share a map icon (Dan picked the Iron resource's anvil for the
+    // Grand Workshop; wonders never appear on the map). Only that one does.
+    expect(built.filter((i) => onMap.includes(i))).toEqual(['anvil']);
+  });
+
+  it('every building and wonder has an icon (Round 14)', () => {
+    expect(USED.filter((u) => u.group === 'Buildings')).toHaveLength(17 + WONDER_LIST.length + 1);
   });
 
   it('only used icons are credited, and every bundled file is used', () => {

@@ -6,7 +6,9 @@
 // src/assets/icons/, point the thing at it, and add its credit here (tests/icons.test.ts
 // checks all three line up).
 
+import { BUILDINGS, BUILDING_IDS, type BuildingId } from './buildings';
 import { GREAT_PEOPLE, GREAT_PERSON_KINDS } from './greatPeople';
+import { WONDER_LIST, type WonderId } from './wonders';
 import { RESOURCES, RESOURCE_IDS } from './resources';
 import { RELIGION_SYMBOLS } from './religion';
 import { UNITS, UNIT_IDS } from './units';
@@ -91,6 +93,40 @@ export const ICON_CREDITS: Record<string, IconCredit> = {
   peaks: { title: 'Peaks', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/peaks.html' },
   'big-wave': { title: 'Big wave', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/big-wave.html' },
   'expanded-rays': { title: 'Expanded rays', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/expanded-rays.html' },
+  // Buildings and wonders (Dan's round 14 picks, wired in the same day).
+  'barn': { title: 'Barn', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/barn.html' },
+  'barracks': { title: 'Barracks', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/barracks.html' },
+  'defensive-wall': { title: 'Defensive wall', author: 'HeavenlyDog', url: 'https://game-icons.net/1x1/heavenly-dog/defensive-wall.html' },
+  'bookshelf': { title: 'Bookshelf', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/bookshelf.html' },
+  'shop': { title: 'Shop', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/shop.html' },
+  'egyptian-temple': { title: 'Egyptian temple', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/egyptian-temple.html' },
+  'anchor': { title: 'Anchor', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/anchor.html' },
+  'airplane-departure': { title: 'Airplane departure', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/airplane-departure.html' },
+  'gavel': { title: 'Gavel', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/gavel.html' },
+  'church': { title: 'Church', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/church.html' },
+  'arena': { title: 'Arena', author: 'Sbed', url: 'https://game-icons.net/1x1/sbed/arena.html' },
+  'graduate-cap': { title: 'Graduate cap', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/graduate-cap.html' },
+  'money-stack': { title: 'Money stack', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/money-stack.html' },
+  'factory': { title: 'Factory', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/factory.html' },
+  'power-lightning': { title: 'Power lightning', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/power-lightning.html' },
+  'fizzing-flask': { title: 'Fizzing flask', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/fizzing-flask.html' },
+  'chart': { title: 'Chart', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/chart.html' },
+  'ancient-columns': { title: 'Ancient columns', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/ancient-columns.html' },
+  'great-pyramid': { title: 'Great pyramid', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/great-pyramid.html' },
+  'fruit-tree': { title: 'Fruit tree', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/fruit-tree.html' },
+  'colombian-statue': { title: 'Colombian statue', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/colombian-statue.html' },
+  'crystal-ball': { title: 'Crystal ball', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/crystal-ball.html' },
+  'scroll-unfurled': { title: 'Scroll unfurled', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/scroll-unfurled.html' },
+  'castle': { title: 'Castle', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/castle.html' },
+  'sword-altar': { title: 'Sword altar', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/sword-altar.html' },
+  'medieval-pavilion': { title: 'Medieval pavilion', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/medieval-pavilion.html' },
+  'saint-basil-cathedral': { title: 'Saint basil cathedral', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/saint-basil-cathedral.html' },
+  'observatory': { title: 'Observatory', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/observatory.html' },
+  'radio-tower': { title: 'Radio tower', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/radio-tower.html' },
+  'server-rack': { title: 'Server rack', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/server-rack.html' },
+  'world': { title: 'World', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/world.html' },
+  'pay-money': { title: 'Pay money', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/pay-money.html' },
+  'crown': { title: 'Crown', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/crown.html' },
 };
 
 /** Icons for things that aren't units, resources, or Great People (Dan's round 9 picks). */
@@ -113,7 +149,58 @@ const MAP_ICON_NAMES: Record<keyof typeof MAP_ICONS, string> = {
   holyCity: 'Holy city',
 };
 
-export type IconGroup = 'Units' | 'Map';
+/**
+ * Round 14: each building's icon (Dan's picks from docs/building-icon-candidates.html), shown in
+ * the city panel's build list and building list, and on the Almanac cards.
+ */
+export const BUILDING_ICONS: Record<BuildingId, string> = {
+  granary: 'barn',
+  barracks: 'barracks',
+  walls: 'defensive-wall',
+  library: 'bookshelf',
+  marketplace: 'shop',
+  temple: 'egyptian-temple',
+  harbor: 'anchor',
+  airport: 'airplane-departure',
+  courthouse: 'gavel',
+  cathedral: 'church',
+  colosseum: 'arena',
+  university: 'graduate-cap',
+  bank: 'money-stack',
+  factory: 'factory',
+  power_plant: 'power-lightning',
+  research_lab: 'fizzing-flask',
+  stock_exchange: 'chart',
+};
+
+/** Round 14: each wonder's icon (Dan's picks); one without its own gets GENERIC_WONDER_ICON. */
+export const WONDER_ICONS: Partial<Record<WonderId, string>> = {
+  pyramids: 'great-pyramid',
+  hanging_gardens: 'fruit-tree',
+  colossus: 'colombian-statue',
+  oracle: 'crystal-ball',
+  great_library: 'scroll-unfurled',
+  great_wall: 'castle',
+  war_academy: 'sword-altar',
+  grand_bazaar: 'medieval-pavilion',
+  grand_cathedral: 'saint-basil-cathedral',
+  royal_observatory: 'observatory',
+  grand_workshop: 'anvil',
+  broadcast_tower: 'radio-tower',
+  global_network: 'server-rack',
+  world_council: 'world',
+  global_exchange: 'pay-money',
+  versailles: 'crown',
+};
+
+/** Round 14: the icon for a wonder with none of its own. */
+export const GENERIC_WONDER_ICON = 'ancient-columns';
+
+export function wonderIcon(id: WonderId): string {
+  return WONDER_ICONS[id] ?? GENERIC_WONDER_ICON;
+}
+
+export type IconGroup = 'Units' | 'Map' | 'Buildings';
 
 /** Every icon the game uses, with what it stands for, in the order the credits list them. */
 export function usedIcons(): { group: IconGroup; name: string; icon: string; unit?: (typeof UNIT_IDS)[number] }[] {
@@ -123,5 +210,8 @@ export function usedIcons(): { group: IconGroup; name: string; icon: string; uni
     ...RESOURCE_IDS.map((id) => ({ group: 'Map' as const, name: RESOURCES[id].name, icon: RESOURCES[id].icon })),
     ...GREAT_PERSON_KINDS.map((k) => ({ group: 'Map' as const, name: GREAT_PEOPLE[k].name, icon: GREAT_PEOPLE[k].icon })),
     ...RELIGION_SYMBOLS.map((r) => ({ group: 'Map' as const, name: `Religion: ${r.name}`, icon: r.icon })),
+    ...BUILDING_IDS.map((id) => ({ group: 'Buildings' as const, name: BUILDINGS[id].name, icon: BUILDING_ICONS[id] })),
+    ...WONDER_LIST.map((w) => ({ group: 'Buildings' as const, name: w.name, icon: wonderIcon(w.id) })),
+    { group: 'Buildings' as const, name: 'Any other wonder', icon: GENERIC_WONDER_ICON },
   ];
 }

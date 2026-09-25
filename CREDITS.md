@@ -87,7 +87,52 @@ license, recolored in the game, shapes unchanged.
 | Religion: Mountain | Peaks | Lorc | https://game-icons.net/1x1/lorc/peaks.html | CC BY 3.0 |
 | Religion: Wave | Big wave | Lorc | https://game-icons.net/1x1/lorc/big-wave.html | CC BY 3.0 |
 
+## Building and wonder icons
+
+Since Round 14, the icons for the 17 buildings and the wonders (Dan's picks from
+`docs/building-icon-candidates.html`) are from the same site and license, shapes
+unchanged, shown in the city panel and the Almanac. The Grand Workshop uses the
+same anvil as the Iron resource. "Any other wonder" is the generic wonder icon.
+
+| Building or wonder | Icon | Author | Source | License |
+|---|---|---|---|---|
+| Granary | Barn | Delapouite | https://game-icons.net/1x1/delapouite/barn.html | CC BY 3.0 |
+| Barracks | Barracks | Delapouite | https://game-icons.net/1x1/delapouite/barracks.html | CC BY 3.0 |
+| Walls | Defensive wall | HeavenlyDog | https://game-icons.net/1x1/heavenly-dog/defensive-wall.html | CC BY 3.0 |
+| Library | Bookshelf | Delapouite | https://game-icons.net/1x1/delapouite/bookshelf.html | CC BY 3.0 |
+| Marketplace | Shop | Delapouite | https://game-icons.net/1x1/delapouite/shop.html | CC BY 3.0 |
+| Temple | Egyptian temple | Delapouite | https://game-icons.net/1x1/delapouite/egyptian-temple.html | CC BY 3.0 |
+| Harbor | Anchor | Lorc | https://game-icons.net/1x1/lorc/anchor.html | CC BY 3.0 |
+| Airport | Airplane departure | Delapouite | https://game-icons.net/1x1/delapouite/airplane-departure.html | CC BY 3.0 |
+| Courthouse | Gavel | Lorc | https://game-icons.net/1x1/lorc/gavel.html | CC BY 3.0 |
+| Cathedral | Church | Delapouite | https://game-icons.net/1x1/delapouite/church.html | CC BY 3.0 |
+| Colosseum | Arena | Sbed | https://game-icons.net/1x1/sbed/arena.html | CC BY 3.0 |
+| University | Graduate cap | Delapouite | https://game-icons.net/1x1/delapouite/graduate-cap.html | CC BY 3.0 |
+| Bank | Money stack | Delapouite | https://game-icons.net/1x1/delapouite/money-stack.html | CC BY 3.0 |
+| Factory | Factory | Delapouite | https://game-icons.net/1x1/delapouite/factory.html | CC BY 3.0 |
+| Power Plant | Power lightning | Lorc | https://game-icons.net/1x1/lorc/power-lightning.html | CC BY 3.0 |
+| Research Lab | Fizzing flask | Lorc | https://game-icons.net/1x1/lorc/fizzing-flask.html | CC BY 3.0 |
+| Stock Exchange | Chart | Delapouite | https://game-icons.net/1x1/delapouite/chart.html | CC BY 3.0 |
+| Pyramids | Great pyramid | Delapouite | https://game-icons.net/1x1/delapouite/great-pyramid.html | CC BY 3.0 |
+| Hanging Gardens | Fruit tree | Delapouite | https://game-icons.net/1x1/delapouite/fruit-tree.html | CC BY 3.0 |
+| Colossus | Colombian statue | Delapouite | https://game-icons.net/1x1/delapouite/colombian-statue.html | CC BY 3.0 |
+| Oracle | Crystal ball | Lorc | https://game-icons.net/1x1/lorc/crystal-ball.html | CC BY 3.0 |
+| Great Library | Scroll unfurled | Lorc | https://game-icons.net/1x1/lorc/scroll-unfurled.html | CC BY 3.0 |
+| Great Wall | Castle | Delapouite | https://game-icons.net/1x1/delapouite/castle.html | CC BY 3.0 |
+| War Academy | Sword altar | Delapouite | https://game-icons.net/1x1/delapouite/sword-altar.html | CC BY 3.0 |
+| Grand Bazaar | Medieval pavilion | Delapouite | https://game-icons.net/1x1/delapouite/medieval-pavilion.html | CC BY 3.0 |
+| Grand Cathedral | Saint basil cathedral | Delapouite | https://game-icons.net/1x1/delapouite/saint-basil-cathedral.html | CC BY 3.0 |
+| Royal Observatory | Observatory | Delapouite | https://game-icons.net/1x1/delapouite/observatory.html | CC BY 3.0 |
+| Grand Workshop | Anvil | Lorc | https://game-icons.net/1x1/lorc/anvil.html | CC BY 3.0 |
+| Broadcast Tower | Radio tower | Delapouite | https://game-icons.net/1x1/delapouite/radio-tower.html | CC BY 3.0 |
+| Global Network | Server rack | Delapouite | https://game-icons.net/1x1/delapouite/server-rack.html | CC BY 3.0 |
+| World Council | World | Lorc | https://game-icons.net/1x1/lorc/world.html | CC BY 3.0 |
+| Global Exchange | Pay money | Delapouite | https://game-icons.net/1x1/delapouite/pay-money.html | CC BY 3.0 |
+| Versailles | Crown | Lorc | https://game-icons.net/1x1/lorc/crown.html | CC BY 3.0 |
+| Any other wonder | Ancient columns | Delapouite | https://game-icons.net/1x1/delapouite/ancient-columns.html | CC BY 3.0 |
+
 The other candidates Dan chose from (not used in the game) are in
 `docs/icon-candidates/`, `docs/ship-air-icon-candidates/`,
-`docs/map-icon-candidates/`, and `docs/religion-road-icon-candidates/`, credited in
+`docs/map-icon-candidates/`, `docs/religion-road-icon-candidates/`, and
+`docs/building-icon-candidates/`, credited in
 their `SOURCES.md` files.

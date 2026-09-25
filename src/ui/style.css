@@ -2336,3 +2336,43 @@ button.alink {
   gap: 8px;
   justify-content: flex-end;
 }
+
+/* Round 14: building and wonder icons (Dan's picks) in the build list and the city's lists. */
+.bicon {
+  display: inline-flex;
+  width: calc(22px * var(--ts));
+  height: calc(22px * var(--ts));
+  margin-right: 6px;
+  vertical-align: -5px;
+  color: #f0e2b6;
+  flex: none;
+}
+.bicon svg {
+  width: 100%;
+  height: 100%;
+}
+.bicon.uglyph {
+  width: auto;
+}
+.bchips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.bchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 10px 3px 6px;
+  border-radius: 14px;
+  background: #2b3542;
+  color: #dfe7ef;
+  font-size: calc(14px * var(--ts));
+}
+.bchip .bicon {
+  width: calc(18px * var(--ts));
+  height: calc(18px * var(--ts));
+  margin-right: 4px;
+  vertical-align: 0;
+  color: #dfe7ef;
+}

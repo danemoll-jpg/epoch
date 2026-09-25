@@ -7,7 +7,7 @@ import { CIVS } from '../data/civs';
 import { CITY_FOCUSES, RULES, growthThreshold, type CityFocus } from '../data/rules';
 import { ERAS, TECHS, TECH_LIST, type TechId } from '../data/techs';
 import { TERRAIN } from '../data/terrain';
-import { ICON_CREDITS, ICON_LICENSE, ICON_SITE, MAP_ICONS, usedIcons } from '../data/icons';
+import { BUILDING_ICONS, ICON_CREDITS, ICON_LICENSE, ICON_SITE, MAP_ICONS, usedIcons, wonderIcon } from '../data/icons';
 import { UNITS, type UnitTypeId } from '../data/units';
 import { PROJECTS, VICTORY, VICTORY_NAMES, type VictoryKind } from '../data/victory';
 import { WONDERS, WONDER_LIST } from '../data/wonders';
@@ -167,6 +167,13 @@ export interface AppOptions {
   /** Round 14 (dev scenario): this scenario plays sound, and shows a music switch in its note. */
   scenarioSound?: boolean;
   musicSwitch?: boolean;
+}
+
+/** Round 14: a building's or wonder's icon for a build-list row (nothing for projects). */
+function buildIconHtml(item: BuildItem): string {
+  if (item.kind === 'building') return iconHtml(BUILDING_ICONS[item.id], '', 'bicon');
+  if (item.kind === 'wonder') return iconHtml(wonderIcon(item.id), '★', 'bicon');
+  return '';
 }
 
 /** Round 14: the dev builds' art style switch, kept on this device (never in production). */
@@ -1021,7 +1028,7 @@ export class App {
         // Round 13: ⓘ opens the item's Almanac card.
         return `<div class="buildRow"><button type="button" data-act="build" data-item='${JSON.stringify(item)}'
           class="buildItem ${item.kind} ${sameItem(city.build, item) ? 'on' : ''}">
-          <span class="bname">${item.kind === 'unit' ? this.badge(item.id, this.human) : ''}${itemName(item)}</span>
+          <span class="bname">${item.kind === 'unit' ? this.badge(item.id, this.human) : buildIconHtml(item)}${itemName(item)}</span>
           <span class="bmeta">${itemCostV} · ${note}</span>
           <span class="bdesc">${detail}</span></button><button type="button" class="infoBtn" data-card="${item.kind}:${item.id}" aria-label="About ${esc(itemName(item))}">ⓘ</button></div>`;
       })
@@ -1045,12 +1052,13 @@ export class App {
           .join('') + armyBtns
       : '<span class="sub">None</span>';
 
+    // Round 14: each building with Dan's icon.
     const builtList = city.buildings.length
-      ? city.buildings.map((b) => BUILDINGS[b].name).join(', ')
+      ? `<div class="bchips">${city.buildings.map((b) => `<span class="bchip">${iconHtml(BUILDING_ICONS[b], '', 'bicon')}${esc(BUILDINGS[b].name)}</span>`).join('')}</div>`
       : '<span class="sub">None yet</span>';
     const wonderList = city.wonders.length
       ? `<div class="section"><div class="label">Wonders</div><div>${city.wonders
-          .map((w) => `<b class="wonderName">★ ${WONDERS[w].name}</b> <span class="sub">${WONDERS[w].summary}</span>`)
+          .map((w) => `<b class="wonderName">${iconHtml(wonderIcon(w), '★', 'bicon')} ${WONDERS[w].name}</b> <span class="sub">${WONDERS[w].summary}</span>`)
           .join('<br>')}</div></div>`
       : '';
     // The spaceship is built (and launched) in the capital.
@@ -1222,7 +1230,7 @@ export class App {
   /** ☰ → About / Credits (every build): the game's name and version, and the icon credits the license asks for. */
   private renderAbout(): void {
     // Round 10: the map icons too (village, hut, barbarian badge, artifact, resources, Great People).
-    const rowsFor = (group: 'Units' | 'Map') =>
+    const rowsFor = (group: 'Units' | 'Map' | 'Buildings') =>
       usedIcons()
         .filter((u) => u.group === group)
         .map((u) => {
@@ -1242,6 +1250,9 @@ export class App {
       <ul class="credits">${rowsFor('Units')}</ul>
       <div class="label">Map icons</div>
       <ul class="credits">${rowsFor('Map')}</ul>
+      <div class="label">Building and wonder icons</div>
+      <p class="sub">Also from game-icons.net, same license, shapes unchanged. (The Grand Workshop uses the same anvil as Iron.)</p>
+      <ul class="credits">${rowsFor('Buildings')}</ul>
       ${soundFilesPresent().length ? `<div class="label">Sounds</div><p class="sub">${soundFilesPresent().some((f) => !f.startsWith('music-')) ? 'Sound effects generated with ElevenLabs.' : ''}${musicPresent() ? ' Music generated with Suno.' : ''}</p>` : ''}`;
   }
 

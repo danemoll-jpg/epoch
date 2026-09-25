@@ -644,15 +644,15 @@ what was pushed.
   for Dan:** Huge and Epic maps, the 12×9 opening view, the zoom-out cap and
   the minimap, End Turn in a Web Worker with 4× faster AI turns, pre-drawn
   terrain, the terrain/city style picker page (Dan picked painted terrain
-  and bold buildings, wired in the same day) and the building icon picker
-  page (waiting for his picks), the gold wordmark and the title picture hook (`docs/TITLE-ART.md`),
+  and bold buildings) and the building icon picker page (Dan's 34 picks
+  in `src/data/icons.ts`: `BUILDING_ICONS`, `WONDER_ICONS`), all wired in the
+  same day, the gold wordmark and the title picture hook (`docs/TITLE-ART.md`),
   and music per era with Dan's five Suno tracks. The report and the timing
   table are under Round 14 in TODO.md.
 - **The play server:** http://10.0.0.224:4173/.
 - The epoch repo is pushed every round until Netlify is set up.
 
-**The current objective:** Dan's remaining Round 14 picks (building icons)
-and his iPad timings of `huge-map` / `epic-map`; then
+**The current objective:** Dan's iPad timings of `huge-map` / `epic-map`; then
 Round 15 (balance and go-live prep, in TODO.md's Next Steps), which also wires
 in the picked art.
 

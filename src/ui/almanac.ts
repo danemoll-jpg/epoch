@@ -3,6 +3,7 @@
 // from the data files, so it can't go out of date. Names on a card that have cards of their
 // own are links (`data-card`), and the build list and tech screen open cards the same way.
 
+import { BUILDING_ICONS, wonderIcon } from '../data/icons';
 import { BUILDINGS, BUILDING_IDS } from '../data/buildings';
 import { PLAYABLE_CIVS } from '../data/civs';
 import { DIFFICULTIES, DIFFICULTY_IDS } from '../data/difficulty';
@@ -92,7 +93,7 @@ function buildingCards(): AlmanacCard[] {
       row('Needs', needs(b.requires)) +
       (b.needs ? row('City must have', cardLink(`building:${b.needs}`, BUILDINGS[b.needs].name)) : '') +
       (b.coastal ? row('Where', 'A coastal city (next to water)') : '');
-    return card(`building:${id}`, 'building', b.name, 'Building', disc('🏛'), facts);
+    return card(`building:${id}`, 'building', b.name, 'Building', disc(iconHtml(BUILDING_ICONS[id], '🏛')), facts);
   });
 }
 
@@ -106,7 +107,7 @@ function wonderCards(): AlmanacCard[] {
       (w.victory ? row('Victory', `Finishing it wins a ${VICTORY_NAMES[w.victory].toLowerCase()} victory (with the goal reached)`) : '') +
       (civ ? row('Only for', cardLink(`leader:${civ.id}`, `${civ.leader} of ${civ.name}`) + ', in the capital') : '') +
       row('Rule', 'One per world: the first city to finish it gets it');
-    return card(`wonder:${w.id}`, 'wonder', w.name, w.victory ? 'Victory wonder' : 'Wonder of the world', disc('★'), facts);
+    return card(`wonder:${w.id}`, 'wonder', w.name, w.victory ? 'Victory wonder' : 'Wonder of the world', disc(iconHtml(wonderIcon(w.id), '★')), facts);
   });
 }
 

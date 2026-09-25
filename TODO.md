@@ -1445,6 +1445,28 @@ migration). Tests: **754 pass** (`npm test`, `pace.test.ts` included; 34 new);
   (`huge-map`); 754 tests pass. **Still waiting:** the building icon picks
   (`docs/building-icon-candidates.html`) and the iPad timings.
 
+- **Dan's building icon picks (2026-09-25), from
+  `docs/building-icon-candidates.html`: wired in the same day.** Buildings:
+  Granary B Barn, Barracks A Barracks, Walls B Defensive wall, Library A
+  Bookshelf, Marketplace A Shop, Temple C Egyptian temple, Harbor B Anchor,
+  Airport B Departing plane, Courthouse A Gavel, Cathedral A Church, Colosseum A
+  Arena, University A Graduate cap, Bank C Money stack, Factory A Factory, Power
+  Plant C Lightning, Research Lab C Flask, Stock Exchange A Chart. Wonders:
+  generic A Columns, Pyramids B Great pyramid, Hanging Gardens B Fruit tree,
+  Colossus A Statue, Oracle A Crystal ball, Great Library B Scroll, Great Wall A
+  Castle, War Academy A Sword altar, Grand Bazaar A Pavilion, Grand Cathedral A
+  Domed cathedral, Royal Observatory A Observatory, Grand Workshop B Anvil,
+  Broadcast Tower A Radio tower, Global Network A Servers, World Council A
+  World, Global Exchange B Paying money, Versailles B Crown. Shown in the city
+  panel's build list, its Buildings list (as chips) and Wonders list, and on
+  the Almanac cards; credited in `src/data/icons.ts` (`BUILDING_ICONS`,
+  `WONDER_ICONS`, `GENERIC_WONDER_ICON`), `CREDITS.md`, and About / Credits.
+  **Note:** the Grand Workshop's anvil is the same icon as the Iron resource on
+  the map (the icon test allows only that one share, since wonders never
+  appear on the map); Grand Workshop A (gear and hammer) is the swap if Dan
+  wants them different. 789 tests pass; preview-verified at 1024×768
+  (`huge-map`: build rows, building chips, wonder list, Almanac cards).
+
 **The plan as given (kept for reference):**
 
 **Goal:**
