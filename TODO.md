@@ -982,8 +982,9 @@ Steps, Technical Notes.
       the iPad-size checks were done by measuring (panel buttons 44–56 px, no
       sideways overflow) and by pressing the real buttons from the page.
 
-* **Round 10 — Dan's map and aircraft icons + air units — done (2026-09-24).**
-  Waiting for Dan's checks (below).
+* **Round 10 — Dan's map and aircraft icons + air units — done. ACCEPTED by
+  Dan (2026-09-24).** The Bomber icon question carries over to round 11
+  (Q20).
   - **Result:** 487 unit tests passing (74 new). Type-check and production
     build are clean, and the dev-code leak check passes. Preview-verified on
     desktop and in iPad-sized emulation (768×1024). **Save format 9** (a v8
@@ -1072,17 +1073,236 @@ Steps, Technical Notes.
 
 ## Current Objective (Focus Area)
 
-**Round 10 is done** (see its entry at the end of Completed Tasks), and
-waiting for Dan's checks. The next objective comes from the planning
-session: **M8, the leader roster and Dan's AI portraits**, then M9 (polish).
-The unit roster is now complete: 16 land units (with the Helicopter), 9
-ships, and 4 based aircraft.
+### Round 11 — Milestone 8: Dan's leader roster, starting techs, bonuses, portraits, and choosing your civ
+**REVISED by Dan (2026-09-24), replacing the earlier 16-civ default list.**
+The roster is **Dan's own 12 leaders**. Each fits the game's existing
+mechanics as closely as possible, and **each civ starts with one free
+technology** (Civ Rev style).
 
-Open questions carried from Round 10 (the coding round used the defaults):
-- **Q1 — Working title:** "Epoch" as a codename for now.
-- **Q16 — Air armies:** no (land armies and naval fleets only). Used.
-- **Q17 — Air movement model:** base and strike, with automatic return. Used.
-- **Q18 — Nuclear weapons:** not planned.
+**Goal:**
+- 12 civs, each with a starting tech, a starting bonus, and **one bonus per
+  era**. Three of them also get a unique project or action;
+- choose your civ at New Game;
+- make room for Dan's AI-made portraits;
+- personalities strong enough that **domination wins** finally happen;
+- a small **building expansion**, because several bonuses refer to
+  buildings the game doesn't have yet (Factory, University, Bank, and so
+  on).
+
+**Items for the coding agent. Report status on each one individually:**
+
+0. **Commit the updated docs first:** `CLAUDE.md` and `TODO.md` as their own
+   commit, then re-read them.
+
+**Part A — The roster (Dan's list; all of this is data)**
+
+A1. **12 civs** in `src/data/civs.ts`:
+
+| Civ | Leader | Primary / secondary lean | Starting tech |
+|---|---|---|---|
+| Egypt | Hatshepsut | Economic / Culture | Masonry |
+| Rome | Caligula | Domination / Culture | Bronze Working |
+| Franks | Charlemagne | Domination / Culture | Horseback Riding |
+| Mali | Mansa Musa | Economic / Culture | Currency |
+| England | Henry VIII | Culture / Economic | Ceremonial Burial |
+| France | Louis XIV | Culture / Economic | Mysticism |
+| Russia | Peter the Great | Technology / Domination | **Map Making** (Dan's example: "naval unlocked") |
+| Gran Colombia | Simón Bolívar | Culture / Domination | Code of Laws |
+| United States | John F. Kennedy | Technology / Culture | Writing |
+| Ukraine | Viktor Yushchenko | Technology / Culture | Pottery |
+| Germany | Angela Merkel | Economic / Technology | The Wheel |
+| North Korea | Kim Jong Un | Domination / Technology | Archery |
+
+- **Each civ needs:** a civ name with grammar fields (article and plural,
+  e.g. "the Franks", "the United States"), an adjective, a distinct color
+  (also distinct from the barbarians), a city-name list of at least 12,
+  `aggression` and `tradeWillingness` values that fit the lean, and the
+  AI's victory lean (primary, with secondary as a fallback).
+- **Starting tech rule:** each civ knows its starting tech on turn 1.
+  **Its prerequisites are not granted.** For example, Russia knows Map
+  Making without Alphabet, and can still research Alphabet normally.
+  Everything else in the tree still needs its prerequisites. Make sure
+  trading, the tech screen, the AI, and the tree-validity tests handle a
+  known tech whose prerequisite isn't known.
+- **The old civs:** Babylon, Maurya, and Inca stay in data **only so old
+  saves still load**. They aren't offered at New Game. Mali and the Franks
+  are kept, but get the new bonuses.
+
+A2. **Bonuses.** Every bonus is a small typed effect in data, applied
+    through one function, and tested:
+    - one **starting bonus**;
+    - one bonus for **each era**, switching on when the civ enters it, with
+      a toast;
+    - a few **drawbacks**, where Dan's design calls for a high-risk civ.
+
+    Use our own short wording. Where Dan's notes mention systems the game
+    doesn't have, translate them as follows:
+    - **Prestige → Culture.**
+    - **Stability, happiness, unrest:** the game has none. Use a gold or
+      culture cost, or leave that part out.
+    - **Trade partners / foreign trade:** the civs you've met, the peace
+      treaties you have, and tech trades.
+    - **Nuclear deterrence:** there are no nukes. Use AI war reluctance
+      instead.
+
+| Leader | Start | Ancient | Medieval | Industrial | Modern | Unique / drawback |
+|---|---|---|---|---|---|---|
+| **Hatshepsut** | Wonders cost 15% less | Meeting a new civ: +30 gold; +1 gold per met civ each turn (max +5) | Each wonder she completes also gives +3 culture and +2 gold a turn in its city | Harbors and Marketplaces cost 50% less | +25% gold empire-wide | Land units cost 10% more (limited military) |
+| **Caligula** | Rush-buying costs 25% less | Every combat win: +3 culture ("triumphs") | Military units cost 20% less production | **Can rush-buy wonders**, at 2× the normal rate (no one else can) | Armies and fleets fight at +25% | **Drawback: −10% gold income** (extravagance) |
+| **Charlemagne** | Captured cities lose no population and keep every building | Mounted units start as veterans | Captured cities make +2 culture a turn, permanently ("integration") | With 8+ cities: +1 production in every city ("administration") | Every combat win: +2 culture | — |
+| **Mansa Musa** | +1 gold on every worked tile with a resource | Desert tiles +1 trade; Oasis and Gold resources doubled | Culture buildings (Temple, Cathedral…) 33% cheaper to rush-buy | Capital +50% gold | +25% gold empire-wide | **Pilgrimage** (once per game, from Medieval): spend all gold (min 200) for culture = 1.5× the gold, and every met civ's attitude improves |
+| **Henry VIII** | Great People arrive 20% sooner | Temples and Cathedrals +1 culture | **Dissolution** (once per game): gold = 40 × the number of Temples and Cathedrals you own now, but their culture is halved for 20 turns | Gold gifts improve attitude twice as much; peace offers are accepted more easily ("royal marriages") | +25% culture | **Drawback:** declaring war on a civ you had a peace treaty with makes every civ cooler toward you ("ending marriages has consequences"). Funny event text welcome |
+| **Louis XIV** | Wonders give +50% culture | Luxury resources (Wine, Silk, Spices, Gems, Gold) +1 culture when worked | Capital: +1 culture and +1 gold per wonder in it | **Versailles** (unique wonder, capital only): +10 culture, +25% gold, and +25% production on wonders in the capital | +25% culture empire-wide | **Drawback:** if his capital is captured, −50% culture empire-wide until he retakes it |
+| **Peter the Great** | Techs already known by a civ he's met cost 25% less | Coastal cities +25% production on ships | The first ship of each type he builds costs 50% less | +2 science per met civ | +25% science while he's behind the tech leader ("modernization") | — |
+| **Simón Bolívar** | **Liberation:** capturing a city that was founded by a different civ than its current owner gives +100 culture and +50 gold, and the city keeps its population | Units +25% attack against civs with more cities than him | **Return a liberated city:** when he captures such a city, he may give it back to its founder (if alive): +150 culture, and that civ makes peace and turns friendly | Captured cities +2 culture a turn | +25% culture | **Drawback:** −5% gold for each captured city beyond 3 ("hard to hold a big empire") |
+| **John F. Kennedy** | +10% science | Libraries (and Universities) cost 25% less | Entering a new era first: +50 culture ("historic milestone") | **National Challenge:** mark one tech as a target to get +50% science toward it. One at a time; a new one only after it's learned | **Moonshot** (unique project, needs Rocketry): +200 culture and +25% science. **Spaceship parts cost 50% less production but also cost gold** (megaproject expense) | — |
+| **Viktor Yushchenko** | Plains +1 food ("breadbasket") | Receiving a tech in a trade also gives +20 science, and AIs are more willing to trade with him | +2 science per met civ that knows more techs than him | +10% science for each active peace treaty (max +30%) | Losing a city or ending a war gives +50 culture ("resilience") | — |
+| **Angela Merkel** | Buildings cost 10% less | Her cities defend at +25% ("hard to knock over") | Barbarian raids steal half as much, and her cities never shrink from starvation | Factories give +2 gold ("exports") and her production is +10% | +25% science in cities with a Factory ("advanced energy") | — |
+| **Kim Jong Un** | Techs that unlock military units cost 25% less | City defenders +25% | Military units cost 15% less production | Siege units and bombers attack at +25% ("missiles") | **Deterrence:** AIs are much less likely to declare war on him or demand tribute | **Drawback:** −10% science and −10% gold, and AIs are half as willing to trade techs with him (isolation) |
+
+    If any bonus turns out to be too strong or too weak in the sim, adjust
+    the numbers, not the idea, and report it.
+
+**Part B — Buildings the bonuses need (a small expansion; numbers in
+data)**
+
+B1. **Add a mid/late building set, with our own descriptions and sensible
+    techs:**
+
+    | Building | Tech | Effect |
+    |---|---|---|
+    | Courthouse | Code of Laws | +1 gold; captured cities recover faster |
+    | Cathedral | Monotheism | +3 culture |
+    | Colosseum | Construction | +2 culture |
+    | University | University | +50% science; needs a Library |
+    | Bank | Banking | +50% gold; needs a Marketplace |
+    | Factory | Industrialization | +50% production |
+    | Power Plant | Electricity | +25% production; needs a Factory |
+    | Research Lab | Computers | +50% science; needs a University |
+    | Stock Exchange | Corporation | +50% gold; needs a Bank |
+
+    - the AI builds them;
+    - re-check the era pace (`npm run sim`, `pace.test.ts`), since these add
+      economy;
+    - **building icons stay text for now.** Icons for buildings can come in
+      M9 with a picker page.
+
+**Part C — Choosing your civ and portraits**
+
+C1. **New Game setup screen**, touch-first:
+    - civ cards for all 12, with the portrait (or placeholder), leader,
+      civ, color, starting tech, and starting bonus. Tap a card to see all
+      bonuses;
+    - a **number of rivals** control, 1–4, default 4;
+    - **Random civ**;
+    - Start;
+    - rivals are drawn at random (seeded) from the rest;
+    - it works in portrait and landscape;
+    - the old game is kept as a backup.
+
+C2. **Leader portraits (Dan will make these with AI image tools):**
+    - add an optional `portrait` per leader, loaded from
+      `src/assets/portraits/<civ-id>.webp` (or `.png`), bundled;
+    - the placeholder is the initials on the civ color in a circle;
+    - show portraits on the civ cards, in first contact, diplomacy,
+      demands and offers, the victory progress cards, and the victory and
+      defeat screens;
+    - write **`docs/PORTRAITS.md` for Dan**, covering: square 512 × 512
+      px, PNG or WebP, the face centered with margin (it's cropped to a
+      circle when small), the exact file name per civ, and where to drop
+      the files (no code change needed);
+    - add a test that a portrait, if present, is square and at least
+      256 px.
+
+C3. **`docs/portraits.html` check page:** all 12 leaders at every size the
+    game uses, served by the play server at `/docs/…`.
+
+**Part D — AI personalities and domination**
+
+D1. **Personalities:** each leader's lean, `aggression`, and
+    `tradeWillingness` drive the existing AI. Caligula, Charlemagne, and
+    Kim Jong Un are the conquest-minded ones, with Bolívar and Peter as
+    secondary conquerors. Kim's Deterrence also affects **other** AIs' war
+    choices.
+
+D2. **Make domination wins possible:** tune so the conquest-minded AIs
+    actually pursue conquest:
+    - more wars when they're stronger, and staying in a war that's going
+      well;
+    - using armies, fleets, transports, and bombers;
+    - not drifting to a technology lean as their tech count grows.
+
+    **Target:** in a 10-seed sim with 5 civs drawn from the 12,
+    **domination wins in some games**, games end around turns 180–240, and
+    **none end before turn 150**. Report the victory mix, and which leaders
+    win how often, so no single leader dominates the results.
+
+**Part E — Wrap-up**
+
+E1. **Save migration v9 → v10:**
+    - existing games keep their civs (the legacy Babylon, Maurya, and Inca
+      included);
+    - Mali and the Franks get their new bonuses; the legacy civs get none;
+    - era bonuses for eras already reached switch on without retroactive
+      payouts;
+    - no starting tech is granted retroactively;
+    - the new buildings become available by tech;
+    - backups are kept.
+
+E2. **Dev scenarios, each with a note:**
+    - `new-game-setup`;
+    - `starting-tech`: Russia on turn 1 with Map Making, able to build a
+      Galley;
+    - `era-bonus`;
+    - `caligula-buy-wonder`;
+    - `mansa-pilgrimage`;
+    - `henry-dissolution`;
+    - `bolivar-liberate`: capture and return a city;
+    - `jfk-challenge`;
+    - `versailles`;
+    - `deterrence`;
+    - `portraits`.
+
+E3. **Unit tests:**
+    - the roster is valid (12 civs, unique ids and colors, grammar fields,
+      name lists);
+    - the starting-tech rule (known without prerequisites, and still
+      tradeable and researchable consistently);
+    - **every bonus and drawback**;
+    - the once-per-game actions and unique projects;
+    - the new buildings and their prerequisites;
+    - rival drawing (seeded, no duplicates);
+    - the player's civ choice;
+    - portrait checks;
+    - the personalities are deterministic;
+    - at least one domination win across the sim seeds;
+    - the v9 → v10 migration;
+    - every new scenario;
+    - `pace.test.ts` still passing.
+
+**Done means:**
+- every item (0, A1–A2, B1, C1–C3, D1–D2, E1–E3) is reported individually,
+  including **the final bonus table with any numbers you changed**;
+- tests pass;
+- it's preview-verified on desktop and in iPad emulation;
+- the epoch repo is **pushed**, and the play server is **restarted**.
+
+Dan then:
+- (a) starts a new game and picks a leader;
+- (b) reads `docs/PORTRAITS.md` and drops in some portraits;
+- (c) tries the leader scenarios.
+
+**Open questions (defaults in bold; the coding agent proceeds on the default
+unless Dan decides otherwise):**
+- **Q1 — Working title:** **"Epoch" as a codename for now.**
+- **Q19 — Roster size:** **Dan's 12.** More can be added later as data.
+- **Q20 — Bomber icon:** **DECIDED by Dan: keep Carpet Bombing.**
+- **Q21 — Difficulty levels:** **M9.**
+- **Q22 — Starting-tech prerequisites:** **not granted** (e.g. Map Making
+  without Alphabet).
+- **Q23 — Living leaders** (Merkel, Yushchenko, Kim Jong Un): **fine for the
+  family-and-friends build**, as decided earlier. They're on the list to
+  review before any public release.
 
 ## Next Steps (Do Not Start Yet)
 
@@ -1125,15 +1345,43 @@ milestone before it. None has been decided against.
   a credit). Tests: every unit has a bundled, credited icon (366 pass).
   Preview-verified on desktop (`all-ships`: all 9 drawn, Carrier distinct
   from the Battleship). Only the aircraft icons remain (round 10).
-- **Leader portraits (Dan may make these with AI image tools).** Plan
-  for them in M8: each leader gets an optional `portrait` image path in
-  the data, with a placeholder (initials on the civ color) until Dan
-  supplies art. They show on first contact, in diplomacy, and in demands.
-  When M8 is scoped, tell Dan the exact size and format (e.g. square
-  PNG/WebP, about 512 px).
-- **Milestone 8 — Leader roster:** 12–16 civs, each leader with era-based
-  bonuses, all in data. Any historical or real figure is allowed for
-  family-and-friends use.
+- **Round 12 — Religion + Roads** (both DECIDED by Dan, 2026-09-24; bundled
+  into one round).
+  - **Religion (Dan's own twist; Civ Rev 1 had no religion system):**
+    - **Founding:** the first civ to learn certain techs (e.g. Mysticism,
+      Monotheism, and maybe 1–2 more) founds a religion. Dan names his own,
+      or takes a generic name; the AI uses generic names of our own.
+      **Invented or generic names only, not real-world religions.**
+    - **Holy city:** the founding city gets extra culture and gold.
+    - **Spread:** it spreads to nearby cities over time, faster with a
+      **Missionary** unit (Dan picks its icon first) and Temples,
+      Cathedrals, or Great Artists. A city has one majority religion.
+    - **Effects:** civs sharing a religion are friendlier, and different
+      ones a bit cooler. Converting a rival's cities gives the founder a
+      small gold or culture bonus. **It feeds culture; there's no religious
+      victory.**
+    - **Henry VIII hook:** he may found a national religion even if he
+      wasn't first. Fits his "royal power" theme.
+    - **UI:** a religion line in the city panel, and a religion screen or
+      section.
+    - The AI founds, spreads, and uses Missionaries. Migration, scenarios,
+      and tests as usual.
+  - **Roads and railroads (gap found by Dan; there are none today, and the
+    Railroad tech unlocks nothing):**
+    - **Civ Rev style, no worker units:** roads are **bought with gold**. In
+      the city panel, "Build road to <city>" shows the cost per tile, and
+      the road is laid along the best land path at once;
+    - moving along a road costs 1/3 of a move. Optionally +1 trade on
+      worked road tiles (in data);
+    - the **Railroad** tech upgrades roads to rails: much faster, and
+      optionally +1 production on worked rail tiles;
+    - everyone can use roads, enemies at war included. Captured areas pass
+      to the new owner. No pillaging;
+    - the AI buys roads between nearby cities and toward the front;
+    - the map draws roads and rails as lines;
+    - migration, scenarios, and tests.
+  - Merkel's "infrastructure" and Hatshepsut's "trade" bonuses could hook
+    into roads here, if it fits.
 - **Milestone 9 — Polish:** an original art pass, sound, a main menu, and
   difficulty levels.
 - **Cloud saves (optional, later).** This would let a game continue across

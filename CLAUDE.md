@@ -441,15 +441,28 @@ what was pushed.
 ## Where things stand
 **Always check `TODO.md` for the current objective before starting work.**
 
-- **Milestones 1–7, naval, and air** are done: land, sea, and air units,
-  wonders, culture, the four victories, diplomacy, barbarians, villages,
-  resources, huts, and Great People. **Round 10** (Dan's map and aircraft
-  icons, and air units) is done and waiting for Dan's checks.
+- **Milestones 1–7, naval, and air** are done and accepted. The full unit
+  roster (land, sea, and air) has Dan's icons, plus wonders, culture, the
+  four victories, diplomacy, barbarians, villages, resources, huts, and
+  Great People.
 - **The play server:** http://10.0.0.224:4173/.
 - The epoch repo is pushed every round until Netlify is set up.
 
-**Next (from the planning session):** M8 (the leader roster and Dan's AI
-portraits), then M9 (polish). See TODO.md.
+**The current objective is Round 11 (Milestone 8), revised with Dan's own
+roster:**
+- **12 leaders:** Hatshepsut, Caligula, Charlemagne, Mansa Musa, Henry VIII,
+  Louis XIV, Peter the Great, Simón Bolívar, JFK, Viktor Yushchenko, Angela
+  Merkel, and Kim Jong Un;
+- each with a **starting tech**, a starting bonus, and era bonuses, plus
+  unique actions and projects (Pilgrimage, Dissolution, Versailles,
+  Moonshot, National Challenge, Liberation);
+- a small building expansion (Factory, University, Bank…);
+- a New Game setup screen;
+- portrait support;
+- domination tuning.
+
+See items 0, A1–A2, B1, C1–C3, D1–D2, and E1–E3 in TODO.md. Next: Round 12
+(religion + roads), then M9 (polish).
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.
