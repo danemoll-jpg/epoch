@@ -1435,6 +1435,16 @@ migration). Tests: **754 pass** (`npm test`, `pace.test.ts` included; 34 new);
   (`era-music` jumps through them); (d) optionally, make the title picture from
   `docs/TITLE-ART.md`.
 
+- **Dan's art picks (2026-09-25), from `docs/terrain-style-candidates.html`:
+  Terrain A (Painted), City style B (Bold buildings). Wired in the same day**
+  as the game's look (`DEFAULT_ART` in `src/render/art.ts`), in every build.
+  The old look stays in the code as "Old" on the dev-only ☰ → Art style
+  switch, with the other candidates, for comparison. The painted water
+  shimmers: the map redraws about 8 times a second while the page is showing
+  (about 3–5 ms a frame on this PC). Preview-verified at 1024×768
+  (`huge-map`); 754 tests pass. **Still waiting:** the building icon picks
+  (`docs/building-icon-candidates.html`) and the iPad timings.
+
 **The plan as given (kept for reference):**
 
 **Goal:**

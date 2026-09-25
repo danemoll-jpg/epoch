@@ -2717,14 +2717,14 @@ export class App {
         const btn = (e.target as HTMLElement).closest('button');
         if (btn && btn.dataset.scenario !== undefined) gotoScenario(btn.dataset.scenario || undefined);
       });
-      // Round 14: switch between the art candidates (dev builds only, until Dan picks).
+      // Round 14: switch between the art styles (dev builds only; the game shows Dan's picks).
       this.art = loadDevArt();
       const art = document.createElement('div');
       art.id = 'devArt';
       const render = () => {
         const row = (label: string, kind: 'terrain' | 'city', list: { id: string; letter: string; name: string }[]) =>
           `<div class="devArtRow"><span>${label}</span>${list
-            .map((st) => `<button type="button" data-art="${kind}" data-id="${st.id}" class="${this.art[kind] === st.id ? 'on' : ''}" title="${esc(st.name)}">${st.letter === '–' ? 'Now' : st.letter}</button>`)
+            .map((st) => `<button type="button" data-art="${kind}" data-id="${st.id}" class="${this.art[kind] === st.id ? 'on' : ''}" title="${esc(st.name)}">${st.letter === '–' ? 'Old' : st.letter}</button>`)
             .join('')}</div>`;
         art.innerHTML = `<div class="label">Art style (dev only)</div>${row('Terrain', 'terrain', TERRAIN_STYLES)}${row('Cities', 'city', CITY_STYLES)}`;
       };

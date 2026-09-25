@@ -317,7 +317,8 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   `music-1.mp3` as the theme's fallback. `src/render/art.ts`: the terrain
   styles (`classic` = today's look, A `painted`, B `storybook`, C `flat`) and
   city styles (`classic`, A `towns`, B `bold`), drawn in code; `DEFAULT_ART` is
-  what the game shows (today's look until Dan picks). `src/render/minimap.ts`
+  what the game shows: **Dan's picks, A painted terrain and B bold buildings**
+  (2026-09-25); `classic` is the old look, kept for the dev switch. `src/render/minimap.ts`
   and `camera.ts`'s `defaultTileSize` (about 12×9 tiles at the start) and
   `minTileSize` (pinch-out cap). `renderer.ts`'s `TerrainChunks` pre-draws the
   terrain in chunks once the zoom holds. `src/game/heap.ts` (the path
@@ -642,16 +643,16 @@ what was pushed.
 - **Round 14 (M9 part 2) is done by the coding agent (2026-09-25), waiting
   for Dan:** Huge and Epic maps, the 12×9 opening view, the zoom-out cap and
   the minimap, End Turn in a Web Worker with 4× faster AI turns, pre-drawn
-  terrain, the terrain/city style picker page and the building icon picker
-  page (Dan picks; nothing wired until then except walls, drawn in today's
-  look), the gold wordmark and the title picture hook (`docs/TITLE-ART.md`),
+  terrain, the terrain/city style picker page (Dan picked painted terrain
+  and bold buildings, wired in the same day) and the building icon picker
+  page (waiting for his picks), the gold wordmark and the title picture hook (`docs/TITLE-ART.md`),
   and music per era with Dan's five Suno tracks. The report and the timing
   table are under Round 14 in TODO.md.
 - **The play server:** http://10.0.0.224:4173/.
 - The epoch repo is pushed every round until Netlify is set up.
 
-**The current objective:** Dan's picks from Round 14 (terrain style, city
-style, building icons) and his iPad timings of `huge-map` / `epic-map`; then
+**The current objective:** Dan's remaining Round 14 picks (building icons)
+and his iPad timings of `huge-map` / `epic-map`; then
 Round 15 (balance and go-live prep, in TODO.md's Next Steps), which also wires
 in the picked art.
 

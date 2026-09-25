@@ -9,8 +9,8 @@
 // with size (src/data/cityLooks.ts) and change with the owner's era:
 //   A 'towns' soft little houses on a patch of the owner's color (goes with painted);
 //   B 'bold'  outlined storybook buildings with roofs in the owner's color (goes with storybook).
-// The renderer draws the chosen style through these functions; only dev builds can switch
-// (☰ → Art style) until Dan picks. Everything here is read-only drawing.
+// Dan picked A painted and B bold (2026-09-25); they're the game's look (DEFAULT_ART). Dev
+// builds can still switch (☰ → Art style). Everything here is read-only drawing.
 
 import type { CityLookId } from '../data/cityLooks';
 import type { TerrainId } from '../data/terrain';
@@ -23,18 +23,21 @@ export interface ArtChoice {
   city: CityStyleId;
 }
 
-/** What the game shows until Dan picks (and what production builds always show until then). */
-export const DEFAULT_ART: ArtChoice = { terrain: 'classic', city: 'classic' };
+/**
+ * What the game shows: Dan's picks (2026-09-25), painted terrain (A) and bold buildings (B).
+ * Dev builds can still switch (☰ → Art style), including back to the old look ('classic').
+ */
+export const DEFAULT_ART: ArtChoice = { terrain: 'painted', city: 'bold' };
 
 export const TERRAIN_STYLES: { id: TerrainStyleId; letter: string; name: string; summary: string }[] = [
-  { id: 'classic', letter: '–', name: 'Today’s look', summary: 'Flat colors, simple marks, a faint grid.' },
+  { id: 'classic', letter: '–', name: 'The old look', summary: 'Flat colors, simple marks, a faint grid (the look before Round 14).' },
   { id: 'painted', letter: 'A', name: 'Painted', summary: 'Soft gradients, shaded hills, tree clusters, sandy shores, shimmering water.' },
   { id: 'storybook', letter: 'B', name: 'Storybook', summary: 'Bright colors, bold outlines along the coasts, lollipop trees; matches the portraits.' },
   { id: 'flat', letter: 'C', name: 'Clean flat', summary: 'Muted modern colors, small geometric marks, no gradients.' },
 ];
 
 export const CITY_STYLES: { id: CityStyleId; letter: string; name: string; summary: string }[] = [
-  { id: 'classic', letter: '–', name: 'Today’s look', summary: 'A square in the owner’s color with the size on it (now with walls).' },
+  { id: 'classic', letter: '–', name: 'The old look', summary: 'A square in the owner’s color with the size on it (with walls).' },
   { id: 'towns', letter: 'A', name: 'Little towns', summary: 'Soft houses on a patch of the owner’s color; more and taller as the city grows.' },
   { id: 'bold', letter: 'B', name: 'Bold buildings', summary: 'Outlined storybook buildings with roofs in the owner’s color.' },
 ];

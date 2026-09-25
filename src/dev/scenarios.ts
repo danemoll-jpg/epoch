@@ -1666,19 +1666,19 @@ const ROUND14_SCENARIOS: Scenario[] = [
   {
     id: 'city-growth-looks',
     title: 'Art: city looks by size and era',
-    note: `Four civs, one per era (top to bottom: Ancient, Medieval, Industrial, Modern), each with a village (size ${LOOK_SIZES[0]}), a town (${LOOK_SIZES[1]}), a city (${LOOK_SIZES[2]}), and a metropolis (${LOOK_SIZES[3]}), left to right, and a walled metropolis on the right. Open ☰ → Art style (dev only) and switch Cities between Now, A, and B: A and B grow with size and change with the era; Now is today's square. The capital star stays on the left-hand city of each row.`,
+    note: `Four civs, one per era (top to bottom: Ancient, Medieval, Industrial, Modern), each with a village (size ${LOOK_SIZES[0]}), a town (${LOOK_SIZES[1]}), a city (${LOOK_SIZES[2]}), and a metropolis (${LOOK_SIZES[3]}), left to right, and a walled metropolis on the right. These are drawn in Bold buildings (B, Dan's pick): they grow with size and change with the era. ☰ → Art style (dev only) switches Cities to A (little towns) or Old (the plain square) to compare. The capital star stays on the left-hand city of each row.`,
     build: cityLooksState,
   },
   {
     id: 'walls-drawn',
     title: 'Art: walls drawn',
-    note: `${CAPITAL} has Walls; Ur, to its east, doesn't. ${CAPITAL} shows a stone wall with towers around its square (today's look too). ☰ → Art style (dev only): switch Cities to A or B; the walls stay.`,
+    note: `${CAPITAL} has Walls; Ur, to its east, doesn't. ${CAPITAL} shows a stone wall with corner towers around its buildings. ☰ → Art style (dev only): switch Cities to A or Old; the walls stay.`,
     build: wallsDrawnScenario,
   },
   {
     id: 'terrain-styles',
     title: 'Art: terrain styles',
-    note: `A small map with every terrain, a coast and an island, cities, units, an army, a ship, resources, a hut, a barbarian village, a road, a railroad, and fog (the dim tiles). Open ☰ → Art style (dev only) and switch Terrain between Now, A (painted; its water shimmers), B (storybook), and C (clean flat), and Cities between Now, A, and B. The same styles are on docs/terrain-style-candidates.html for picking. Only dev builds can switch; the game keeps today's look until Dan picks.`,
+    note: `A small map with every terrain, a coast and an island, cities, units, an army, a ship, resources, a hut, a barbarian village, a road, a railroad, and fog (the dim tiles). The game draws Dan's picks: Painted terrain (A; its water shimmers) and Bold buildings (B). ☰ → Art style (dev only) switches Terrain between Old, A, B (storybook), and C (clean flat), and Cities between Old, A, and B, to compare.`,
     build: artDemoState,
   },
   {
