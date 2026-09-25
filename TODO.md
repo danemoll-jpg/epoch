@@ -1431,6 +1431,27 @@ suite). Lint and build clean; the dev-code check passes.
   (and any founding tech someone already knows) won't found anything; the
   next founding tech nobody knows yet still does.
 
+- **Dan's religion icon picks (2026-09-25), from
+  `docs/religion-road-icon-candidates.html`; not wired in yet:**
+
+  | Subject | Pick | File | game-icons.net icon | Author |
+  |---|---|---|---|---|
+  | Missionary | B, Robed figure | `missionary-b.svg` | robe | Lorc |
+  | Sun disc | A, Sun | `sun-a.svg` | sun | Lorc |
+  | Flame | A, Flame | `flame-a.svg` | flame | Carl Olsen |
+  | Star | A, Five-point star | `star-a.svg` | round-star | Delapouite |
+  | Eye | A, Eye | `eye-a.svg` | semi-closed-eye | Lorc |
+  | Tree | B, Pine | `tree-b.svg` | pine-tree | Lorc |
+  | Spiral | B, Vortex | `spiral-b.svg` | vortex | Lorc |
+  | Mountain | B, Peaks | `mountain-b.svg` | peaks | Lorc |
+  | Wave | A, Breaking wave | `wave-a.svg` | big-wave | Lorc |
+  | Holy city | B, Pillar of light | `holy-city-b.svg` | expanded-rays | Lorc |
+
+  Things to watch when these are wired in (from the picker's own notes):
+  Star A is the same shape as the capital star already drawn on a city,
+  and the Holy city pick has rays like the Sun disc. **Carl Olsen is a new
+  author**, so CREDITS.md and About / Credits need them.
+
 **Open questions (defaults in bold; the coding agent proceeds on the default
 unless Dan decides otherwise):**
 - **Q1 — Working title:** **"Epoch" as a codename for now.**
