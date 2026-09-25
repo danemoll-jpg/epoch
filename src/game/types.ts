@@ -3,6 +3,8 @@
 
 import type { HutResultKind } from '../data/barbarians';
 import type { BuildingId } from '../data/buildings';
+import type { DifficultyId } from '../data/difficulty';
+import type { MapSizeId } from '../data/mapSizes';
 import type { GreatPersonKind } from '../data/greatPeople';
 import type { ResourceId } from '../data/resources';
 import type { UniqueId } from '../data/leaders';
@@ -180,8 +182,9 @@ export interface City {
  * 9 = Round 10 (aircraft: based in cities or on Carriers; the Airport's airlift).
  * 10 = Round 11 (leaders: who founded each city, once-per-game actions, the National Challenge).
  * 11 = Round 12 (religions, each city's religion, Missionaries; roads and rails on tiles).
+ * 12 = Round 13 (the game's difficulty level and map size).
  */
-export const STATE_VERSION = 11;
+export const STATE_VERSION = 12;
 
 export interface GameState {
   version: number;
@@ -225,6 +228,10 @@ export interface GameState {
    * it when an older save was upgraded), so nobody founds with them.
    */
   religionTechsLapsed: TechId[];
+  /** Round 13: the difficulty level (src/data/difficulty.ts); older saves are Normal. */
+  difficulty: DifficultyId;
+  /** Round 13: the map size it was made with (src/data/mapSizes.ts); older saves are Normal. */
+  mapSize: MapSizeId;
 }
 
 /** A founded religion (Round 12). Its holy city's owner gets the holy-city income. */

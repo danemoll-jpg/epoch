@@ -461,7 +461,7 @@ describe('save migration v10 → v11 (D1)', () => {
     const s = res.state;
     expect(res.migratedFrom).toBe(10);
     expect(s.version).toBe(STATE_VERSION);
-    expect(STATE_VERSION).toBe(11);
+    expect(STATE_VERSION).toBeGreaterThanOrEqual(11);
     expect(s.religions).toEqual([]);
     expect(s.religionTechsLapsed).toEqual(['mysticism']);
     expect(s.cities.every((c) => c.religion === null)).toBe(true);
@@ -483,6 +483,6 @@ describe('save migration v10 → v11 (D1)', () => {
 
   it('keeps a backup-worthy summary of what changed', async () => {
     const { migrationSummary } = await import('../src/game/save');
-    expect(migrationSummary(10)).toBe('religion, Missionaries, and roads');
+    expect(migrationSummary(10).startsWith('religion, Missionaries, and roads')).toBe(true);
   });
 });

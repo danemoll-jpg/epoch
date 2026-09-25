@@ -12,8 +12,8 @@ export const CITY_FOCUSES: CityFocus[] = ['balanced', 'food', 'production', 'tra
 export const RULES = {
   mapWidth: 32,
   mapHeight: 24,
-  /** Civs per full game (1 human + 4 AI). */
-  maxPlayers: 5,
+  /** Most civs in any game (Round 13: a Large map fits 1 human + 5 AI; Normal stops at 5). */
+  maxPlayers: 6,
   /** Players in a new game when the URL doesn't say (the human + 4 AI rivals). */
   defaultPlayers: 5,
   startingUnits: ['settler', 'warrior'] as UnitTypeId[],

@@ -3,6 +3,8 @@
 
 import { PLAYABLE_CIVS, findCiv, type CivDef } from '../data/civs';
 import { RULES } from '../data/rules';
+import { DEFAULT_DIFFICULTY, DIFFICULTIES, type DifficultyId } from '../data/difficulty';
+import { DEFAULT_MAP_SIZE, MAP_SIZES, mapShape, type MapSizeId } from '../data/mapSizes';
 import { STARTING_TECHS } from '../data/techs';
 import { UNITS } from '../data/units';
 import { updateExplored } from './fog';
@@ -27,6 +29,10 @@ export interface NewGameOptions {
   civ?: string;
   /** Barbarians, their villages, and huts (Round 9). On unless a test turns them off. */
   barbarians?: boolean;
+  /** Round 13: the difficulty level (Normal unless chosen). */
+  difficulty?: DifficultyId;
+  /** Round 13: the map size (Normal unless chosen); width/height (tests) override its grid. */
+  mapSize?: MapSizeId;
   width?: number;
   height?: number;
 }
@@ -49,17 +55,23 @@ export function createGame(opts: NewGameOptions): GameState {
   if (playerCount < 1 || playerCount > RULES.maxPlayers || playerCount > PLAYABLE_CIVS.length) {
     throw new Error(`playerCount must be 1..${Math.min(RULES.maxPlayers, PLAYABLE_CIVS.length)}`);
   }
+  const sizeId = opts.mapSize ?? DEFAULT_MAP_SIZE;
+  if (playerCount > MAP_SIZES[sizeId].maxRivals + 1) throw new Error(`A ${sizeId} map fits at most ${MAP_SIZES[sizeId].maxRivals} rivals`);
   if (opts.civ !== undefined && !PLAYABLE_CIVS.some((c) => c.id === opts.civ)) throw new Error(`Unknown civ ${opts.civ}`);
-  const width = opts.width ?? RULES.mapWidth;
-  const height = opts.height ?? RULES.mapHeight;
+  const difficulty = opts.difficulty ?? DEFAULT_DIFFICULTY;
+  const mapSize = opts.mapSize ?? DEFAULT_MAP_SIZE;
+  const size = MAP_SIZES[mapSize];
+  const width = opts.width ?? size.width;
+  const height = opts.height ?? size.height;
   const rng = { rngState: hashSeed(opts.seed) };
 
   // Regenerate (deterministically, continuing the same RNG) until everyone has a start.
   let map: GameMap | undefined;
   let starts: Coord[] = [];
   for (let attempt = 0; attempt < MAX_MAP_ATTEMPTS; attempt++) {
-    map = generateMap(rng, { width, height });
-    starts = findStartPositions(map, rng, playerCount, RULES.minStartDistance);
+    const shape = mapShape(mapSize);
+    map = generateMap(rng, { width, height, shape });
+    starts = findStartPositions(map, rng, playerCount, size.minStartDistance, shape.minStartLandmass);
     if (starts.length >= playerCount) break;
   }
   if (!map || starts.length < playerCount) throw new Error('Could not place all players');
@@ -119,12 +131,16 @@ export function createGame(opts: NewGameOptions): GameState {
     greatPeopleNames: [],
     religions: [],
     religionTechsLapsed: [],
+    difficulty,
+    mapSize,
   };
 
   players.forEach((p, i) => {
     if (p.kind === 'barbarian') return;
     const start = starts[i]!;
-    for (const type of RULES.startingUnits) {
+    // Round 13: on Legendary every AI starts with a few extra units.
+    const extra = p.kind === 'ai' ? DIFFICULTIES[difficulty].extraAiUnits : [];
+    for (const type of [...RULES.startingUnits, ...extra]) {
       const unit: Unit = {
         id: state.nextId++,
         type,

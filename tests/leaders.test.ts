@@ -695,8 +695,8 @@ describe('choosing your civ and drawing rivals (C1)', () => {
     expect(civs(c)).not.toEqual(civs(a));
     expect(() => createGame({ seed: 1, civ: 'babylon' })).toThrow();
   });
-  it('rivals 1–4, and a random civ when none is chosen', () => {
-    for (let rivals = 1; rivals <= RULES.maxPlayers - 1; rivals++) {
+  it('rivals 1–4 (on a Normal map), and a random civ when none is chosen', () => {
+    for (let rivals = 1; rivals <= RULES.defaultPlayers - 1; rivals++) {
       const g = createGame({ seed: 5, playerCount: rivals + 1 });
       expect(g.players.filter((p) => p.kind === 'ai')).toHaveLength(rivals);
     }

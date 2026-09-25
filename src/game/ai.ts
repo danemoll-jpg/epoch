@@ -44,9 +44,10 @@
 // friends' (their capitals above all). Spare gold buys one road a turn: toward the war target
 // at war, else the cheapest missing link between two of its cities.
 
+import { victoryGoals } from '../data/mapSizes';
 import { AI_BUILDING_ORDER, type BuildingId } from '../data/buildings';
 import { RULES } from '../data/rules';
-import { VICTORY, type VictoryKind } from '../data/victory';
+import { type VictoryKind } from '../data/victory';
 import { WONDERS, WONDER_IDS, type WonderId } from '../data/wonders';
 import { aiVictoryGoal } from './aiGoals';
 import { TERRAIN } from '../data/terrain';
@@ -404,7 +405,7 @@ function manageCities(state: GameState, playerId: number): void {
   // Spare gold finishes Settlers, buildings, spaceship parts, and (at war) units, cheapest
   // first. An AI saving up for the economic win keeps the goal in the bank.
   const player = state.players[playerId]!;
-  const reserve = ctx.goal === 'economic' ? VICTORY.goldGoal + AI.goldReserve : AI.goldReserve;
+  const reserve = ctx.goal === 'economic' ? victoryGoals(state.mapSize).gold + AI.goldReserve : AI.goldReserve;
   const buys = citiesOf(state, playerId)
     .filter((c) => {
       if (!c.build || buyError(state, c)) return false;
@@ -429,7 +430,7 @@ function setAiScienceRate(state: GameState, playerId: number, goal: VictoryKind)
   const V = AI.victory;
   const rich = V.richGold + V.richGoldPerCity * citiesOf(state, playerId).length;
   let rate = p.scienceRate;
-  if (goal === 'economic' && p.gold < VICTORY.goldGoal) rate = V.economicScienceRate;
+  if (goal === 'economic' && p.gold < victoryGoals(state.mapSize).gold) rate = V.economicScienceRate;
   else if (p.gold >= rich) rate = V.richScienceRate;
   else if (p.gold <= V.poorGold || rate === V.economicScienceRate) rate = RULES.defaultScienceRate;
   if (rate !== p.scienceRate) setScienceRate(state, rate);

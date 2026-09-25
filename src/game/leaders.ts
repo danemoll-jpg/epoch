@@ -6,6 +6,7 @@
 
 import { BUILDINGS, isCultureBuilding } from '../data/buildings';
 import { findCiv } from '../data/civs';
+import { DEFAULT_DIFFICULTY, DIFFICULTIES } from '../data/difficulty';
 import { LEADER_BONUSES, UNIQUE_RULES, type Bonus, type CostScope, type LeaderBonuses, type LeaderEffect, type UniqueId } from '../data/leaders';
 import { ERAS, TECHS, type EraId, type TechId } from '../data/techs';
 import { UNITS } from '../data/units';
@@ -59,7 +60,47 @@ export function effects(player: Player | undefined): LeaderEffect[] {
 }
 
 export function effectsOf<K extends EffectKind>(state: GameState, p: number, kind: K): EffectOf<K>[] {
-  return effects(state.players[p]).filter((e): e is EffectOf<K> => e.kind === kind);
+  const list = effects(state.players[p]).filter((e): e is EffectOf<K> => e.kind === kind);
+  // Round 13: the difficulty level's percents ride along as empire-wide effects.
+  if (kind === 'empirePct') list.push(...(difficultyEffects(state, p) as EffectOf<K>[]));
+  return list;
+}
+
+// One list per level and side, made once.
+const difficultyCache = new Map<string, LeaderEffect[]>();
+
+/**
+ * Round 13: the difficulty level's empire-wide percents for player `p`, as `empirePct`
+ * effects: the player's numbers for player 0 (the human), the AIs' for every other civ, and
+ * nothing for the barbarians. A save without a level (older tests' hand-made states) is Normal.
+ */
+export function difficultyEffects(state: GameState, p: number): LeaderEffect[] {
+  const player = state.players[p];
+  if (!player || player.kind === 'barbarian') return [];
+  const level = DIFFICULTIES[state.difficulty ?? DEFAULT_DIFFICULTY];
+  const side = p === HUMAN_SIDE ? 'player' : 'ai';
+  const key = `${level.id}|${side}`;
+  let list = difficultyCache.get(key);
+  if (!list) {
+    const pcts = level[side];
+    list = (['production', 'science', 'gold'] as const)
+      .filter((y) => pcts[y] !== 0)
+      .map((y): LeaderEffect => ({ kind: 'empirePct', yield: y, pct: pcts[y] }));
+    difficultyCache.set(key, list);
+  }
+  return list;
+}
+
+/** The player the difficulty level favors: the human is always player 0 (the sim's stand-in too). */
+export const HUMAN_SIDE = 0;
+
+/**
+ * Round 13: AI `ai`'s aggression (1–5, and beyond with the level) when it weighs war or peace
+ * with `target`: the difficulty level's change applies only toward the human side.
+ */
+export function aiAggression(state: GameState, ai: number, target: number): number {
+  const base = findCiv(state.players[ai]?.civId ?? '')?.aggression ?? 3;
+  return target === HUMAN_SIDE ? base + DIFFICULTIES[state.difficulty ?? DEFAULT_DIFFICULTY].aggression : base;
 }
 
 export function firstEffect<K extends EffectKind>(state: GameState, p: number, kind: K): EffectOf<K> | undefined {

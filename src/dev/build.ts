@@ -2,6 +2,7 @@
 // generated maps) and by the dev scenarios, so a scenario and its test build the same state.
 // Dev/test only: nothing in the production game imports this.
 
+import type { DifficultyId } from '../data/difficulty';
 import type { TerrainId } from '../data/terrain';
 import { UNITS, type UnitTypeId } from '../data/units';
 import { newDiplomacy, table } from '../game/diplomacy';
@@ -23,7 +24,7 @@ const LEGEND: Record<string, TerrainId> = {
  */
 export function makeState(
   rows: string[],
-  opts: { players?: number; exploreAll?: boolean; peace?: boolean; met?: boolean; barbarians?: boolean } = {},
+  opts: { players?: number; exploreAll?: boolean; peace?: boolean; met?: boolean; barbarians?: boolean; difficulty?: DifficultyId } = {},
 ): GameState {
   const height = rows.length;
   const width = rows[0]!.length;
@@ -74,6 +75,8 @@ export function makeState(
     greatPeopleNames: [],
     religions: [],
     religionTechsLapsed: [],
+    difficulty: opts.difficulty ?? 'normal',
+    mapSize: 'normal',
   };
   if (opts.barbarians) addBarbarians(state);
   return state;

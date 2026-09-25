@@ -1,6 +1,7 @@
 // Glue between game state, the renderer, and input. Holds view-only state (camera,
 // selection, open city). Every game change goes through applyAction.
 
+import { victoryGoals } from '../data/mapSizes';
 import { BUILDINGS } from '../data/buildings';
 import { CIVS } from '../data/civs';
 import { CITY_FOCUSES, RULES, growthThreshold, type CityFocus } from '../data/rules';
@@ -94,6 +95,16 @@ import { resolveTap } from './tap';
 import { armyCandidates, isMixedStack, stackLabel, unitsOnTile } from '../game/stack';
 
 import { portraitHtml } from './portraits';
+import { esc, plural, unitSummary } from './text';
+import { DEFAULT_SETTINGS, flashMs, loadSettings, loadTipsSeen, saveSettings, saveTipsSeen, toastMs, type Settings } from './settings';
+import { SoundEngine, soundFilesPresent } from './sound';
+import { snapshot, turnSounds } from './soundLogic';
+import { ALMANAC_CATEGORIES, cardLink, findCard, searchAlmanac, type AlmanacCategory } from './almanac';
+import { guidePages } from './guide';
+import { dueTips, type Tip } from './tips';
+import { DIFFICULTIES } from '../data/difficulty';
+import { MAP_SIZES } from '../data/mapSizes';
+import { SOUND_EVENTS } from '../data/sounds';
 import { SetupScreen, bonusListHtml, type SetupChoice } from './setup';
 import { UNIQUE_RULES } from '../data/leaders';
 import { hasUnique } from '../game/leaders';
@@ -139,6 +150,15 @@ export interface AppOptions {
   scenario?: { id: string; title: string; note: string };
   /** Dev server only: scenarios offered in the ☰ menu. */
   devScenarios?: { id: string; title: string }[];
+  /**
+   * Round 13: there's no saved game yet; the state is only a stand-in behind the main menu. It
+   * isn't saved, and New Game replaces it without a backup.
+   */
+  placeholder?: boolean;
+  /** Round 13: a screen to open at startup (the main menu, or a dev scenario's screen). */
+  opens?: 'mainMenu' | 'settings' | 'almanac' | 'howToPlay' | 'setup';
+  /** Round 13 (dev scenario): show every first-game tip afresh, without touching the device's list. */
+  freshTips?: boolean;
 }
 
 export class App {
@@ -173,10 +193,34 @@ export class App {
   private readonly human = 0;
   private readonly opts: AppOptions;
   private readonly setup = new SetupScreen((choice) => this.startNewGame(choice));
+  /** Round 13: this device's settings, the sound engine, and whether this game is saved. */
+  private settings: Settings = { ...DEFAULT_SETTINGS };
+  private readonly sound: SoundEngine;
+  private autosave: boolean;
+  private placeholder: boolean;
+  /** First-game tips already shown (the device's list, or a scenario's own), and the one showing. */
+  private tipsSeen: string[] = [];
+  private tipShowing: Tip | undefined;
+  /** Almanac view state: category, search text, the card open, and the cards before it (‹ Back). */
+  private almanacCat: AlmanacCategory | undefined;
+  private almanacQuery = '';
+  private almanacCardId: string | undefined;
+  private almanacHistory: string[] = [];
+  private guideIndex = 0;
+  /** The end screen's sound has played for this result (so it plays once). */
+  private endSound: string | undefined;
 
   constructor(state: GameState, opts: AppOptions) {
     this.state = state;
     this.opts = opts;
+    this.autosave = opts.autosave !== false;
+    this.placeholder = !!opts.placeholder;
+    this.settings = loadSettings();
+    this.applySettings();
+    this.sound = new SoundEngine(() => this.settings, !!opts.scenario);
+    // A scenario keeps its own list of tips seen, so it never uses up the real game's tips.
+    const seen = loadTipsSeen();
+    this.tipsSeen = opts.freshTips ? [] : seen;
     const ctx = this.canvas.getContext('2d');
     if (!ctx) throw new Error('Canvas 2D not supported');
     this.ctx = ctx;
@@ -258,6 +302,7 @@ export class App {
     $('techOverlay').addEventListener('click', (e) => this.handleTechClick(e));
     this.setupMenu();
     this.setupDev();
+    this.setupRound13();
     window.addEventListener('keydown', (e) => this.handleKey(e));
 
     // Autosave when the tab is hidden or unloaded: Safari may kill a background tab
@@ -277,6 +322,24 @@ export class App {
 
     this.startHumanTurn();
     if (opts.notice) this.toast(opts.notice);
+    // Round 13: the main menu first (or a dev scenario's screen).
+    switch (opts.opens) {
+      case 'mainMenu':
+        this.openMainMenu();
+        break;
+      case 'setup':
+        this.setup.open();
+        break;
+      case 'settings':
+        this.openSettings();
+        break;
+      case 'almanac':
+        this.openAlmanac();
+        break;
+      case 'howToPlay':
+        this.openGuide();
+        break;
+    }
   }
 
   // ---- actions ---------------------------------------------------------------------------
@@ -320,7 +383,7 @@ export class App {
   }
 
   private save(): void {
-    if (this.opts.autosave === false) return;
+    if (!this.autosave || this.placeholder) return;
     saveToStorage(this.state);
   }
 
@@ -336,11 +399,34 @@ export class App {
     }
   }
 
-  private endTurn(): void {
+  private endTurn(confirmed = false): void {
+    // Round 13 (A2): ask first while a unit can still move, if Settings says so.
+    const ready = this.readyUnits().length;
+    if (!confirmed && this.settings.confirmEndTurn && ready > 0 && this.state.players[this.human]!.alive) {
+      this.showNow({
+        title: 'End your turn?',
+        text: `${plural(ready, 'unit')} can still move.`,
+        sub: 'You can turn this question off in Settings (☰).',
+        buttons: [
+          { label: 'Keep playing', cls: 'bigBtn', run: () => this.selectNext(true) },
+          { label: 'End Turn', cls: 'bigBtn primary', run: () => this.endTurn(true) },
+        ],
+      });
+      return;
+    }
     const logStart = this.state.log.length;
     const me = this.state.players[this.human]!;
     const techsBefore = me.techs.length;
+    const before = snapshot(this.state, this.human);
+    const t0 = performance.now();
     if (!this.dispatch({ type: 'endTurn' })) return;
+    // Round 13: how long the computer turns took (the Large-map check reads it).
+    const ms = Math.round(performance.now() - t0);
+    console.info(`Epoch: End Turn took ${ms} ms (turn ${this.state.turn}, ${this.state.map.width}×${this.state.map.height})`);
+    if (this.opts.scenario?.id === 'large-map') this.toast(`The computer turns took ${ms} ms`);
+    // Round 13: a sound or two for what happened (war on you, a tech, a new era, a city grew...).
+    const warOnYou = this.state.log.slice(logStart).some((e) => e.kind === 'war' && e.other === this.human && e.player !== this.human);
+    this.sound.playSequence(turnSounds(before, snapshot(this.state, this.human), { warOnYou }));
     // Report what happened this round: our own events, and rival events we could see or civ
     // news from civs we've met. A declaration of war on us gets a panel.
     for (const entry of this.state.log.slice(logStart)) {
@@ -382,6 +468,7 @@ export class App {
     const logStart = this.state.log.length;
     const cityCountBefore = this.state.cities.length;
     if (this.dispatch({ type: 'foundCity', unitId: id })) {
+      this.sound.play('found-city');
       this.announce(this.state.log.slice(logStart));
       this.selectNext(false);
       // A new city needs its first build choice.
@@ -487,7 +574,11 @@ export class App {
 
   /** New Game: the current game is backed up first, then replaced. */
   private startNewGame(choice?: SetupChoice): void {
-    if (this.opts.autosave !== false) {
+    // Round 13: the stand-in behind the main menu (no save yet) is simply replaced.
+    if (this.placeholder && !this.opts.scenario) {
+      this.placeholder = false;
+      this.autosave = true;
+    } else if (this.autosave) {
       this.save();
       if (!backupCurrentSave('Replaced by New Game', Date.now())) {
         this.toast("Couldn't back up your current game (storage is full), so it was kept.", true);
@@ -496,7 +587,8 @@ export class App {
     }
     const state = this.opts.newGame(choice);
     const civ = civDef(state, this.human);
-    this.replaceGame(state, `New game: you lead ${civName(state, this.human)} as ${civ.leader}`);
+    this.closeMainMenu();
+    this.replaceGame(state, `New game: you lead ${civName(state, this.human)} as ${civ.leader} · ${DIFFICULTIES[state.difficulty].name} · ${MAP_SIZES[state.mapSize].name} map`);
   }
 
   /** Round 11: the New Game setup screen (the dev scenario `new-game-setup` opens it too). */
@@ -514,13 +606,20 @@ export class App {
     this.notices = [];
     this.diploCiv = undefined;
     this.diploAnswer = undefined;
+    this.endSound = undefined;
+    this.hideTip();
     $('attackOverlay').hidden = true;
     $('noticeOverlay').hidden = true;
     $('diploOverlay').hidden = true;
     $('victoryOverlay').hidden = true;
     $('leaderOverlay').hidden = true;
     $('religionOverlay').hidden = true;
+    if (this.placeholder && !this.opts.scenario) {
+      this.placeholder = false;
+      this.autosave = true;
+    }
     this.save();
+    this.clamp();
     this.startHumanTurn();
     this.toast(message);
     (window as unknown as { __epoch: { app: App; seed: number } }).__epoch.seed = state.seed;
@@ -546,6 +645,7 @@ export class App {
   }
 
   private select(unitId: number | undefined): void {
+    if (unitId !== undefined && unitId !== this.selectedUnitId) this.sound.play('tap');
     this.selectedUnitId = unitId;
     this.refresh();
   }
@@ -580,6 +680,7 @@ export class App {
         // An aircraft rebased (Round 10).
         if (res.ok && mover && isAir(mover) && res.message) this.toast(`${UNITS[mover.type].name} flew ${res.message}`);
         if (res.ok) {
+          this.sound.play('unit-move');
           // Captures and eliminations are worth announcing.
           this.announce(this.state.log.slice(logStart));
           const after = this.selected();
@@ -636,13 +737,25 @@ export class App {
 
   private handleKey(e: KeyboardEvent): void {
     // Desktop extras only; everything here also has an on-screen control.
-    if (e.target instanceof HTMLInputElement) return;
+    if (e.target instanceof HTMLInputElement) {
+      // Esc in the Almanac's search box closes the Almanac.
+      if (e.key === 'Escape' && e.target.id === 'almanacSearch') $('almanacOverlay').hidden = true;
+      return;
+    }
     // A focused button already handles Enter/Space itself; don't double-fire.
     if (e.target instanceof HTMLButtonElement && (e.key === 'Enter' || e.key === ' ')) return;
     if (!$('menuOverlay').hidden) {
       if (e.key === 'Escape') this.closeMenu();
       return;
     }
+    // Round 13: the Almanac (over How to Play), How to Play, Settings, then the main menu.
+    for (const id of ['almanacOverlay', 'guideOverlay', 'settingsOverlay', 'setupOverlay']) {
+      if (!$(id).hidden) {
+        if (e.key === 'Escape' && !(e.target instanceof HTMLInputElement)) $(id).hidden = true;
+        return;
+      }
+    }
+    if (!$('mainMenu').hidden) return;
     if (!$('noticeOverlay').hidden) {
       if (e.key === 'Escape' && this.notices[0]?.dismissible !== false) this.closeNotice();
       return;
@@ -684,6 +797,7 @@ export class App {
   // ---- city panel ------------------------------------------------------------------------
 
   private openCity(cityId: number): void {
+    if (cityId !== this.openCityId) this.sound.play('tap');
     this.openCityId = cityId;
     this.refresh();
     // Center the city in the part of the map the panel leaves uncovered (above the bottom
@@ -713,7 +827,9 @@ export class App {
     const city = this.openCityId === undefined ? undefined : findCity(this.state, this.openCityId);
     if (!city) return;
     const act = btn.dataset.act;
-    if (act === 'close') {
+    if (btn.dataset.card) {
+      this.openAlmanac(btn.dataset.card);
+    } else if (act === 'close') {
       this.closeCity();
     } else if (act === 'focus') {
       this.dispatch({ type: 'setFocus', cityId: city.id, focus: btn.dataset.focus as CityFocus });
@@ -812,11 +928,12 @@ export class App {
         const blocker = completionBlocker(this.state, city, item);
         const detail = this.itemDetail(item);
         const note = blocker ?? (turns === undefined ? '—' : plural(turns, 'turn'));
-        return `<button type="button" data-act="build" data-item='${JSON.stringify(item)}'
+        // Round 13: ⓘ opens the item's Almanac card.
+        return `<div class="buildRow"><button type="button" data-act="build" data-item='${JSON.stringify(item)}'
           class="buildItem ${item.kind} ${sameItem(city.build, item) ? 'on' : ''}">
           <span class="bname">${item.kind === 'unit' ? this.badge(item.id, this.human) : ''}${itemName(item)}</span>
           <span class="bmeta">${itemCostV} · ${note}</span>
-          <span class="bdesc">${detail}</span></button>`;
+          <span class="bdesc">${detail}</span></button><button type="button" class="infoBtn" data-card="${item.kind}:${item.id}" aria-label="About ${esc(itemName(item))}">ⓘ</button></div>`;
       })
       .join('');
 
@@ -972,6 +1089,23 @@ export class App {
     $('aboutBackBtn').addEventListener('click', () => this.showMenuPage('menuMain'));
     $('backupList').addEventListener('click', (e) => this.handleBackupClick(e));
     $('menuCloseBtn').addEventListener('click', () => this.closeMenu());
+    // Round 13.
+    $('mainMenuBtn').addEventListener('click', () => {
+      this.closeMenu();
+      this.openMainMenu();
+    });
+    $('howMenuBtn').addEventListener('click', () => {
+      this.closeMenu();
+      this.openGuide();
+    });
+    $('almanacMenuBtn').addEventListener('click', () => {
+      this.closeMenu();
+      this.openAlmanac();
+    });
+    $('settingsMenuBtn').addEventListener('click', () => {
+      this.closeMenu();
+      this.openSettings();
+    });
     $('newGameBtn').addEventListener('click', () => {
       this.closeMenu();
       this.setup.open();
@@ -1017,7 +1151,8 @@ export class App {
         <a href="${ICON_LICENSE.url}" target="_blank" rel="noopener">${ICON_LICENSE.name}</a> license. Recolored to fit the map; shapes unchanged except where noted.</p>
       <ul class="credits">${rowsFor('Units')}</ul>
       <div class="label">Map icons</div>
-      <ul class="credits">${rowsFor('Map')}</ul>`;
+      <ul class="credits">${rowsFor('Map')}</ul>
+      ${soundFilesPresent().length ? '<div class="label">Sounds</div><p class="sub">Sound effects generated with ElevenLabs.</p>' : ''}`;
   }
 
   // ---- backups (☰ → Restore a backup; in the production build too) ------------------------
@@ -1165,6 +1300,7 @@ export class App {
     if (c.promoted && c.attackerWon) text += `. Your ${mine} is now a veteran ★`;
     if (c.cargoLost) text += `. ${plural(c.cargoLost, 'unit')} aboard went down with the ship`;
     this.toast(text, !c.attackerWon);
+    this.sound.play(c.attackerWon && !(i && i.fighterWon) ? 'combat-win' : 'combat-loss');
     this.showFlash(c.x, c.y, c.attackerWon);
   }
 
@@ -1174,7 +1310,7 @@ export class App {
     this.flashTimer = window.setTimeout(() => {
       this.flash = undefined;
       this.requestDraw();
-    }, 900);
+    }, flashMs(this.settings));
     this.requestDraw();
   }
 
@@ -1210,6 +1346,12 @@ export class App {
     $('endOverlay').hidden = !show;
     if (!show) return;
     const mine = !!v && v.winner === this.human;
+    // Round 13: its fanfare (or lament), once per result.
+    const key = eliminated ? 'defeated' : `${v?.winner}-${v?.kind}`;
+    if (this.endSound !== key) {
+      this.endSound = key;
+      this.sound.play(mine ? 'victory' : 'defeat');
+    }
     let banner: string;
     let title: string;
     let text: string;
@@ -1220,12 +1362,12 @@ export class App {
     } else if (mine) {
       banner = '🏆';
       title = `${VICTORY_NAMES[v!.kind]} victory!`;
-      text = `You won on turn ${v!.turn}: ${victoryHow(v!.kind, true)}.`;
+      text = `You won on turn ${v!.turn}: ${victoryHow(v!.kind, true, victoryGoals(this.state.mapSize))}.`;
     } else {
       banner = '🏳️';
       title = 'Defeat';
       const civ = v!.winner;
-      text = `${CivName(this.state, civ)} won a ${VICTORY_NAMES[v!.kind].toLowerCase()} victory on turn ${v!.turn}: ${victoryHow(v!.kind, false)}. The game is theirs.`;
+      text = `${CivName(this.state, civ)} won a ${VICTORY_NAMES[v!.kind].toLowerCase()} victory on turn ${v!.turn}: ${victoryHow(v!.kind, false, victoryGoals(this.state.mapSize))}. The game is theirs.`;
     }
     const face = eliminated || mine ? this.human : v!.winner;
     $('endBanner').innerHTML = `${portraitHtml(this.state.players[face]!.civId, 96)} <span>${banner}</span>`;
@@ -1234,7 +1376,7 @@ export class App {
     $('endText').textContent = text;
     const rows = [this.human];
     if (v && v.winner !== this.human) rows.unshift(v.winner);
-    $('endStats').innerHTML = `<table class="stats"><thead><tr><th></th><th>Cities</th><th>Techs</th><th>Wonders</th><th>Culture</th><th>Gold</th></tr></thead>
+    $('endStats').innerHTML = `<p class="sub endLevel">${esc(DIFFICULTIES[this.state.difficulty].name)} · ${esc(MAP_SIZES[this.state.mapSize].name)} map · turn ${this.state.turn}</p><table class="stats"><thead><tr><th></th><th>Cities</th><th>Techs</th><th>Wonders</th><th>Culture</th><th>Gold</th></tr></thead>
       <tbody>${rows.map((p) => this.statsRow(p)).join('')}</tbody></table>`;
     $('endCloseBtn').textContent = eliminated ? 'Look at the map' : 'Keep playing';
     // In a dev scenario, "New Game" means going back to the real game.
@@ -1374,6 +1516,8 @@ export class App {
     $('victoryStatus').textContent = v
       ? `${v.winner === this.human ? 'You' : CivName(this.state, v.winner)} won a ${VICTORY_NAMES[v.kind].toLowerCase()} victory on turn ${v.turn}${this.state.keepPlaying ? '; you kept playing' : ''}.`
       : `Turn ${this.state.turn}. The first civ to reach any one of these wins.`;
+    // Round 13: the level and map this game is played at.
+    $('victoryStatus').textContent += ` · ${DIFFICULTIES[this.state.difficulty].name} · ${MAP_SIZES[this.state.mapSize].name} map`;
     const body = $('victoryBody');
     const scroll = body.scrollTop;
     const order = [this.human, ...this.state.players.filter((p) => p.kind !== 'barbarian').map((p) => p.id).filter((p) => p !== this.human)];
@@ -1381,8 +1525,8 @@ export class App {
     const S = VICTORY.spaceship;
     const rules = `<div class="vrules">
       <div><b>Domination</b> <span class="sub">Hold every rival's original capital (★). Wiping a civ out counts too.</span></div>
-      <div><b>Culture</b> <span class="sub">Reach ${VICTORY.cultureGoal} culture (Temples and wonders), then build the ${WONDERS.world_council.name}.</span></div>
-      <div><b>Economic</b> <span class="sub">Have ${VICTORY.goldGoal} gold, then build the ${WONDERS.global_exchange.name} (with production; keep the gold until it's done).</span></div>
+      <div><b>Culture</b> <span class="sub">Reach ${victoryGoals(this.state.mapSize).culture} culture (Temples and wonders), then build the ${WONDERS.world_council.name}.</span></div>
+      <div><b>Economic</b> <span class="sub">Have ${victoryGoals(this.state.mapSize).gold} gold, then build the ${WONDERS.global_exchange.name} (with production; keep the gold until it's done).</span></div>
       <div><b>Technology</b> <span class="sub">Learn Space Flight, build ${S.parts} spaceship parts in your capital, launch, and hold your capital for ${S.travelTurns} turns until it arrives.</span></div>
     </div>`;
     const wonders = WONDER_LIST.map((w) => {
@@ -1426,8 +1570,8 @@ export class App {
       <span class="vval">${value}</span>${bar(pct, 100, 'vbar')}</div>`;
     return `<div class="vcard${me ? ' me' : ''}">${head}${!capital ? ' <span class="sub">· capital lost</span>' : ''}</div>
       ${row('Domination', `${g.capitals.held}/${g.capitals.of} rival capitals`, (g.capitals.held / Math.max(1, g.capitals.of)) * 100)}
-      ${row('Culture', `${g.culture}/${VICTORY.cultureGoal} <span class="sub">(+${g.culturePerTurn}/turn)</span>${building(g.buildingWonder.culture, WONDERS.world_council.name)}${me ? ` <span class="sub">· next Great Person in ${cultureToNextGreatPerson(this.state, p)} culture</span>` : ''}`, (g.culture / VICTORY.cultureGoal) * 100)}
-      ${row('Economic', `${g.gold}/${VICTORY.goldGoal} gold${building(g.buildingWonder.economic, WONDERS.global_exchange.name)}`, (g.gold / VICTORY.goldGoal) * 100)}
+      ${row('Culture', `${g.culture}/${victoryGoals(this.state.mapSize).culture} <span class="sub">(+${g.culturePerTurn}/turn)</span>${building(g.buildingWonder.culture, WONDERS.world_council.name)}${me ? ` <span class="sub">· next Great Person in ${cultureToNextGreatPerson(this.state, p)} culture</span>` : ''}`, (g.culture / victoryGoals(this.state.mapSize).culture) * 100)}
+      ${row('Economic', `${g.gold}/${victoryGoals(this.state.mapSize).gold} gold${building(g.buildingWonder.economic, WONDERS.global_exchange.name)}`, (g.gold / victoryGoals(this.state.mapSize).gold) * 100)}
       ${row('Technology', space, g.space.arrivesTurn !== null ? 100 : (g.space.parts / S.parts) * 100)}
       ${launch}</div>`;
   }
@@ -1458,7 +1602,9 @@ export class App {
     }
     const btn = target.closest('button');
     if (!btn || btn.disabled) return;
-    if (btn.id === 'techCloseBtn') {
+    if (btn.dataset.card) {
+      this.openAlmanac(btn.dataset.card);
+    } else if (btn.id === 'techCloseBtn') {
       this.closeTech();
     } else if (btn.dataset.tech) {
       this.techSelected = btn.dataset.tech as TechId;
@@ -1538,9 +1684,9 @@ export class App {
 
     const u = techUnlocks(tech);
     const unlockParts = [
-      ...u.buildings.map((b) => `<li><b>${BUILDINGS[b].name}</b> <span class="sub">building · ${BUILDINGS[b].summary}</span></li>`),
-      ...u.units.map((id) => `<li>${this.badge(id, this.human)}<b>${UNITS[id].name}</b> <span class="sub">unit · ${unitSummary(id)}</span></li>`),
-      ...u.wonders.map((w) => `<li><b>${w.name}</b> <span class="sub">wonder · ${w.summary}</span></li>`),
+      ...u.buildings.map((b) => `<li><b>${cardLink(`building:${b}`, BUILDINGS[b].name)}</b> <span class="sub">building · ${BUILDINGS[b].summary}</span></li>`),
+      ...u.units.map((id) => `<li>${this.badge(id, this.human)}<b>${cardLink(`unit:${id}`, UNITS[id].name)}</b> <span class="sub">unit · ${unitSummary(id)}</span></li>`),
+      ...u.wonders.map((w) => `<li><b>${cardLink(`wonder:${w.id}`, w.name)}</b> <span class="sub">wonder · ${w.summary}</span></li>`),
     ];
     const unlocks = unlockParts.length
       ? `<ul>${unlockParts.join('')}</ul>`
@@ -1564,7 +1710,7 @@ export class App {
     }
 
     return `
-      <h3>${def.name}</h3>
+      <h3>${def.name} ${cardLink(`tech:${tech}`, 'Almanac ›')}</h3>
       <div class="sub">${eraName(def.era)} era · ${stateText}${st === 'known' ? '' : ` · cost ${cost}`}</div>
       <p>${def.description}</p>
       ${action}
@@ -1817,7 +1963,8 @@ export class App {
 
   private showNotice(): void {
     const n = this.notices[0];
-    $('noticeOverlay').hidden = !n;
+    // Round 13: they wait while the main menu is up.
+    $('noticeOverlay').hidden = !n || !$('mainMenu').hidden;
     if (!n) return;
     const portrait = n.portrait !== undefined ? portraitHtml(this.state.players[n.portrait]?.civId ?? '', 64) : '';
     $('noticeTitle').innerHTML = `${portrait}${n.icon ? `<span class="micon ${n.iconCls ?? ''}">${iconHtml(n.icon, '')}</span>` : ''}${esc(n.title)}`;
@@ -2165,6 +2312,279 @@ export class App {
     return `${religionDot(r, !!holyReligion(this.state, cap!))}${esc(r.name)}${how}`;
   }
 
+
+  // ---- Round 13: main menu, Settings, How to Play, the Almanac, first-game tips ----------------
+
+  private setupRound13(): void {
+    // Main menu.
+    $('mmContinue').addEventListener('click', () => this.closeMainMenu());
+    $('mmNew').addEventListener('click', () => this.setup.open());
+    $('mmHow').addEventListener('click', () => this.openGuide());
+    $('mmAlmanac').addEventListener('click', () => this.openAlmanac());
+    $('mmSettings').addEventListener('click', () => this.openSettings());
+    $('mmRestore').addEventListener('click', () => {
+      this.backupConfirmSlot = undefined;
+      this.renderBackups();
+      this.showMenuPage('menuBackups');
+      $('menuOverlay').hidden = false;
+    });
+    $('mmAbout').addEventListener('click', () => {
+      this.renderAbout();
+      this.showMenuPage('menuAbout');
+      $('menuOverlay').hidden = false;
+    });
+    $('mmDev').addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest('button');
+      if (btn && btn.dataset.scenario !== undefined) gotoScenario(btn.dataset.scenario || undefined);
+    });
+    // Settings.
+    $('settingsOverlay').addEventListener('click', (e) => this.handleSettingsClick(e));
+    // How to Play.
+    $('guideOverlay').addEventListener('click', (e) => {
+      const t = e.target as HTMLElement;
+      if (t === $('guideOverlay') || t.closest('#guideCloseBtn')) {
+        $('guideOverlay').hidden = true;
+        return;
+      }
+      const btn = t.closest('button');
+      if (!btn) return;
+      if (btn.dataset.card) this.openAlmanac(btn.dataset.card);
+      else if (btn.dataset.page !== undefined) this.showGuidePage(Number(btn.dataset.page));
+      else if (btn.id === 'guidePrevBtn') this.showGuidePage(this.guideIndex - 1);
+      else if (btn.id === 'guideNextBtn') {
+        if (this.guideIndex >= guidePages().length - 1) $('guideOverlay').hidden = true;
+        else this.showGuidePage(this.guideIndex + 1);
+      }
+    });
+    // Almanac.
+    $('almanacOverlay').addEventListener('click', (e) => this.handleAlmanacClick(e));
+    $<HTMLInputElement>('almanacSearch').addEventListener('input', (e) => {
+      this.almanacQuery = (e.target as HTMLInputElement).value;
+      this.renderAlmanacList();
+    });
+    // Tips.
+    $('tipOkBtn').addEventListener('click', () => this.dismissTip());
+    $('tipOffBtn').addEventListener('click', () => {
+      this.dismissTip();
+      this.settings.tips = false;
+      saveSettings(this.settings);
+      this.toast('Tips are off. Turn them back on in Settings (☰).');
+    });
+  }
+
+  /** Text size, and anything else that changes the page itself. */
+  private applySettings(): void {
+    document.documentElement.classList.toggle('largeText', this.settings.textSize === 'large');
+  }
+
+  // ---- main menu ----
+
+  openMainMenu(): void {
+    this.save();
+    const me = this.state.players[this.human]!;
+    const def = civDef(this.state, this.human);
+    const cont = $<HTMLButtonElement>('mmContinue');
+    const sc = this.opts.scenario;
+    cont.hidden = this.placeholder;
+    cont.innerHTML = `${portraitHtml(me.civId, 64)}<span class="mmcText"><b>${sc ? 'Back to the scenario' : 'Continue'}</b>
+      <span>${esc(def.leader)} of ${esc(def.name)}</span>
+      <span class="sub">Turn ${this.state.turn} · ${esc(eraName(playerEra(me)))} era · ${esc(DIFFICULTIES[this.state.difficulty].name)} · ${esc(MAP_SIZES[this.state.mapSize].name)} map</span></span>`;
+    $('mmNew').classList.toggle('primary', this.placeholder);
+    $('mmFoot').textContent = `Version ${__APP_VERSION__}${sc ? ` · dev scenario “${sc.title}” (not saved)` : ''}`;
+    const dev = this.opts.devScenarios;
+    if (dev?.length) {
+      $('mmDev').innerHTML = `<details><summary class="sub">Dev scenarios (not saved)</summary><div class="devList">${dev
+        .map((s) => `<button type="button" data-scenario="${s.id}">${esc(s.title)}</button>`)
+        .join('')}${sc ? '<button type="button" data-scenario="">Back to my game</button>' : ''}</div></details>`;
+      $('mmDev').hidden = false;
+    }
+    this.hideTip();
+    $('noticeOverlay').hidden = true;
+    $('mainMenu').hidden = false;
+  }
+
+  private closeMainMenu(): void {
+    if ($('mainMenu').hidden) return;
+    $('mainMenu').hidden = true;
+    this.showNotice();
+    this.refresh();
+  }
+
+  // ---- Settings ----
+
+  openSettings(): void {
+    this.renderSettings();
+    $('settingsOverlay').hidden = false;
+  }
+
+  private renderSettings(): void {
+    const s = this.settings;
+    const toggle = (key: keyof Settings, on: boolean) =>
+      `<div class="seg"><button type="button" data-set="${key}" data-val="true" class="${on ? 'on' : ''}" aria-pressed="${on}">On</button><button type="button" data-set="${key}" data-val="false" class="${on ? '' : 'on'}" aria-pressed="${!on}">Off</button></div>`;
+    const choice = (key: keyof Settings, value: string, options: [string, string][]) =>
+      `<div class="seg">${options.map(([v, label]) => `<button type="button" data-set="${key}" data-val="${v}" class="${value === v ? 'on' : ''}" aria-pressed="${value === v}">${label}</button>`).join('')}</div>`;
+    const volume = (key: 'sfxVolume' | 'musicVolume', v: number, on: boolean) =>
+      `<div class="vol ${on ? '' : 'off'}"><button type="button" data-vol="${key}" data-step="-10" aria-label="Quieter" ${v <= 0 ? 'disabled' : ''}>−</button><b>${v}%</b><button type="button" data-vol="${key}" data-step="10" aria-label="Louder" ${v >= 100 ? 'disabled' : ''}>+</button></div>`;
+    const files = soundFilesPresent();
+    const effects = SOUND_EVENTS.filter((e) => files.includes(e.file)).length;
+    const music = files.filter((f) => f.startsWith('music-')).length;
+    const row = (label: string, sub: string, control: string) => `<div class="setRow"><div><b>${label}</b><div class="sub">${sub}</div></div>${control}</div>`;
+    $('settingsBody').innerHTML = `
+      ${row('Sound effects', `${effects} of ${SOUND_EVENTS.length} sounds in this version${effects ? '' : ' (none yet: they’ll play once they’re added)'}`, `${toggle('sfxOn', s.sfxOn)}${volume('sfxVolume', s.sfxVolume, s.sfxOn)}`)}
+      ${row('Music', music ? `${plural(music, 'track')}` : 'No music yet', `${toggle('musicOn', s.musicOn)}${volume('musicVolume', s.musicVolume, s.musicOn)}`)}
+      ${row('Animation speed', 'How long combat flashes and news stay on screen (computer turns are always instant)', choice('animationSpeed', s.animationSpeed, [['normal', 'Normal'], ['fast', 'Fast']]))}
+      ${row('Confirm End Turn', 'Ask before ending the turn while a unit can still move', toggle('confirmEndTurn', s.confirmEndTurn))}
+      ${row('Text size', 'Bigger text in menus and panels', choice('textSize', s.textSize, [['normal', 'Normal'], ['large', 'Large']]))}
+      ${row('First-game tips', 'A short hint the first time something happens', `${toggle('tips', s.tips)}<button type="button" data-act="resetTips">Show tips again</button>`)}
+      ${import.meta.env.DEV ? row('Sound in dev scenarios', 'Dev builds only: let scenarios play sounds', toggle('scenarioSound', s.scenarioSound)) : ''}
+      ${import.meta.env.DEV || location.port === '4173' ? '<p class="sub">Check each sound on the <a href="docs/sounds.html" target="_blank" rel="noopener">sound check page</a>.</p>' : ''}`;
+  }
+
+  private handleSettingsClick(e: MouseEvent): void {
+    const t = e.target as HTMLElement;
+    if (t === $('settingsOverlay') || t.closest('#settingsCloseBtn')) {
+      $('settingsOverlay').hidden = true;
+      return;
+    }
+    const btn = t.closest('button');
+    if (!btn || btn.disabled) return;
+    const s = this.settings as unknown as Record<string, unknown>;
+    if (btn.dataset.set) {
+      const v = btn.dataset.val!;
+      s[btn.dataset.set] = v === 'true' ? true : v === 'false' ? false : v;
+    } else if (btn.dataset.vol) {
+      const key = btn.dataset.vol as 'sfxVolume' | 'musicVolume';
+      this.settings[key] = Math.max(0, Math.min(100, this.settings[key] + Number(btn.dataset.step)));
+    } else if (btn.dataset.act === 'resetTips') {
+      this.tipsSeen = [];
+      if (!this.opts.scenario) saveTipsSeen([]);
+      this.settings.tips = true;
+      this.toast('Tips will show again as things happen');
+    } else return;
+    saveSettings(this.settings);
+    this.applySettings();
+    this.sound.unlock();
+    this.sound.updateMusic();
+    // A sample so the new effects volume can be heard.
+    if (btn.dataset.vol === 'sfxVolume' || btn.dataset.set === 'sfxOn') this.sound.play('tap');
+    this.renderSettings();
+  }
+
+  // ---- How to Play ----
+
+  openGuide(page = 0): void {
+    $('guideOverlay').hidden = false;
+    this.showGuidePage(page);
+  }
+
+  private showGuidePage(i: number): void {
+    const pages = guidePages();
+    this.guideIndex = Math.max(0, Math.min(pages.length - 1, i));
+    const page = pages[this.guideIndex]!;
+    $('guideNav').innerHTML = pages
+      .map((p, n) => `<button type="button" data-page="${n}" class="${n === this.guideIndex ? 'on' : ''}" aria-pressed="${n === this.guideIndex}">${n + 1}. ${esc(p.title)}</button>`)
+      .join('');
+    $('guidePage').innerHTML = `<h3>${esc(page.title)}</h3>${page.html}`;
+    $('guidePage').scrollTop = 0;
+    $('guideStatus').textContent = `Page ${this.guideIndex + 1} of ${pages.length}`;
+    $<HTMLButtonElement>('guidePrevBtn').disabled = this.guideIndex === 0;
+    $('guideNextBtn').textContent = this.guideIndex === pages.length - 1 ? 'Done' : 'Next ›';
+    $('guideNav').querySelector('.on')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+
+  // ---- the Almanac ----
+
+  /** Opens the Almanac, on a card if `cardId` is given (from the build list, tech screen, a link). */
+  openAlmanac(cardId?: string): void {
+    if (cardId && findCard(cardId)) {
+      if (!$('almanacOverlay').hidden && this.almanacCardId && this.almanacCardId !== cardId) this.almanacHistory.push(this.almanacCardId);
+      else if ($('almanacOverlay').hidden) this.almanacHistory = [];
+      this.almanacCardId = cardId;
+      // Show its category, so the list around it makes sense.
+      this.almanacCat = findCard(cardId)!.category;
+      this.almanacQuery = '';
+      $<HTMLInputElement>('almanacSearch').value = '';
+    }
+    $('almanacOverlay').hidden = false;
+    this.renderAlmanac();
+    $('almanacList').querySelector('.sel')?.scrollIntoView({ block: 'nearest' });
+  }
+
+  private handleAlmanacClick(e: MouseEvent): void {
+    const t = e.target as HTMLElement;
+    if (t === $('almanacOverlay') || t.closest('#almanacCloseBtn')) {
+      $('almanacOverlay').hidden = true;
+      return;
+    }
+    const btn = t.closest('button');
+    if (!btn) return;
+    if (btn.dataset.cat !== undefined) {
+      this.almanacCat = (btn.dataset.cat || undefined) as AlmanacCategory | undefined;
+      this.renderAlmanac();
+    } else if (btn.dataset.card) {
+      if (this.almanacCardId && this.almanacCardId !== btn.dataset.card) this.almanacHistory.push(this.almanacCardId);
+      this.almanacCardId = btn.dataset.card;
+      // A link on a card to a card of another kind: switch the list to its kind.
+      const c = findCard(btn.dataset.card);
+      if (c && btn.classList.contains('alink') && this.almanacCat && c.category !== this.almanacCat) this.almanacCat = c.category;
+      this.renderAlmanac();
+      $('almanacCard').scrollTop = 0;
+    } else if (btn.dataset.act === 'back') {
+      this.almanacCardId = this.almanacHistory.pop();
+      this.renderAlmanac();
+    }
+  }
+
+  private renderAlmanac(): void {
+    $('almanacCats').innerHTML = [{ id: '', name: 'All' }, ...ALMANAC_CATEGORIES]
+      .map((c) => {
+        const on = (this.almanacCat ?? '') === c.id;
+        return `<button type="button" data-cat="${c.id}" class="${on ? 'on' : ''}" aria-pressed="${on}">${esc(c.name)}</button>`;
+      })
+      .join('');
+    this.renderAlmanacList();
+    const card = this.almanacCardId ? findCard(this.almanacCardId) : undefined;
+    const back = this.almanacHistory.length ? '<button type="button" data-act="back" class="almanacBack">‹ Back</button>' : '';
+    $('almanacCard').innerHTML = card ? `${back}${card.html}` : '<p class="sub">Pick a card from the list, or search.</p>';
+  }
+
+  private renderAlmanacList(): void {
+    const hits = searchAlmanac(this.almanacQuery, this.almanacCat);
+    const list = $('almanacList');
+    list.innerHTML = hits.length
+      ? hits
+          .map((c) => `<button type="button" data-card="${esc(c.id)}" class="acard ${c.id === this.almanacCardId ? 'sel' : ''}"><b>${esc(c.name)}</b><span class="sub">${esc(c.line)}</span></button>`)
+          .join('')
+      : '<p class="sub">Nothing matches that.</p>';
+    $('almanacStatus').textContent = `${plural(hits.length, 'card')}${this.almanacQuery ? ` matching “${this.almanacQuery}”` : ''}`;
+  }
+
+  // ---- first-game tips ----
+
+  private checkTips(): void {
+    if (!this.settings.tips || this.tipShowing || !$('mainMenu').hidden || !$('endOverlay').hidden) return;
+    const tip = dueTips(this.state, this.human, this.tipsSeen)[0];
+    if (!tip) return;
+    this.tipShowing = tip;
+    $('tipText').innerHTML = `<b>💡 ${esc(tip.title)}</b><span>${esc(tip.text)}</span>`;
+    $('tipCard').hidden = false;
+  }
+
+  private dismissTip(): void {
+    const tip = this.tipShowing;
+    if (!tip) return;
+    this.tipsSeen.push(tip.id);
+    // A scenario's tips never count against the real game's.
+    if (!this.opts.scenario) saveTipsSeen(this.tipsSeen);
+    this.hideTip();
+    this.checkTips();
+  }
+
+  private hideTip(): void {
+    this.tipShowing = undefined;
+    $('tipCard').hidden = true;
+  }
+
   // ---- dev scenarios (dev server only) ---------------------------------------------------
 
   private setupDev(): void {
@@ -2230,6 +2650,7 @@ export class App {
     if (!$('diploOverlay').hidden) this.renderDiplo();
     if (!$('victoryOverlay').hidden) this.renderVictory();
     if (!$('leaderOverlay').hidden) this.renderLeader();
+    this.checkTips();
     this.requestDraw();
   }
 
@@ -2443,8 +2864,9 @@ export class App {
     else el.textContent = text;
     box.appendChild(el);
     while (box.children.length > 4) box.firstElementChild?.remove();
-    setTimeout(() => el.classList.add('fade'), 2600);
-    setTimeout(() => el.remove(), 3100);
+    const ms = toastMs(this.settings);
+    setTimeout(() => el.classList.add('fade'), ms);
+    setTimeout(() => el.remove(), ms + 500);
   }
 }
 
@@ -2499,15 +2921,15 @@ function strengthWords(ratio: number): string {
 }
 
 /** How each victory was won, for the end screen. */
-function victoryHow(kind: VictoryKind, you: boolean): string {
+function victoryHow(kind: VictoryKind, you: boolean, goals: { culture: number; gold: number }): string {
   const who = you ? 'you' : 'they';
   switch (kind) {
     case 'domination':
       return `${who} held every rival's original capital`;
     case 'culture':
-      return `${who} built the ${WONDERS.world_council.name} after reaching ${VICTORY.cultureGoal} culture`;
+      return `${who} built the ${WONDERS.world_council.name} after reaching ${goals.culture} culture`;
     case 'economic':
-      return `${who} built the ${WONDERS.global_exchange.name} with ${VICTORY.goldGoal} gold in the treasury`;
+      return `${who} built the ${WONDERS.global_exchange.name} with ${goals.gold} gold in the treasury`;
     case 'technology':
       return `${you ? 'your' : 'their'} spaceship arrived`;
   }
@@ -2517,41 +2939,9 @@ function num(n: number): string {
   return String(Math.round(n * 100) / 100);
 }
 
-function plural(n: number, word: string): string {
-  return `${n} ${word}${n === 1 ? '' : 's'}`;
-}
-
 function bar(value: number, max: number, cls: string): string {
   const pct = Math.max(0, Math.min(100, (value / Math.max(1, max)) * 100));
   return `<div class="bar ${cls}"><div style="width:${pct.toFixed(1)}%"></div></div>`;
-}
-
-function unitSummary(id: BuildItem['id']): string {
-  const def = UNITS[id as keyof typeof UNITS];
-  if (!def) return '';
-  const parts = [`attack ${def.attack} · defense ${def.defense} · moves ${def.moves}`];
-  if (def.domain === 'sea') {
-    parts.push(def.cargo ? `ship, carries ${def.cargo}` : 'ship');
-    if (def.coastOnly) parts.push('coast only');
-    if (def.stealth) parts.push('seen only from next to it');
-  }
-  if (def.domain === 'air') {
-    parts[0] = `attack ${def.attack} · defense ${def.defense}`;
-    parts.push(`aircraft · range ${def.range}`);
-    if (def.airAttack) parts.push(`${def.airAttack} vs aircraft, intercepts`);
-    if (def.evadePct) parts.push('hard to intercept');
-    parts.push('strikes and flies back to base');
-  }
-  if (def.hover) parts.push('flies over anything, can’t capture');
-  if (def.airCargo) parts.push(`carries ${def.airCargo} aircraft`);
-  if (def.canFoundCity) parts.push('founds a city');
-  if (def.popCost > 0) parts.push(`costs ${def.popCost} population`);
-  // Round 12: the Missionary can't fight.
-  if (def.spreadsReligion) {
-    parts[0] = `moves ${def.moves}`;
-    parts.push(`spreads this city’s religion ${RELIGION.missionaryCharges} times · can’t fight`);
-  }
-  return parts.join(' · ');
 }
 
 /** Round 12: moves left, which roads can make fractional ("⅓", "1⅔", "0.4"). */
@@ -2569,10 +2959,6 @@ function religionDot(r: Religion, holy = false): string {
   const sym = symbolOf(r);
   const dot = `<span class="rdot" style="background:${sym.color}" title="${esc(sym.name)}">${iconHtml(sym.icon, esc(sym.glyph), 'ricon')}</span>`;
   return holy ? `${dot}<span class="rdot holyBadge" title="Holy city">${iconHtml(MAP_ICONS.holyCity, '✦', 'ricon')}</span>` : dot;
-}
-
-function esc(text: string): string {
-  return text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 }
 
 /** Reloads with ?scenario=<id>, or without it (back to the real, autosaved game). */

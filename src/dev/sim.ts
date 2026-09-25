@@ -12,6 +12,8 @@ import { landmassAt } from '../game/mapgen';
 import { isAir, isShip } from '../game/naval';
 import { roadTilesNear } from '../game/roads';
 import { UNITS } from '../data/units';
+import type { DifficultyId } from '../data/difficulty';
+import type { MapSizeId } from '../data/mapSizes';
 
 export interface CivPace {
   civId: string;
@@ -87,9 +89,19 @@ export interface SimResult {
   state: GameState;
 }
 
+/**
+ * Round 13: the game the sim plays. Player 0 is a stand-in for the human: an AI that gets the
+ * player's side of the difficulty level (and the AIs treat it as the level says).
+ */
+export interface SimGame {
+  playerCount?: number;
+  difficulty?: DifficultyId;
+  mapSize?: MapSizeId;
+}
+
 /** Plays a 5-civ all-AI game for `turns` turns. Wars/peace/eliminations are counted until `countUntil`. */
-export function simulate(seed: number, turns: number, countUntil = 120, checkpoints = [25, 50, 100, 150, 200, 220, 250]): SimResult {
-  const s = createGame({ seed, playerCount: 5 });
+export function simulate(seed: number, turns: number, countUntil = 120, checkpoints = [25, 50, 100, 150, 200, 220, 250], game: SimGame = {}): SimResult {
+  const s = createGame({ seed, playerCount: game.playerCount ?? 5, difficulty: game.difficulty, mapSize: game.mapSize });
   for (const p of s.players) if (p.kind === 'human') p.kind = 'ai';
   const civs: CivPace[] = s.players.map((p) => ({ civId: p.civId, eraTurn: { ancient: 1 }, techsAt: {}, cities: 0, alive: true, overseasCities: 0, shipsAt: {}, greatPeopleAt: {}, aircraftAt: {}, roadsAt: {} }));
   const rel: ReligionStats = { founded: [], followersAt150: 0, citiesAt150: 0, missionaries: 0, missionaryConversions: 0, conversions: 0 };
@@ -223,8 +235,8 @@ export interface WinResult {
  * Round 11: plays a 5-civ all-AI game (civs drawn from the 12) until someone wins, or
  * `maxTurns`. For the victory mix and which leaders win (scripts/leaders-report.sim.ts).
  */
-export function playToVictory(seed: number, maxTurns = 320): WinResult {
-  const s = createGame({ seed, playerCount: 5 });
+export function playToVictory(seed: number, maxTurns = 320, game: SimGame = {}): WinResult {
+  const s = createGame({ seed, playerCount: game.playerCount ?? 5, difficulty: game.difficulty, mapSize: game.mapSize });
   for (const p of s.players) if (p.kind === 'human') p.kind = 'ai';
   const seenLog = new WeakSet<object>();
   let captures = 0;

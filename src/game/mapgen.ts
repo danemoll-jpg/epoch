@@ -232,6 +232,7 @@ export function findStartPositions(
   rng: RngHolder,
   count: number,
   minDistance: number,
+  minLandmass: number = RULES.map.minStartLandmass,
 ): Coord[] {
   const regionSizes = landRegionSizes(map);
   const candidates: Array<{ c: Coord; score: number }> = [];
@@ -240,7 +241,7 @@ export function findStartPositions(
       const i = tileIndex(map, x, y);
       const t = map.tiles[i]!.terrain;
       if (t !== 'grassland' && t !== 'plains' && t !== 'hills') continue;
-      if (regionSizes[i]! < RULES.map.minStartLandmass) continue;
+      if (regionSizes[i]! < minLandmass) continue;
       candidates.push({ c: { x, y }, score: siteScore(map, { x, y }) + nextFloat(rng) * 4 });
     }
   }

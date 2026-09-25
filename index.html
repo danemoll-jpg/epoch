@@ -151,7 +151,7 @@
           <div class="techHead">
             <div>
               <h2>New Game</h2>
-              <div class="sub">Choose your leader. Your current game is kept as a backup (☰ → Restore a backup).</div>
+              <div id="setupSub" class="sub">Choose your leader, the difficulty, and the map. Your current game is kept as a backup (☰ → Restore a backup).</div>
             </div>
             <button type="button" data-act="cancel" class="closeBtn" aria-label="Cancel">✕</button>
           </div>
@@ -186,6 +186,84 @@
         </section>
       </div>
 
+      <!-- Round 13: a one-time first-game tip (C3). Not modal: the game goes on under it. -->
+      <section id="tipCard" hidden aria-live="polite">
+        <div id="tipText"></div>
+        <div class="row">
+          <button id="tipOffBtn" type="button">No more tips</button>
+          <button id="tipOkBtn" type="button" class="primary">Got it</button>
+        </div>
+      </section>
+
+      <!-- Round 13: the main menu (title screen), shown when the game opens. -->
+      <div id="mainMenu" hidden>
+        <div id="mmInner" class="scroll">
+          <div class="wordmark" aria-label="Epoch">
+            <div class="wmRule"></div>
+            <div class="wm">EPOCH</div>
+            <div class="wmSub">an age of empires, one turn at a time</div>
+          </div>
+          <button id="mmContinue" type="button" class="mmContinue" hidden></button>
+          <div class="mmList">
+            <button id="mmNew" type="button" class="mmBtn">New Game</button>
+            <button id="mmHow" type="button" class="mmBtn">How to Play</button>
+            <button id="mmAlmanac" type="button" class="mmBtn">Almanac</button>
+            <button id="mmSettings" type="button" class="mmBtn">Settings</button>
+            <button id="mmRestore" type="button" class="mmBtn">Restore a backup</button>
+            <button id="mmAbout" type="button" class="mmBtn">About / Credits</button>
+          </div>
+          <div id="mmDev" hidden></div>
+          <div id="mmFoot" class="sub"></div>
+        </div>
+      </div>
+
+      <!-- Round 13: Settings (A2), saved on this device. -->
+      <div id="settingsOverlay" class="overlay" hidden>
+        <section id="settingsPanel" role="dialog" aria-modal="true" aria-label="Settings">
+          <div class="techHead">
+            <div><h2>Settings</h2><div class="sub">Saved on this device, apart from your games.</div></div>
+            <button id="settingsCloseBtn" type="button" class="closeBtn" aria-label="Close settings">✕</button>
+          </div>
+          <div id="settingsBody" class="scroll"></div>
+        </section>
+      </div>
+
+      <!-- Round 13: How to Play (C1). -->
+      <div id="guideOverlay" class="overlay" hidden>
+        <section id="guidePanel" role="dialog" aria-modal="true" aria-label="How to Play">
+          <div class="techHead">
+            <div><h2>How to Play</h2><div id="guideStatus" class="sub"></div></div>
+            <button id="guideCloseBtn" type="button" class="closeBtn" aria-label="Close How to Play">✕</button>
+          </div>
+          <div id="guideBody">
+            <nav id="guideNav" class="scroll"></nav>
+            <div id="guidePage" class="scroll"></div>
+          </div>
+          <div class="row guideFoot">
+            <button id="guidePrevBtn" type="button" class="bigBtn">‹ Back</button>
+            <button id="guideNextBtn" type="button" class="bigBtn primary">Next ›</button>
+          </div>
+        </section>
+      </div>
+
+      <!-- Round 13: the Almanac (C2), every card made from the data files. -->
+      <div id="almanacOverlay" class="overlay" hidden>
+        <section id="almanacPanel" role="dialog" aria-modal="true" aria-label="Almanac">
+          <div class="techHead">
+            <div><h2>Almanac</h2><div id="almanacStatus" class="sub"></div></div>
+            <button id="almanacCloseBtn" type="button" class="closeBtn" aria-label="Close the Almanac">✕</button>
+          </div>
+          <div id="almanacTools">
+            <input id="almanacSearch" type="search" placeholder="Search: a unit, tech, leader…" aria-label="Search the Almanac" autocomplete="off" autocapitalize="off" spellcheck="false">
+            <div id="almanacCats" class="scroll"></div>
+          </div>
+          <div id="almanacBody">
+            <div id="almanacList" class="scroll"></div>
+            <div id="almanacCard" class="scroll"></div>
+          </div>
+        </section>
+      </div>
+
       <div id="menuOverlay" class="overlay" hidden>
         <div class="dialog" role="dialog" aria-modal="true">
           <div id="menuMain">
@@ -194,9 +272,13 @@
             <div class="row">
               <button id="victoryMenuBtn" type="button">Victory progress</button>
               <button id="religionMenuBtn" type="button">Religions</button>
+              <button id="howMenuBtn" type="button">How to Play</button>
+              <button id="almanacMenuBtn" type="button">Almanac</button>
+              <button id="settingsMenuBtn" type="button">Settings</button>
               <button id="aboutBtn" type="button">About / Credits</button>
               <button id="restoreBtn" type="button">Restore a backup</button>
               <button id="newGameBtn" type="button">New Game</button>
+              <button id="mainMenuBtn" type="button">Main menu</button>
               <button id="menuCloseBtn" type="button">Close</button>
             </div>
             <div id="devMenu" hidden></div>

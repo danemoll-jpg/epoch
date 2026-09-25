@@ -1467,6 +1467,72 @@ unless Dan decides otherwise):**
 - **Q28 — Music:** **optional**, made by Dan with ElevenLabs if he wants
   it.
 
+**Round 13 report (coding agent, 2026-09-25): done, awaiting Dan.** Version
+0.13.0, save format 12. Tests: **718 pass** (`npm test`, `pace.test.ts`
+included); `npm run build` clean, with the dev-code leak check passing.
+
+| # | Item | Status | Verified by |
+|---|------|--------|-------------|
+| 0 | Commit docs first | Done (`b2ce6ac`), then re-read both. Nothing from last round's report was dropped | n/a |
+| A1 | Main menu | Done. Shown when the game opens: an **EPOCH** wordmark (serif text in the accent gold, with a subtitle; no image), **Continue** (portrait, leader and civ, turn, era, difficulty, map size; hidden when there's no saved game), **New Game** (→ the setup screen), **How to Play**, **Almanac**, **Settings**, **Restore a backup**, **About / Credits**, the version, and in dev builds a folded "Dev scenarios" list. ☰ has a new **Main menu** item (autosaves first). **With no saved game**, the map behind the menu is a stand-in that is never saved, and New Game replaces it without making a backup (so the backup list doesn't fill with empty turn-1 games). `?new` still goes straight into a new game, skipping the menu. Notices (offers, war) wait behind the menu and show on Continue | unit-tested (startup rules); preview-verified on desktop, 768×1024 and 375×812 emulation (`main-menu`; a real v10 dev save upgraded and continued) |
+| A2 | Settings | Done, saved on the device under `epoch.settings` (tips seen under `epoch.tipsSeen`), never in a game save: **sound effects on/off + volume**, **music on/off + volume** (−/+ in steps of 10; the row says how many sound files the build has), **animation speed** Normal/Fast, **Confirm End Turn** (on by default: "End your turn? N units can still move", with Keep playing / End Turn), **text size** Normal/Large (every font size scales by 1.18 in menus and panels; the map's own labels don't change), **first-game tips** on/off + "Show tips again", and in dev builds **Sound in dev scenarios**. From the main menu and ☰. **Reading:** computer turns are already instant, so animation speed changes how long the combat flash (900 → 450 ms) and news toasts stay | unit-tested (persistence, apart from saves, damaged values); preview-verified (Large text applies at once and is written to `epoch.settings`; Confirm End Turn asks with 2 units ready) |
+| B1 | Difficulty | Done, **Novice / Normal / Veteran / Legendary** (Q27), in `src/data/difficulty.ts`, picked on the setup screen (with a line saying what changes), stored in the save, shown on the 🏆 screen's status line, the end screen, the main menu's Continue, and the New Game toast. Numbers as planned; they ride the leader-bonus system as empire-wide percents (so they stack with leader bonuses). **Readings:** "less/more aggressive" = the AI's aggression **toward you** −1.5 (Novice), +0.5 (Veteran), +1 (Legendary), not toward each other; "war earlier" = an AI may declare war on you from **turn 12** on Legendary (Normal 20; Novice 30); demands: Novice from turn 60, Legendary from 15. Legendary AIs start with the extra Warrior and Settler. Normal is exactly today's game (a test checks a Normal game equals one made before this round, seed for seed) | unit-tested (every level's percents, aggression, demand and war turns, starting units); preview-verified (Legendary + Small game started from the setup screen) |
+| B2 | Map size | Done, `src/data/mapSizes.ts`: **Small** 24×18, up to 3 rivals (2–3 continents); **Normal** 32×24, up to 4 (today's); **Large** 44×32, **up to 5** (4–5 continents; `RULES.maxPlayers` is now 6). Villages and huts already follow the land area; each size now has its own caps (Small 2–5 villages / 3–8 huts, Normal 3–8 / 4–12, Large 5–13 / 6–20); resources are a chance per tile, so they scale on their own; start spacing and the smallest start landmass per size. The rivals count follows the size on the setup screen. **Victory goals scale for Large only (×1.25: culture 8750, gold 11250)**: without it Large games ended around turn 169. Large's iPad-sized check below | unit-tested (each size: grid, villages, huts, resource share, fair starts, landmass, spacing; rival caps; goals); preview-verified (`large-map` at 768×1024) |
+| C1 | How to Play | Done: 9 short pages (moving and founding, cities, research and eras, combat/armies/fleets, ships and aircraft, diplomacy, villages/huts/Great People, religion and roads, **the four ways to win**) with the game's own icons and numbers read from the data; a page list plus Back / Next; names are links to their Almanac cards. From the main menu and ☰ | unit-tested (topics, links resolve); preview-verified on desktop and 768×1024 (`how-to-play`) |
+| C2 | Almanac | Done: **160 cards** made from the data (30 units, 17 buildings, 16 wonders, 2 projects, 56 techs, 15 resources, 5 Great People, 12 leaders, 4 difficulty levels, 3 map sizes): stats, tech, cost, effects, prerequisites, unlocks, leads-to, reveals, starting tech of; leader cards show every bonus. Search (every word must match; names first), category chips, cross-links with ‹ Back. **Opens from anywhere:** an ⓘ button beside every build-list item, the tech screen's name and unlock links, and How to Play's links | unit-tested (a card for every data entry, every link resolves, search); preview-verified (search "rome" → Caligula; ⓘ on a build item; the tech screen link; 375×812) |
+| C3 | First-game tips | Done: 7 one-time tips (welcome/found a city, first city, first tech (a starting tech doesn't count), first contact, first war, first barbarian village in sight, first Great Person), one at a time in a small green card under the top bar (not modal): **Got it** / **No more tips**. Seen tips are kept per device; Settings turns them off or shows them again. A dev scenario keeps its own list | unit-tested; preview-verified (`first-game-tips`: the whole sequence, and the device's list untouched) |
+| D1 | Sound list + folder | Done: `src/assets/sounds/` (empty except a README) and **`docs/SOUNDS.md`**: the 14 events with exact file names, ideal length, the feel, **and a starting ElevenLabs prompt for each**, plus the format (MP3, trimmed, no need to level volume), the optional `music-1..3.mp3`, and where the settings are. A missing file plays nothing; new files need no code change | unit-tested (the doc lists every file in `src/data/sounds.ts`) |
+| D2 | `docs/sounds.html` | Done: a Play button per event and per music track, "missing" for absent files, duration and loudness shown, the same normalization as the game, a volume slider, "Play all". The play server serves it at **http://10.0.0.224:4173/docs/sounds.html** with the files copied to `docs/sounds/` (`copy-pickers.mjs`); on the dev server it reads `src/assets/sounds/`. Settings links to it on the play server and in dev | unit-tested (lists every file, same numbers as the game); preview-verified (14 rows, "missing"; with a temporary test tone: "✓ 0.30 s … raised ×4.00"; the test file was removed) |
+| D3 | Sound engine | Done (`src/ui/sound.ts`, rules in `soundLogic.ts`): Web Audio; **unlocks on the first tap or key**; effects and music each follow their on/off and volume; every file normalized to one loudness (RMS target, never clipping, at most ×4); **nothing plays while the page is hidden** (the audio context is suspended); **silent in dev scenarios** unless the dev setting allows; music crossfades between tracks (4 s). Hooks: select/open city (tap), move, found city, combat win/loss, End Turn news (**at most 2**, most important first: war on you, a city lost, a new era or tech, a wonder or building, a city grew; otherwise the soft new-turn cue; from the AIs' turns only war on you and a city lost), victory/defeat on the end screen. About / Credits shows "Sound effects generated with ElevenLabs" once any file exists | unit-tested (gates, volumes, normalization, End Turn picks); preview-verified: with a temporary WAV named `tap.mp3`, the engine loaded, decoded, and normalized it and the audio context was running after a tap. **Not heard by me** (no audio here, and there are no real files yet) |
+| E1 | Migration v11 → v12 | Done: old games get Normal and a Normal map; backup kept as always; a v12 save missing either field is refused as damaged, not guessed | unit-tested; preview-verified (a real v10 dev save went v10 → v11 → v12 and continued) |
+| E2 | Dev scenarios | Done, all 7: `main-menu`, `settings`, `difficulty-legendary-start`, `large-map` (60 turns played by the AI, whole map revealed, End Turn toasts its time), `almanac`, `how-to-play`, `first-game-tips`. Scenarios can now open a screen (`opens`) or show tips afresh (`freshTips`); `new-game-setup` uses `opens` too | unit-tested (each outcome); all 7 preview-verified |
+| E3 | Unit tests | Done: `tests/round13.test.ts` (difficulty per level, map sizes, settings, Almanac coverage, sound rules, tips, the migration, startup) plus the 7 scenario outcomes; `pace.test.ts` passes at Normal | `npm test`: 718 pass |
+
+- **Difficulty sim (`npm run sim -- difficulty`, seeds 101…150, 8 games of 5
+  civs each; player 0 is a stand-in AI with the player's side of the level):**
+
+  | Level | Victory mix | Win turns | Median | Stand-in wins |
+  |---|---|---|---|---|
+  | Novice | culture 4, economic 2, technology 1, domination 1 | 162–255 | **199** | **5 of 8** |
+  | Normal | culture 3, economic 3, domination 1, technology 1 | 163–205 | **192** | 0 of 8 |
+  | Legendary | technology 5, culture 2, economic 1 | 149–182 | **162** | 0 of 8 |
+
+  Normal matches Round 12 (median 194 on the leaders report). On Legendary
+  every AI is boosted, so someone wins ~30 turns sooner and one game ended
+  at t149 (before the usual "no win before 150"). In a real game that's
+  the pressure the level is meant to bring; flag for Round 15 if it feels
+  too short.
+- **Map-size sim (`npm run sim -- sizes`, same seeds, each with its most
+  rivals):** Small (3 rivals): domination 3, culture 4, economic 1;
+  t161–240, **median 196**. Large (5 rivals, goals ×1.25): culture 6,
+  economic 1, technology 1; t169–219, **median 188** (before the ×1.25:
+  median 169). Culture is even more dominant on Large (Round 15's balance
+  item).
+- **Large on iPad-sized emulation (768×1024; my desktop PC, DPR 1):**
+  - **Frame rate:** a full redraw of the `large-map` scenario (turn 61, 45
+    cities, 150 units, whole map revealed) takes **3.9 ms** at normal zoom
+    and **6.6 ms** zoomed out to the whole map, far inside a 60 fps frame.
+  - **AI turn time:** End Turn took **100–150 ms** around turns 61–66 in
+    the browser. In the Node sim, Large averages **277 ms per game turn**
+    over whole games, and one heavy game averaged 671 ms late on.
+  - **Not measured on a real iPad.** The iPad draws at DPR 2 and has a
+    slower CPU, so expect End Turn up to roughly 1–2 s late in a big Large
+    game. Dan, please try `large-map` (it toasts the time) and a real Large
+    game.
+- **Readings I chose (tell me if you want them different):** difficulty
+  aggression applies toward you only; Novice also keeps war off you until
+  turn 30; Large allows 5 rivals (6 civs); goals scale only on Large; with
+  no saved game the main menu has no Continue and the map behind it isn't
+  saved; Confirm End Turn is **on** by default; animation speed can't speed
+  up computer turns (they're instant), so it shortens flashes and toasts;
+  "city lost" uses the combat-loss sound (the list has no separate one).
+- **Dan, next:** (a) make the sounds from `docs/SOUNDS.md` (it has a
+  starting prompt for each), drop them in `src/assets/sounds/`, and check
+  them on http://10.0.0.224:4173/docs/sounds.html after the next play-server
+  restart; (b) try the main menu, Settings, How to Play, and the Almanac;
+  (c) start a Novice or Legendary game on a Small or Large map; (d) on
+  `dev:lan`, try `large-map` for smoothness and End Turn time.
+
 ## Next Steps (Do Not Start Yet)
 
 All of these are deferred for **sequencing only**. Each depends on the

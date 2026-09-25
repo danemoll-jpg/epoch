@@ -2,8 +2,8 @@
 //
 // - Domination: hold every rival's original capital (City.capitalOf). A rival that has been
 //   eliminated counts as held, so "every rival eliminated" (Milestone 4) is still a win.
-// - Culture: reach VICTORY.cultureGoal culture, then build the World Council.
-// - Economic: have VICTORY.goldGoal gold in the treasury, then build the Global Exchange
+// - Culture: reach victoryGoals(state.mapSize).culture culture, then build the World Council.
+// - Economic: have victoryGoals(state.mapSize).gold gold in the treasury, then build the Global Exchange
 //   (paid in production like any wonder; the treasury must still hold the goal when it's done).
 // - Technology: learn Space Flight, build the spaceship's parts in your capital, launch it,
 //   and win when it arrives, VICTORY.spaceship.travelTurns later. Losing the capital before
@@ -13,6 +13,7 @@
 // player's turn). If a rival wins, the human loses. "Keep playing" stops the checks.
 // Near-win warnings (issueWarnings) tell the human when a civ they've met gets close.
 
+import { victoryGoals } from '../data/mapSizes';
 import { VICTORY, VICTORY_KINDS, VICTORY_NAMES, type VictoryKind } from '../data/victory';
 import { WONDERS, type WonderId } from '../data/wonders';
 import { CivName, civPossessive, civVerb } from './conquest';
@@ -52,8 +53,8 @@ export function victoryWonder(kind: 'culture' | 'economic'): WonderId {
 export function victoryWonderError(state: GameState, owner: number, id: WonderId): string | undefined {
   const kind = WONDERS[id]?.victory;
   const p = state.players[owner]!;
-  if (kind === 'culture' && p.culture < VICTORY.cultureGoal) return `Needs ${VICTORY.cultureGoal} culture (you have ${p.culture})`;
-  if (kind === 'economic' && p.gold < VICTORY.goldGoal) return `Needs ${VICTORY.goldGoal} gold in the treasury (you have ${p.gold})`;
+  if (kind === 'culture' && p.culture < victoryGoals(state.mapSize).culture) return `Needs ${victoryGoals(state.mapSize).culture} culture (you have ${p.culture})`;
+  if (kind === 'economic' && p.gold < victoryGoals(state.mapSize).gold) return `Needs ${victoryGoals(state.mapSize).gold} gold in the treasury (you have ${p.gold})`;
   return undefined;
 }
 
@@ -241,20 +242,20 @@ export function victoryWarnings(state: GameState, p: number): VictoryWarning[] {
     });
   }
   const pct = (v: number, goal: number) => Math.floor((v / goal) * 100);
-  if (pct(player.culture, VICTORY.cultureGoal) >= VICTORY.warnPct) {
+  if (pct(player.culture, victoryGoals(state.mapSize).culture) >= VICTORY.warnPct) {
     out.push({
       key: `culture:${p}`,
       civ: p,
       kind: 'culture',
-      text: `${Who} ${has} ${player.culture} culture, ${Math.min(100, pct(player.culture, VICTORY.cultureGoal))}% of the ${VICTORY.cultureGoal} needed. Past that, building the ${WONDERS[victoryWonder('culture')].name} wins the game.`,
+      text: `${Who} ${has} ${player.culture} culture, ${Math.min(100, pct(player.culture, victoryGoals(state.mapSize).culture))}% of the ${victoryGoals(state.mapSize).culture} needed. Past that, building the ${WONDERS[victoryWonder('culture')].name} wins the game.`,
     });
   }
-  if (pct(player.gold, VICTORY.goldGoal) >= VICTORY.warnPct) {
+  if (pct(player.gold, victoryGoals(state.mapSize).gold) >= VICTORY.warnPct) {
     out.push({
       key: `economic:${p}`,
       civ: p,
       kind: 'economic',
-      text: `${Who} ${has} ${player.gold} gold, ${Math.min(100, pct(player.gold, VICTORY.goldGoal))}% of the ${VICTORY.goldGoal} needed. Past that, building the ${WONDERS[victoryWonder('economic')].name} wins the game.`,
+      text: `${Who} ${has} ${player.gold} gold, ${Math.min(100, pct(player.gold, victoryGoals(state.mapSize).gold))}% of the ${victoryGoals(state.mapSize).gold} needed. Past that, building the ${WONDERS[victoryWonder('economic')].name} wins the game.`,
     });
   }
   const { held, of } = capitalsHeld(state, p);

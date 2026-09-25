@@ -11,6 +11,12 @@
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
+  /* Round 13: text size (Settings → Text size: Large sets it on <html>). */
+  --ts: 1;
+}
+
+:root.largeText {
+  --ts: 1.18;
 }
 
 html,
@@ -21,7 +27,7 @@ body {
   overflow: hidden;
   background: var(--bg);
   color: var(--text);
-  font: 15px/1.3 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font: calc(15px * var(--ts))/1.3 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   /* No page bounce, text selection, callouts, or tap flashes on the game surface. */
   overscroll-behavior: none;
   -webkit-user-select: none;
@@ -101,7 +107,7 @@ button:not(:disabled):active {
 .sub {
   color: var(--muted);
   font-weight: 400;
-  font-size: 13px;
+  font-size: calc(13px * var(--ts));
 }
 
 #rateCtl {
@@ -112,20 +118,20 @@ button:not(:disabled):active {
 
 #rateCtl button {
   padding: 0;
-  font-size: 20px;
+  font-size: calc(20px * var(--ts));
 }
 
 #rateLabel {
   min-width: 128px;
   text-align: center;
-  font-size: 14px;
+  font-size: calc(14px * var(--ts));
 }
 
 #menuBtn {
   position: absolute;
   top: calc(8px + var(--safe-top));
   right: calc(8px + var(--safe-right));
-  font-size: 20px;
+  font-size: calc(20px * var(--ts));
   padding: 0;
   background: var(--panel);
 }
@@ -206,7 +212,7 @@ button:not(:disabled):active {
 #unitInfo .sub {
   color: var(--muted);
   font-weight: 400;
-  font-size: 13px;
+  font-size: calc(13px * var(--ts));
 }
 
 #unitPanel .row {
@@ -225,7 +231,7 @@ button:not(:disabled):active {
   bottom: calc(12px + var(--safe-bottom));
   min-width: 140px;
   min-height: 64px;
-  font-size: 19px;
+  font-size: calc(19px * var(--ts));
   border-radius: 16px;
   background: #3b4f66;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
@@ -299,13 +305,13 @@ button:not(:disabled):active {
 
 .cityHead h2 {
   margin: 0;
-  font-size: 22px;
+  font-size: calc(22px * var(--ts));
 }
 
 .closeBtn {
   min-width: 52px;
   min-height: 52px;
-  font-size: 22px;
+  font-size: calc(22px * var(--ts));
   padding: 0;
 }
 
@@ -316,7 +322,7 @@ button:not(:disabled):active {
 
 #cityPanel .label {
   color: var(--muted);
-  font-size: 13px;
+  font-size: calc(13px * var(--ts));
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin-bottom: 6px;
@@ -370,7 +376,7 @@ button:not(:disabled):active {
 
 .seg button {
   padding: 0 4px;
-  font-size: 14px;
+  font-size: calc(14px * var(--ts));
 }
 
 .seg button.on,
@@ -397,7 +403,7 @@ button:not(:disabled):active {
 .buildItem .bmeta {
   color: var(--muted);
   font-weight: 400;
-  font-size: 13px;
+  font-size: calc(13px * var(--ts));
   text-align: right;
 }
 
@@ -405,7 +411,7 @@ button:not(:disabled):active {
   grid-column: 1 / -1;
   color: var(--muted);
   font-weight: 400;
-  font-size: 12px;
+  font-size: calc(12px * var(--ts));
 }
 
 .unitItem {
@@ -439,7 +445,7 @@ button:not(:disabled):active {
 
 .dialog h2 {
   margin: 0 0 8px;
-  font-size: 20px;
+  font-size: calc(20px * var(--ts));
 }
 
 .dialog p {
@@ -509,12 +515,12 @@ button.danger {
 
 .techHead h2 {
   margin: 0 0 2px;
-  font-size: 22px;
+  font-size: calc(22px * var(--ts));
 }
 
 .techHead .prompt {
   color: var(--accent);
-  font-size: 15px;
+  font-size: calc(15px * var(--ts));
 }
 
 #techBody {
@@ -553,7 +559,7 @@ button.danger {
 
 #techTree h3 {
   margin: 10px 0 6px;
-  font-size: 15px;
+  font-size: calc(15px * var(--ts));
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -575,7 +581,7 @@ button.danger {
 }
 
 .tech .tmeta {
-  font-size: 12px;
+  font-size: calc(12px * var(--ts));
   font-weight: 400;
   color: var(--muted);
 }
@@ -607,7 +613,7 @@ button.danger {
 
 #techDetail h3 {
   margin: 6px 0 2px;
-  font-size: 20px;
+  font-size: calc(20px * var(--ts));
 }
 
 #techDetail p {
@@ -616,7 +622,7 @@ button.danger {
 
 #techDetail .label {
   color: var(--muted);
-  font-size: 13px;
+  font-size: calc(13px * var(--ts));
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin: 12px 0 4px;
@@ -649,7 +655,7 @@ button.danger {
   width: 100%;
   min-height: 52px;
   background: #2f6b45;
-  font-size: 17px;
+  font-size: calc(17px * var(--ts));
 }
 
 /* ---- dev scenarios (dev server only) ---- */
@@ -677,7 +683,7 @@ button.danger {
 
 #devBannerText {
   flex: 1;
-  font-size: 14px;
+  font-size: calc(14px * var(--ts));
 }
 
 #devBanner .row {
@@ -698,7 +704,7 @@ button.danger {
 
 #devMenu .label {
   color: #c08ce0;
-  font-size: 13px;
+  font-size: calc(13px * var(--ts));
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin-bottom: 8px;
@@ -719,7 +725,7 @@ button.danger {
 .devList button {
   background: #3a2550;
   padding: 0 8px;
-  font-size: 14px;
+  font-size: calc(14px * var(--ts));
 }
 
 .devList button.on {
@@ -747,7 +753,7 @@ button.danger {
 }
 
 .odds b {
-  font-size: 44px;
+  font-size: calc(44px * var(--ts));
   line-height: 1;
 }
 
@@ -781,11 +787,11 @@ button.danger {
 .side ul {
   margin: 6px 0;
   padding-left: 18px;
-  font-size: 14px;
+  font-size: calc(14px * var(--ts));
 }
 
 .side .total {
-  font-size: 22px;
+  font-size: calc(22px * var(--ts));
   font-weight: 800;
 }
 
@@ -796,7 +802,7 @@ button.danger {
 button.bigBtn {
   min-height: 56px;
   min-width: 120px;
-  font-size: 18px;
+  font-size: calc(18px * var(--ts));
 }
 
 /* ---- backups list (☰ → Restore a backup) ---- */
@@ -820,7 +826,7 @@ button.bigBtn {
 
 .backup .warn {
   color: #ffb36b;
-  font-size: 14px;
+  font-size: calc(14px * var(--ts));
   margin-top: 4px;
 }
 
@@ -916,18 +922,18 @@ button.bigBtn {
 }
 
 .civRow .cname {
-  font-size: 16px;
+  font-size: calc(16px * var(--ts));
 }
 
 .civRow .cmeta {
   grid-column: 2 / -1;
   color: var(--muted);
   font-weight: 400;
-  font-size: 13px;
+  font-size: calc(13px * var(--ts));
 }
 
 .badge {
-  font-size: 12px;
+  font-size: calc(12px * var(--ts));
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -949,7 +955,7 @@ button.bigBtn {
 
 #diploDetail h3 {
   margin: 4px 0 2px;
-  font-size: 22px;
+  font-size: calc(22px * var(--ts));
 }
 
 #diploDetail .facts {
@@ -970,7 +976,7 @@ button.bigBtn {
 
 #diploDetail .label {
   color: var(--muted);
-  font-size: 13px;
+  font-size: calc(13px * var(--ts));
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin: 14px 0 6px;
@@ -1023,7 +1029,7 @@ button.bigBtn {
 
 .techPick .tmeta {
   display: block;
-  font-size: 12px;
+  font-size: calc(12px * var(--ts));
   font-weight: 400;
   color: var(--muted);
 }
@@ -1040,7 +1046,7 @@ button.bigBtn {
 
 #noticePanel p {
   color: var(--text);
-  font-size: 16px;
+  font-size: calc(16px * var(--ts));
 }
 
 #noticePanel .sub {
@@ -1081,7 +1087,7 @@ button.bigBtn {
 }
 
 #stackList .label {
-  font-size: 13px;
+  font-size: calc(13px * var(--ts));
   color: var(--muted);
 }
 
@@ -1112,7 +1118,7 @@ button.bigBtn {
 
 .stackItem .sub {
   color: var(--muted);
-  font-size: 12px;
+  font-size: calc(12px * var(--ts));
   margin-left: 4px;
 }
 
@@ -1160,7 +1166,7 @@ button.bigBtn {
 
 .uicon.uglyph {
   line-height: 18px;
-  font-size: 11px;
+  font-size: calc(11px * var(--ts));
   font-weight: 800;
   text-align: center;
 }
@@ -1202,7 +1208,7 @@ button.bigBtn {
 
 #aboutBody .label {
   color: var(--muted);
-  font-size: 13px;
+  font-size: calc(13px * var(--ts));
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin: 12px 0 6px;
@@ -1223,14 +1229,14 @@ button.bigBtn {
   align-items: center;
   gap: 2px;
   padding: 4px 0;
-  font-size: 14px;
+  font-size: calc(14px * var(--ts));
 }
 
 /* ---- victory progress (Milestone 6): one card per civ, stacking in portrait ---- */
 
 #victoryBtn {
   padding: 0 10px;
-  font-size: 18px;
+  font-size: calc(18px * var(--ts));
   background: #4a3d1a;
 }
 
@@ -1265,7 +1271,7 @@ button.bigBtn {
 #victoryBody .label,
 #religionBody .label {
   color: var(--muted);
-  font-size: 13px;
+  font-size: calc(13px * var(--ts));
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin: 16px 0 6px;
@@ -1276,7 +1282,7 @@ button.bigBtn {
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 6px 14px;
   margin-bottom: 12px;
-  font-size: 14px;
+  font-size: calc(14px * var(--ts));
 }
 
 .vcards {
@@ -1306,7 +1312,7 @@ button.bigBtn {
   align-items: center;
   gap: 8px;
   margin-bottom: 6px;
-  font-size: 16px;
+  font-size: calc(16px * var(--ts));
 }
 
 .swatch {
@@ -1327,7 +1333,7 @@ button.bigBtn {
   gap: 2px 8px;
   align-items: center;
   margin: 6px 0;
-  font-size: 14px;
+  font-size: calc(14px * var(--ts));
 }
 
 .vrow .bar {
@@ -1373,7 +1379,7 @@ button.bigBtn {
 
 .wwhere {
   margin-left: auto;
-  font-size: 14px;
+  font-size: calc(14px * var(--ts));
 }
 
 .buildItem.wonder {
@@ -1401,12 +1407,12 @@ button.bigBtn {
 }
 
 #endBanner {
-  font-size: 48px;
+  font-size: calc(48px * var(--ts));
   line-height: 1.1;
 }
 
 #endPanel h2 {
-  font-size: 26px;
+  font-size: calc(26px * var(--ts));
 }
 
 #endPanel p {
@@ -1426,7 +1432,7 @@ button.bigBtn {
 table.stats {
   width: 100%;
   border-collapse: collapse;
-  font-size: 14px;
+  font-size: calc(14px * var(--ts));
 }
 
 table.stats th,
@@ -1600,7 +1606,7 @@ button.primary {
 .rivals b {
   min-width: 1.5em;
   text-align: center;
-  font-size: 20px;
+  font-size: calc(20px * var(--ts));
 }
 .setupDetail,
 .leaderHead {
@@ -1643,7 +1649,7 @@ button.primary {
   min-width: 0;
 }
 .civText .sub {
-  font-size: 12px;
+  font-size: calc(12px * var(--ts));
   line-height: 1.25;
 }
 .civName .swatch,
@@ -1675,7 +1681,7 @@ button.primary {
   display: inline-block;
   min-width: 78px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: calc(12px * var(--ts));
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -1686,7 +1692,7 @@ button.primary {
   margin-top: 14px;
 }
 .uniqueActions .sub {
-  font-size: 13px;
+  font-size: calc(13px * var(--ts));
 }
 #noticeTitle .portrait {
   margin-right: 10px;
@@ -1707,7 +1713,7 @@ button.primary {
   border-radius: 50%;
   border: 2px solid #111;
   color: #fff;
-  font-size: 12px;
+  font-size: calc(12px * var(--ts));
   font-weight: 800;
   vertical-align: middle;
   margin-right: 6px;
@@ -1752,7 +1758,7 @@ button.primary {
 .rcard .rhead {
   display: flex;
   align-items: center;
-  font-size: 17px;
+  font-size: calc(17px * var(--ts));
   margin-bottom: 4px;
 }
 
@@ -1761,7 +1767,7 @@ button.primary {
   grid-template-columns: auto 1fr;
   gap: 2px 10px;
   margin: 4px 0 0;
-  font-size: 14px;
+  font-size: calc(14px * var(--ts));
 }
 
 .rcard dt {
@@ -1780,7 +1786,7 @@ button.primary {
   margin-top: 10px;
   min-height: 44px;
   padding: 8px 10px;
-  font-size: 16px;
+  font-size: calc(16px * var(--ts));
   border-radius: 10px;
   border: 1px solid var(--panel-border);
   background: #0e1620;
@@ -1807,4 +1813,411 @@ button.primary {
 
 .rcard .rhead .badge {
   margin-left: 8px;
+}
+
+/* ---- Round 13: main menu, Settings, How to Play, the Almanac, tips ---- */
+
+/* Screens reachable from the main menu sit above it; notices wait behind it. */
+#mainMenu {
+  position: absolute;
+  inset: 0;
+  z-index: 11;
+  background:
+    radial-gradient(ellipse at 50% 20%, rgba(230, 183, 63, 0.16), transparent 60%),
+    linear-gradient(180deg, rgba(11, 16, 22, 0.96), rgba(11, 16, 22, 0.99));
+  display: flex;
+  justify-content: center;
+}
+#mainMenu[hidden] {
+  display: none;
+}
+#setupOverlay,
+#menuOverlay,
+#settingsOverlay,
+#guideOverlay,
+#almanacOverlay {
+  z-index: 13;
+}
+#mmInner {
+  width: min(460px, calc(100vw - 32px));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  padding: calc(28px + var(--safe-top)) 4px calc(24px + var(--safe-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.wordmark {
+  text-align: center;
+  margin: 8px 0 10px;
+}
+.wordmark .wm {
+  font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+  font-size: calc(64px * var(--ts));
+  letter-spacing: 0.22em;
+  padding-left: 0.22em;
+  font-weight: 600;
+  color: var(--accent);
+  text-shadow: 0 2px 0 #5a4210, 0 0 28px rgba(230, 183, 63, 0.35);
+  line-height: 1.05;
+}
+.wordmark .wmSub {
+  color: var(--muted);
+  font-style: italic;
+  font-family: Georgia, serif;
+  font-size: calc(15px * var(--ts));
+  margin-top: 4px;
+}
+.wordmark .wmRule {
+  height: 2px;
+  width: 120px;
+  margin: 0 auto 14px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+}
+.mmContinue {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+  padding: 12px 16px;
+  min-height: 88px;
+  border-color: var(--accent);
+  background: #2a3a26;
+}
+.mmContinue[hidden] {
+  display: none;
+}
+.mmcText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mmcText b {
+  font-size: calc(20px * var(--ts));
+  color: var(--accent);
+}
+.mmList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.mmBtn {
+  min-height: 54px;
+  font-size: calc(18px * var(--ts));
+}
+#mmFoot {
+  text-align: center;
+}
+#mmDev .devList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+#mmDev summary {
+  min-height: 44px;
+  line-height: 44px;
+  cursor: pointer;
+}
+
+/* Settings / How to Play / Almanac: full panels like the victory screen. */
+#settingsPanel,
+#guidePanel,
+#almanacPanel {
+  position: absolute;
+  top: calc(8px + var(--safe-top));
+  bottom: calc(8px + var(--safe-bottom));
+  left: calc(8px + var(--safe-left));
+  right: calc(8px + var(--safe-right));
+  max-width: 980px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  background: #16212e;
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+  overflow: hidden;
+}
+#settingsPanel {
+  max-width: 640px;
+}
+#settingsBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  padding: 6px 14px 16px;
+}
+.setRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--panel-border);
+}
+.setRow > div:first-child {
+  flex: 1 1 220px;
+}
+.setRow .seg {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(72px, auto));
+}
+.vol {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.vol b {
+  min-width: 48px;
+  text-align: center;
+}
+.vol.off {
+  opacity: 0.45;
+}
+#settingsBody a {
+  color: #8cc4ee;
+}
+
+#guideBody,
+#almanacBody {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(200px, 0.8fr) minmax(0, 2fr);
+}
+#guideNav,
+#guidePage,
+#almanacList,
+#almanacCard {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  min-height: 0;
+  padding: 10px 14px 16px;
+}
+#guideNav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+#guideNav button,
+#almanacList button.acard {
+  text-align: left;
+  padding: 6px 12px;
+  flex: none;
+}
+#guideNav button.on,
+#almanacList button.sel,
+#almanacCats button.on {
+  background: #3d6b8f;
+  border-color: #8cc4ee;
+}
+#guidePage,
+#almanacCard {
+  border-left: 1px solid var(--panel-border);
+  background: rgba(0, 0, 0, 0.15);
+}
+#guidePage h3,
+#almanacCard h3 {
+  margin: 4px 0 6px;
+  font-size: calc(22px * var(--ts));
+}
+#guidePage p,
+#guidePage li {
+  line-height: 1.45;
+}
+.guidePics {
+  display: flex;
+  gap: 10px;
+  margin: 6px 0 4px;
+}
+.guidePics .udisc,
+.acardIcon {
+  width: 48px;
+  height: 48px;
+  flex: none;
+}
+.guidePics .udisc .uicon,
+.acardIcon .uicon {
+  width: 30px;
+  height: 30px;
+}
+.acardIcon:not(.mapdisc) {
+  background: #3d6b8f;
+  font-size: calc(22px * var(--ts));
+}
+.guidePics .udisc.holy {
+  background: #2a2410;
+  color: #f2c94c;
+}
+.guideFoot {
+  padding: 10px 14px calc(10px + var(--safe-bottom));
+  border-top: 1px solid var(--panel-border);
+  justify-content: space-between;
+}
+@media (orientation: portrait) {
+  #guideBody,
+  #almanacBody {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 32%) 1fr;
+  }
+  #guidePage,
+  #almanacCard {
+    border-left: none;
+    border-top: 1px solid var(--panel-border);
+  }
+}
+
+#almanacTools {
+  padding: 10px 14px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-bottom: 1px solid var(--panel-border);
+}
+#almanacSearch {
+  min-height: 44px;
+  /* 16px or more, so Safari does not zoom the page when it gets focus. */
+  font-size: calc(16px * var(--ts));
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--panel-border);
+  background: #0f1822;
+  color: var(--text);
+  -webkit-user-select: text;
+  user-select: text;
+}
+#almanacCats {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  padding-bottom: 2px;
+}
+#almanacCats button {
+  flex: none;
+  padding: 0 12px;
+}
+#almanacList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+#almanacList button.acard {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.acardHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+#almanacCard .facts {
+  margin: 10px 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 12px;
+}
+#almanacCard .facts dt {
+  color: var(--muted);
+}
+#almanacCard .facts dd {
+  margin: 0;
+}
+.almanacBack {
+  margin-bottom: 8px;
+}
+button.alink {
+  display: inline;
+  min-width: 0;
+  min-height: 0;
+  padding: 4px 2px;
+  margin: -4px 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: #8cc4ee;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+/* Build list rows: the item, then its card button. */
+.buildRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+}
+.infoBtn {
+  padding: 0;
+  min-width: 44px;
+  font-size: calc(18px * var(--ts));
+  background: #1d2b3a;
+}
+
+/* New Game: difficulty and map size. */
+.optRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.optBtn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  padding: 8px 12px;
+}
+.optBtn.on {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+  background: #3a3420;
+}
+.optNote {
+  margin-bottom: 10px;
+}
+.endLevel {
+  margin: 0 0 6px;
+}
+
+/* First-game tip: small and not modal, under the top bar. */
+#tipCard {
+  position: absolute;
+  z-index: 9;
+  left: 50%;
+  transform: translateX(-50%);
+  top: calc(104px + var(--safe-top));
+  width: min(440px, calc(100vw - 24px));
+  box-sizing: border-box;
+  background: #1f2d1c;
+  border: 1px solid #6fae5e;
+  border-radius: 14px;
+  padding: 12px 14px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+}
+#tipCard[hidden] {
+  display: none;
+}
+#tipText {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+#tipCard .row {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
 }

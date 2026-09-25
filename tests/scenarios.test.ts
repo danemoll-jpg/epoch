@@ -36,6 +36,10 @@ import { RELIGION, RELIGION_SYMBOLS } from '../src/data/religion';
 import { ROADS } from '../src/data/roads';
 import { faithOpinion, holyReligion, religionCityCulture, religionCityGold, spreadTargets } from '../src/game/religion';
 import { roadAt } from '../src/game/roads';
+import { LARGE_MAP_TURNS } from '../src/dev/scenarios';
+import { findCard, searchAlmanac } from '../src/ui/almanac';
+import { guidePages } from '../src/ui/guide';
+import { dueTips } from '../src/ui/tips';
 
 const AIR_TARGET = { x: 10, y: 5 };
 const mine = (s: GameState, type: string) => s.units.find((u) => u.owner === 0 && u.type === type)!;
@@ -64,6 +68,58 @@ function endTurn(s: GameState): void {
 
 /** What each scenario's note promises. A new scenario without an entry here fails the suite. */
 const OUTCOMES: Record<string, (s: GameState) => void> = {
+  // ---- Round 13: the main menu, Settings, difficulty, map size, the guide, and tips ----
+  'main-menu': (s) => {
+    expect(SCENARIOS.find((x) => x.id === 'main-menu')!.opens).toBe('mainMenu');
+    expect(s.difficulty).toBe('normal');
+    expect(s.mapSize).toBe('normal');
+  },
+  settings: (s) => {
+    expect(SCENARIOS.find((x) => x.id === 'settings')!.opens).toBe('settings');
+    // One unit that can still move, so Confirm End Turn asks.
+    const ready = s.units.filter((u) => u.owner === 0 && u.movesLeft > 0 && !u.fortified);
+    expect(ready).toHaveLength(1);
+    expect(noteOf('settings')).toContain('1 unit can still move');
+  },
+  'difficulty-legendary-start': (s) => {
+    expect(s.difficulty).toBe('legendary');
+    expect(s.turn).toBe(1);
+    for (const p of s.players.filter((q) => q.kind !== 'barbarian')) {
+      expect(s.units.filter((u) => u.owner === p.id)).toHaveLength(p.id === 0 ? 2 : 4);
+    }
+    expect(applyAction(s, { type: 'endTurn' }).ok).toBe(true);
+  },
+  'large-map': (s) => {
+    expect(s.mapSize).toBe('large');
+    expect(s.map.width).toBe(44);
+    expect(s.players.filter((p) => p.kind !== 'barbarian')).toHaveLength(6);
+    expect(s.players[0]!.kind).toBe('human');
+    expect(s.currentPlayer).toBe(0);
+    expect(s.turn).toBe(LARGE_MAP_TURNS + 1);
+    expect(s.players[0]!.explored.every((e) => e === 1)).toBe(true);
+    expect(s.cities.length).toBeGreaterThan(12);
+    expect(applyAction(s, { type: 'endTurn' }).ok).toBe(true);
+  },
+  almanac: () => {
+    expect(SCENARIOS.find((x) => x.id === 'almanac')!.opens).toBe('almanac');
+    expect(searchAlmanac('spear')[0]!.id).toBe('unit:spearman');
+    expect(findCard('unit:spearman')!.html).toContain('data-card="tech:bronze_working"');
+  },
+  'how-to-play': () => {
+    expect(SCENARIOS.find((x) => x.id === 'how-to-play')!.opens).toBe('howToPlay');
+    expect(guidePages()).toHaveLength(9);
+  },
+  'first-game-tips': (s) => {
+    expect(SCENARIOS.find((x) => x.id === 'first-game-tips')!.freshTips).toBe(true);
+    expect(dueTips(s, 0, []).map((t) => t.id)).toEqual(['first-turn', 'first-contact', 'first-war', 'first-village']);
+    const seen = ['first-turn', 'first-contact', 'first-war', 'first-village'];
+    const settler = s.units.find((u) => u.owner === 0 && u.type === 'settler')!;
+    expect(applyAction(s, { type: 'foundCity', unitId: settler.id }).ok).toBe(true);
+    expect(dueTips(s, 0, seen).map((t) => t.id)).toEqual(['first-city']);
+    expect(applyAction(s, { type: 'endTurn' }).ok).toBe(true);
+    expect(s.players[0]!.techs).toContain('pottery');
+    expect(dueTips(s, 0, [...seen, 'first-city']).map((t) => t.id)).toEqual(['first-tech']);
+  },
   // ---- Round 12: religion and roads ----
   'found-religion': (s) => {
     expect(s.religions).toEqual([]);

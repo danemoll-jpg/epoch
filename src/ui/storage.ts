@@ -164,6 +164,11 @@ export interface StartupResult {
   notice?: string;
   /** False when an old save couldn't be backed up: it's left in place, untouched. */
   autosave: boolean;
+  /**
+   * Round 13: there was no saved game, and `saveFresh` was false, so `state` is only a stand-in
+   * behind the main menu: it isn't saved, and New Game replaces it without a backup.
+   */
+  placeholder?: boolean;
 }
 
 const RESTORE_HINT = '☰ → Restore a backup';
@@ -174,15 +179,16 @@ const RESTORE_HINT = '☰ → Restore a backup';
  * game is not autosaved, so nothing is ever lost.
  */
 export function loadOrStart(
-  opts: { forceNew: boolean; newGame: () => GameState; now: number },
+  opts: { forceNew: boolean; newGame: () => GameState; now: number; saveFresh?: boolean },
   store: KeyValueStore = browserStore(),
 ): StartupResult {
+  const saveFresh = opts.saveFresh ?? true;
   let text: string | null;
   try {
     text = store.getItem(SAVE_KEY);
   } catch {
     // Storage unavailable (e.g. blocked): play on; saving will just fail quietly.
-    return { state: opts.newGame(), autosave: true };
+    return saveFresh ? { state: opts.newGame(), autosave: true } : { state: opts.newGame(), autosave: true, placeholder: true };
   }
 
   /** A new game. `lead` starts the notice; `reason` (if any) means the old save gets a backup. */
@@ -203,6 +209,8 @@ export function loadOrStart(
     return { state, autosave: true, notice: `${lead} Your old game was kept: ${RESTORE_HINT}.` };
   };
 
+  // Round 13: with the main menu, "no save" means no game yet: the menu offers New Game.
+  if (text === null && !saveFresh && !opts.forceNew) return { state: opts.newGame(), autosave: true, placeholder: true };
   if (text === null) return fresh(undefined, undefined);
   if (opts.forceNew) return fresh('Started a new game (?new).', 'Replaced by ?new');
 

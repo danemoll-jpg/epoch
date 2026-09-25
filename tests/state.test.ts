@@ -30,7 +30,7 @@ describe('game state', () => {
   });
 
   it('supports the full 5-player game (1 human, 4 AI)', () => {
-    const state = createGame({ seed: 3, playerCount: RULES.maxPlayers });
+    const state = createGame({ seed: 3, playerCount: RULES.defaultPlayers });
     // Plus the barbarians (Round 9), always last.
     expect(state.players).toHaveLength(6);
     expect(state.players[5]!.kind).toBe('barbarian');

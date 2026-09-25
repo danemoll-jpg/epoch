@@ -118,6 +118,8 @@ npm run build    # type-check + production build into dist/
 npm run lint     # type-check only (tsc --noEmit); no ESLint yet
 npm run sim      # pace/war/victory/naval/barbarian/Great People/air report on 5 all-AI seeds + landmass stats (not part of npm test)
 npm run sim -- leaders   # Round 11: victory mix and wins per leader, 10 games of 5 civs from the 12 (SEEDS=20 for more)
+npm run sim -- difficulty  # Round 13: victory mix, win turns, stand-in wins at Novice/Normal/Legendary (SEEDS=, LEVELS=)
+npm run sim -- sizes       # Round 13: the same at each map size with its most rivals, plus ms per turn (SIZES=)
 ```
 **iPad over the local network:**
 ```
@@ -137,7 +139,9 @@ the firewall; allow it on private networks.
   (`scripts/copy-pickers.mjs`), so the iPad opens them at
   `http://10.0.0.224:4173/docs/<page>.html`; the Netlify build (`dist/`)
   never gets them. Since Round 11 it also copies `docs/portraits.html` and
-  the portraits (into `dist-play/docs/portraits/`).
+  the portraits (into `dist-play/docs/portraits/`), and since Round 13
+  the sound check page `docs/sounds.html` with Dan's sound files (into
+  `dist-play/docs/sounds/`).
 - **Sim reports also go to `sim-report.txt`** (git-ignored, appended): Vitest 5
   hides a passing test's console output, so read the file after `npm run sim`.
 - **Each address has its own saved game.** Safari keeps `localStorage` per
@@ -148,6 +152,11 @@ the firewall; allow it on private networks.
   (port 5175, localhost only) is for a second session to preview without
   taking 5174; `epoch-play-verify` (port 4176) serves an existing
   `dist-play/` (run `npm run build:play` first) to check the play build.
+
+**Startup (Round 13): the main menu opens first.** With a saved game it
+offers Continue; with none, the map behind it is a stand-in that is never
+saved (`loadOrStart(..., saveFresh: false)` returns `placeholder: true`),
+and New Game replaces it without a backup. `?new` skips the menu.
 
 Dev URL options: `?seed=123` gives a reproducible map, and `?players=2`
 gives a smaller game (the default is 5 civs). **The autosave wins:** if a saved game exists it resumes,
@@ -160,7 +169,7 @@ debugging, including from Safari's Web Inspector on the iPad.
 completes inside Safari's `pagehide`). Saved after every successful action
 (including End Turn), on `visibilitychange` → hidden, and on `pagehide`.
 The save carries `saveVersion` (= `STATE_VERSION` in `src/game/types.ts`,
-currently 11). **Bump `STATE_VERSION` whenever the state shape changes, and
+currently 12). **Bump `STATE_VERSION` whenever the state shape changes, and
 add a migration** to `MIGRATIONS` in `src/game/save.ts` (keyed by the
 version it upgrades from), plus a line in `MIGRATION_NOTES` for the notice,
 so Dan's game carries forward. Migrated so far: 2 → 3 (M3: no techs,
@@ -183,7 +192,13 @@ capital, which remembers whose it was; no unique used, no Challenge; ships
 afloat count as built), and 10 → 11 (Round 12: no religions and no city
 follows one; a founding tech any civ already knows is "lapsed"
 (`religionTechsLapsed`) and founds nothing, but the next unknown one still
-can; no roads; no Missionaries; Theology is simply unknown).
+can; no roads; no Missionaries; Theology is simply unknown), and 11 → 12
+(Round 13: `difficulty` 'normal' and `mapSize` 'normal').
+
+**Settings (Round 13)** live apart from saves, per device:
+`epoch.settings` (`src/ui/settings.ts`, `loadSettings`/`saveSettings`,
+store as a parameter) and `epoch.tipsSeen` (first-game tips already shown).
+Nothing that replaces a save touches them.
 
 **Backups: a save is never thrown away.** All startup and replace logic
 is in `src/ui/storage.ts` (`loadOrStart`, `backupCurrentSave`,
@@ -221,7 +236,13 @@ never autosaves**, so the real game can't be overwritten. Current set:
 `bolivar-liberate`, `jfk-challenge`, `versailles`, `deterrence`,
 `portraits`; (round 12) `found-religion`, `missionary`, `religion-spread`,
 `holy-city-income`, `shared-faith`, `henry-national-church`, `build-road`,
-`road-speed`, `railroad`, `all-religion-symbols`. The religion ones use
+`road-speed`, `railroad`, `all-religion-symbols`; (round 13) `main-menu`,
+`settings`, `difficulty-legendary-start`, `large-map` (60 AI turns on a
+Large map, all revealed; End Turn toasts its time), `almanac`,
+`how-to-play`, `first-game-tips`. A scenario can open a screen at load
+(`opens: 'mainMenu' | 'settings' | 'almanac' | 'howToPlay' | 'setup'`) and
+show every tip afresh (`freshTips`, without touching the device's list);
+scenarios are silent unless Settings → Sound in dev scenarios. The religion ones use
 `withReligion(state, p, city, name)` (founds it already named, so no
 naming panel pops up). The leader ones use `asLeader(state, civId, techs)` (player 0
 plays that civ; its era follows from the techs). Scenario states from
@@ -263,6 +284,15 @@ note text appears anywhere in `dist/`.
 Nothing else to wire up: the ☰ menu lists every entry automatically.
 
 ## Code layout
+- Round 13 in `src/data/`: `difficulty.ts` (`DIFFICULTIES`: the player's
+  and the AIs' production/science/gold percents, aggression toward the
+  human, `demandsFromTurn`, `warGraceTurns`, `extraAiUnits`; Normal =
+  no change), `mapSizes.ts` (`MAP_SIZES`: grid, `maxRivals`, map shape,
+  start spacing, village and hut caps, `victoryPct`; `victoryGoals(size)`
+  is the one place the culture and gold goals are read: Large ×1.25), and
+  `sounds.ts` (`SOUND_EVENTS`: the 14 events, file names, feel, priority,
+  which may play from the AIs' turns; `MUSIC_FILES`; `SOUND_RULES`).
+  `RULES.maxPlayers` is 6 (a Large map); each size caps its own rivals.
 - `src/data/`: terrain (yields, move cost, `defensePct`), units (cost,
   `popCost`, attack/defense/moves/sight, `requires` tech, `glyph` letters,
   `icon` file name, and Round 8's `domain` ('land'/'sea'/'air'), `cargo`,
@@ -327,7 +357,12 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   `GREAT_PEOPLE_RULES`:
   thresholds and every effect's number). `TECH_COST.perKnown` is 8.5 since
   round 9 (was 6) to keep the era pace.
-- `src/game/`: pure rules. Round 12: `religion.ts` (founding and naming,
+- `src/game/`: pure rules. Round 13: the difficulty level rides the
+  leader-bonus system: `effectsOf(state, p, 'empirePct')` adds
+  `difficultyEffects` (player 0 gets the player's side, other civs the
+  AIs', the barbarians nothing), and `aiAggression(state, ai, target)`
+  adds the level's aggression only toward player 0 (the human; the sim's
+  stand-in). Round 12: `religion.ts` (founding and naming,
   `checkFoundings` after a tech and at each player's end of turn, passive
   spread once a game turn in `spreadReligions`, the Missionary's
   `spreadReligion`, the Great Artist's conversion, holy-city and follower
@@ -415,6 +450,10 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   (512×512), bundled. `docs/PORTRAITS.md` explains names, size, framing, and
   the focus/zoom; `docs/portraits.html` shows every size (refresh its data
   with `python scripts/make-portraits-page.py`).
+- `src/assets/sounds/`: Dan's sound files (none yet), named as in
+  `docs/SOUNDS.md` (his list, with a starting ElevenLabs prompt for each);
+  `docs/sounds.html` plays each at the game's loudness (on the play
+  server: http://10.0.0.224:4173/docs/sounds.html).
 - `src/assets/icons/`: the 63 icons Dan picked (30 units: 16 land counting
   the Missionary, 9 ships, 5 aircraft; 33 map icons: village, hut,
   barbarian badge, 15 resources, 5 Great People, artifact, and Round 12's
@@ -428,7 +467,17 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   whose config is `vitest.sim.config.ts`; it also counts overseas cities,
   landings, and ships), and `landmass.ts` (how often civs share or get their
   own landmass, and empty islands; Round 8's B7 check).
-- `src/ui/`: Round 12 in `app.ts`: the city panel's Religion line and
+- `src/ui/`: Round 13: the main menu (`#mainMenu`, `openMainMenu`),
+  Settings, How to Play, the Almanac, tips, and Confirm End Turn are in
+  `app.ts` (`setupRound13`); `settings.ts` (device settings, pure with a
+  store), `sound.ts` (the Web Audio engine: bundles whatever MP3s are in
+  `src/assets/sounds/`, unlocks on the first tap, suspends while hidden,
+  crossfades music) and `soundLogic.ts` (its rules: `soundAllowed`,
+  `normalizeGain`, `effectiveGain`, `turnSounds`), `almanac.ts` (every card
+  from the data; `cardLink` makes a `data-card` link any panel can use),
+  `guide.ts` (How to Play pages), `tips.ts` (`dueTips`), `text.ts` (`esc`,
+  `plural`, `unitSummary`). Font sizes are `calc(Npx * var(--ts))`;
+  `html.largeText` sets `--ts` for Settings → Text size. Round 12 in `app.ts`: the city panel's Religion line and
   "Build road to…" list, the naming panel (notices can carry a text
   field, and a `stay` button like Suggest), the Religion screen (☰ →
   Religions, the city panel, or Diplomacy), the Missionary's ✦ Spread
@@ -475,12 +524,14 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   removed so it doesn't look like the Battleship; compare in
   `docs/carrier-trim-candidates.html`).
 - The version shown on the About screen comes from `package.json`
-  (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.12.0 for
-  round 12.
+  (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.13.0 for
+  round 13.
 - **Meeting a civ reveals where its capital is** (Round 11: the tile is
   marked explored), so conquerors can find the capitals domination needs.
 - **Victory goals:** culture 7000 (Round 12, was 6000; religion adds
-  culture), gold 9000.
+  culture), gold 9000, on Small and Normal maps; ×1.25 on Large (8750,
+  11250). Read them with `victoryGoals(state.mapSize)`, never `VICTORY`
+  directly (tests and scenarios on the Normal map may).
 - **Religion (Round 12):** the first civ to know a founding tech
   (Mysticism, Astronomy, Philosophy, Monotheism, Theology) founds a
   religion, **one per civ** (a civ that has one leaves the tech to the
@@ -548,7 +599,9 @@ what was pushed.
 - **The play server:** http://10.0.0.224:4173/.
 - The epoch repo is pushed every round until Netlify is set up.
 
-**The current objective is Round 13 (M9, part 1 of 3):**
+**Round 13 (M9, part 1 of 3) is done and awaiting Dan** (report in
+TODO.md: main menu, Settings, difficulty, map sizes, How to Play, the
+Almanac, tips, the sound engine and Dan's sound list). The plan for it was:
 - a main menu and Settings;
 - difficulty levels (Novice, Normal, Veteran, Legendary) and map sizes
   (Small, Normal, Large);

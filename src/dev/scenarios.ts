@@ -7,8 +7,12 @@
 // To add one: append an entry to SCENARIOS below, and add its expected outcome to
 // tests/scenarios.test.ts (the test also fails if a scenario has no outcome check).
 
+import { MAP_SIZES, victoryGoals } from '../data/mapSizes';
+import { DIFFICULTIES } from '../data/difficulty';
+import { createGame } from '../game/newGame';
+import { endTurn, playComputerTurn } from '../game/turn';
 import { BUILDINGS } from '../data/buildings';
-import { RULES, growthThreshold } from '../data/rules';
+import { growthThreshold } from '../data/rules';
 import { PLAYABLE_CIVS, findCiv } from '../data/civs';
 import { LEADER_BONUSES, UNIQUE_RULES } from '../data/leaders';
 import { buyCost, itemCost } from '../game/production';
@@ -52,6 +56,10 @@ export interface Scenario {
   /** What to do and what should happen, shown on screen while the scenario is loaded. */
   note: string;
   build: () => GameState;
+  /** Round 13: a screen to open as soon as it loads. */
+  opens?: 'mainMenu' | 'settings' | 'almanac' | 'howToPlay' | 'setup';
+  /** Round 13: show every first-game tip again (only for this scenario; the device's list is untouched). */
+  freshTips?: boolean;
 }
 
 const CAPITAL = 'Babylon';
@@ -1215,8 +1223,9 @@ const LEADER_SCENARIOS: Scenario[] = [
   {
     id: 'new-game-setup',
     title: 'Leaders: New Game screen',
-    note: `The New Game screen is open. Tap a leader card: its portrait, starting tech, and every bonus appear at the top. Tap 🎲 Random civ to go back to random. Set Rivals with − and + (1–${RULES.maxPlayers - 1}). Tap Start: a new game begins with your leader and that many rivals, drawn from the rest (not saved here: this is a dev scenario). Turn the iPad: the cards reflow.`,
+    note: `The New Game screen is open. Tap a leader card: its portrait, starting tech, and every bonus appear at the top. Tap 🎲 Random civ to go back to random. Pick a difficulty and a map size (Round 13): Small allows up to ${MAP_SIZES.small.maxRivals} rivals, Normal ${MAP_SIZES.normal.maxRivals}, Large ${MAP_SIZES.large.maxRivals}. Set Rivals with − and +. Tap Start: a new game begins with your leader and that many rivals, drawn from the rest (not saved here: this is a dev scenario). Turn the iPad: the cards reflow.`,
     build: newGameSetupScenario,
+    opens: 'setup',
   },
   {
     id: 'starting-tech',
@@ -1503,6 +1512,102 @@ const ROUND12_SCENARIOS: Scenario[] = [
     title: 'Religion: all symbols',
     note: `All ${RELIGION_SYMBOLS.length} religion symbols (${RELIGION_SYMBOLS.map((x) => x.name).join(', ')}), each white on its religion's color on its holy city (with the gold holy-city badge top right), four follower cities with just the disc, and a Missionary (the robed figure) south of ${CAPITAL}. Pinch-zoom to see them at other sizes; ☰ → Religions shows them in the panel. These are Dan's picks from docs/religion-road-icon-candidates.html.`,
     build: allReligionSymbolsScenario,
+  },
+];
+
+// ---- Round 13: the main menu, Settings, difficulty, map size, the guide, and tips ---------
+
+/** Turns a Large-map scenario plays (all AI, you included) before you take over. */
+export const LARGE_MAP_TURNS = 60;
+export const LARGE_MAP_SEED = 4413;
+
+/** A new Legendary game: every rival starts with the level's extra units. */
+function legendaryStartScenario(): GameState {
+  return createGame({ seed: 1313, difficulty: 'legendary' });
+}
+
+/**
+ * A Large map with 5 rivals, played by the AI (you too) for LARGE_MAP_TURNS turns so there's
+ * plenty on it, then handed to you with the whole map revealed, so the renderer draws every tile.
+ */
+function largeMapScenario(): GameState {
+  const s = createGame({ seed: LARGE_MAP_SEED, mapSize: 'large', playerCount: MAP_SIZES.large.maxRivals + 1 });
+  s.players[0]!.kind = 'ai';
+  while (s.turn <= LARGE_MAP_TURNS || s.currentPlayer !== 0) {
+    playComputerTurn(s, s.currentPlayer);
+    endTurn(s);
+  }
+  s.players[0]!.kind = 'human';
+  s.players[0]!.explored.fill(1);
+  // The AI left its own research and builds going; you choose from here.
+  return s;
+}
+
+/** Turn 1: your Settler and Warrior, a civ met (at war), and a barbarian village in sight. */
+function firstGameTipsScenario(): GameState {
+  const state = makeState(mapWith(), { players: 2 });
+  addBarbarians(state);
+  addUnit(state, 'settler', 0, CITY_X, CITY_Y);
+  addUnit(state, 'warrior', 0, CITY_X, CITY_Y);
+  addVillage(state, CITY_X + 3, CITY_Y);
+  // Nearly done with Pottery, so End Turn brings the first tech.
+  const p = state.players[0]!;
+  p.researching = 'pottery';
+  p.science = techCost(state, 0, 'pottery');
+  return state;
+}
+
+const ROUND13_SCENARIOS: Scenario[] = [
+  {
+    id: 'main-menu',
+    title: 'Main menu',
+    note: `The main menu is open over your game: the EPOCH title, then Continue (your leader, turn, era, difficulty, and map), New Game, How to Play, Almanac, Settings, Restore a backup, and About / Credits. Tap Continue: the game is there. Open ☰ → Main menu: it comes back. Turn the iPad: it fits both ways.`,
+    build: () => withCapital(undefined, {}).state,
+    opens: 'mainMenu',
+  },
+  {
+    id: 'settings',
+    title: 'Settings',
+    note: `Settings is open. Set Text size to Large: the menus and panels grow at once. Turn Confirm End Turn on, close Settings, and tap End Turn: your Warrior can still move, so “End your turn? 1 unit can still move” asks first (Keep playing selects it). Settings are kept on this device, apart from your games: reload and they're still set.`,
+    build: () => {
+      const { state } = withCapital(undefined, {});
+      addUnit(state, 'warrior', 0, CITY_X + 1, CITY_Y);
+      return state;
+    },
+    opens: 'settings',
+  },
+  {
+    id: 'difficulty-legendary-start',
+    title: 'Difficulty: a Legendary start',
+    note: `A new Legendary game on turn 1. Open 🏆: it says Legendary · Normal map. You have your Settler and Warrior; every rival started with ${DIFFICULTIES.legendary.extraAiUnits.length + 2} units (a free ${DIFFICULTIES.legendary.extraAiUnits.map((u) => UNITS[u].name).join(' and ')} on top), and their production, science, and gold are +${DIFFICULTIES.legendary.ai.production}%. They may declare war on you from turn ${DIFFICULTIES.legendary.warGraceTurns} (Normal: ${DIFFICULTIES.normal.warGraceTurns}). ☰ → Almanac → Difficulty lists every level.`,
+    build: legendaryStartScenario,
+  },
+  {
+    id: 'large-map',
+    title: 'Map size: a Large map',
+    note: `A Large map (${MAP_SIZES.large.width}×${MAP_SIZES.large.height}) with ${MAP_SIZES.large.maxRivals} rivals, played by the computer for ${LARGE_MAP_TURNS} turns, all of it revealed so every tile is drawn (it takes a few seconds to load). Pinch out to see the whole map and drag around: it should stay smooth. Tap End Turn: six civs and the barbarians move, which takes a moment; the toast says how long. Goals here are ${victoryGoals('large').culture} culture and ${victoryGoals('large').gold} gold.`,
+    build: largeMapScenario,
+  },
+  {
+    id: 'almanac',
+    title: 'Almanac',
+    note: `The Almanac is open. Type “spear” in the search box: Spearman comes first. Tap it, then its Bronze Working link: the tech's card, with everything it unlocks. Tap ‹ Back. Tap the category chips (Units, Techs, Leaders…). Close it, tap ${CAPITAL}, and tap ⓘ next to Warrior in the Build list: the Warrior's card opens. The tech screen's names are links too.`,
+    build: () => withCapital(undefined, {}).state,
+    opens: 'almanac',
+  },
+  {
+    id: 'how-to-play',
+    title: 'How to Play',
+    note: `How to Play is open on its first page. Tap Next › through the pages (or pick one from the list): moving and founding cities, cities, research, combat, ships and aircraft, diplomacy, villages and Great People, religion and roads, and the four ways to win. The underlined names open their Almanac cards.`,
+    build: () => withCapital(undefined, {}).state,
+    opens: 'howToPlay',
+  },
+  {
+    id: 'first-game-tips',
+    title: 'First-game tips',
+    note: `Every first-game tip is fresh here (your device's own list is untouched). A green tip says to found your city; tap Got it: the next tips come one at a time (you've met the Mauryans and you're at war with them, and a barbarian village is in sight). Found a city: “Your first city” appears. Tap End Turn: you learn Pottery and “A new tech” appears. “No more tips” turns them off (Settings turns them back on).`,
+    build: firstGameTipsScenario,
+    freshTips: true,
   },
 ];
 
@@ -1890,6 +1995,7 @@ export const SCENARIOS: Scenario[] = [
   },
   ...LEADER_SCENARIOS,
   ...ROUND12_SCENARIOS,
+  ...ROUND13_SCENARIOS,
 ];
 
 export function findScenario(id: string): Scenario | undefined {

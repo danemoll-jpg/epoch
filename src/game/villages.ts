@@ -17,6 +17,7 @@
 
 import { ARTIFACTS, HUTS, VILLAGE_REWARDS, type HutResultKind, type VillageRewardKind, BARBARIANS } from '../data/barbarians';
 import { RESOURCES } from '../data/resources';
+import { DEFAULT_MAP_SIZE, MAP_SIZES } from '../data/mapSizes';
 import { RULES } from '../data/rules';
 import { TECHS, TECH_IDS, type TechId } from '../data/techs';
 import { TERRAIN } from '../data/terrain';
@@ -52,7 +53,9 @@ export function placeVillagesAndHuts(state: GameState, starts: Coord[], open: (i
   const taken = (c: Coord) =>
     state.cities.some((city) => distance(city, c) < 1) || state.units.some((u) => u.x === c.x && u.y === c.y);
   const B = BARBARIANS;
-  const villageCount = Math.max(B.minVillages, Math.min(B.maxVillages, Math.floor(land.length / B.landTilesPerVillage)));
+  // Round 13: the caps come from the map size (a save from before Round 13 is Normal).
+  const size = MAP_SIZES[state.mapSize ?? DEFAULT_MAP_SIZE];
+  const villageCount = Math.max(size.villages.min, Math.min(size.villages.max, Math.floor(land.length / B.landTilesPerVillage)));
   const cityNear = (c: Coord, d: number) => state.cities.some((city) => distance(city, c) < d);
   const candidates = shuffle(rng, land.filter((c) =>
     open(tileIndex(map, c.x, c.y)) && !taken(c) &&
@@ -70,7 +73,7 @@ export function placeVillagesAndHuts(state: GameState, starts: Coord[], open: (i
       if (hidden) tile.resource = hidden;
     }
   }
-  const hutCount = Math.max(HUTS.minHuts, Math.min(HUTS.maxHuts, Math.floor(land.length / HUTS.landTilesPerHut)));
+  const hutCount = Math.max(size.huts.min, Math.min(size.huts.max, Math.floor(land.length / HUTS.landTilesPerHut)));
   const hutSpots = shuffle(rng, land.filter((c) =>
     open(tileIndex(map, c.x, c.y)) && !taken(c) && !cityNear(c, HUTS.minDistanceFromStart + 1) &&
     starts.every((s) => distance(s, c) > HUTS.minDistanceFromStart)));

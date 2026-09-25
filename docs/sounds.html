@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Epoch sound check</title>
+<!--
+  Round 13 (D2): Dan's sound check page. One button per sound event; each plays the current
+  file at the loudness the game uses (the same normalization as src/ui/soundLogic.ts, with the
+  numbers from SOUND_RULES in src/data/sounds.ts), or says "missing". The play server serves it
+  at /docs/sounds.html with the files in /docs/sounds/ (scripts/copy-pickers.mjs); on the dev
+  server it reads them straight from src/assets/sounds/. tests/round13.test.ts checks that this
+  list and the numbers match the game's.
+-->
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #0b1016; color: #eef2f6; font: 16px/1.4 system-ui, -apple-system, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 26px; margin: 8px 0; }
+  .sub { color: #9fb0c0; font-size: 14px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 12px 0 18px; }
+  button { min-width: 44px; min-height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid rgba(255,255,255,.14);
+    background: #243447; color: #eef2f6; font: inherit; font-weight: 600; cursor: pointer; }
+  button:disabled { opacity: .45; cursor: default; }
+  .row { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; padding: 12px; margin: 8px 0;
+    background: #16212e; border: 1px solid rgba(255,255,255,.14); border-radius: 12px; }
+  .row b { font-size: 17px; }
+  .row code { color: #e6b73f; }
+  .status { grid-column: 1 / -1; font-size: 14px; }
+  .missing { color: #e07a6a; }
+  .ok { color: #7fd08a; }
+  h2 { font-size: 18px; margin: 22px 0 6px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Epoch sound check</h1>
+  <p class="sub">Tap Play on each sound. It plays at the loudness the game uses (every file is brought to the same level). A file that isn't there yet says <span class="missing">missing</span>. The list and file names are in docs/SOUNDS.md.</p>
+  <div class="bar">
+    <button id="all" type="button">Play all, one by one</button>
+    <label class="sub">Volume <input id="vol" type="range" min="0" max="100" step="10" value="80"> <span id="volText">80%</span></label>
+  </div>
+  <div id="effects"></div>
+  <h2>Music (optional)</h2>
+  <p class="sub">Plays 20 seconds of each track (tap again to stop). In the game, tracks crossfade into each other.</p>
+  <div id="music"></div>
+</main>
+<script>
+  // Keep in step with src/data/sounds.ts (SOUND_EVENTS, MUSIC_FILES, SOUND_RULES).
+  const SOUND_RULES = { targetRms: 0.12, maxGain: 4, musicLevel: 0.5 };
+  const EFFECTS = [
+    ['tap.mp3', 'Tap / select', 'A soft wooden click when you select a unit or open a city.'],
+    ['unit-move.mp3', 'Unit move', 'A light footstep or rustle as a unit moves.'],
+    ['found-city.mp3', 'Found a city', 'A hopeful short fanfare, hammers and a cheer.'],
+    ['city-grows.mp3', 'City grows', 'A gentle rising chime.'],
+    ['building-done.mp3', 'Building done', 'A stone-and-wood thunk with a small bell.'],
+    ['tech-learned.mp3', 'Tech learned', 'A bright "aha" sparkle.'],
+    ['era-reached.mp3', 'New era', 'A grand, short brass swell.'],
+    ['combat-win.mp3', 'Combat won', 'A clash of steel, then a short triumphant hit.'],
+    ['combat-loss.mp3', 'Combat lost (or a city lost)', 'A clash of steel, then a low, falling tone.'],
+    ['war-declared.mp3', 'War declared on you', 'War drums and a low horn.'],
+    ['wonder-built.mp3', 'Wonder built', 'A choir-like shimmer.'],
+    ['victory.mp3', 'Victory', 'A full, joyful fanfare.'],
+    ['defeat.mp3', 'Defeat', 'A slow, somber horn line.'],
+    ['new-turn.mp3', 'New turn', 'A very soft, calm cue.'],
+  ];
+  const MUSIC = [['music-1.mp3', 'Music 1'], ['music-2.mp3', 'Music 2'], ['music-3.mp3', 'Music 3']];
+
+  let ctx;
+  const cache = new Map();
+  let playingMusic;
+  const vol = () => Number(document.getElementById('vol').value) / 100;
+
+  function audio() {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state !== 'running') ctx.resume();
+    return ctx;
+  }
+
+  // The same rule as the game: RMS up or down to the target, never clipping, never more than maxGain.
+  function normalizeGain(rms, peak) {
+    if (!(rms > 0) || !(peak > 0)) return 1;
+    return Math.min(SOUND_RULES.maxGain, SOUND_RULES.targetRms / rms, 0.99 / peak);
+  }
+  function measure(d) {
+    let sum = 0, peak = 0;
+    for (let i = 0; i < d.length; i++) { sum += d[i] * d[i]; peak = Math.max(peak, Math.abs(d[i])); }
+    return { rms: d.length ? Math.sqrt(sum / d.length) : 0, peak };
+  }
+
+  // Play server: docs/sounds/<file>. Dev server: src/assets/sounds/<file>.
+  async function fetchFirst(file) {
+    for (const url of [`sounds/${file}`, `../src/assets/sounds/${file}`]) {
+      try {
+        const r = await fetch(url);
+        const type = r.headers.get('content-type') || '';
+        if (r.ok && !type.includes('text/html')) return await r.arrayBuffer();
+      } catch (e) { /* try the next place */ }
+    }
+    return undefined;
+  }
+
+  function load(file) {
+    if (!cache.has(file)) {
+      cache.set(file, fetchFirst(file).then(async (data) => {
+        if (!data) return undefined;
+        const buffer = await audio().decodeAudioData(data);
+        const m = measure(buffer.getChannelData(0));
+        return { buffer, gain: normalizeGain(m.rms, m.peak), rms: m.rms, peak: m.peak };
+      }).catch(() => undefined));
+    }
+    return cache.get(file);
+  }
+
+  function describe(l) {
+    const secs = l.buffer.duration.toFixed(2);
+    return `<span class="ok">✓ ${secs} s</span> · loudness ${(20 * Math.log10(l.rms)).toFixed(1)} dB · raised ×${l.gain.toFixed(2)} to match`;
+  }
+
+  async function play(file, status, music) {
+    const c = audio();
+    const l = await load(file);
+    if (!l) { status.innerHTML = '<span class="missing">missing</span> (not in src/assets/sounds/ in this build)'; return 0; }
+    status.innerHTML = describe(l);
+    const src = c.createBufferSource();
+    src.buffer = l.buffer;
+    const g = c.createGain();
+    g.gain.value = l.gain * vol() * (music ? SOUND_RULES.musicLevel : 1);
+    src.connect(g).connect(c.destination);
+    src.start();
+    if (music) { src.stop(c.currentTime + Math.min(20, l.buffer.duration)); playingMusic = src; }
+    return l.buffer.duration;
+  }
+
+  function rows(list, box, music) {
+    for (const [file, name, feel] of list) {
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.innerHTML = `<div><b>${name}</b> <code>${file}</code>${feel ? `<div class="sub">${feel}</div>` : ''}</div>
+        <button type="button">Play</button><div class="status sub">Not played yet</div>`;
+      const status = row.querySelector('.status');
+      row.querySelector('button').addEventListener('click', () => {
+        if (music && playingMusic) { try { playingMusic.stop(); } catch (e) {} playingMusic = undefined; return; }
+        play(file, status, music);
+      });
+      row.dataset.file = file;
+      box.appendChild(row);
+    }
+  }
+  rows(EFFECTS, document.getElementById('effects'), false);
+  rows(MUSIC, document.getElementById('music'), true);
+
+  document.getElementById('vol').addEventListener('input', (e) => { document.getElementById('volText').textContent = `${e.target.value}%`; });
+  document.getElementById('all').addEventListener('click', async () => {
+    for (const row of document.querySelectorAll('#effects .row')) {
+      const secs = await play(row.dataset.file, row.querySelector('.status'), false);
+      await new Promise((r) => setTimeout(r, secs * 1000 + 400));
+    }
+  });
+</script>
+</body>
+</html>

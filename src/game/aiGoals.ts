@@ -9,9 +9,10 @@
 // (old saves) keep the old personality bases: domination = aggression; culture = 5 −
 // aggression; economic = trade willingness − 1; technology = a flat techBase.
 
+import { victoryGoals } from '../data/mapSizes';
 import { RULES } from '../data/rules';
 import { TECH_IDS } from '../data/techs';
-import { VICTORY, type VictoryKind } from '../data/victory';
+import { type VictoryKind } from '../data/victory';
 import { civDef } from './diplomacy';
 import { capitalsHeld } from './victory';
 import type { GameState } from './types';
@@ -26,8 +27,8 @@ export function aiVictoryScores(state: GameState, p: number): Record<VictoryKind
   const { held, of } = capitalsHeld(state, p);
   const progress: Record<VictoryKind, number> = {
     domination: of > 0 ? held / of : 0,
-    culture: Math.min(1, player.culture / VICTORY.cultureGoal),
-    economic: Math.min(1, player.gold / VICTORY.goldGoal),
+    culture: Math.min(1, player.culture / victoryGoals(state.mapSize).culture),
+    economic: Math.min(1, player.gold / victoryGoals(state.mapSize).gold),
     technology: player.techs.length / TECH_IDS.length,
   };
   // Round 11: a leader's lean (primary, then secondary) sets the bases; legacy civs keep the

@@ -6,6 +6,8 @@ import { BUILDINGS } from '../data/buildings';
 import { FOUNDING_TECHS } from '../data/religion';
 import type { TechId } from '../data/techs';
 import { RULES } from '../data/rules';
+import { DIFFICULTIES } from '../data/difficulty';
+import { MAP_SIZES } from '../data/mapSizes';
 import { UNITS } from '../data/units';
 import { newDiplomacy } from './diplomacy';
 import { newBarbarianPlayer } from './barbarians';
@@ -210,6 +212,12 @@ const MIGRATIONS: Record<number, (s: Raw) => void> = {
     for (const c of s.cities as Raw[]) c.religion = null;
     for (const t of (s.map as Raw).tiles as Raw[]) delete t.road;
   },
+  // Round 12 → 13: difficulty levels and map sizes. Every game so far was played at today's
+  // balance on today's map, which are Normal and Normal.
+  11: (s) => {
+    s.difficulty = 'normal';
+    s.mapSize = 'normal';
+  },
 };
 
 /** What each migration brought, for the "your game was updated" notice. Keyed like MIGRATIONS. */
@@ -223,6 +231,7 @@ export const MIGRATION_NOTES: Record<number, string> = {
   8: 'aircraft and Airports',
   9: 'leader bonuses and new buildings',
   10: 'religion, Missionaries, and roads',
+  11: 'difficulty levels and map sizes (yours is Normal on a Normal map)',
 };
 
 /** "the tech tree and combat and armies" for a save upgraded from version `from`. */
@@ -262,6 +271,8 @@ function shapeError(s: Record<string, unknown>): string | undefined {
   if (!s.players.every((p) => isObject(p) && Array.isArray(p.uniquesUsed) && Array.isArray(p.shipsBuilt))) return 'missing leader state';
   if (!Array.isArray(s.religions) || !Array.isArray(s.religionTechsLapsed)) return 'missing religions';
   if (!s.cities.every((c) => isObject(c) && (c.religion === null || typeof c.religion === 'number'))) return 'missing city religions';
+  if (typeof s.difficulty !== 'string' || !Object.hasOwn(DIFFICULTIES, s.difficulty)) return 'missing difficulty';
+  if (typeof s.mapSize !== 'string' || !Object.hasOwn(MAP_SIZES, s.mapSize)) return 'missing map size';
   return undefined;
 }
 

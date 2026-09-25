@@ -20,9 +20,9 @@
 // Every choice an AI makes here is deterministic: answers to the human depend only on the
 // state (asking twice gets the same answer), and the AI's own initiatives use the seeded RNG.
 
+import { victoryGoals } from '../data/mapSizes';
 import { CIVS, type CivDef } from '../data/civs';
 import { RULES } from '../data/rules';
-import { VICTORY } from '../data/victory';
 import { TECHS, type TechId } from '../data/techs';
 import { UNITS } from '../data/units';
 import { CivName, civName, civPossessive, civVerb } from './conquest';
@@ -34,7 +34,8 @@ import { nextFloat } from './rng';
 import { attackStrength, winChance } from './combat';
 import { hasTech, learnTech, researchError, techCost } from './tech';
 import { atWar } from './war';
-import { bonusName, effectsOf, firstEffect, willingnessToward } from './leaders';
+import { aiAggression, bonusName, effectsOf, firstEffect, willingnessToward } from './leaders';
+import { DEFAULT_DIFFICULTY, DIFFICULTIES, type DifficultyDef } from '../data/difficulty';
 import { faithOpinion } from './religion';
 import type { ActionResult, Diplomacy, GameState, Offer } from './types';
 
@@ -299,7 +300,7 @@ export function peaceDesire(state: GameState, ai: number, other: number): Desire
   const start = d.warStart[ai]?.[other];
   // A war from before Milestone 5 has no start turn: treat it as a long one.
   const turns = start === null || start === undefined ? D.warWearinessMaxTurns : state.turn - start;
-  const aggression = civDef(state, ai).aggression;
+  const aggression = aiAggression(state, ai, other);
   // Round 11: a conqueror tires of war more slowly, and won't stop while it's going its way.
   const V = RULES.ai.victory;
   const conqueror = state.players[ai]?.kind === 'ai' && aiVictoryGoal(state, ai) === 'domination';
@@ -560,7 +561,8 @@ export function warScore(state: GameState, ai: number, target: number): number {
   const conqueror = aiVictoryGoal(state, ai) === 'domination';
   const wars = state.players.filter((p) => p.alive && p.kind !== 'barbarian' && atWar(state, ai, p.id) && state.cities.some((c) => c.owner === p.id)).length;
   if (wars >= (conqueror ? RULES.ai.victory.dominationMaxWars : 1)) return -Infinity;
-  if (state.players[target]!.kind === 'human' && state.turn < D.aiGraceTurns) return -Infinity;
+  // Round 13: the difficulty level sets how long the human is safe (Normal: aiGraceTurns).
+  if (state.players[target]!.kind === 'human' && state.turn < level(state).warGraceTurns) return -Infinity;
   // Round 11: Kim Jong Un's deterrence.
   const deterrence = effectsOf(state, target, 'deterrence').reduce((s, e) => s + e.warScore, 0);
   const ratio = strengthRatio(state, ai, target);
@@ -573,7 +575,7 @@ export function warScore(state: GameState, ai: number, target: number): number {
   if (cityDistance(state, ai, target) > D.warMaxDistance) return -Infinity;
   // Only a war it could win: its best attack (as an army) must beat their best city defender.
   if (winChance(bestAttack(state, ai), bestCityDefense(state, target)) < D.warMinAttackChance) return -Infinity;
-  const aggression = civDef(state, ai).aggression;
+  const aggression = aiAggression(state, ai, target);
   const conquest = (conqueror ? V.dominationWarBonus : 0) + (runaway ? V.runawayWarBonus : 0);
   return (
     (Math.min(ratio, 4) - D.warMinStrengthRatio) * D.warStrengthWeight +
@@ -588,7 +590,7 @@ export function warScore(state: GameState, ai: number, target: number): number {
 export function runawayProgress(state: GameState, p: number): number {
   const player = state.players[p];
   if (!player) return 0;
-  return Math.max(player.culture / VICTORY.cultureGoal, player.gold / VICTORY.goldGoal);
+  return Math.max(player.culture / victoryGoals(state.mapSize).culture, player.gold / victoryGoals(state.mapSize).gold);
 }
 
 /**
@@ -623,17 +625,22 @@ export function warChance(score: number): number {
   return Math.min(D.warMaxChancePct, score * D.warChancePctPerPoint) / 100;
 }
 
+/** Round 13: the game's difficulty level (Normal for a hand-made state without one). */
+function level(state: GameState): DifficultyDef {
+  return DIFFICULTIES[state.difficulty ?? DEFAULT_DIFFICULTY];
+}
+
 /** Would AI `ai` demand tribute from `target` now (ignoring the dice)? */
 export function canDemand(state: GameState, ai: number, target: number): boolean {
   const d = state.diplomacy;
   if (!hasMet(state, ai, target) || atWar(state, ai, target)) return false;
-  if (state.turn < D.aiGraceTurns) return false;
+  if (state.turn < level(state).demandsFromTurn) return false;
   const last = d.lastDemand[ai]?.[target];
   if (last !== null && last !== undefined && state.turn - last < D.demandCooldownTurns) return false;
   // At most one demand waiting at a time, from anyone.
   if (d.offers.some((o) => o.to === target && o.kind === 'demand')) return false;
   if (strengthRatio(state, ai, target) < D.demandMinStrengthRatio) return false;
-  return civDef(state, ai).aggression >= D.demandMinAggression || attitude(state, ai, target) === 'hostile';
+  return aiAggression(state, ai, target) >= D.demandMinAggression || attitude(state, ai, target) === 'hostile';
 }
 
 /** What AI `ai` would demand from `target`: its most valuable tech, or part of its gold. */

@@ -5,15 +5,19 @@
 
 import { PLAYABLE_CIVS, findCiv } from '../data/civs';
 import { LEADER_BONUSES } from '../data/leaders';
-import { RULES } from '../data/rules';
+import { DEFAULT_DIFFICULTY, DIFFICULTIES, DIFFICULTY_IDS, type DifficultyId } from '../data/difficulty';
+import { DEFAULT_MAP_SIZE, MAP_SIZES, MAP_SIZE_IDS, type MapSizeId } from '../data/mapSizes';
 import { ERAS, TECHS } from '../data/techs';
 import { portraitHtml } from './portraits';
 
 export interface SetupChoice {
   /** The civ id, or undefined for a random one. */
   civ?: string;
-  /** Rival civs (AI), 1–4. */
+  /** Rival civs (AI), 1 to the map size's most. */
   rivals: number;
+  /** Round 13: the difficulty level and map size. */
+  difficulty: DifficultyId;
+  mapSize: MapSizeId;
 }
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -35,7 +39,9 @@ export function bonusListHtml(civId: string, activeEra?: number): string {
 
 export class SetupScreen {
   private civ: string | undefined = undefined;
-  private rivals = RULES.defaultPlayers - 1;
+  private rivals = MAP_SIZES[DEFAULT_MAP_SIZE].defaultRivals;
+  private difficulty: DifficultyId = DEFAULT_DIFFICULTY;
+  private mapSize: MapSizeId = DEFAULT_MAP_SIZE;
   private readonly root: HTMLElement;
 
   constructor(private readonly onStart: (choice: SetupChoice) => void) {
@@ -69,8 +75,18 @@ export class SetupScreen {
           <p class="sub">Starting tech: ${chosen.startTech ? esc(TECHS[chosen.startTech].name) : '—'} (known from turn 1, even without the techs before it)</p>
           ${bonusListHtml(chosen.id)}</div></div>`
       : `<div class="setupDetail"><div><h3>Random civ</h3><p class="sub">You'll get one of the 12 at random. Tap a card to choose instead, and to see all its bonuses.</p></div></div>`;
-    const max = RULES.maxPlayers - 1;
+    const max = MAP_SIZES[this.mapSize].maxRivals;
+    const seg = (act: string, id: string, on: boolean, name: string, sub: string) =>
+      `<button type="button" data-${act}="${id}" class="optBtn ${on ? 'on' : ''}" aria-pressed="${on}"><b>${esc(name)}</b><span class="sub">${esc(sub)}</span></button>`;
+    const levels = DIFFICULTY_IDS.map((d) => seg('difficulty', d, this.difficulty === d, DIFFICULTIES[d].name, DIFFICULTIES[d].forWhom)).join('');
+    const sizes = MAP_SIZE_IDS.map((m) => seg('size', m, this.mapSize === m, MAP_SIZES[m].name, MAP_SIZES[m].summary)).join('');
     document.getElementById('setupBody')!.innerHTML = `
+      <div class="label">Difficulty</div>
+      <div class="optRow">${levels}</div>
+      <div class="sub optNote">${esc(DIFFICULTIES[this.difficulty].summary)}</div>
+      <div class="label">Map</div>
+      <div class="optRow">${sizes}</div>
+      <div class="label">Leader</div>
       <div class="setupControls row">
         <button type="button" data-act="random" class="${this.civ ? '' : 'on'}" aria-pressed="${!this.civ}">🎲 Random civ</button>
         <span class="rivals">Rivals
@@ -92,12 +108,20 @@ export class SetupScreen {
     if (!el || el.disabled) return;
     const act = el.dataset.act;
     if (el.dataset.civ) this.civ = el.dataset.civ === this.civ ? undefined : el.dataset.civ;
+    else if (el.dataset.difficulty) this.difficulty = el.dataset.difficulty as DifficultyId;
+    else if (el.dataset.size) {
+      // A new size: its usual rival count if you hadn't changed it, else yours (within its limit).
+      const was = MAP_SIZES[this.mapSize];
+      this.mapSize = el.dataset.size as MapSizeId;
+      const now = MAP_SIZES[this.mapSize];
+      this.rivals = this.rivals === was.defaultRivals ? now.defaultRivals : Math.min(this.rivals, now.maxRivals);
+    }
     else if (act === 'random') this.civ = undefined;
     else if (act === 'fewer') this.rivals = Math.max(1, this.rivals - 1);
-    else if (act === 'more') this.rivals = Math.min(RULES.maxPlayers - 1, this.rivals + 1);
+    else if (act === 'more') this.rivals = Math.min(MAP_SIZES[this.mapSize].maxRivals, this.rivals + 1);
     else if (act === 'start') {
       this.close();
-      this.onStart({ civ: this.civ, rivals: this.rivals });
+      this.onStart({ civ: this.civ, rivals: this.rivals, difficulty: this.difficulty, mapSize: this.mapSize });
       return;
     } else if (act === 'cancel') {
       this.close();

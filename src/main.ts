@@ -25,7 +25,13 @@ const playerCount =
 function newGame(choice?: SetupChoice): GameState {
   // Picking a fresh seed is UI, not game logic, so the clock is fine here.
   const seed = Number.isFinite(seedParam) && seedParam > 0 ? Math.floor(seedParam) : Date.now() % 1_000_000_000;
-  return createGame({ seed, playerCount: choice ? choice.rivals + 1 : playerCount, civ: choice?.civ });
+  return createGame({
+    seed,
+    playerCount: choice ? choice.rivals + 1 : Math.min(playerCount, RULES.defaultPlayers),
+    civ: choice?.civ,
+    difficulty: choice?.difficulty,
+    mapSize: choice?.mapSize,
+  });
 }
 
 async function boot(): Promise<void> {
@@ -44,6 +50,9 @@ async function boot(): Promise<void> {
       if (scenario) {
         state = scenario.build();
         opts.scenario = { id: scenario.id, title: scenario.title, note: scenario.note };
+        // Round 13: some scenarios open a screen straight away, or show every tip afresh.
+        opts.opens = scenario.opens;
+        opts.freshTips = scenario.freshTips;
         opts.autosave = false;
         console.info(`Epoch: ${dev.SCENARIO_MARKER}: loaded "${id}" (not saved)`);
       } else {
@@ -54,17 +63,19 @@ async function boot(): Promise<void> {
 
   if (!state) {
     // Resume the autosave, or start fresh; a save that gets replaced is always backed up first.
-    const start = loadOrStart({ forceNew: params.has('new'), newGame, now: Date.now() });
+    // Round 13: the main menu opens first (except with ?new, which goes straight into a new game).
+    const menu = !params.has('new');
+    const start = loadOrStart({ forceNew: params.has('new'), newGame, now: Date.now(), saveFresh: !menu });
     state = start.state;
     notice = [notice, start.notice].filter(Boolean).join(' ') || undefined;
     if (!start.autosave) opts.autosave = false;
+    if (start.placeholder) opts.placeholder = true;
+    if (menu) opts.opens = 'mainMenu';
   }
 
   preventBrowserGestures();
   opts.notice = notice;
   const app = new App(state, opts);
-  // Round 11: the dev scenario for the New Game screen opens it straight away.
-  if (opts.scenario?.id === 'new-game-setup') app.openSetup();
 
   // Debug handle for diagnosing device-only bugs (e.g. from Safari's Web Inspector).
   (window as unknown as { __epoch: unknown }).__epoch = { app, seed: state.seed };
