@@ -2,7 +2,7 @@
 // three lines in front of it when it builds `sw.js`:
 //   const VERSION = '<hash of the build>';
 //   const PRECACHE = [every file the game needs, except the music];
-//   const MEDIA = [the music files];
+//   const MEDIA = [the music files, and (Round 16) the cloud-save code chunks];
 //
 // The rules (tests/pwa.test.ts runs this file against a fake browser):
 // - install: download PRECACHE into this version's cache. It does NOT take over: a new version
@@ -11,8 +11,10 @@
 // - activate: delete older versions' caches; keep only the music this version still uses.
 // - fetch: the page itself and every game file come from this version's cache first (so the
 //   game runs offline, and a new version can't mix its files with an old page's); music is
-//   cached the first time it plays (it's big, so it's not downloaded up front).
+//   cached the first time it plays (it's big, so it's not downloaded up front). Round 16: so is
+//   the cloud-save code (only players who sign in need it).
 // - Saved games live in localStorage, which a service worker never touches.
+// - Round 16: sign-in's /__/ pages and every other site (Firebase, Google) are never handled.
 
 const CACHE = 'epoch-' + VERSION;
 const MEDIA_CACHE = 'epoch-media';
@@ -45,6 +47,10 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return;
   // The picker and check pages under /docs/ aren't part of the game: always from the network.
   if (url.pathname.startsWith('/docs/')) return;
+  // Round 16: Google sign-in's pages (/__/auth/…, /__/firebase/…, passed through to Firebase by
+  // netlify.toml) always come from the network, untouched. Firebase's and Google's own requests
+  // are on other sites, which this worker never handles (see above).
+  if (url.pathname.startsWith('/__/')) return;
   if (MEDIA.includes(url.pathname)) {
     event.respondWith(mediaFirst(req));
     return;

@@ -9,6 +9,23 @@
 [build.environment]
   NODE_VERSION = "24"
 
+# Round 16: Google sign-in for cloud saves. Firebase's sign-in handler is served from the game's
+# own address (passed through, status 200, not redirected), so it isn't cross-site: Safari blocks
+# the cross-site storage the default firebaseapp.com handler needs, which breaks sign-in on the
+# iPad, especially from the Home Screen icon. Firebase's "redirect best practices", option 3.
+# These must come before the catch-all below (Netlify uses the first rule that matches).
+[[redirects]]
+  from = "/__/auth/*"
+  to = "https://epoch-ca127.firebaseapp.com/__/auth/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/__/firebase/*"
+  to = "https://epoch-ca127.firebaseapp.com/__/firebase/:splat"
+  status = 200
+  force = true
+
 # Single-page app: any deep link (e.g. a refresh mid-game) should still serve index.html.
 [[redirects]]
   from = "/*"

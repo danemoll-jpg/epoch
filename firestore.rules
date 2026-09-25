@@ -1,0 +1,74 @@
+rules_version = '2';
+
+// Round 16: Epoch's cloud saves. Publish these in the Firebase console (Firestore Database →
+// Rules) or with `firebase deploy --only firestore:rules`; see docs/FIREBASE-SETUP.md.
+//
+//   users/{uid}/slots/{slot}  a slot's index entry (what the main menu shows)
+//   users/{uid}/saves/{slot}  { rev, data }: the gzipped save file
+//
+// - A player reads and writes only their own saves (request.auth.uid matches).
+// - At most 5 slots: the only slot ids allowed are s1..s5.
+// - Each write of a slot raises its revision by exactly 1 (so an older copy can never quietly
+//   overwrite a newer one), and its save must carry the same revision.
+// - Size limits: a save is at most 900 KB (gzipped), a name at most 40 characters.
+// - Nothing else in the database can be read or written.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedInAs(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function validSlotId(slot) {
+      return slot in ['s1', 's2', 's3', 's4', 's5'];
+    }
+
+    function validEntry(d, slot) {
+      return d.keys().hasOnly(['slot', 'gameId', 'rev', 'name', 'civId', 'leader', 'civName', 'turn', 'era',
+                               'mapSize', 'difficulty', 'savedAt', 'device', 'saveVersion', 'bytes', 'rawBytes', 'updatedAt'])
+        && d.slot == slot
+        && d.gameId is string && d.gameId.size() > 0 && d.gameId.size() <= 64
+        && d.rev is int
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 40
+        && d.civId is string && d.civId.size() <= 40
+        && d.leader is string && d.leader.size() <= 60
+        && d.civName is string && d.civName.size() <= 60
+        && d.turn is int && d.turn >= 0
+        && d.era is string && d.era.size() <= 30
+        && d.mapSize is string && d.mapSize.size() <= 20
+        && d.difficulty is string && d.difficulty.size() <= 20
+        && d.savedAt is number
+        && d.device is string && d.device.size() <= 30
+        && d.saveVersion is int
+        && d.bytes is int && d.bytes <= 921600
+        && d.rawBytes is int;
+    }
+
+    match /users/{uid}/slots/{slot} {
+      allow read, delete: if signedInAs(uid);
+      allow create: if signedInAs(uid) && validSlotId(slot)
+        && validEntry(request.resource.data, slot)
+        && request.resource.data.rev == 1;
+      allow update: if signedInAs(uid) && validSlotId(slot)
+        && validEntry(request.resource.data, slot)
+        && (
+          // a new version of the save: the revision goes up by one, and the same game stays
+          request.resource.data.rev == resource.data.rev + 1
+          // or a rename: nothing but the name changes
+          || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name'])
+        );
+    }
+
+    match /users/{uid}/saves/{slot} {
+      allow read, delete: if signedInAs(uid);
+      allow create, update: if signedInAs(uid) && validSlotId(slot)
+        && request.resource.data.keys().hasOnly(['rev', 'data'])
+        && request.resource.data.data is bytes
+        && request.resource.data.data.size() <= 921600
+        && request.resource.data.rev is int
+        // written together with its slot entry, at the same revision
+        && getAfter(/databases/$(database)/documents/users/$(uid)/slots/$(slot)).data.rev == request.resource.data.rev;
+    }
+  }
+}

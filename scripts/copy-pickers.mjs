@@ -14,7 +14,11 @@ mkdirSync(join(OUT, 'docs', 'portraits'), { recursive: true });
 for (const page of pages) copyFileSync(join('docs', page), join(OUT, 'docs', page));
 const portraits = readdirSync('src/assets/portraits').filter((f) => /\.(png|webp)$/.test(f));
 for (const f of portraits) copyFileSync(join('src/assets/portraits', f), join(OUT, 'docs', 'portraits', f));
+// Round 16: Dan's PNG masters too, for the page's PNG-and-WebP side-by-side check.
+mkdirSync(join(OUT, 'docs', 'portraits-master'), { recursive: true });
+const masters = readdirSync('docs/portraits-master').filter((f) => f.endsWith('.png'));
+for (const f of masters) copyFileSync(join('docs/portraits-master', f), join(OUT, 'docs', 'portraits-master', f));
 mkdirSync(join(OUT, 'docs', 'sounds'), { recursive: true });
 const sounds = readdirSync('src/assets/sounds').filter((f) => f.endsWith('.mp3'));
 for (const f of sounds) copyFileSync(join('src/assets/sounds', f), join(OUT, 'docs', 'sounds', f));
-console.log(`copy-pickers: ${pages.length} page(s), ${portraits.length} portrait(s), and ${sounds.length} sound(s) → ${OUT}/docs/`);
+console.log(`copy-pickers: ${pages.length} page(s), ${portraits.length} portrait(s) (+${masters.length} PNG masters), and ${sounds.length} sound(s) → ${OUT}/docs/`);

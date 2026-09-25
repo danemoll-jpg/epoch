@@ -3,13 +3,14 @@
 // - Fills the name placeholders in index.html (%GAME_NAME%, …) from src/data/game.ts.
 // - Serves /manifest.webmanifest (made from the same data) in dev, and writes it in a build.
 // - After a build, writes sw.js: the service worker (src/pwa/sw-template.js) with this build's
-//   version and the list of files to keep offline (everything but the music and /docs/).
+//   version and the list of files to keep offline (everything but the music, the cloud-save
+//   code, and /docs/; those two are kept the first time they're used).
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import type { Plugin } from 'vite';
 import { GAME, webManifest } from '../src/data/game';
-import { isMusicFile, precacheEntries } from '../src/pwa/files';
+import { isOnDemandFile, precacheEntries } from '../src/pwa/files';
 
 const HTML_VARS: Record<string, string> = {
   GAME_NAME: GAME.name,
@@ -51,7 +52,7 @@ export function pwaPlugin(): Plugin {
     closeBundle() {
       const files = listFiles(outDir);
       const precache = precacheEntries(files);
-      const media = files.filter(isMusicFile).sort();
+      const media = files.filter(isOnDemandFile).sort();
       const hash = createHash('sha256');
       for (const f of [...precache, ...media]) hash.update(f).update(readFileSync(join(outDir, f)));
       const version = hash.digest('hex').slice(0, 12);

@@ -128,7 +128,10 @@ npm run sim -- difficulty  # Round 13: victory mix, win turns, stand-in wins at 
 npm run sim -- sizes       # Round 13: the same at each map size with its most rivals, plus ms per turn (SIZES=)
 npm run sim -- perf        # Round 14: End Turn time per map size, by stretch of turns (SIZES=, SEEDS=2, TURNS=250)
 npm run sim -- map-fixtures  # Round 14: remake the late Huge/Epic saves the huge-map/epic-map scenarios load
-npm run sim -- matrix        # Round 15: the full matrix (every size at Normal + Novice/Legendary on Normal, 20 games each); CONFIGS=normal,large to pick, TUNE="VICTORY.goldGoal=12000" to try numbers without editing, TAG= to keep runs apart; JSON in sim-matrix-*.json
+npm run sim -- matrix        # Round 15: the full matrix (every size at Normal + Novice/Legendary on Normal, 20 games each); CONFIGS=normal,large to pick, TUNE="VICTORY.goldGoal=12000" to try numbers without editing, TAG= to keep runs apart; JSON in sim-out/sim-matrix-*.json
+npm run sim -- save-size     # Round 16: the Epic save's size raw and gzipped, turn 151 → 220 (TURNS=)
+npm run test:rules           # Round 16: firestore.rules against the Firestore emulator (needs Java 21+; this PC has Java 8, so not run yet)
+python scripts/make-portrait-webp.py      # Round 16: remake src/assets/portraits/*.webp from docs/portraits-master/*.png
 node scripts/make-art-page.mjs            # Round 14: rebuild docs/terrain-style-candidates.html after changing src/render/art.ts
 node scripts/make-building-icons-page.mjs # Round 14: rebuild docs/building-icon-candidates.html (fetches missing SVGs)
 ```
@@ -155,8 +158,9 @@ the firewall; allow it on private networks.
   `dist-play/docs/sounds/`). Round 14's two picker pages
   (`terrain-style-candidates.html`, `building-icon-candidates.html`) are
   `-candidates.html` pages, so they're copied the same way.
-- **Sim reports also go to `sim-report.txt`** (git-ignored, appended): Vitest 5
-  hides a passing test's console output, so read the file after `npm run sim`.
+- **Sim reports also go to `sim-out/sim-report.txt`** (git-ignored, appended;
+  Round 16 moved every sim file into `sim-out/`): Vitest 5 hides a passing
+  test's console output, so read the file after `npm run sim`.
 - **Each address has its own saved game.** Safari keeps `localStorage` per
   host and port, so `play:lan` (:4173) and `dev:lan` (:5173) never share or
   overwrite each other's save. That's intended.
@@ -271,7 +275,9 @@ map-fixtures`; End Turn toasts its time and where it ran), `minimap`,
 with ☰ → Art style, dev only), `era-music` (sound on, with a Music switch in its
 note: `sound`/`musicSwitch` on a scenario); (round 15) `update-available`
 (the update banner, `fakeUpdate` on a scenario), `theology` (Theology unlocks
-the Grand Cathedral), `ai-roads` (an AI links its cities). A scenario can open a screen at load
+the Grand Cathedral), `ai-roads` (an AI links its cities); (round 16)
+`cloud-conflict`, `cloud-offline`, `cloud-slots` (a stand-in cloud:
+`cloud: () => CloudScenario` on a scenario). A scenario can open a screen at load
 (`opens: 'mainMenu' | 'settings' | 'almanac' | 'howToPlay' | 'setup'`) and
 show every tip afresh (`freshTips`, without touching the device's list);
 scenarios are silent unless Settings → Sound in dev scenarios. The religion ones use
@@ -316,6 +322,41 @@ note text appears anywhere in `dist/`.
 Nothing else to wire up: the ☰ menu lists every entry automatically.
 
 ## Code layout
+- **Round 16: cloud saves.** `src/data/firebase.ts` (the web config, `AUTH_PROXY_HOSTS`/
+  `authDomainFor`, `CLOUD`: 5 slots, 900 KB save limit, 40-char names, retry
+  backoff 2 s doubling to 60 s; `SLOT_IDS` s1..s5). `src/cloud/`: `sync.ts`
+  (pure: `SlotMeta`, the `CloudStore` interface, `decide` = the B3 rule,
+  `freeSlot`, `CloudSync`: coalesced background writes, one in flight, retries,
+  `check()` on open/visible/sign-in, `keepLocal`), `compress.ts` (gzip via
+  `CompressionStream`, fallback `gzipFallback.ts` = fflate, its own chunk),
+  `device.ts` (`deviceLabel`: "iPad"/"PC"…, `isStandalone`), `backend.ts` (the
+  `CloudBackend` interface, `loadFirebase()` = the dynamic import), and
+  `firebase.ts` (**the only file that imports the SDK**: auth with popup, or
+  redirect from the Home Screen icon or when a popup is blocked; the Firestore
+  store: `users/{uid}/slots/{slot}` index + `users/{uid}/saves/{slot}` {rev,
+  data: gzipped bytes}, written in a transaction that checks the rev).
+  `src/ui/cloud.ts` (`CloudController`: sign-in/out, the signed-in flag
+  `epoch.cloud` per device, the main menu's games (`menuEntries`), open/rename/
+  delete, the keep-which panel `#cloudOverlay` (above the main menu), the top-bar
+  mark `#cloudBadge`, the ☰ line `#menuCloud`, the Settings row). The game's
+  link to its slot (`CloudLink`: gameId, slot, uid, syncedRev, dirty,
+  localOnly) rides in the **save file** (`SaveFile.cloud`, outside the state,
+  so no `STATE_VERSION` bump) and so in backups too. The App calls
+  `cloud.markChanged()` after each successful action, `request()` after End
+  Turn (once the rivals have moved), on hidden and pagehide, `check()` when the
+  game comes back into view, `kick()` on `online`. Anything taken from the cloud
+  or not kept goes into the backups first (`backupText`). `firestore.rules`,
+  `firebase.json`, `.firebaserc` in the repo root; `docs/FIREBASE-SETUP.md`.
+  `netlify.toml` proxies `/__/auth/*` and `/__/firebase/*` to
+  `epoch-ca127.firebaseapp.com` (sign-in from our own domain); the service
+  worker never handles `/__/`, and caches the `firebase-*`/`gzipFallback-*`
+  chunks only when first used (`isCloudChunk`, like the music).
+  `scripts/check-dist.mjs` fails a build with Firebase in the first load and
+  prints the first-load size. Dev: `src/dev/memoryCloud.ts` (`MemoryCloudStore`
+  with offline/slow/fail switches, `mockBackend`, `putSlot`); a scenario's
+  `cloud()` gives the App a stand-in cloud whose backups stay in memory.
+- **Round 16: portraits are WebP** (`src/assets/portraits/<civ>.webp`, quality
+  90, 851 KB for 12); Dan's PNG masters are in `docs/portraits-master/`.
 - Round 14: `src/data/mapSizes.ts` has Huge (64×44) and Epic (80×56; its
   `bestOnComputer` note shows on a touch device), each with `techCostPct`
   (+35% / +25%) and higher goals (×1.65 / ×1.5), and shape rules `continentWeight` (continents of
@@ -498,9 +539,10 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   panels via `iconHtml`/`unitIconHtml`). A unit's look on the map is drawn
   only in `drawGlyph` (its icon, white on the owner's color; letters while
   it loads or if it's missing).
-- `src/assets/portraits/`: Dan's 12 leader portraits, `<civ-id>.png`
-  (512×512), bundled. `docs/PORTRAITS.md` explains names, size, framing, and
-  the focus/zoom; `docs/portraits.html` shows every size (refresh its data
+- `src/assets/portraits/`: Dan's 12 leader portraits, `<civ-id>.webp`
+  (512×512, since Round 16; the PNG masters are in `docs/portraits-master/`),
+  bundled. `docs/PORTRAITS.md` explains names, size, framing, and
+  the focus/zoom; `docs/portraits.html` shows each PNG next to its WebP, then every size (refresh its data
   with `python scripts/make-portraits-page.py`).
 - `src/assets/sounds/`: Dan's sound files (all 14 effects, the theme, and
   the four era tracks since Round 14), named as in
@@ -577,8 +619,8 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   removed so it doesn't look like the Battleship; compare in
   `docs/carrier-trim-candidates.html`).
 - The version shown on the About screen comes from `package.json`
-  (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.15.0 for
-  round 15.
+  (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.16.0 for
+  round 16.
 - **Meeting a civ reveals where its capital is** (Round 11: the tile is
   marked explored), so conquerors can find the capitals domination needs.
 - **Victory goals (Round 15):** culture 8000, gold 13000 on Normal. Each
@@ -668,18 +710,19 @@ what was pushed.
   - the name **"Epoch: From Stone to Stars"** (short name "Epoch", in
     `src/data/game.ts`), the Round 15 balance pass, Add to Home Screen,
     offline with the update banner, and `docs/GO-LIVE.md`.
-- **Go-live:** Dan follows `docs/GO-LIVE.md`. **Live URL: not yet recorded**
-  (Round 16 item 0 records it here).
+- **Live since 2026-09-25 at https://epoch-fsts.netlify.app/** (Netlify, from
+  `main`). Every push to `main` deploys there.
+- **Round 16 (version 0.16.0): cloud saves with Firebase** (project
+  `epoch-ca127`, Google sign-in, Firestore) and the portraits as WebP; done,
+  committed, **waiting for Dan to push**. Before pushing, Dan does the two console
+  steps in `docs/FIREBASE-SETUP.md` (publish `firestore.rules`; add the Netlify
+  redirect URI to the OAuth client).
 - **The play server:** http://10.0.0.224:4173/.
 - **Pushing: once Dan says the site is live, pushing is Dan's call** (see
   Pushing rules). Commit as usual, push only when told, and list the
   waiting commits in the report.
 
-**Round 16's objective: cloud saves with Firebase** (Google sign-in, local
-saves stay primary, background sync, up to 5 cloud slots, conflict prompts
-with backups, compression, rules in the repo, a sync indicator), plus the
-portraits as WebP. See items 0, A1–A2, B1–B6, and C1–C4 in TODO.md. **Don't
-start until Dan's relay gives the live URL and the Firebase config.**
+**Next objective: see TODO.md** (the planning session sets it after Round 16).
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.

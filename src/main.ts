@@ -58,6 +58,13 @@ async function boot(): Promise<void> {
         opts.scenarioSound = scenario.sound;
         opts.musicSwitch = scenario.musicSwitch;
         opts.fakeUpdate = scenario.fakeUpdate;
+        // Round 16: the cloud scenarios bring a stand-in cloud (and their game's link to it).
+        if (scenario.cloud) {
+          const c = scenario.cloud();
+          opts.cloudBackend = c.backend;
+          opts.cloudLink = c.link;
+          if (c.savedAt) opts.savedAt = c.savedAt;
+        }
         opts.autosave = false;
         console.info(`Epoch: ${dev.SCENARIO_MARKER}: loaded "${id}" (not saved)`);
       } else {
@@ -75,6 +82,8 @@ async function boot(): Promise<void> {
     notice = [notice, start.notice].filter(Boolean).join(' ') || undefined;
     if (!start.autosave) opts.autosave = false;
     if (start.placeholder) opts.placeholder = true;
+    if (start.cloud) opts.cloudLink = start.cloud;
+    if (start.savedAt) opts.savedAt = start.savedAt;
     if (menu) opts.opens = 'mainMenu';
   }
 

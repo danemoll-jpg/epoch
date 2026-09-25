@@ -94,6 +94,10 @@ import { playerColor, render, TerrainChunks, type ViewState } from '../render/re
 import { attachMapInput } from './input';
 import { backupCurrentSave, listBackups, restoreBackup, saveToStorage } from './storage';
 import { TurnRunner } from './turnRunner';
+import { CloudController } from './cloud';
+import type { CloudBackend } from '../cloud/backend';
+import { deviceLabel } from '../cloud/device';
+import type { CloudLink } from '../game/save';
 import { titleBackground } from './titleArt';
 import { resolveTap } from './tap';
 import { armyCandidates, isMixedStack, stackLabel, unitsOnTile } from '../game/stack';
@@ -170,6 +174,11 @@ export interface AppOptions {
   musicSwitch?: boolean;
   /** Round 15 (dev scenario): show the update banner with a stand-in for the reload. */
   fakeUpdate?: boolean;
+  /** Round 16: the loaded game's link to its cloud slot, and when it was saved. */
+  cloudLink?: CloudLink;
+  savedAt?: number;
+  /** Round 16 (dev scenario): a stand-in cloud instead of Firebase (its backups stay in memory). */
+  cloudBackend?: () => Promise<CloudBackend | undefined>;
 }
 
 /** Round 14: a building's or wonder's icon for a build-list row (nothing for projects). */
@@ -260,12 +269,17 @@ export class App {
   private miniScale = 1;
   private art: ArtChoice = { ...DEFAULT_ART };
   private shimmerTimer: number | undefined;
+  /** Round 16: the main menu's Continue opens this cloud slot (it's newer than the game here). */
+  private continueSlot: string | undefined;
+  /** Round 16: cloud saves (sign-in, the background sync, the cloud games on the main menu). */
+  readonly cloud: CloudController;
 
   constructor(state: GameState, opts: AppOptions) {
     this.state = state;
     this.opts = opts;
     this.autosave = opts.autosave !== false;
     this.placeholder = !!opts.placeholder;
+    this.cloud = this.makeCloud(opts);
     this.settings = loadSettings();
     this.applySettings();
     this.sound = new SoundEngine(() => this.settings, !!opts.scenario && !opts.scenarioSound);
@@ -361,10 +375,19 @@ export class App {
 
     // Autosave when the tab is hidden or unloaded: Safari may kill a background tab
     // without warning, so this is the last chance to save mid-turn progress.
+    // Round 16: the cloud copy goes up in the background then too (after the local save), and
+    // coming back to the game checks whether another device has moved it on.
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') this.save();
+      if (document.visibilityState === 'hidden') {
+        this.save();
+        this.cloud.request();
+      } else void this.cloud.check();
     });
-    window.addEventListener('pagehide', () => this.save());
+    window.addEventListener('pagehide', () => {
+      this.save();
+      this.cloud.request();
+    });
+    window.addEventListener('online', () => this.cloud.kick());
 
     // Resize: window resize, iPad rotation, and anything else that changes the canvas box.
     const onResize = () => this.resize();
@@ -407,6 +430,8 @@ export class App {
         this.openGuide();
         break;
     }
+    // Round 16: the cloud loads only if the player was signed in (or a dev scenario brings one).
+    this.cloud.start(!!opts.cloudBackend);
   }
 
   // ---- actions ---------------------------------------------------------------------------
@@ -433,7 +458,10 @@ export class App {
     // First contact (on our move, or on theirs during End Turn) gets its own panel.
     for (const civ of metCivs(this.state, this.human)) if (!metBefore.has(civ)) this.queueContact(civ);
     // Cheap (a few tens of KB), and means a reload never loses more than one tap.
-    if (res.ok) this.save();
+    if (res.ok) {
+      this.cloud.markChanged();
+      this.save();
+    }
     this.refresh();
     this.checkPending();
   }
@@ -468,7 +496,38 @@ export class App {
 
   private save(): void {
     if (!this.autosave || this.placeholder) return;
-    saveToStorage(this.state);
+    saveToStorage(this.state, undefined, this.cloud.link);
+  }
+
+  /** Round 16: cloud saves, wired to this game. */
+  private makeCloud(opts: AppOptions): CloudController {
+    const scenario = !!opts.scenario;
+    const memory = new Map<string, string>();
+    const memStore = { getItem: (k: string) => memory.get(k) ?? null, setItem: (k: string, v: string) => void memory.set(k, v), removeItem: (k: string) => void memory.delete(k) };
+    return new CloudController(
+      {
+        state: () => this.state,
+        syncable: () => !this.placeholder && (this.autosave || !!opts.cloudBackend),
+        saveLocal: () => this.save(),
+        replaceGame: (state, message) => this.replaceGame(state, message),
+        play: () => this.closeMainMenu(),
+        toast: (text, bad) => this.toast(text, bad),
+        busy: () => this.turnBusy,
+        menuOpen: () => !$('mainMenu').hidden,
+        refreshMenu: () => this.openMainMenu(),
+        refreshSettings: () => {
+          if (!$('settingsOverlay').hidden) this.renderSettings();
+        },
+      },
+      {
+        ...(opts.cloudLink ? { link: opts.cloudLink } : {}),
+        ...(opts.savedAt ? { savedAt: opts.savedAt } : {}),
+        // A dev scenario never touches the device's backups or its signed-in flag.
+        ...(scenario ? { localStore: memStore, prefsStore: null } : {}),
+        ...(opts.cloudBackend ? { backend: opts.cloudBackend } : {}),
+        device: deviceLabel(navigator.userAgent, navigator.maxTouchPoints ?? 0),
+      },
+    );
   }
 
   /**
@@ -545,6 +604,8 @@ export class App {
     }
     this.state = out.state;
     this.afterAction(out.result, metBefore);
+    // Round 16: the cloud copy goes up now that the rivals have moved (in the background).
+    this.cloud.request();
     const me = this.state.players[this.human]!;
     // Round 13/14: how long the computer turns took (the big-map checks read it).
     const ms = Math.round(performance.now() - t0);
@@ -713,8 +774,10 @@ export class App {
     }
     const state = this.opts.newGame(choice);
     const civ = civDef(state, this.human);
+    this.cloud.newGame();
     this.closeMainMenu();
     this.replaceGame(state, `New game: you lead ${civName(state, this.human)} as ${civ.leader} · ${DIFFICULTIES[state.difficulty].name} · ${MAP_SIZES[state.mapSize].name} map`);
+    this.cloud.request();
   }
 
   /** Round 11: the New Game setup screen (the dev scenario `new-game-setup` opens it too). */
@@ -1199,6 +1262,7 @@ export class App {
       $('menuInfo').textContent = sc
         ? `Dev scenario “${sc.title}” · turn ${this.state.turn}. Not saved; your real game is untouched.`
         : `Turn ${this.state.turn} · seed ${this.state.seed}. Your game saves automatically.`;
+      $('menuCloud').textContent = this.cloud.statusLine();
       $('newGameBtn').hidden = !!sc;
       $('restoreBtn').hidden = !!sc;
       this.showMenuPage('menuMain');
@@ -1336,8 +1400,10 @@ export class App {
         return;
       }
       this.closeMenu();
+      this.cloud.restored(res.cloud);
       const updated = res.migratedFrom ? ` and updated it for ${migrationSummary(res.migratedFrom)}` : '';
       this.replaceGame(res.state, `Restored your game from turn ${res.state.turn}${updated}. The game you replaced is now a backup.`);
+      void this.cloud.check();
     }
   }
 
@@ -2448,7 +2514,15 @@ export class App {
 
   private setupRound13(): void {
     // Main menu.
-    $('mmContinue').addEventListener('click', () => this.closeMainMenu());
+    $('mmContinue').addEventListener('click', () => {
+      // Round 16: Continue may be a newer game in the cloud.
+      if (this.continueSlot) void this.cloud.openSlot(this.continueSlot);
+      else this.closeMainMenu();
+    });
+    $('mmCloud').addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLElement>('button[data-cloud]');
+      if (btn) this.cloud.handleClick(btn);
+    });
     $('mmNew').addEventListener('click', () => this.setup.open());
     $('mmHow').addEventListener('click', () => this.openGuide());
     $('mmAlmanac').addEventListener('click', () => this.openAlmanac());
@@ -2520,11 +2594,24 @@ export class App {
     const def = civDef(this.state, this.human);
     const cont = $<HTMLButtonElement>('mmContinue');
     const sc = this.opts.scenario;
-    cont.hidden = this.placeholder;
-    cont.innerHTML = `${portraitHtml(me.civId, 64)}<span class="mmcText"><b>${sc ? 'Back to the scenario' : 'Continue'}</b>
-      <span>${esc(def.leader)} of ${esc(def.name)}</span>
-      <span class="sub">Turn ${this.state.turn} · ${esc(eraName(playerEra(me)))} era · ${esc(DIFFICULTIES[this.state.difficulty].name)} · ${esc(MAP_SIZES[this.state.mapSize].name)} map</span></span>`;
-    $('mmNew').classList.toggle('primary', this.placeholder);
+    // Round 16: the games on this device and in the cloud; Continue picks the newest.
+    const entries = this.cloud.entries(
+      this.placeholder
+        ? undefined
+        : { civId: me.civId, leader: def.leader, civName: def.name, turn: this.state.turn, era: eraName(playerEra(me)), mapSize: this.state.mapSize, difficulty: this.state.difficulty },
+    );
+    const newest = entries[0];
+    this.continueSlot = newest?.kind === 'cloud' ? newest.slot : undefined;
+    cont.hidden = !newest;
+    if (newest) {
+      const where = newest.kind === 'cloud' ? ` · from the cloud (${esc(newest.device)})` : '';
+      cont.innerHTML = `${portraitHtml(newest.civId, 64)}<span class="mmcText"><b>${sc && newest.kind === 'local' ? 'Back to the scenario' : 'Continue'}</b>
+      <span>${esc(newest.leader)} of ${esc(newest.civName)}${where}</span>
+      <span class="sub">Turn ${newest.turn} · ${esc(newest.era)} era · ${esc(DIFFICULTIES[newest.difficulty as keyof typeof DIFFICULTIES]?.name ?? '')} · ${esc(MAP_SIZES[newest.mapSize as keyof typeof MAP_SIZES]?.name ?? '')} map</span></span>`;
+    }
+    // The list only when there's a choice (signed in with a cloud game, or more than one game).
+    $('mmCloud').innerHTML = this.cloud.menuHtml(entries.length > 1 || entries.some((e) => e.kind === 'cloud') ? entries : []);
+    $('mmNew').classList.toggle('primary', !newest);
     $('mmFoot').textContent = `Version ${__APP_VERSION__}${sc ? ` · dev scenario “${sc.title}” (not saved)` : ''}`;
     const dev = this.opts.devScenarios;
     if (dev?.length) {
@@ -2570,6 +2657,10 @@ export class App {
       ${row('Animation speed', 'How long combat flashes and news stay on screen (computer turns are always instant)', choice('animationSpeed', s.animationSpeed, [['normal', 'Normal'], ['fast', 'Fast']]))}
       ${row('Confirm End Turn', 'Ask before ending the turn while a unit can still move', toggle('confirmEndTurn', s.confirmEndTurn))}
       ${row('Text size', 'Bigger text in menus and panels', choice('textSize', s.textSize, [['normal', 'Normal'], ['large', 'Large']]))}
+      ${(() => {
+        const c = this.cloud.settingsRow();
+        return row('Cloud saves', c.sub, c.control);
+      })()}
       ${row('First-game tips', 'A short hint the first time something happens', `${toggle('tips', s.tips)}<button type="button" data-act="resetTips">Show tips again</button>`)}
       ${import.meta.env.DEV ? row('Sound in dev scenarios', 'Dev builds only: let scenarios play sounds', toggle('scenarioSound', s.scenarioSound)) : ''}
       ${import.meta.env.DEV || location.port === '4173' ? '<p class="sub">Check each sound on the <a href="docs/sounds.html" target="_blank" rel="noopener">sound check page</a>.</p>' : ''}`;
@@ -2583,6 +2674,7 @@ export class App {
     }
     const btn = t.closest('button');
     if (!btn || btn.disabled) return;
+    if (this.cloud.handleClick(btn)) return;
     const s = this.settings as unknown as Record<string, unknown>;
     if (btn.dataset.set) {
       const v = btn.dataset.val!;

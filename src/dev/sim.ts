@@ -287,12 +287,26 @@ export function playToVictory(seed: number, maxTurns = 320, game: SimGame = {}):
 }
 
 /**
- * Prints a report line and appends it to `sim-report.txt` (git-ignored): Vitest 5 hides a
- * passing test's console output, so `npm run sim` reports land in that file too.
+ * Prints a report line and appends it to `sim-out/sim-report.txt` (git-ignored): Vitest 5 hides
+ * a passing test's console output, so `npm run sim` reports land in that file too.
  */
 export function report(line: string): void {
   console.log(line);
-  // Node only (the sim runs under Vitest); the game never calls this.
-  const fs = (globalThis as { process?: { getBuiltinModule?: (m: string) => { appendFileSync: (f: string, s: string) => void } } }).process?.getBuiltinModule?.('node:fs');
-  fs?.appendFileSync('sim-report.txt', line + '\n');
+  simOut()?.appendFileSync(`${SIM_OUT}/sim-report.txt`, line + '\n');
+}
+
+/** Round 16: where `npm run sim` writes its files (git-ignored), so the repo root stays tidy. */
+export const SIM_OUT = 'sim-out';
+
+interface SimFs {
+  appendFileSync(f: string, s: string): void;
+  writeFileSync(f: string, s: string): void;
+  mkdirSync(d: string, o: { recursive: boolean }): void;
+}
+
+/** Node's fs, with `sim-out/` made. Node only (the sim runs under Vitest); the game never calls this. */
+export function simOut(): SimFs | undefined {
+  const fs = (globalThis as { process?: { getBuiltinModule?: (m: string) => SimFs } }).process?.getBuiltinModule?.('node:fs');
+  fs?.mkdirSync(SIM_OUT, { recursive: true });
+  return fs;
 }

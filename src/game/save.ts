@@ -24,16 +24,47 @@ export interface SaveFile {
   /** Wall-clock ms when saved, for display only. Never used by game rules. */
   savedAt: number;
   state: GameState;
+  /** Round 16: which cloud slot this game syncs with, if any. Outside the state: no rule reads it. */
+  cloud?: CloudLink;
+}
+
+/**
+ * Round 16: a saved game's link to its cloud copy. It rides in the save file (not the game
+ * state), so a backup keeps it too, and a restored backup is compared with the cloud like any
+ * other copy (never silently overwriting a newer one).
+ */
+export interface CloudLink {
+  /** A random id for this game, the same on every device that has played it. */
+  gameId: string;
+  /** Its cloud slot (s1..s5), once it has been uploaded. */
+  slot?: string;
+  /** Whose cloud that slot is in (a Firebase user id). */
+  uid?: string;
+  /** The cloud revision this copy is based on: the one it last wrote or took (0: none). */
+  syncedRev: number;
+  /** Changed on this device since `syncedRev`. */
+  dirty: boolean;
+  /** The player deleted its cloud copy: this game stays on this device only. */
+  localOnly?: boolean;
 }
 
 export type LoadResult =
-  | { kind: 'ok'; state: GameState; savedAt: number; migratedFrom?: number }
+  | { kind: 'ok'; state: GameState; savedAt: number; migratedFrom?: number; cloud?: CloudLink }
   | { kind: 'incompatible'; saveVersion: unknown }
   | { kind: 'corrupt'; error: string };
 
-export function serializeGame(state: GameState, savedAt: number): string {
-  const file: SaveFile = { saveVersion: SAVE_VERSION, savedAt, state };
+export function serializeGame(state: GameState, savedAt: number, cloud?: CloudLink): string {
+  const file: SaveFile = cloud ? { saveVersion: SAVE_VERSION, savedAt, state, cloud } : { saveVersion: SAVE_VERSION, savedAt, state };
   return JSON.stringify(file);
+}
+
+function readLink(v: unknown): CloudLink | undefined {
+  if (!isObject(v) || typeof v.gameId !== 'string' || typeof v.syncedRev !== 'number' || typeof v.dirty !== 'boolean') return undefined;
+  const link: CloudLink = { gameId: v.gameId, syncedRev: v.syncedRev, dirty: v.dirty };
+  if (typeof v.slot === 'string') link.slot = v.slot;
+  if (typeof v.uid === 'string') link.uid = v.uid;
+  if (v.localOnly === true) link.localOnly = true;
+  return link;
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {
@@ -310,6 +341,8 @@ export function deserializeGame(text: string): LoadResult {
   const savedAt = typeof file.savedAt === 'number' ? file.savedAt : 0;
   const result: LoadResult = { kind: 'ok', state: state as unknown as GameState, savedAt };
   if (from < SAVE_VERSION) result.migratedFrom = from;
+  const cloud = readLink(file.cloud);
+  if (cloud) result.cloud = cloud;
   return result;
 }
 

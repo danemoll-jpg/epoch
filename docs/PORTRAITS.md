@@ -7,31 +7,36 @@ color in a circle.
 
 ## Dan's 12 portraits (in place since Round 11)
 
-They live in `src/assets/portraits/`, named by civ id:
+Round 16: the game uses **WebP** copies (quality 90, about 850 KB for all 12 instead of
+5.2 MB, so the offline download is about 4.4 MB smaller). They live in
+`src/assets/portraits/`, named by civ id. **Dan's PNG originals are the masters**, kept in
+`docs/portraits-master/<civ-id>.png`; `python scripts/make-portrait-webp.py` makes the
+WebPs from them.
 
 | Leader | Civ | File |
 |---|---|---|
-| Hatshepsut | Egypt | `egypt.png` |
-| Caligula | Rome | `rome.png` |
-| Charlemagne | Franks | `franks.png` |
-| Mansa Musa | Mali | `mali.png` |
-| Henry VIII | England | `england.png` |
-| Louis XIV | France | `france.png` |
-| Peter the Great | Russia | `russia.png` |
-| Simón Bolívar | Gran Colombia | `gran_colombia.png` |
-| John F. Kennedy | United States | `usa.png` |
-| Viktor Yushchenko | Ukraine | `ukraine.png` |
-| Angela Merkel | Germany | `germany.png` |
-| Kim Jong Un | North Korea | `north_korea.png` |
+| Hatshepsut | Egypt | `egypt.webp` |
+| Caligula | Rome | `rome.webp` |
+| Charlemagne | Franks | `franks.webp` |
+| Mansa Musa | Mali | `mali.webp` |
+| Henry VIII | England | `england.webp` |
+| Louis XIV | France | `france.webp` |
+| Peter the Great | Russia | `russia.webp` |
+| Simón Bolívar | Gran Colombia | `gran_colombia.webp` |
+| John F. Kennedy | United States | `usa.webp` |
+| Viktor Yushchenko | Ukraine | `ukraine.webp` |
+| Angela Merkel | Germany | `germany.webp` |
+| Kim Jong Un | North Korea | `north_korea.webp` |
 
 ## Making a new one (or replacing one)
 
 - **Square, 512 × 512 px.** At least 256 px; a test fails on anything smaller or not square.
-- **PNG or WebP.** If both exist for a civ, the `.webp` is used.
+- **PNG master, made into WebP.** Put the PNG in `docs/portraits-master/<civ-id>.png`, then
+  run `python scripts/make-portrait-webp.py`, which writes `src/assets/portraits/<civ-id>.webp`.
+  (The game takes a PNG or WebP in `src/assets/portraits/`; if both exist, the `.webp` wins.)
 - **The face in the upper middle, with some margin.** The picture is shown in a circle, so
   the corners are cut off.
-- **Drop the file in `src/assets/portraits/`** with the exact file name from the table. No
-  code change is needed; the next build picks it up. (The play server needs a restart:
+- No code change is needed; the next build picks it up. (The play server needs a restart:
   `npm run play:lan`.)
 
 ## Small sizes zoom in on the face
@@ -49,7 +54,7 @@ the check page.
 
 ## The check page
 
-`docs/portraits.html` shows all 12 leaders at every size the game uses (128, 96, 64, 48, 40,
+`docs/portraits.html` first shows each PNG master next to its WebP (Round 16), then all 12 leaders at every size the game uses (128, 96, 64, 48, 40,
 36, 28 px), with the zoom applied at 48 px and under, next to the placeholder. On the iPad:
 **http://10.0.0.224:4173/docs/portraits.html** (the play server copies it and the pictures
 into its build).

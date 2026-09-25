@@ -93,6 +93,23 @@ const OUTCOMES: Record<string, (s: GameState) => void> = {
     expect(s.players[1]!.gold).toBeLessThan(200);
   },
   // ---- Round 15: the update banner (the app shows it; the game itself is an ordinary one) ----
+  // Round 16: the cloud ones (their cloud side is run in tests/cloud.test.ts, "C3").
+  'cloud-conflict': (s) => {
+    const c = SCENARIOS.find((x) => x.id === 'cloud-conflict')!.cloud!();
+    expect(s.turn).toBe(12);
+    expect(c.link).toMatchObject({ slot: 's1', syncedRev: 3, dirty: true });
+  },
+  'cloud-offline': (s) => {
+    const c = SCENARIOS.find((x) => x.id === 'cloud-offline')!.cloud!();
+    expect(s.turn).toBe(12);
+    expect(c.link.dirty).toBe(false);
+  },
+  'cloud-slots': (s) => {
+    const sc = SCENARIOS.find((x) => x.id === 'cloud-slots')!;
+    expect(sc.opens).toBe('mainMenu');
+    expect(sc.cloud!().link.slot).toBeUndefined();
+    expect(s.players[0]!.civId).toBe('england');
+  },
   'update-available': (s) => {
     expect(SCENARIOS.find((x) => x.id === 'update-available')!.fakeUpdate).toBe(true);
     expect(s.cities.filter((c) => c.owner === 0)).toHaveLength(1);

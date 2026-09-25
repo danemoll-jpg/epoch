@@ -10,7 +10,7 @@
 // Every function takes the store as a parameter (localStorage by default) so the rules
 // here are unit-tested without a browser.
 
-import { deserializeGame, migrationSummary, serializeGame, type LoadResult } from '../game/save';
+import { deserializeGame, migrationSummary, serializeGame, type CloudLink, type LoadResult } from '../game/save';
 import type { GameState } from '../game/types';
 
 export interface KeyValueStore {
@@ -30,9 +30,10 @@ const browserStore = (): KeyValueStore => ({
   removeItem: (k) => localStorage.removeItem(k),
 });
 
-export function saveToStorage(state: GameState, store: KeyValueStore = browserStore()): boolean {
+/** Round 16: `cloud` is the game's link to its cloud slot, kept in the save file. */
+export function saveToStorage(state: GameState, store: KeyValueStore = browserStore(), cloud?: CloudLink): boolean {
   try {
-    store.setItem(SAVE_KEY, serializeGame(state, Date.now()));
+    store.setItem(SAVE_KEY, serializeGame(state, Date.now(), cloud));
     return true;
   } catch (e) {
     // Private browsing or storage full: keep playing, just without autosave.
@@ -71,9 +72,22 @@ export interface BackupInfo {
  * dropping the oldest past MAX_BACKUPS. True if there was nothing to back up or it worked.
  */
 export function backupCurrentSave(reason: string, now: number, store: KeyValueStore = browserStore()): boolean {
+  let text: string | null;
   try {
-    const text = store.getItem(SAVE_KEY);
-    if (text === null) return true;
+    text = store.getItem(SAVE_KEY);
+  } catch (e) {
+    console.warn('Epoch: backup failed', e);
+    return false;
+  }
+  return text === null ? true : backupText(text, reason, now, store);
+}
+
+/**
+ * Round 16: keeps any save text as backup 1 (older ones shift down), e.g. the cloud copy of a
+ * game the player chose not to keep. True if it worked.
+ */
+export function backupText(text: string, reason: string, now: number, store: KeyValueStore = browserStore()): boolean {
+  try {
     for (let slot = MAX_BACKUPS; slot > 1; slot--) {
       const older = store.getItem(BACKUP_PREFIX + (slot - 1));
       if (older === null) store.removeItem(BACKUP_PREFIX + slot);
@@ -139,7 +153,7 @@ export function listBackups(store: KeyValueStore = browserStore()): BackupInfo[]
   return out;
 }
 
-export type RestoreResult = { ok: true; state: GameState; migratedFrom?: number } | { ok: false; reason: string };
+export type RestoreResult = { ok: true; state: GameState; migratedFrom?: number; cloud?: CloudLink } | { ok: false; reason: string };
 
 /**
  * Loads backup `slot` as the current game. The game being replaced is backed up first, and
@@ -153,14 +167,18 @@ export function restoreBackup(slot: number, now: number, store: KeyValueStore = 
   if (!backupCurrentSave('Replaced by restoring a backup', now, store)) {
     return { ok: false, reason: "There's no room to back up your current game first, so nothing was changed." };
   }
-  saveToStorage(res.state, store);
-  return res.migratedFrom ? { ok: true, state: res.state, migratedFrom: res.migratedFrom } : { ok: true, state: res.state };
+  saveToStorage(res.state, store, res.cloud);
+  const cloud = res.cloud ? { cloud: res.cloud } : {};
+  return res.migratedFrom ? { ok: true, state: res.state, migratedFrom: res.migratedFrom, ...cloud } : { ok: true, state: res.state, ...cloud };
 }
 
 // ---- startup ---------------------------------------------------------------------------------
 
 export interface StartupResult {
   state: GameState;
+  /** Round 16: the loaded game's link to its cloud slot, if it has one, and when it was saved. */
+  cloud?: CloudLink;
+  savedAt?: number;
   notice?: string;
   /** False when an old save couldn't be backed up: it's left in place, untouched. */
   autosave: boolean;
@@ -216,16 +234,17 @@ export function loadOrStart(
 
   const res = safeLoad(text);
   if (res.kind === 'ok') {
+    const cloud = res.cloud ? { cloud: res.cloud, savedAt: res.savedAt } : { savedAt: res.savedAt };
     if (!res.migratedFrom) {
-      return { state: res.state, autosave: true, notice: `Resumed your game (turn ${res.state.turn})` };
+      return { state: res.state, autosave: true, notice: `Resumed your game (turn ${res.state.turn})`, ...cloud };
     }
     const updated = `Your saved game was updated for ${migrationSummary(res.migratedFrom)} (turn ${res.state.turn}).`;
     // The pre-upgrade save is kept exactly as it was, then the upgraded one is written.
     if (!backupCurrentSave(`Upgraded from version ${res.migratedFrom}`, opts.now, store)) {
-      return { state: res.state, autosave: false, notice: `${updated} Storage is full, so it won't be saved.` };
+      return { state: res.state, autosave: false, notice: `${updated} Storage is full, so it won't be saved.`, ...cloud };
     }
-    saveToStorage(res.state, store);
-    return { state: res.state, autosave: true, notice: `${updated} The old version was kept as a backup.` };
+    saveToStorage(res.state, store, res.cloud);
+    return { state: res.state, autosave: true, notice: `${updated} The old version was kept as a backup.`, ...cloud };
   }
   if (res.kind === 'corrupt') console.warn('Epoch: saved game unreadable:', res.error);
   const why = res.kind === 'incompatible' ? 'is from a version of Epoch this one can’t read' : 'couldn’t be read';

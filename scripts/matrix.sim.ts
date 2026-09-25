@@ -2,9 +2,9 @@
 // Novice and Legendary on the Normal map: victory mix, win turns, wins per leader, era medians,
 // and roads per civ. Every game is played by AIs to the first win (player 0 is the stand-in).
 // Run: npm run sim -- matrix   (SEEDS=20 default; CONFIGS=normal,large to pick; the JSON lands in
-// sim-matrix-<config>.json, git-ignored, so separate runs can be put into one table)
+// sim-out/sim-matrix-<config>.json, git-ignored, so separate runs can be put into one table)
 import { describe, it } from 'vitest';
-import { medianTurn, playToVictory, report, type SimGame } from '../src/dev/sim';
+import { medianTurn, playToVictory, report, SIM_OUT, simOut, type SimGame } from '../src/dev/sim';
 import { MAP_SIZES } from '../src/data/mapSizes';
 import { VICTORY } from '../src/data/victory';
 import { RULES } from '../src/data/rules';
@@ -96,8 +96,7 @@ function run(c: Config): MatrixRow {
   row.roads100 = avg(r100);
   row.roads200 = avg(r200);
   row.msPerTurn = Math.round(ms / Math.max(1, turns));
-  const fs = (globalThis as { process?: { getBuiltinModule?: (m: string) => { writeFileSync: (f: string, s: string) => void } } }).process?.getBuiltinModule?.('node:fs');
-  fs?.writeFileSync(`sim-matrix-${c.id}${TAG}.json`, JSON.stringify(row, null, 1));
+  simOut()?.writeFileSync(`${SIM_OUT}/sim-matrix-${c.id}${TAG}.json`, JSON.stringify(row, null, 1));
   report(`[${c.id}${TAG}] MIX ${JSON.stringify(row.mix)} median t${row.median} range ${row.winTurns[0]}-${row.winTurns.at(-1)} standIn ${row.standIn}`);
   report(`[${c.id}${TAG}] LEADERS ${Object.keys(row.played).sort().map((k) => `${k}:${row.wins[k] ?? 0}/${row.played[k]} (fair ${row.fair[k]!.toFixed(1)})`).join(' ')}`);
   report(`[${c.id}${TAG}] ERAS medieval ${row.eras.medieval} industrial ${row.eras.industrial} modern ${row.eras.modern}; ROADS per civ t100 ${row.roads100} t200 ${row.roads200}; ${row.msPerTurn} ms/turn`);

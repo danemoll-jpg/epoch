@@ -1,5 +1,10 @@
 # Going live: Epoch: From Stone to Stars
 
+> **Live since 2026-09-25 at https://epoch-fsts.netlify.app/** (Dan confirmed; recorded in
+> Round 16). Steps 1–4 and 6 are done; the hub card (step 5) uses this address. Pushing the
+> `epoch` repo is Dan's call from now on. Round 16 added cloud saves: its one-time Firebase
+> console steps are in `docs/FIREBASE-SETUP.md`.
+
 Dan's steps, in order, to put the game on the internet and into the game hub. Nothing here
 needs a command line. Each step says what you should see, so you know it worked.
 

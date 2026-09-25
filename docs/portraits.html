@@ -19,11 +19,19 @@
   .full { width: 160px; height: 160px; border-radius: 8px; background-size: cover; position: relative; }
   .full i { position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: #e6b73f; box-shadow: 0 0 0 2px #000; }
   .missing { color: #f0a08a; font-size: 12px; }
+  h2 { font-size: 17px; margin: 22px 0 6px; }
+  .pair { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+  .pair img { width: 256px; height: 256px; border-radius: 8px; display: block; }
+  .pair figcaption { font-size: 12px; margin-top: 4px; }
 </style>
 </head>
 <body>
 <h1>Leader portraits: every size the game uses</h1>
 <p>Each row: the full picture (the gold dot is the face focus, <code>portraitFocus</code> in src/data/civs.ts), then every size the game draws. At 48 px and under the game zooms in on the face. The placeholder (initials on the civ color) comes last: it's what a leader without a picture gets. If a small one looks off, adjust that leader's focus in civs.ts, then run <code>python scripts/make-portraits-page.py</code>.</p>
+<h2>Round 16: PNG (before) and WebP (after), side by side</h2>
+<p>The game now uses WebP copies of the portraits (quality 90): about 850 KB for all 12 instead of 5.2 MB. Dan's PNG masters stay in <code>docs/portraits-master/</code>. Left: the PNG master; right: the WebP the game uses, each at 256 px (twice the largest size the game shows), then both at 128 px. If any looks different to you, say which. Rebuild the WebPs from the masters with <code>python scripts/make-portrait-webp.py</code>.</p>
+<div id="cmpList"></div>
+<h2>Every size the game uses</h2>
 <div id="list"></div>
 <script id="leaders" type="application/json">[{"id": "egypt", "leader": "Hatshepsut", "civ": "Egypt", "color": "#e8c547", "focus": {"x": 0.52, "y": 0.36, "zoom": 1.8}}, {"id": "rome", "leader": "Caligula", "civ": "Rome", "color": "#9acd32", "focus": {"x": 0.57, "y": 0.29, "zoom": 1.9}}, {"id": "franks", "leader": "Charlemagne", "civ": "Franks", "color": "#a060d0", "focus": {"x": 0.52, "y": 0.37, "zoom": 1.8}}, {"id": "mali", "leader": "Mansa Musa", "civ": "Mali", "color": "#d04a4a", "focus": {"x": 0.5, "y": 0.32, "zoom": 1.8}}, {"id": "england", "leader": "Henry VIII", "civ": "England", "color": "#2f5fb3", "focus": {"x": 0.52, "y": 0.35, "zoom": 1.8}}, {"id": "france", "leader": "Louis XIV", "civ": "France", "color": "#58c4e8", "focus": {"x": 0.52, "y": 0.27, "zoom": 2}}, {"id": "russia", "leader": "Peter the Great", "civ": "Russia", "color": "#1f8a4c", "focus": {"x": 0.52, "y": 0.23, "zoom": 2}}, {"id": "gran_colombia", "leader": "Simón Bolívar", "civ": "Gran Colombia", "color": "#e060b0", "focus": {"x": 0.48, "y": 0.23, "zoom": 2}}, {"id": "usa", "leader": "John F. Kennedy", "civ": "United States", "color": "#3b3b8f", "focus": {"x": 0.46, "y": 0.23, "zoom": 2.2}}, {"id": "ukraine", "leader": "Viktor Yushchenko", "civ": "Ukraine", "color": "#e07b39", "focus": {"x": 0.45, "y": 0.27, "zoom": 2.2}}, {"id": "germany", "leader": "Angela Merkel", "civ": "Germany", "color": "#8a929a", "focus": {"x": 0.48, "y": 0.27, "zoom": 2.2}}, {"id": "north_korea", "leader": "Kim Jong Un", "civ": "North Korea", "color": "#8a5a2b", "focus": {"x": 0.47, "y": 0.25, "zoom": 2.2}}]</script>
 <script>
@@ -46,13 +54,14 @@
   }
   // In the play build the pictures sit next to this page (docs/portraits/); in the repo, in src/assets.
   var BASES = ['portraits/', '../src/assets/portraits/'];
-  function findUrl(id, cb, i) {
+  function findUrl(id, cb, i, webpOnly) {
     i = i || 0;
     if (i >= BASES.length * 2) return cb(null);
+    if (webpOnly && i % 2 === 0) return findUrl(id, cb, i + 1, true);
     var url = BASES[Math.floor(i / 2)] + id + (i % 2 ? '.webp' : '.png');
     var img = new Image();
     img.onload = function () { cb(url); };
-    img.onerror = function () { findUrl(id, cb, i + 1); };
+    img.onerror = function () { findUrl(id, cb, i + 1, webpOnly); };
     img.src = url;
   }
   function disc(url, focus, color, s) {
@@ -61,14 +70,40 @@
       ';background-image:url(' + url + ');background-size:' + c.size + ';background-position:' + c.position + '"></span>';
   }
   var SIZES = [128, 96, 64, 48, 40, 36, 28];
+  // Round 16: PNG master next to the game's WebP (both next to this page: portraits-master/ and portraits/ or src/assets).
+  function kb(url, el) {
+    if (!window.fetch || location.protocol === 'file:') return;
+    fetch(url, { method: 'HEAD' }).then(function (r) {
+      var n = Number(r.headers.get('content-length'));
+      if (n) el.textContent += ' · ' + Math.round(n / 1024) + ' KB';
+    }).catch(function () {});
+  }
+
   var leaders = JSON.parse(document.getElementById('leaders').textContent);
   var list = document.getElementById('list');
+  var cmpList = document.getElementById('cmpList');
+  leaders.forEach(function (l) {
+    var row = document.createElement('div');
+    row.className = 'row cmp';
+    cmpList.appendChild(row);
+    findUrl(l.id, function (url) {
+      var png = 'portraits-master/' + l.id + '.png';
+      row.innerHTML = '<div class="who"><b>' + l.leader + '</b><span>' + l.civ + '</span></div><div class="pair">' +
+        '<figure><img src="' + png + '" alt=""><figcaption>PNG (before)</figcaption></figure>' +
+        (url ? '<figure><img src="' + url + '" alt=""><figcaption>WebP (the game)</figcaption></figure>' : '<div class="missing">No WebP found.</div>') +
+        '<figure>' + disc(png, l.focus, l.color, 128) + '<figcaption>PNG 128</figcaption></figure>' +
+        (url ? '<figure>' + disc(url, l.focus, l.color, 128) + '<figcaption>WebP 128</figcaption></figure>' : '') + '</div>';
+      var caps = row.querySelectorAll('figcaption');
+      kb(png, caps[0]);
+      if (url) kb(url, caps[1]);
+    }, 0, true);
+  });
   leaders.forEach(function (l) {
     var row = document.createElement('div');
     row.className = 'row';
     list.appendChild(row);
     findUrl(l.id, function (url) {
-      var html = '<div class="who"><b>' + l.leader + '</b><span>' + l.civ + ' · ' + l.id + '.png<br>focus ' + l.focus.x + ', ' + l.focus.y + ' · zoom ' + l.focus.zoom + '</span></div>';
+      var html = '<div class="who"><b>' + l.leader + '</b><span>' + l.civ + ' · ' + (url ? url.split('/').pop() : 'no picture') + '<br>focus ' + l.focus.x + ', ' + l.focus.y + ' · zoom ' + l.focus.zoom + '</span></div>';
       if (url) html += '<div class="full" style="background-image:url(' + url + ')"><i style="left:' + l.focus.x * 100 + '%;top:' + l.focus.y * 100 + '%"></i></div>';
       else html += '<div class="missing">No picture yet: the placeholder is used.</div>';
       html += '<div class="sizes">';

@@ -47,6 +47,9 @@ import { ROADS } from '../data/roads';
 import { conversionChancePct, faithOpinion, foundReligion, religionCityCulture, religionCityGold } from '../game/religion';
 import { roadOption } from '../game/roads';
 import { attitude, opinionOf } from '../game/diplomacy';
+import type { CloudBackend } from '../cloud/backend';
+import type { CloudLink } from '../game/save';
+import { MemoryCloudStore, mockBackend, putSlot } from './memoryCloud';
 import type { Religion } from '../game/types';
 
 /** Appears in every dev bundle and must never appear in dist/ (see scripts/check-dist.mjs). */
@@ -69,6 +72,19 @@ export interface Scenario {
   musicSwitch?: boolean;
   /** Round 15: shows the "Update available" banner as if a new version were waiting. */
   fakeUpdate?: boolean;
+  /**
+   * Round 16: a stand-in cloud (the dev server has no real Firebase): the signed-in player's
+   * memory store, and this game's link to it. Made fresh each load.
+   */
+  cloud?: () => CloudScenario;
+}
+
+export interface CloudScenario {
+  backend: () => Promise<CloudBackend>;
+  link: CloudLink;
+  savedAt?: number;
+  /** The memory store behind it (the tests look inside). */
+  store: MemoryCloudStore;
 }
 
 const CAPITAL = 'Babylon';
@@ -1664,6 +1680,98 @@ function aiRoadsScenario(): GameState {
   return state;
 }
 
+// ---- Round 16: cloud saves (against the stand-in cloud) ----
+
+const CLOUD_GAME = 'scenario-game';
+const HOUR = 3_600_000;
+
+/** The game on this device in the cloud scenarios: turn 12, England. */
+function cloudLocalGame(): GameState {
+  const { state } = withCapital(undefined, { size: 3, name: 'London' });
+  state.turn = 12;
+  return asLeader(state, 'england', ['alphabet']);
+}
+
+/** Another game at `turn` as `civId` (for the cloud's copies). */
+function cloudOtherGame(civId: string, turn: number, techs: TechId[] = []): GameState {
+  const { state } = withCapital(undefined, { size: 5 });
+  state.turn = turn;
+  return asLeader(state, civId, techs);
+}
+
+function cloudConflict(): CloudScenario {
+  const store = new MemoryCloudStore();
+  const link: CloudLink = { gameId: CLOUD_GAME, slot: 's1', uid: 'dev-user', syncedRev: 3, dirty: true };
+  return {
+    store,
+    link,
+    savedAt: Date.now() - 5 * 60_000,
+    backend: async () => {
+      // The same game, played on to turn 15 on the iPad (revision 5; this device last saw 3).
+      await putSlot(store, cloudOtherGame('england', 15, ['alphabet', 'bronze_working']), { slot: 's1', gameId: CLOUD_GAME, rev: 5, device: 'iPad', agoMs: 2 * HOUR });
+      return mockBackend(store);
+    },
+  };
+}
+
+/** The cloud is unreachable for the first ~12 seconds, then comes back. */
+export const CLOUD_OFFLINE_MS = 12_000;
+
+function cloudOffline(): CloudScenario {
+  const store = new MemoryCloudStore();
+  const link: CloudLink = { gameId: CLOUD_GAME, slot: 's1', uid: 'dev-user', syncedRev: 2, dirty: false };
+  return {
+    store,
+    link,
+    backend: async () => {
+      await putSlot(store, cloudLocalGame(), { slot: 's1', gameId: CLOUD_GAME, rev: 2, device: 'PC', agoMs: 60_000 });
+      store.offline = true;
+      setTimeout(() => (store.offline = false), CLOUD_OFFLINE_MS);
+      return mockBackend(store);
+    },
+  };
+}
+
+function cloudSlots(): CloudScenario {
+  const store = new MemoryCloudStore();
+  return {
+    store,
+    link: { gameId: CLOUD_GAME, syncedRev: 0, dirty: true },
+    savedAt: Date.now() - 20 * 60_000,
+    backend: async () => {
+      await putSlot(store, cloudOtherGame('egypt', 87, ['alphabet', 'masonry', 'bronze_working']), { slot: 's1', gameId: 'g-egypt', rev: 41, device: 'iPad', agoMs: 3 * HOUR, name: 'Egypt, the long game' });
+      await putSlot(store, cloudOtherGame('usa', 143, MEDIEVAL), { slot: 's2', gameId: 'g-usa', rev: 77, device: 'PC', agoMs: 26 * HOUR });
+      await putSlot(store, cloudOtherGame('mali', 34), { slot: 's3', gameId: 'g-mali', rev: 9, device: 'iPad', agoMs: 5 * 24 * HOUR });
+      return mockBackend(store);
+    },
+  };
+}
+
+const ROUND16_SCENARIOS: Scenario[] = [
+  {
+    id: 'cloud-conflict',
+    title: 'Cloud: keep which game?',
+    note: `As if you played this game (England, turn 12) here without syncing while it went on to turn 15 on the iPad. At once the “Which game do you want to keep?” panel shows both: this device's turn 12 (a few minutes ago) and the cloud's turn 15 (2 hours ago, iPad). Keep the cloud's: the game becomes turn 15 and this device's turn 12 goes into the backups. Or keep this device's: the cloud's turn 15 goes into the backups and turn 12 is written up (☁✓). (Stand-in cloud, and its backups are kept in memory: your real game and backups are untouched.)`,
+    build: cloudLocalGame,
+    cloud: cloudConflict,
+  },
+  {
+    id: 'cloud-offline',
+    title: 'Cloud: offline, then back',
+    note: `Signed in, with no network for the first ${CLOUD_OFFLINE_MS / 1000} seconds. Tap End Turn: the cloud mark by the game's name shows ☁⤫ (tap it: “Offline: will sync”); no pop-up, and the game carries on. The write is retried (after 2, 4, 8 seconds…); once the network is back, the next try shows ☁… then ☁✓ (“Saved to cloud ✓”). (Stand-in cloud.)`,
+    build: cloudLocalGame,
+    cloud: cloudOffline,
+  },
+  {
+    id: 'cloud-slots',
+    title: 'Cloud: games on the main menu',
+    note: `The main menu, signed in, with the game on this device (England, turn 12) and three cloud games: Egypt turn 87 (renamed “Egypt, the long game”, iPad, 3 hours ago), the United States turn 143 (PC, yesterday), and Mali turn 34 (iPad, 5 days ago). Continue picks the newest: the game here (it's uploaded to the 4th slot within a moment: “On this device and in the cloud”). Try Open, Rename, and Delete (it asks first) on a cloud game. (Stand-in cloud: nothing real changes.)`,
+    build: cloudLocalGame,
+    cloud: cloudSlots,
+    opens: 'mainMenu',
+  },
+];
+
 const ROUND15_SCENARIOS: Scenario[] = [
   {
     id: 'theology',
@@ -2120,6 +2228,7 @@ export const SCENARIOS: Scenario[] = [
   ...ROUND13_SCENARIOS,
   ...ROUND14_SCENARIOS,
   ...ROUND15_SCENARIOS,
+  ...ROUND16_SCENARIOS,
 ];
 
 export function findScenario(id: string): Scenario | undefined {

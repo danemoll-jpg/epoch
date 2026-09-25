@@ -3,6 +3,7 @@
 // actions and projects, the new buildings, choosing your civ, rivals, portraits,
 // personalities, and the v9 → v10 migration.
 
+import { existsSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { BUILDINGS } from '../src/data/buildings';
 import { CIVS, PLAYABLE_CIVS, findCiv, leaderInitials } from '../src/data/civs';
@@ -745,8 +746,11 @@ describe('portraits (C2, C3)', () => {
   it("all 12 of Dan's portraits are in place, and PORTRAITS.md lists their file names", () => {
     const names = Object.keys(PORTRAIT_FILES).map(name);
     for (const c of PLAYABLE_CIVS) {
-      expect(names.includes(`${c.id}.png`) || names.includes(`${c.id}.webp`), c.id).toBe(true);
-      expect(portraitsDoc, c.id).toContain(`${c.id}.png`);
+      // Round 16: the game ships WebP; Dan's PNG masters stay in docs/portraits-master/.
+      expect(names, c.id).toContain(`${c.id}.webp`);
+      expect(names, c.id).not.toContain(`${c.id}.png`);
+      expect(existsSync(`docs/portraits-master/${c.id}.png`), c.id).toBe(true);
+      expect(portraitsDoc, c.id).toContain(`${c.id}.webp`);
     }
   });
   it('the face focus is sane, and small sizes zoom in on it', () => {

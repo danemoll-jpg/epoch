@@ -2434,3 +2434,109 @@ button.alink {
   top: auto;
   bottom: calc(12px + var(--safe-bottom));
 }
+
+/* ---- Round 16: cloud saves ---- */
+
+#cloudBadge {
+  min-width: 44px;
+  min-height: 36px;
+  padding: 0 6px;
+  font-size: calc(14px * var(--ts));
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+#cloudBadge.cloud-offline,
+#cloudBadge.cloud-retrying,
+#cloudBadge.cloud-conflict,
+#cloudBadge.cloud-full {
+  color: var(--accent);
+}
+#cloudOverlay {
+  z-index: 14;
+}
+#cloudPanel {
+  width: min(440px, calc(100vw - 32px));
+}
+#cloudBody p {
+  color: var(--text);
+  margin: 0 0 12px;
+}
+#cloudBody p.sub {
+  color: var(--muted);
+}
+#cloudBody input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 44px;
+  font-size: 16px;
+  margin-bottom: 14px;
+}
+.cloudCopy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+}
+#mmCloud {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+#mmCloud:empty {
+  display: none;
+}
+.cloudAcct {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: rgba(22, 33, 46, 0.85);
+}
+.cloudAcct button {
+  min-height: 44px;
+}
+.cloudList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cloudGame {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: rgba(22, 33, 46, 0.85);
+}
+.cloudGame.local {
+  border-color: var(--accent);
+}
+.cgText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.cgBtns {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.cgBtns button {
+  min-height: 44px;
+  min-width: 44px;
+}
+.cloudNote {
+  text-align: center;
+}
