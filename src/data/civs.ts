@@ -61,7 +61,7 @@ export const CIVS: CivDef[] = [
     cityNames: ['Thebes', 'Memphis', 'Heliopolis', 'Alexandria', 'Abydos', 'Elephantine', 'Giza', 'Edfu', 'Hermopolis', 'Avaris', 'Bubastis', 'Sais', 'Tanis', 'Dendera'],
   },
   {
-    id: 'rome', name: 'Rome', adjective: 'Roman', leader: 'Caligula', color: '#e07b39',
+    id: 'rome', name: 'Rome', adjective: 'Roman', leader: 'Caligula', color: '#9acd32',
     aggression: 5, tradeWillingness: 2, lean: { primary: 'domination', secondary: 'culture' }, startTech: 'bronze_working',
     portraitFocus: { x: 0.57, y: 0.29, zoom: 1.9 },
     cityNames: ['Rome', 'Antium', 'Capua', 'Ravenna', 'Neapolis', 'Ostia', 'Pompeii', 'Verona', 'Mediolanum', 'Brundisium', 'Aquileia', 'Florentia', 'Tarentum'],
@@ -109,7 +109,7 @@ export const CIVS: CivDef[] = [
     cityNames: ['Washington', 'New York', 'Boston', 'Philadelphia', 'Chicago', 'San Francisco', 'Los Angeles', 'Houston', 'New Orleans', 'Seattle', 'Atlanta', 'Denver', 'Detroit'],
   },
   {
-    id: 'ukraine', name: 'Ukraine', adjective: 'Ukrainian', leader: 'Viktor Yushchenko', color: '#9acd32',
+    id: 'ukraine', name: 'Ukraine', adjective: 'Ukrainian', leader: 'Viktor Yushchenko', color: '#e07b39',
     aggression: 1, tradeWillingness: 5, lean: { primary: 'technology', secondary: 'culture' }, startTech: 'pottery',
     portraitFocus: { x: 0.45, y: 0.27, zoom: 2.2 },
     cityNames: ['Kyiv', 'Kharkiv', 'Lviv', 'Odesa', 'Dnipro', 'Zaporizhzhia', 'Poltava', 'Chernihiv', 'Vinnytsia', 'Chernivtsi', 'Mykolaiv', 'Uzhhorod', 'Sumy'],
