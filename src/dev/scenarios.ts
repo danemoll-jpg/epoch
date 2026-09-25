@@ -8,7 +8,12 @@
 // tests/scenarios.test.ts (the test also fails if a scenario has no outcome check).
 
 import { BUILDINGS } from '../data/buildings';
-import { growthThreshold } from '../data/rules';
+import { RULES, growthThreshold } from '../data/rules';
+import { PLAYABLE_CIVS, findCiv } from '../data/civs';
+import { LEADER_BONUSES, UNIQUE_RULES } from '../data/leaders';
+import { buyCost, itemCost } from '../game/production';
+import { dissolutionGold } from '../game/uniques';
+import { warScore } from '../game/diplomacy';
 import { TECHS, TECH_LIST, type TechId } from '../data/techs';
 import type { TerrainId } from '../data/terrain';
 import { UNITS, UNIT_IDS } from '../data/units';
@@ -20,7 +25,7 @@ import { CivName, civName, civVerb } from '../game/conquest';
 import { civDef, peaceDesire } from '../game/diplomacy';
 import { findOverseasSite } from '../game/aiNaval';
 import { tileIndex } from '../game/grid';
-import { foodSurplus } from '../game/yields';
+import { empireCulture, empireIncome, foodSurplus } from '../game/yields';
 import { techCost } from '../game/tech';
 import type { City, GameState } from '../game/types';
 import { addBarbarians, addCity, addUnit, addVillage, makeState } from './build';
@@ -306,6 +311,9 @@ function aiWarBase(): GameState {
   state.players[RIVAL]!.techs = ['bronze_working', 'iron_working'];
   addUnit(state, 'spearman', RIVAL, 12, 8);
   addUnit(state, 'legion', RIVAL, 12, 8, { army: true });
+  // Round 11: Charlemagne is a conqueror, and marches only with a force of 5 (an army counts 3)
+  // beyond the 3 guards a border city keeps at war.
+  for (let i = 0; i < 3; i++) addUnit(state, 'legion', RIVAL, 12, 8);
   return state;
 }
 
@@ -470,7 +478,7 @@ function oneTurnFromLearning(state: GameState, known: TechId[], tech: TechId): v
   const p = state.players[0]!;
   p.techs = [...known];
   p.researching = tech;
-  p.science = techCost(p, tech) - 1;
+  p.science = techCost(state, 0, tech) - 1;
 }
 
 // ---- naval scenarios (Round 8) -------------------------------------------------------------
@@ -1021,6 +1029,251 @@ function allMapIconsScenario(): GameState {
   return state;
 }
 
+// ---- Round 11: leaders ---------------------------------------------------------------------
+// Each puts you in a leader's shoes (player 0's civ) at the moment a bonus or a unique action
+// matters. Numbers in the notes are computed from the rules, never typed.
+
+/** Makes player 0 this civ, knowing these techs (its era follows from them). */
+function asLeader(state: GameState, civId: string, techs: TechId[]): GameState {
+  const p = state.players[0]!;
+  p.civId = civId;
+  p.techs = [...techs];
+  return state;
+}
+
+/** Techs up to (and including) the Medieval era's Monarchy: enough for Medieval bonuses. */
+const MEDIEVAL: TechId[] = ['alphabet', 'ceremonial_burial', 'code_of_laws', 'monarchy'];
+/** ...and the Industrial era (Gunpowder), and Economics for Versailles. */
+const INDUSTRIAL: TechId[] = [...MEDIEVAL, 'bronze_working', 'currency', 'trade', 'banking', 'university', 'economics', 'writing', 'literacy', 'masonry', 'mathematics', 'mysticism', 'astronomy', 'philosophy'];
+
+function newGameSetupScenario(): GameState {
+  return withCapital(undefined, {}).state;
+}
+
+/** Russia on turn 1, knowing only Map Making; a lake next to the capital makes it a port. */
+function startingTechScenario(): GameState {
+  const { state } = withCapital(['ggc', 'ggg', 'ggg'], { name: 'St. Petersburg', build: null });
+  state.turn = 1;
+  return asLeader(state, 'russia', ['map_making']);
+}
+
+/** Caligula one turn from the Medieval era (Monarchy nearly learned). */
+function eraBonusScenario(): GameState {
+  const { state } = withCapital(undefined, { name: 'Rome', size: 3 });
+  asLeader(state, 'rome', []);
+  oneTurnFromLearning(state, ['alphabet', 'ceremonial_burial', 'code_of_laws', 'bronze_working'], 'monarchy');
+  return state;
+}
+
+const legionCost = (civ: string, techs: TechId[]) => {
+  const s = asLeader(withCapital(undefined, {}).state, civ, techs);
+  return itemCost(s, s.cities[0]!, { kind: 'unit', id: 'legion' });
+};
+
+/** Caligula in the Industrial era, his capital halfway through the Pyramids, gold to spare. */
+function caligulaBuyWonderScenario(): GameState {
+  const { state } = withCapital(undefined, { name: 'Rome', size: 4, build: { kind: 'wonder', id: 'pyramids' }, production: 45 });
+  asLeader(state, 'rome', [...INDUSTRIAL, 'gunpowder', 'invention', 'engineering', 'construction', 'the_wheel', 'horseback_riding', 'iron_working']);
+  state.players[0]!.gold = 1000;
+  return state;
+}
+
+function caligulaPrice(): number {
+  const s = caligulaBuyWonderScenario();
+  return buyCost(s, capitalCity(s))!;
+}
+
+function capitalCity(s: GameState): City {
+  return s.cities.find((c) => c.owner === 0)!;
+}
+
+/** Mansa Musa in the Medieval era with a full treasury, having met a neighbor. */
+function mansaPilgrimageScenario(): GameState {
+  const state = diplomacyBase();
+  asLeader(state, 'mali', MEDIEVAL);
+  capitalCity(state).name = 'Niani';
+  state.players[0]!.gold = 400;
+  return state;
+}
+
+/** Henry VIII in the Medieval era: two cities with Temples, one with a Cathedral too. */
+function henryDissolutionScenario(): GameState {
+  const { state } = withCapital(undefined, { name: 'London', size: 4, buildings: ['temple', 'cathedral'] });
+  asLeader(state, 'england', [...MEDIEVAL, 'philosophy', 'mysticism', 'literacy', 'writing', 'mathematics', 'masonry', 'astronomy', 'monotheism']);
+  addCity(state, 0, 3, 8, { name: 'York', size: 2, buildings: ['temple'], build: { kind: 'unit', id: 'warrior' } });
+  state.players[0]!.citiesFounded = 2;
+  return state;
+}
+
+const henryCulture = (s: GameState) => empireCulture(s, 0);
+
+/**
+ * Bolívar (Medieval) at war with Maurya, which holds Djenné, a city Mali founded. His veteran
+ * Legion army stands next to it; one Warrior defends it. Mali is at peace with him.
+ */
+function bolivarLiberateScenario(): GameState {
+  const { state } = withCapital(undefined, { name: 'Bogotá', size: 3 }, 3);
+  asLeader(state, 'gran_colombia', [...MEDIEVAL, 'bronze_working', 'iron_working']);
+  // Only Gran Colombia and Maurya are at war.
+  state.atWar = [
+    [false, true, false],
+    [true, false, false],
+    [false, false, false],
+  ];
+  addUnit(state, 'warrior', 0, CITY_X, CITY_Y, { fortified: true });
+  addCity(state, 1, 12, 8, { name: RIVAL_CAPITAL, capitalOf: 1, build: { kind: 'unit', id: 'warrior' } });
+  addUnit(state, 'spearman', 1, 12, 8, { fortified: true });
+  addCity(state, 2, 3, 8, { name: 'Niani', capitalOf: 2, build: { kind: 'unit', id: 'warrior' } });
+  addUnit(state, 'spearman', 2, 3, 8, { fortified: true });
+  addCity(state, 1, ENEMY.x, ENEMY.y, { name: 'Djenné', size: 3, founder: 2, build: { kind: 'unit', id: 'warrior' } });
+  addUnit(state, 'warrior', 1, ENEMY.x, ENEMY.y);
+  addUnit(state, 'legion', 0, FRONT.x, FRONT.y, { army: true, veteran: true });
+  state.players[1]!.citiesFounded = 1;
+  state.players[2]!.citiesFounded = 2;
+  state.rngState = FAIR_DICE;
+  return state;
+}
+
+/** JFK in the Industrial era, researching Physics, with three trading cities. */
+function jfkChallengeScenario(): GameState {
+  const { state } = withCapital(undefined, { name: 'Washington', size: 5, buildings: ['library'] });
+  asLeader(state, 'usa', [...INDUSTRIAL, 'gunpowder', 'invention', 'engineering', 'construction', 'the_wheel', 'horseback_riding', 'iron_working']);
+  addCity(state, 0, 3, 3, { name: 'New York', size: 4, build: { kind: 'unit', id: 'warrior' } });
+  addCity(state, 0, 12, 8, { name: 'Boston', size: 4, build: { kind: 'unit', id: 'warrior' } });
+  state.players[0]!.citiesFounded = 3;
+  state.players[0]!.researching = 'physics';
+  return state;
+}
+
+const jfkScience = (s: GameState) => empireIncome(s, 0).science;
+function jfkWithChallenge(): GameState {
+  const s = jfkChallengeScenario();
+  applyAction(s, { type: 'setChallenge', tech: 'physics' });
+  return s;
+}
+
+/** Louis XIV with Economics (Industrial): Paris and a second city. */
+function versaillesScenario(): GameState {
+  const { state } = withCapital(undefined, { name: 'Paris', size: 5, build: null });
+  asLeader(state, 'france', [...INDUSTRIAL, 'gunpowder', 'invention', 'engineering', 'construction', 'the_wheel', 'horseback_riding', 'iron_working']);
+  addCity(state, 0, 3, 8, { name: 'Marseille', size: 3, build: { kind: 'unit', id: 'warrior' } });
+  state.players[0]!.citiesFounded = 2;
+  return state;
+}
+
+/**
+ * Kim Jong Un in the Modern era, next to a much stronger Rome at peace (Caligula, a
+ * conqueror), past the grace period. Deterrence keeps Rome's war score below zero.
+ */
+function deterrenceScenario(): GameState {
+  const state = diplomacyBase({ civ: 'rome' });
+  capitalCity(state).name = 'Pyongyang';
+  asLeader(state, 'north_korea', ['electricity', 'electronics']);
+  state.players[RIVAL]!.techs = ['bronze_working', 'iron_working'];
+  addUnit(state, 'spearman', 0, CITY_X, CITY_Y, { fortified: true });
+  for (let i = 0; i < 2; i++) addUnit(state, 'legion', RIVAL, 12, 8, { army: true });
+  return state;
+}
+
+/** Rome's war score against you, with Deterrence and (for comparison) without it. */
+function deterrenceScores(): { with: number; without: number } {
+  const s = deterrenceScenario();
+  const withIt = warScore(s, RIVAL, 0);
+  s.players[0]!.techs = [];
+  return { with: withIt, without: warScore(s, RIVAL, 0) };
+}
+
+const fmt = (n: number) => (Number.isFinite(n) ? n.toFixed(1) : 'none');
+
+/** All 12 leaders in one game, everyone met and at peace, each with a city. */
+function portraitsScenario(): GameState {
+  const civs = PLAYABLE_CIVS.map((c) => c.id);
+  const state = makeState(mapWith(), { players: civs.length, peace: true });
+  state.players.forEach((p, i) => (p.civId = civs[i]!));
+  state.diplomacy.met = state.players.map((_, a) => state.players.map((_, b) => a !== b));
+  const spots = [
+    [7, 5], [3, 3], [11, 3], [3, 8], [11, 8], [7, 9], [7, 2], [4, 5], [10, 5], [13, 5], [13, 2], [13, 9],
+  ];
+  civs.forEach((id, i) => {
+    const [x, y] = spots[i]!;
+    addCity(state, i, x!, y!, { name: findCiv(id)!.cityNames[0]!, capitalOf: i, build: { kind: 'unit', id: 'warrior' } });
+    state.players[i]!.citiesFounded = 1;
+  });
+  state.turn = 40;
+  return state;
+}
+
+const LIBERATION = LEADER_BONUSES.gran_colombia!.start.effects.find((e) => e.kind === 'liberation') as { culture: number; gold: number };
+
+const LEADER_SCENARIOS: Scenario[] = [
+  {
+    id: 'new-game-setup',
+    title: 'Leaders: New Game screen',
+    note: `The New Game screen is open. Tap a leader card: its portrait, starting tech, and every bonus appear at the top. Tap 🎲 Random civ to go back to random. Set Rivals with − and + (1–${RULES.maxPlayers - 1}). Tap Start: a new game begins with your leader and that many rivals, drawn from the rest (not saved here: this is a dev scenario). Turn the iPad: the cards reflow.`,
+    build: newGameSetupScenario,
+  },
+  {
+    id: 'starting-tech',
+    title: 'Leaders: starting tech',
+    note: `You are Peter the Great of Russia on turn 1. You already know Map Making, without Alphabet (a starting tech comes without the techs before it). Tap St. Petersburg: the Galley is in the build list (it's a port). Open Research: Alphabet is offered; Writing isn't yet.`,
+    build: startingTechScenario,
+  },
+  {
+    id: 'era-bonus',
+    title: 'Leaders: an era bonus',
+    note: `You are Caligula, one turn from Monarchy and the Medieval era. A Legion costs ${legionCost('rome', ['alphabet'])} now. Tap End Turn: you enter the Medieval era, and a toast names the era bonus (${LEADER_BONUSES.rome!.eras.medieval.name}): a Legion now costs ${legionCost('rome', ['monarchy'])}.`,
+    build: eraBonusScenario,
+  },
+  {
+    id: 'caligula-buy-wonder',
+    title: 'Leaders: Caligula buys a wonder',
+    note: `You are Caligula in the Industrial era. Rome is building the Pyramids. Tap Rome: the Buy button offers the Pyramids for ${caligulaPrice()} gold (wonders cost twice the usual price, less his 25% rush-buy discount; no one else can buy a wonder at all). Buy, then End Turn: the Pyramids are finished.`,
+    build: caligulaBuyWonderScenario,
+  },
+  {
+    id: 'mansa-pilgrimage',
+    title: 'Leaders: the Pilgrimage',
+    note: `You are Mansa Musa in the Medieval era with 400 gold. Tap your leader (top left): “The Pilgrimage” spends it all for ${Math.floor(400 * UNIQUE_RULES.pilgrimage.culturePerGold)} culture, and ${civName(mansaPilgrimageScenario(), RIVAL)} thinks better of you (Diplomacy: attitude up). The button then stays greyed: once per game.`,
+    build: mansaPilgrimageScenario,
+  },
+  {
+    id: 'henry-dissolution',
+    title: 'Leaders: the Dissolution',
+    note: `You are Henry VIII: London has a Temple and a Cathedral, York a Temple. Your empire makes ${henryCulture(henryDissolutionScenario())} culture a turn. Tap your leader, then “The Dissolution”: +${dissolutionGold(henryDissolutionScenario(), 0)} gold, and culture drops to ${henryCulture((() => { const s = henryDissolutionScenario(); applyAction(s, { type: 'dissolution' }); return s; })())} a turn for ${UNIQUE_RULES.dissolution.turns} turns.`,
+    build: henryDissolutionScenario,
+  },
+  {
+    id: 'bolivar-liberate',
+    title: 'Leaders: Bolívar liberates a city',
+    note: `You are Simón Bolívar, at war with Maurya. Djenné, east of Bogotá, was founded by Mali but is held by Maurya. Select your Legion army and attack it (${oddsAt(bolivarLiberateScenario(), FRONT, ENEMY)}%; the dice are set to win): you take Djenné whole (Liberation: +${LIBERATION.culture} culture and +${LIBERATION.gold} gold, and it keeps its size). A panel offers to return it to Mali: accept for +${UNIQUE_RULES.returnCity.culture} culture and a friend (Diplomacy: Mali friendly).`,
+    build: () => withDiceFor(bolivarLiberateScenario, (s) => applyAction(s, { type: 'attack', unitId: s.units.find((u) => u.owner === 0 && u.army)!.id, at: ENEMY }).combat?.attackerWon === true),
+  },
+  {
+    id: 'jfk-challenge',
+    title: 'Leaders: the National Challenge',
+    note: `You are John F. Kennedy in the Industrial era, researching Physics at ${jfkScience(jfkChallengeScenario())} science a turn. Open Research, tap Physics, then “⭐ Make it the National Challenge”: science rises to ${jfkScience(jfkWithChallenge())} a turn while you research it. Another tech can't be named until Physics is learned.`,
+    build: jfkChallengeScenario,
+  },
+  {
+    id: 'versailles',
+    title: 'Leaders: Versailles',
+    note: `You are Louis XIV with Economics. Tap Paris: Versailles is in the build list (a wonder only France can build, only in the capital: ${WONDERS.versailles.summary}). Tap Marseille: it isn't offered there.`,
+    build: versaillesScenario,
+  },
+  {
+    id: 'deterrence',
+    title: 'Leaders: Deterrence',
+    note: `You are Kim Jong Un in the Modern era, next to a far stronger Rome led by Caligula, a conqueror, at peace. Rome's war score against you is ${fmt(deterrenceScores().with)} with Deterrence (it would be ${fmt(deterrenceScores().without)} without it). Tap End Turn a few times: Rome never declares war.`,
+    build: deterrenceScenario,
+  },
+  {
+    id: 'portraits',
+    title: 'Leaders: all portraits',
+    note: 'All 12 leaders are in this game, met and at peace. Open 🤝 Diplomacy: each civ has its portrait (small and zoomed on the face in the list, large in the detail). Open 🏆 for the victory cards, and tap your leader (top left) for the big one. docs/portraits.html shows every size side by side.',
+    build: portraitsScenario,
+  },
+];
+
 export const SCENARIOS: Scenario[] = [
   {
     id: 'grow',
@@ -1228,7 +1481,7 @@ export const SCENARIOS: Scenario[] = [
   {
     id: 'ai-war',
     title: 'AI declares war',
-    note: `Tap End Turn. The Franks declare war on you (a panel says so). Keep tapping End Turn: their Legion army marches from Aachen toward ${CAPITAL} and attacks within a few turns.`,
+    note: `Tap End Turn. The Franks declare war on you (a panel says so). Keep tapping End Turn: their Legion army and more Legions march from Aachen toward ${CAPITAL} and attack within a few turns.`,
     build: () => withDice(aiWarBase, (s) => s.atWar[0]![RIVAL] === true),
   },
   // ---- Round 8: ships ----
@@ -1403,6 +1656,7 @@ export const SCENARIOS: Scenario[] = [
     note: `Every map icon at once: the ${RESOURCE_IDS.length} resources as in All resources (on dark badges in their tiles' corners: ${resourceOrder()}; Fish on the north coast, Whales at sea), a barbarian village east of ${CAPITAL} with 2 of its ${BARBARIANS.flagsToSpawn} flags and its Warrior in the corner, a hut south-west of ${CAPITAL}, and a barbarian Archer (red skull badge) to the south-east, both in sight of your Warrior. Tap a resource, the village, or the hut to hear what it is.`,
     build: allMapIconsScenario,
   },
+  ...LEADER_SCENARIOS,
 ];
 
 export function findScenario(id: string): Scenario | undefined {

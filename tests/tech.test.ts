@@ -1,3 +1,4 @@
+import { findCiv } from '../src/data/civs';
 import { describe, expect, it } from 'vitest';
 import { BUILDINGS, BUILDING_IDS } from '../src/data/buildings';
 import { ERAS, FINAL_TECH, TECHS, TECH_COST, TECH_IDS, TECH_LIST, techCostFor, type TechId } from '../src/data/techs';
@@ -103,9 +104,12 @@ describe('tech tree data', () => {
 });
 
 describe('research', () => {
-  it('nobody starts with a tech or a research choice', () => {
+  it('each civ starts with only its own starting tech (Round 11), and no research choice', () => {
     const s = createGame({ seed: 3, playerCount: 5 });
-    for (const p of s.players) expect([p.techs, p.researching]).toEqual([[], null]);
+    for (const p of s.players) {
+      const start = findCiv(p.civId)?.startTech;
+      expect([p.techs, p.researching]).toEqual([start ? [start] : [], null]);
+    }
   });
 
   it('enforces prerequisites', () => {
@@ -133,10 +137,11 @@ describe('research', () => {
     // Round 9 numbers: 14 + 8.5 per tech known + 4 per tier above 1 (was 6 per tech known
     // before resources, huts, villages, and Great People sped research up).
     expect([techCostFor(0, 1), techCostFor(1, 1), techCostFor(10, 1), techCostFor(10, 3)]).toEqual([14, 23, 99, 107]);
-    const p = makeState(['g']).players[0]!;
-    expect(techCost(p, 'alphabet')).toBe(techCostFor(0, 1));
+    const st = makeState(['g']);
+    const p = st.players[0]!;
+    expect(techCost(st, 0, 'alphabet')).toBe(techCostFor(0, 1));
     p.techs.push('bronze_working');
-    expect(techCost(p, 'alphabet')).toBe(techCostFor(1, 1));
+    expect(techCost(st, 0, 'alphabet')).toBe(techCostFor(1, 1));
     let last = 0;
     for (let k = 0; k < TECH_LIST.length; k++) {
       const c = techCostFor(k, 1);
@@ -301,8 +306,10 @@ describe('AI research', () => {
     expect(play()).toEqual(a);
     for (const p of a.players.filter((p) => p.kind === 'ai')) {
       expect(p.techs.length, `AI ${p.id} techs`).toBeGreaterThanOrEqual(1);
-      // Every tech it learned was legal at the time: prerequisites come earlier in the list.
+      // Every tech it learned was legal at the time: prerequisites come earlier in the list
+      // (the starting tech, first, is the one known without them: Round 11).
       p.techs.forEach((t, i) => {
+        if (i === 0 && t === findCiv(p.civId)?.startTech) return;
         for (const pre of TECHS[t].prereqs) expect(p.techs.indexOf(pre)).toBeLessThan(i);
       });
       a.currentPlayer = p.id;

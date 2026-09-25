@@ -22,6 +22,7 @@
 
 import { CIVS, type CivDef } from '../data/civs';
 import { RULES } from '../data/rules';
+import { VICTORY } from '../data/victory';
 import { TECHS, type TechId } from '../data/techs';
 import { UNITS } from '../data/units';
 import { CivName, civName, civPossessive, civVerb } from './conquest';
@@ -33,6 +34,7 @@ import { nextFloat } from './rng';
 import { attackStrength, winChance } from './combat';
 import { hasTech, learnTech, researchError, techCost } from './tech';
 import { atWar } from './war';
+import { bonusName, effectsOf, firstEffect, willingnessToward } from './leaders';
 import type { ActionResult, Diplomacy, GameState, Offer } from './types';
 
 const D = RULES.diplomacy;
@@ -105,8 +107,31 @@ export function updateContacts(state: GameState): [number, number][] {
     setBoth(state.diplomacy.met, a, b, true);
     met.push([a, b]);
     addLog(state, a, `Met ${civName(state, b)}`, undefined, b, { otherText: `Met ${civName(state, a)}`, kind: 'contact' });
+    meetGold(state, a, b);
+    meetGold(state, b, a);
+    revealCapital(state, a, b);
+    revealCapital(state, b, a);
   }
   return met;
+}
+
+/**
+ * Round 11: meeting a civ tells you where its capital is (the tile is marked explored; what's
+ * there now is still hidden by the fog). Without it, a conqueror could fight a civ for decades
+ * without ever finding the capital a domination win needs.
+ */
+function revealCapital(state: GameState, viewer: number, of: number): void {
+  const capital = state.cities.find((c) => c.capitalOf === of && c.owner === of);
+  const explored = state.players[viewer]?.explored;
+  if (capital && explored) explored[tileIndex(state.map, capital.x, capital.y)] = 1;
+}
+
+/** Round 11: Hatshepsut's envoys bring gold from every civ she meets. */
+function meetGold(state: GameState, p: number, met: number): void {
+  for (const e of effectsOf(state, p, 'meetGold')) {
+    state.players[p]!.gold += e.gold;
+    addLog(state, p, `${bonusName(state, p, 'meetGold')}: ${civName(state, met)} sent gifts. +${e.gold} gold`, undefined, undefined, { kind: 'leader' });
+  }
 }
 
 // ---- strength and feelings -------------------------------------------------------------
@@ -190,6 +215,7 @@ function dropOffersBetween(state: GameState, a: number, b: number): void {
 export function declareWar(state: GameState, a: number, b: number): ActionResult {
   const err = declareWarError(state, a, b);
   if (err) return { ok: false, reason: err };
+  const hadTreaty = state.diplomacy.peaceTurn[a]?.[b] != null;
   setBoth(state.atWar, a, b, true);
   setBoth(state.diplomacy.warStart, a, b, state.turn);
   setBoth(state.diplomacy.peaceTurn, a, b, null);
@@ -203,6 +229,15 @@ export function declareWar(state: GameState, a: number, b: number): ActionResult
     publicText: `${CivName(state, a)} declared war on ${B}`,
     kind: 'war',
   });
+  // Round 11: Henry VIII breaking a treaty sets every court talking.
+  const broken = firstEffect(state, a, 'breakTreaty');
+  if (broken && hadTreaty) {
+    for (const q of state.players) if (q.id !== a && hasMet(state, q.id, a)) changeOpinion(state, q.id, a, broken.opinion);
+    addLog(state, a, `${bonusName(state, a, 'breakTreaty')}: breaking the treaty with ${B} was a scandal. Every court now trusts you a little less`, undefined, undefined, {
+      publicText: `Scandal! ${CivName(state, a)} broke ${civPossessive(state, a)} treaty with ${B}. The courts of the world are gossiping`,
+      kind: 'leader',
+    });
+  }
   return { ok: true };
 }
 
@@ -225,6 +260,13 @@ export function makePeace(state: GameState, a: number, b: number): void {
     publicText: `${CivName(state, a)} and ${B} made peace`,
     kind: 'peace',
   });
+  // Round 11: Yushchenko's resilience.
+  for (const p of [a, b]) {
+    const e = firstEffect(state, p, 'resilience');
+    if (!e) continue;
+    state.players[p]!.culture += e.culture;
+    addLog(state, p, `${bonusName(state, p, 'resilience')}: the war is over. +${e.culture} culture`, undefined, undefined, { kind: 'leader' });
+  }
 }
 
 export interface Desire {
@@ -248,13 +290,21 @@ export function peaceDesire(state: GameState, ai: number, other: number): Desire
   // A war from before Milestone 5 has no start turn: treat it as a long one.
   const turns = start === null || start === undefined ? D.warWearinessMaxTurns : state.turn - start;
   const aggression = civDef(state, ai).aggression;
+  // Round 11: a conqueror tires of war more slowly, and won't stop while it's going its way.
+  const V = RULES.ai.victory;
+  const conqueror = state.players[ai]?.kind === 'ai' && aiVictoryGoal(state, ai) === 'domination';
+  const weariness = Math.min(turns, D.warWearinessMaxTurns) * D.warWearinessPerTurn * (conqueror ? V.dominationWearinessShare : 1);
   const factors: { value: number; yes: string; no: string }[] = [
     { value: Math.max(-D.peaceStrengthMax, (1 - ratio) * D.peaceStrengthWeight), yes: 'Your armies are stronger than ours.', no: 'Our armies are stronger. We will fight on.' },
     { value: -going * D.peaceScoreWeight, yes: 'This war has cost us too much.', no: 'We are winning this war.' },
     { value: -(aggression - 3) * D.peaceAggressionWeight, yes: 'We never wanted this war.', no: 'We are not finished with you.' },
-    { value: Math.min(turns, D.warWearinessMaxTurns) * D.warWearinessPerTurn, yes: 'Our people are tired of war.', no: '' },
+    { value: weariness, yes: 'Our people are tired of war.', no: '' },
     { value: (d.opinion[ai]?.[other] ?? 0) * D.peaceOpinionWeight, yes: 'We would rather be friends.', no: 'We do not trust you.' },
   ];
+  if (conqueror && going >= 0) factors.push({ value: -V.dominationStayAtWar, yes: '', no: 'Our conquest has only begun.' });
+  // Round 11: Henry VIII's royal marriages make peace easier to agree to.
+  const marriages = effectsOf(state, other, 'royalMarriages').reduce((s, e) => s + e.peaceBonus, 0);
+  if (marriages) factors.push({ value: marriages, yes: 'A royal marriage would seal it.', no: '' });
   const value = factors.reduce((s, f) => s + f.value, 0) - D.peaceBias;
   if (turns < D.minWarTurnsBeforePeace && going >= 0 && value > 0) {
     return { value: Math.min(value, -1), reason: 'This war has only just begun.' };
@@ -305,16 +355,18 @@ export function tradeableTechs(state: GameState, from: number, to: number): Tech
 
 /** What a tech is worth to `receiver`: what it would cost them to research. */
 export function techValue(state: GameState, receiver: number, tech: TechId): number {
-  return techCost(state.players[receiver]!, tech);
+  return techCost(state, receiver, tech);
 }
 
-function willingness(state: GameState, ai: number): number {
-  return Math.max(1, Math.min(5, civDef(state, ai).tradeWillingness));
+/** AI `ai`'s trade willingness (1–5), toward `partner` when given (Round 11: leader bonuses change it). */
+function willingness(state: GameState, ai: number, partner?: number): number {
+  const base = Math.max(1, Math.min(5, civDef(state, ai).tradeWillingness));
+  return partner === undefined ? base : willingnessToward(state, base, partner);
 }
 
 /** AI `seller`'s asking price in gold for teaching `buyer` this tech. */
 export function techPrice(state: GameState, seller: number, buyer: number, tech: TechId): number {
-  const markup = D.techMarkup[willingness(state, seller) - 1]!;
+  const markup = D.techMarkup[willingness(state, seller, buyer) - 1]!;
   const friendly = attitude(state, seller, buyer) === 'friendly' ? 0.9 : 1;
   return Math.ceil(techValue(state, buyer, tech) * D.techGoldPerScience * markup * friendly);
 }
@@ -328,7 +380,7 @@ export function tradeRefusal(state: GameState, ai: number, other: number): strin
 
 /** The share of value AI `ai` wants back in a swap (a friendly AI asks for less). */
 function swapRatio(state: GameState, ai: number, other: number): number {
-  const base = D.swapMinValueRatio[willingness(state, ai) - 1]!;
+  const base = D.swapMinValueRatio[willingness(state, ai, other) - 1]!;
   return attitude(state, ai, other) === 'friendly' ? base - 0.1 : base;
 }
 
@@ -337,7 +389,11 @@ function doSwap(state: GameState, a: number, b: number, aGets: TechId, bGets: Te
   const B = civName(state, b);
   const what = bGets ? `${TECHS[bGets].name} for ${TECHS[aGets].name}` : `${gold} gold for ${TECHS[aGets].name}`;
   learnTech(state, a, aGets, `Traded with ${B}: learned ${TECHS[aGets].name}`);
-  if (bGets) learnTech(state, b, bGets, `Traded with ${A}: learned ${TECHS[bGets].name}`);
+  tradeScience(state, a);
+  if (bGets) {
+    learnTech(state, b, bGets, `Traded with ${A}: learned ${TECHS[bGets].name}`);
+    tradeScience(state, b);
+  }
   if (gold > 0) {
     state.players[a]!.gold -= gold;
     state.players[b]!.gold += gold;
@@ -349,6 +405,11 @@ function doSwap(state: GameState, a: number, b: number, aGets: TechId, bGets: Te
     publicText: `${CivName(state, a)} and ${B} traded knowledge`,
     kind: 'trade',
   });
+}
+
+/** Round 11: Yushchenko's open doors: a tech received in a trade also brings science. */
+function tradeScience(state: GameState, p: number): void {
+  for (const e of effectsOf(state, p, 'tradeScience')) state.players[p]!.science += e.science;
 }
 
 /**
@@ -392,7 +453,9 @@ export function giveGold(state: GameState, to: number, amount: number): ActionRe
   if (state.players[from]!.gold < amount) return { ok: false, reason: `You only have ${state.players[from]!.gold} gold` };
   state.players[from]!.gold -= amount;
   state.players[to]!.gold += amount;
-  changeOpinion(state, to, from, Math.min(D.giftOpinionMax, amount / D.goldPerOpinion));
+  // Round 11: Henry VIII's gifts count double.
+  const mult = effectsOf(state, from, 'royalMarriages').reduce((m, e) => m * e.giftMult, 1);
+  changeOpinion(state, to, from, Math.min(D.giftOpinionMax * mult, (amount / D.goldPerOpinion) * mult));
   const B = civName(state, to);
   addLog(state, from, `You gave ${amount} gold to ${B}`, undefined, to, { otherText: `${CivName(state, from)} gave you ${amount} gold`, kind: 'gift' });
   return answered(true, atWar(state, from, to) ? 'Gold will not end this war, but we will take it.' : 'A generous gift. We will remember it.');
@@ -482,22 +545,40 @@ export function cityDistance(state: GameState, a: number, b: number): number {
 export function warScore(state: GameState, ai: number, target: number): number {
   if (ai === target || !state.players[target]?.alive || !hasMet(state, ai, target)) return -Infinity;
   if (declareWarError(state, ai, target)) return -Infinity;
-  if (state.players.some((p) => p.alive && p.kind !== 'barbarian' && atWar(state, ai, p.id))) return -Infinity;
+  // One war at a time (a conqueror: two, Round 11). A war on a civ with no cities left doesn't
+  // count: it would otherwise keep the AI "at war" with a few stragglers forever.
+  const conqueror = aiVictoryGoal(state, ai) === 'domination';
+  const wars = state.players.filter((p) => p.alive && p.kind !== 'barbarian' && atWar(state, ai, p.id) && state.cities.some((c) => c.owner === p.id)).length;
+  if (wars >= (conqueror ? RULES.ai.victory.dominationMaxWars : 1)) return -Infinity;
   if (state.players[target]!.kind === 'human' && state.turn < D.aiGraceTurns) return -Infinity;
+  // Round 11: Kim Jong Un's deterrence.
+  const deterrence = effectsOf(state, target, 'deterrence').reduce((s, e) => s + e.warScore, 0);
   const ratio = strengthRatio(state, ai, target);
-  if (ratio < D.warMinStrengthRatio) return -Infinity;
+  // An AI going for a domination victory (Milestone 6) is keener, and goes to war sooner (Round 11),
+  // most of all against a runaway leader.
+  const V = RULES.ai.victory;
+  const runaway = conqueror && runawayProgress(state, target) >= V.runawayProgress;
+  const minRatio = runaway ? V.runawayMinStrengthRatio : conqueror ? V.dominationMinStrengthRatio : D.warMinStrengthRatio;
+  if (ratio < minRatio) return -Infinity;
   if (cityDistance(state, ai, target) > D.warMaxDistance) return -Infinity;
   // Only a war it could win: its best attack (as an army) must beat their best city defender.
   if (winChance(bestAttack(state, ai), bestCityDefense(state, target)) < D.warMinAttackChance) return -Infinity;
   const aggression = civDef(state, ai).aggression;
-  // An AI going for a domination victory (Milestone 6) is keener.
-  const conquest = aiVictoryGoal(state, ai) === 'domination' ? RULES.ai.victory.dominationWarBonus : 0;
+  const conquest = (conqueror ? V.dominationWarBonus : 0) + (runaway ? V.runawayWarBonus : 0);
   return (
     (Math.min(ratio, 4) - D.warMinStrengthRatio) * D.warStrengthWeight +
     (aggression - 3) * D.warAggressionWeight -
     (state.diplomacy.opinion[ai]?.[target] ?? 0) * D.warOpinionWeight +
-    conquest
+    conquest -
+    deterrence
   );
+}
+
+/** How close `p` is to a culture or economic win (0–1): the nearer of the two goals. */
+export function runawayProgress(state: GameState, p: number): number {
+  const player = state.players[p];
+  if (!player) return 0;
+  return Math.max(player.culture / VICTORY.cultureGoal, player.gold / VICTORY.goldGoal);
 }
 
 /**
@@ -618,7 +699,8 @@ export function runAiDiplomacy(state: GameState, ai: number): void {
 
   for (const p of state.players) {
     if (p.kind !== 'human' || !p.alive || !canDemand(state, ai, p.id)) continue;
-    if (nextFloat(state) * 100 >= D.demandChancePct) continue;
+    const deterred = effectsOf(state, p.id, 'deterrence').reduce((m, e) => m * e.demandMult, 1);
+    if (nextFloat(state) * 100 >= D.demandChancePct * deterred) continue;
     const ask = demandFor(state, ai, p.id);
     if (!ask) continue;
     d.lastDemand[ai]![p.id] = state.turn;

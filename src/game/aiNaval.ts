@@ -14,6 +14,7 @@
 // - Coastal defense: once a rival it has met has ships, it keeps a warship or two in port;
 //   they attack enemy ships (or bombard) nearby when the odds are good.
 
+import { aiVictoryGoal } from './aiGoals';
 import { RULES } from '../data/rules';
 import { UNITS, UNIT_IDS, type UnitTypeId } from '../data/units';
 import { CivName, capturableCity } from './conquest';
@@ -267,7 +268,9 @@ export function runFerry(state: GameState, p: number, guards: Set<number>): Set<
       ready = settler && (escort || full || !escortComing || waited >= N.escortWaitTurns);
     } else {
       const weight = cargo.reduce((s, u) => s + unitWeight(u), 0);
-      ready = cargo.length > 0 && (weight >= RULES.ai.minAttackForce || full || waited >= N.invadeWaitTurns);
+      // Round 11: a conqueror sails with a bigger force.
+      const force = aiVictoryGoal(state, p) === 'domination' ? RULES.ai.victory.dominationAttackForce : RULES.ai.minAttackForce;
+      ready = cargo.length > 0 && (weight >= force || full || waited >= N.invadeWaitTurns * (force > RULES.ai.minAttackForce ? 2 : 1));
     }
     if (!ready) return reserved;
     f.phase = 'sail';

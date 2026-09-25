@@ -17,9 +17,9 @@ export const VICTORY_NAMES: Record<VictoryKind, string> = {
 
 export const VICTORY = {
   /** Culture: this much culture in total, then build the World Council. */
-  cultureGoal: 4000,
+  cultureGoal: 6000,
   /** Economic: this much gold in the treasury (when starting and finishing), then build the Global Exchange. */
-  goldGoal: 5500,
+  goldGoal: 9000,
   /** Technology: build the spaceship's parts in your capital, launch it, and it arrives later. */
   spaceship: {
     requires: 'space_flight' as TechId,
@@ -32,7 +32,7 @@ export const VICTORY = {
   warnPct: 75,
 };
 
-export type ProjectId = 'spaceship';
+export type ProjectId = 'spaceship' | 'moonshot';
 
 /** Things a city builds that aren't units, buildings, or wonders. */
 export interface ProjectDef {
@@ -41,6 +41,8 @@ export interface ProjectDef {
   cost: number;
   requires: TechId;
   summary: string;
+  /** Round 11: a leader's unique project, for this civ only (once it has the leader bonus), once per game. */
+  civ?: string;
 }
 
 export const PROJECTS: Record<ProjectId, ProjectDef> = {
@@ -51,4 +53,15 @@ export const PROJECTS: Record<ProjectId, ProjectDef> = {
     requires: VICTORY.spaceship.requires,
     summary: `One of ${VICTORY.spaceship.parts} parts. Capital only. Launch it when all are built`,
   },
+  // Round 11: John F. Kennedy's own project (effects in leaders.ts UNIQUE_RULES).
+  moonshot: {
+    id: 'moonshot',
+    name: 'Moonshot',
+    cost: 250,
+    requires: 'rocketry',
+    summary: 'United States only, once: 200 culture and +25% science from then on',
+    civ: 'usa',
+  },
 };
+
+export const PROJECT_IDS = Object.keys(PROJECTS) as ProjectId[];

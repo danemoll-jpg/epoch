@@ -60,6 +60,7 @@ import {
   hasTech,
   knows,
   playerEra,
+  eraIndex,
   researchError,
   techCost,
   techLeadsTo,
@@ -92,6 +93,12 @@ import { backupCurrentSave, listBackups, restoreBackup, saveToStorage } from './
 import { resolveTap } from './tap';
 import { armyCandidates, isMixedStack, stackLabel, unitsOnTile } from '../game/stack';
 
+import { portraitHtml } from './portraits';
+import { SetupScreen, bonusListHtml, type SetupChoice } from './setup';
+import { UNIQUE_RULES } from '../data/leaders';
+import { hasUnique } from '../game/leaders';
+import { challengeError, dissolutionError, dissolutionGold, pilgrimageError, returnCityError } from '../game/uniques';
+
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 const FOCUS_LABEL: Record<CityFocus, string> = {
@@ -102,8 +109,8 @@ const FOCUS_LABEL: Record<CityFocus, string> = {
 };
 
 export interface AppOptions {
-  /** Builds a fresh game for the New Game button. */
-  newGame: () => GameState;
+  /** Builds a fresh game for the New Game screen (Round 11: your civ, or random, and how many rivals). */
+  newGame: (choice?: SetupChoice) => GameState;
   /** Shown once at startup, e.g. "Resumed your game". */
   notice?: string;
   /** False while a dev scenario is loaded, so it can never overwrite the real autosave. */
@@ -145,6 +152,7 @@ export class App {
   private frameQueued = false;
   private readonly human = 0;
   private readonly opts: AppOptions;
+  private readonly setup = new SetupScreen((choice) => this.startNewGame(choice));
 
   constructor(state: GameState, opts: AppOptions) {
     this.state = state;
@@ -189,8 +197,11 @@ export class App {
     });
     $('endNewBtn').addEventListener('click', () => {
       if (this.opts.scenario) gotoScenario(undefined);
-      else this.startNewGame();
+      else this.setup.open();
     });
+    // Round 11: your leader, bonuses, and unique actions.
+    $('leaderBtn').addEventListener('click', () => this.openLeader());
+    $('leaderOverlay').addEventListener('click', (e) => this.handleLeaderClick(e));
     $('endCloseBtn').addEventListener('click', () => {
       // A win (anyone's): Keep playing stops victory checks for the rest of the game.
       // Eliminated: just look at the map.
@@ -265,6 +276,10 @@ export class App {
   private checkPending(): void {
     const v = pendingVillage(this.state, this.human);
     if (v) this.queueVillage(v);
+    // Round 11: Bolívar may give a city he just took back to its founders.
+    for (const c of this.state.cities) {
+      if (c.owner === this.human && !returnCityError(this.state, c)) this.queueReturnCity(c);
+    }
     for (const gp of this.state.greatPeople) {
       if (gp.owner === this.human && !this.gpLater.has(gp.id)) this.queueGreatPerson(gp);
     }
@@ -437,7 +452,7 @@ export class App {
   }
 
   /** New Game: the current game is backed up first, then replaced. */
-  private startNewGame(): void {
+  private startNewGame(choice?: SetupChoice): void {
     if (this.opts.autosave !== false) {
       this.save();
       if (!backupCurrentSave('Replaced by New Game', Date.now())) {
@@ -445,7 +460,14 @@ export class App {
         return;
       }
     }
-    this.replaceGame(this.opts.newGame(), 'New game started');
+    const state = this.opts.newGame(choice);
+    const civ = civDef(state, this.human);
+    this.replaceGame(state, `New game: you lead ${civName(state, this.human)} as ${civ.leader}`);
+  }
+
+  /** Round 11: the New Game setup screen (the dev scenario `new-game-setup` opens it too). */
+  openSetup(): void {
+    this.setup.open();
   }
 
   /** Swap in another game (New Game, or a restored backup that's already been saved). */
@@ -462,6 +484,7 @@ export class App {
     $('noticeOverlay').hidden = true;
     $('diploOverlay').hidden = true;
     $('victoryOverlay').hidden = true;
+    $('leaderOverlay').hidden = true;
     this.save();
     this.startHumanTurn();
     this.toast(message);
@@ -718,7 +741,7 @@ export class App {
 
     let prodHtml: string;
     if (city.build) {
-      const cost = itemCost(city.build);
+      const cost = itemCost(this.state, city, city.build);
       const t = turnsToFinish(this.state, city);
       const blocker = completionBlocker(this.state, city, city.build);
       const when = blocker ? `waiting: ${blocker}` : t === undefined ? 'no production' : plural(t, 'turn');
@@ -728,7 +751,7 @@ export class App {
     } else {
       prodHtml = `<div class="stat warn">Choose something to build <span class="sub">(${city.production} stored, +${y.production}/turn)</span></div>`;
     }
-    const cost = buyCost(city);
+    const cost = buyCost(this.state, city);
     const bErr = buyError(this.state, city);
     const buyLabel = cost === undefined ? 'Buy' : `Buy · ${cost} gold`;
 
@@ -739,7 +762,7 @@ export class App {
 
     const buildBtns = buildOptions(this.state, city)
       .map((item) => {
-        const itemCostV = itemCost(item);
+        const itemCostV = itemCost(this.state, city, item);
         const perTurn = y.production;
         const turns = perTurn > 0 ? Math.max(1, Math.ceil(Math.max(0, itemCostV - city.production) / perTurn)) : undefined;
         const blocker = completionBlocker(this.state, city, item);
@@ -865,7 +888,10 @@ export class App {
     $('aboutBackBtn').addEventListener('click', () => this.showMenuPage('menuMain'));
     $('backupList').addEventListener('click', (e) => this.handleBackupClick(e));
     $('menuCloseBtn').addEventListener('click', () => this.closeMenu());
-    $('newGameBtn').addEventListener('click', () => this.showMenuPage('menuConfirm'));
+    $('newGameBtn').addEventListener('click', () => {
+      this.closeMenu();
+      this.setup.open();
+    });
     $('confirmNoBtn').addEventListener('click', () => this.closeMenu());
     $('confirmYesBtn').addEventListener('click', () => {
       this.closeMenu();
@@ -1117,7 +1143,8 @@ export class App {
       const civ = v!.winner;
       text = `${CivName(this.state, civ)} won a ${VICTORY_NAMES[v!.kind].toLowerCase()} victory on turn ${v!.turn}: ${victoryHow(v!.kind, false)}. The game is theirs.`;
     }
-    $('endBanner').textContent = banner;
+    const face = eliminated || mine ? this.human : v!.winner;
+    $('endBanner').innerHTML = `${portraitHtml(this.state.players[face]!.civId, 96)} <span>${banner}</span>`;
     $('endPanel').className = `dialog ${mine ? 'win' : 'lose'}`;
     $('endTitle').textContent = title;
     $('endText').textContent = text;
@@ -1137,6 +1164,93 @@ export class App {
     const name = p === this.human ? 'You' : esc(civDef(this.state, p).name);
     return `<tr><th><span class="swatch" style="background:${playerColor(this.state, p)}"></span> ${name}</th>
       <td>${cities.length}</td><td>${pl.techs.length}</td><td>${wonders}</td><td>${pl.culture}</td><td>${pl.gold}</td></tr>`;
+  }
+
+  // ---- your leader (Round 11): bonuses and unique actions -----------------------------------
+
+  /** A unique action the human could take right now (a dot on the leader button). */
+  private uniqueReady(): boolean {
+    return !pilgrimageError(this.state, this.human) || !dissolutionError(this.state, this.human);
+  }
+
+  private openLeader(): void {
+    $('leaderOverlay').hidden = false;
+    this.renderLeader();
+  }
+
+  private handleLeaderClick(e: MouseEvent): void {
+    const target = e.target as HTMLElement;
+    if (target === $('leaderOverlay')) {
+      $('leaderOverlay').hidden = true;
+      return;
+    }
+    const btn = target.closest('button');
+    if (!btn || btn.disabled) return;
+    if (btn.id === 'leaderCloseBtn') $('leaderOverlay').hidden = true;
+    else if (btn.dataset.act === 'pilgrimage' || btn.dataset.act === 'dissolution') {
+      const res = this.dispatchResult({ type: btn.dataset.act });
+      if (res.ok && res.message) this.toast(res.message);
+    } else if (btn.dataset.act === 'techs') {
+      $('leaderOverlay').hidden = true;
+      this.openTech();
+    }
+  }
+
+  private renderLeader(): void {
+    const me = this.state.players[this.human]!;
+    const def = civDef(this.state, this.human);
+    const era = eraIndex(playerEra(me));
+    $('leaderTitle').textContent = `${def.leader} of ${def.name}`;
+    $('leaderStatus').textContent = `${eraName(playerEra(me))} era · bonuses for later eras switch on when you reach them`;
+    const actions: string[] = [];
+    if (hasUnique(this.state, this.human, 'pilgrimage') || me.uniquesUsed.includes('pilgrimage')) {
+      const err = pilgrimageError(this.state, this.human);
+      const R = UNIQUE_RULES.pilgrimage;
+      actions.push(`<button type="button" data-act="pilgrimage" ${err ? 'disabled' : ''}>🕌 The Pilgrimage: ${me.gold} gold → ${Math.floor(me.gold * R.culturePerGold)} culture</button>
+        <div class="sub">${err ? esc(err) : `Spends all your gold (at least ${R.minGold}); every civ you’ve met thinks better of you. Once per game.`}</div>`);
+    }
+    if (hasUnique(this.state, this.human, 'dissolution') || me.uniquesUsed.includes('dissolution')) {
+      const err = dissolutionError(this.state, this.human);
+      actions.push(`<button type="button" data-act="dissolution" ${err ? 'disabled' : ''}>⛪ The Dissolution: +${dissolutionGold(this.state, this.human)} gold</button>
+        <div class="sub">${err ? esc(err) : `${UNIQUE_RULES.dissolution.goldPerBuilding} gold per Temple and Cathedral, but their culture is halved for ${UNIQUE_RULES.dissolution.turns} turns. Once per game.`}${me.dissolvedUntil && this.state.turn < me.dissolvedUntil ? ` Halved until turn ${me.dissolvedUntil}.` : ''}</div>`);
+    }
+    if (hasUnique(this.state, this.human, 'challenge')) {
+      actions.push(`<button type="button" data-act="techs">⭐ National Challenge: ${me.challenge ? esc(TECHS[me.challenge].name) : 'none named'}</button>
+        <div class="sub">Name a tech on the tech screen: +${UNIQUE_RULES.challenge.sciencePct}% science while you research it.</div>`);
+    }
+    if (hasUnique(this.state, this.human, 'versailles')) actions.push(`<div class="sub">🏰 Versailles: build it in your capital (city panel).</div>`);
+    if (hasUnique(this.state, this.human, 'moonshot')) actions.push(`<div class="sub">🌙 Moonshot: ${me.uniquesUsed.includes('moonshot') ? 'done' : 'build it in a city (needs Rocketry)'}.</div>`);
+    if (hasUnique(this.state, this.human, 'returnCity')) actions.push(`<div class="sub">🕊️ When you take a city someone else founded, you can give it back that turn.</div>`);
+    $('leaderBody').innerHTML = `
+      <div class="leaderHead">${portraitHtml(me.civId, 128)}<div>
+        <h3>${esc(def.leader)}</h3><div class="sub">${esc(def.name)} · started with ${def.startTech ? esc(TECHS[def.startTech].name) : 'no tech'}</div>
+        ${bonusListHtml(me.civId, era)}
+      </div></div>
+      ${actions.length ? `<div class="label">Unique actions</div><div class="uniqueActions">${actions.join('')}</div>` : ''}`;
+  }
+
+  /** Bolívar took a city someone else founded: give it back to them? (only this turn) */
+  private queueReturnCity(city: City): void {
+    if (this.notices.some((n) => n.returnCityId === city.id)) return;
+    const R = UNIQUE_RULES.returnCity;
+    this.queueNotice({
+      title: 'Return a liberated city?',
+      portrait: city.founder,
+      text: `${city.name} was founded by ${civName(this.state, city.founder)}. Give it back to them?`,
+      sub: `You gain ${R.culture} culture, peace with them, and a grateful friend. Your units there go home. Only this turn.`,
+      returnCityId: city.id,
+      buttons: [
+        { label: 'Keep it', cls: 'bigBtn' },
+        {
+          label: `Return ${city.name}`,
+          cls: 'bigBtn',
+          run: () => {
+            const res = this.dispatchResult({ type: 'returnCity', cityId: city.id });
+            if (res.ok && res.message) this.toast(res.message);
+          },
+        },
+      ],
+    });
   }
 
   // ---- victory progress screen (Milestone 6): who's close to winning? ---------------------
@@ -1201,7 +1315,7 @@ export class App {
     const pl = this.state.players[p]!;
     const me = p === this.human;
     const def = civDef(this.state, p);
-    const head = `<div class="vhead"><span class="swatch" style="background:${playerColor(this.state, p)}"></span>
+    const head = `<div class="vhead">${portraitHtml(pl.civId, 36)}<span class="swatch" style="background:${playerColor(this.state, p)}"></span>
       <b>${me ? `You (${esc(def.name)})` : esc(def.name)}</b>`;
     if (!me && !hasMet(this.state, this.human, p)) {
       return `<div class="vcard unknown"><div class="vhead"><span class="swatch unknownSwatch"></span><b>Unknown civ</b></div>
@@ -1259,6 +1373,9 @@ export class App {
     } else if (btn.dataset.tech) {
       this.techSelected = btn.dataset.tech as TechId;
       this.renderTech();
+    } else if (btn.dataset.act === 'challenge' && this.techSelected) {
+      const res = this.dispatchResult({ type: 'setChallenge', tech: this.techSelected });
+      if (res.ok && res.message) this.toast(res.message);
     } else if (btn.dataset.act === 'research' && this.techSelected) {
       const tech = this.techSelected;
       if (this.dispatch({ type: 'setResearch', tech })) {
@@ -1280,7 +1397,7 @@ export class App {
     const income = empireIncome(this.state, this.human).science;
     const current = me.researching;
     const status = current
-      ? `Researching ${TECHS[current].name}: ${Math.min(me.science, techCost(me, current))}/${techCost(me, current)} · +${income} science per turn`
+      ? `Researching ${TECHS[current].name}: ${Math.min(me.science, techCost(this.state, this.human, current))}/${techCost(this.state, this.human, current)} · +${income} science per turn`
       : `Nothing being researched${me.science > 0 ? ` · ${me.science} science banked` : ''} · +${income} per turn`;
     $('techStatus').innerHTML = this.techPrompt
       ? `<b class="prompt">${esc(this.techPrompt)}</b><br>${esc(status)}`
@@ -1318,7 +1435,7 @@ export class App {
     const me = this.state.players[this.human]!;
     const def = TECHS[tech];
     const st = this.techStatus(tech);
-    const cost = techCost(me, tech);
+    const cost = techCost(this.state, this.human, tech);
     const turns = turnsToLearn(this.state, this.human, tech);
     const stateText =
       st === 'known' ? 'Known' : st === 'current' ? 'Researching now' : st === 'available' ? 'Available' : 'Locked';
@@ -1348,6 +1465,13 @@ export class App {
     } else if (st === 'locked') {
       action = `<div class="sub">${esc(researchError(me, tech) ?? '')}</div>`;
     }
+    // Round 11: JFK's National Challenge.
+    if (hasUnique(this.state, this.human, 'challenge') && st !== 'known') {
+      action += me.challenge === tech
+        ? `<div class="sub">⭐ National Challenge: +${UNIQUE_RULES.challenge.sciencePct}% science while you research it.</div>`
+        : `<button type="button" data-act="challenge" ${challengeError(this.state, this.human, tech) ? 'disabled' : ''}>⭐ Make it the National Challenge</button>
+           ${me.challenge ? `<div class="sub">The current challenge is ${esc(TECHS[me.challenge].name)}; a new one once it’s learned.</div>` : ''}`;
+    }
 
     return `
       <h3>${def.name}</h3>
@@ -1371,6 +1495,7 @@ export class App {
     const def = civDef(this.state, civ);
     this.queueNotice({
       title: 'First contact',
+      portrait: civ,
       text: `You have met ${civName(this.state, civ)}, led by ${def.leader}.`,
       sub: 'You are at peace. Open Diplomacy to see them, trade techs, or declare war.',
       buttons: [
@@ -1386,6 +1511,7 @@ export class App {
     const peace = o.kind === 'peace';
     this.queueNotice({
       title: peace ? 'Peace offer' : 'Tribute demanded',
+      portrait: o.from,
       text: offerText(this.state, o),
       sub: peace
         ? 'Accept to end the war now; your treaty then holds for a while.'
@@ -1577,7 +1703,8 @@ export class App {
     const n = this.notices[0];
     $('noticeOverlay').hidden = !n;
     if (!n) return;
-    $('noticeTitle').innerHTML = `${n.icon ? `<span class="micon ${n.iconCls ?? ''}">${iconHtml(n.icon, '')}</span>` : ''}${esc(n.title)}`;
+    const portrait = n.portrait !== undefined ? portraitHtml(this.state.players[n.portrait]?.civId ?? '', 64) : '';
+    $('noticeTitle').innerHTML = `${portrait}${n.icon ? `<span class="micon ${n.iconCls ?? ''}">${iconHtml(n.icon, '')}</span>` : ''}${esc(n.title)}`;
     $('noticeText').innerHTML = `${esc(n.text)}${n.sub ? `<span class="sub">${esc(n.sub)}</span>` : ''}`;
     // A long list of choices (cities, tiles) stacks up and scrolls.
     $('noticeButtons').className = n.list ? 'row list scroll' : 'row';
@@ -1692,7 +1819,7 @@ export class App {
             const war = atWar(this.state, this.human, c);
             const att = attitude(this.state, c, this.human);
             return `<button type="button" data-civ="${c}" class="civRow ${c === this.diploCiv ? 'sel' : ''}">
-              <span class="swatch" style="background:${playerColor(this.state, c)}"></span>
+              ${portraitHtml(this.state.players[c]!.civId, 40, 'dcivPortrait')}
               <span class="cname">${esc(def.name)}</span>
               <span class="badge ${war ? 'war' : 'peace'}">${war ? 'War' : 'Peace'}</span>
               <span class="cmeta">${esc(def.leader)} · <span class="att-${att}">${ATTITUDE_LABEL[att]}</span></span></button>`;
@@ -1722,8 +1849,10 @@ export class App {
         ? `<div class="answer ${this.diploAnswer.accepted ? 'yes' : 'no'}">${this.diploAnswer.accepted ? '✓' : '✗'} ${esc(this.diploAnswer.reason)}</div>`
         : '';
     const head = `
+      <div class="leaderHead">${portraitHtml(this.state.players[civ]!.civId, 96)}<div>
       <h3><span class="swatch" style="background:${playerColor(this.state, civ)}"></span> ${name}</h3>
       <div class="sub">Led by ${esc(def.leader)}</div>
+      <details><summary class="sub">Their leader bonuses</summary>${bonusListHtml(this.state.players[civ]!.civId, eraIndex(playerEra(this.state.players[civ]!)))}</details></div></div>
       <dl class="facts">
         <dt>Relation</dt><dd>${relation}</dd>
         <dt>Attitude</dt><dd class="att-${att}">${ATTITUDE_LABEL[att]}</dd>
@@ -1862,6 +1991,7 @@ export class App {
     if (!$('techOverlay').hidden) this.renderTech();
     if (!$('diploOverlay').hidden) this.renderDiplo();
     if (!$('victoryOverlay').hidden) this.renderVictory();
+    if (!$('leaderOverlay').hidden) this.renderLeader();
     this.requestDraw();
   }
 
@@ -1897,7 +2027,7 @@ export class App {
   private updateHud(): void {
     const player = this.state.players[this.human]!;
     const civ = CIVS.find((c) => c.id === player.civId);
-    $('civLabel').innerHTML = `<span class="swatch" style="background:${playerColor(this.state, this.human)}"></span>${civ?.name ?? ''} · ${civ?.leader ?? ''}`;
+    $('civLabel').innerHTML = `${portraitHtml(player.civId, 28)}${esc(civ?.name ?? '')} · ${esc(civ?.leader ?? '')}${this.uniqueReady() ? ' <span class="dot">●</span>' : ''}`;
     $('turnLabel').textContent = `Turn ${this.state.turn}`;
     $('eraLabel').textContent = `${eraName(playerEra(player))} era`;
     const income = empireIncome(this.state, this.human);
@@ -2096,6 +2226,10 @@ interface Notice {
   /** Round 10: an icon beside the title (the village, the artifact, a Great Person), and its style. */
   icon?: string;
   iconCls?: string;
+  /** Round 11: a leader's portrait beside the title (a civ's player id). */
+  portrait?: number;
+  /** Round 11: a city Bolívar may give back, so its panel is queued once. */
+  returnCityId?: number;
 }
 
 const ATTITUDE_LABEL = { friendly: 'Friendly', neutral: 'Neutral', hostile: 'Hostile' } as const;

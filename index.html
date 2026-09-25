@@ -19,7 +19,7 @@
       <header id="topbar">
         <div class="line">
           <span id="title">Epoch</span>
-          <span id="civLabel"></span>
+          <button id="leaderBtn" type="button" aria-label="Your leader and bonuses"><span id="civLabel"></span></button>
           <span id="turnLabel"></span>
           <span id="eraLabel"></span>
           <button id="diploBtn" type="button" aria-label="Diplomacy: the civs you have met">🤝 Diplomacy</button>
@@ -129,6 +129,38 @@
             <button id="endCloseBtn" type="button" class="bigBtn">Keep playing</button>
             <button id="endNewBtn" type="button" class="bigBtn">New Game</button>
           </div>
+        </section>
+      </div>
+
+      <!-- Round 11: New Game setup (choose your civ and how many rivals). -->
+      <div id="setupOverlay" class="overlay" hidden>
+        <section id="setupPanel" role="dialog" aria-modal="true" aria-label="New game">
+          <div class="techHead">
+            <div>
+              <h2>New Game</h2>
+              <div class="sub">Choose your leader. Your current game is kept as a backup (☰ → Restore a backup).</div>
+            </div>
+            <button type="button" data-act="cancel" class="closeBtn" aria-label="Cancel">✕</button>
+          </div>
+          <div id="setupBody" class="scroll"></div>
+          <div class="row setupFoot">
+            <button type="button" data-act="cancel" class="bigBtn">Cancel</button>
+            <button type="button" data-act="start" class="bigBtn primary">Start</button>
+          </div>
+        </section>
+      </div>
+
+      <!-- Round 11: your leader, their bonuses, and their unique actions. -->
+      <div id="leaderOverlay" class="overlay" hidden>
+        <section id="leaderPanel" role="dialog" aria-modal="true" aria-label="Your leader">
+          <div class="techHead">
+            <div>
+              <h2 id="leaderTitle">Your leader</h2>
+              <div id="leaderStatus" class="sub"></div>
+            </div>
+            <button id="leaderCloseBtn" type="button" class="closeBtn" aria-label="Close">✕</button>
+          </div>
+          <div id="leaderBody" class="scroll"></div>
         </section>
       </div>
 

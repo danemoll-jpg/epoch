@@ -3,9 +3,11 @@
 // RULES.ai.victory.progressWeight × how far along it is (0–1). Ties go to technology, then
 // culture, economic, domination. Deterministic, and recomputed each turn (nothing stored).
 //
-// Personality bases: domination = aggression; culture = 5 − aggression; economic = trade
-// willingness − 1; technology = a flat RULES.ai.victory.techBase. So Charlemagne and Pachacuti
-// lean to conquest, Ashoka to culture, Mansa Musa to wealth, and Hammurabi to science.
+// Bases (Round 11): each leader's primary lean scores RULES.ai.victory.primaryBase, its secondary
+// secondaryBase, and the rest otherBase, so progress alone can pull an AI to its secondary but
+// never drags a conqueror over to technology just because its tech count grows. Legacy civs
+// (old saves) keep the old personality bases: domination = aggression; culture = 5 −
+// aggression; economic = trade willingness − 1; technology = a flat techBase.
 
 import { RULES } from '../data/rules';
 import { TECH_IDS } from '../data/techs';
@@ -28,12 +30,15 @@ export function aiVictoryScores(state: GameState, p: number): Record<VictoryKind
     economic: Math.min(1, player.gold / VICTORY.goldGoal),
     technology: player.techs.length / TECH_IDS.length,
   };
-  const base: Record<VictoryKind, number> = {
-    domination: civ.aggression,
-    culture: 5 - civ.aggression,
-    economic: civ.tradeWillingness - 1,
-    technology: V.techBase,
-  };
+  // Round 11: a leader's lean (primary, then secondary) sets the bases; legacy civs keep the
+  // old formula from their personality.
+  const base: Record<VictoryKind, number> = civ.lean
+    ? { domination: V.otherBase, culture: V.otherBase, economic: V.otherBase, technology: V.otherBase }
+    : { domination: civ.aggression, culture: 5 - civ.aggression, economic: civ.tradeWillingness - 1, technology: V.techBase };
+  if (civ.lean) {
+    base[civ.lean.primary] = V.primaryBase;
+    base[civ.lean.secondary] = V.secondaryBase;
+  }
   const out = {} as Record<VictoryKind, number>;
   for (const k of ORDER) out[k] = base[k] + V.progressWeight * progress[k];
   return out;
@@ -42,7 +47,8 @@ export function aiVictoryScores(state: GameState, p: number): Record<VictoryKind
 /** The victory this AI is working toward right now. */
 export function aiVictoryGoal(state: GameState, p: number): VictoryKind {
   const scores = aiVictoryScores(state, p);
-  let best = ORDER[0]!;
+  // A tie goes to the leader's primary lean (Round 11), else the ORDER above.
+  let best = civDef(state, p).lean?.primary ?? ORDER[0]!;
   for (const k of ORDER) if (scores[k] > scores[best]) best = k;
   return best;
 }

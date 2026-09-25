@@ -21,6 +21,7 @@ import {
 import { UNITS, UNIT_IDS, type UnitTypeId } from '../data/units';
 import { WONDER_LIST, type WonderDef } from '../data/wonders';
 import { CivName } from './conquest';
+import { effectsOf, eraBonus, techCostPct } from './leaders';
 import { addLog } from './log';
 import type { ActionResult, GameState, Player } from './types';
 import { empireIncome } from './yields';
@@ -49,9 +50,15 @@ export function availableTechs(player: Player): TechId[] {
   return TECH_IDS.filter((t) => researchError(player, t) === undefined);
 }
 
-/** Science this tech costs the player if researched next. */
-export function techCost(player: Player, tech: TechId): number {
-  return techCostFor(player.techs.length, TECHS[tech].tier);
+/**
+ * Science this tech costs the player if researched next: the formula in data, with the
+ * player's leader bonuses (Round 11: Peter's and Kim's cheaper techs).
+ */
+export function techCost(state: GameState, playerId: number, tech: TechId): number {
+  const player = state.players[playerId]!;
+  const base = techCostFor(player.techs.length, TECHS[tech].tier);
+  const pct = techCostPct(state, playerId, tech);
+  return pct === 0 ? base : Math.max(1, Math.round((base * (100 + pct)) / 100));
 }
 
 export function eraIndex(era: EraId): number {
@@ -107,7 +114,7 @@ export function processResearch(state: GameState, playerId: number): void {
   const player = state.players[playerId];
   if (!player || !player.researching) return;
   const tech = player.researching;
-  const cost = techCost(player, tech);
+  const cost = techCost(state, playerId, tech);
   if (player.science < cost) return;
   player.science -= cost;
   player.researching = null;
@@ -124,6 +131,8 @@ export function learnTech(state: GameState, playerId: number, tech: TechId, text
   const eraBefore = playerEra(player);
   player.techs.push(tech);
   if (player.researching === tech) player.researching = null;
+  // The National Challenge is met: a new one can be named.
+  if (player.challenge === tech) player.challenge = null;
   addLog(state, playerId, text);
   const eraAfter = playerEra(player);
   if (eraAfter !== eraBefore) {
@@ -132,6 +141,23 @@ export function learnTech(state: GameState, playerId: number, tech: TechId, text
       publicText: `${CivName(state, playerId)} entered the ${era} era`,
       kind: 'era',
     });
+    enterEra(state, playerId, eraAfter);
+  }
+}
+
+/**
+ * Round 11: a civ entered a new era. Its era bonus switches on (leaders.ts reads the era, so
+ * this only tells the player), and a "first to get there" payout if it has one.
+ */
+function enterEra(state: GameState, playerId: number, era: EraId): void {
+  const player = state.players[playerId]!;
+  const bonus = eraBonus(player.civId, era);
+  if (bonus) addLog(state, playerId, `${eraName(era)} bonus: ${bonus.name}. ${bonus.text}`, undefined, undefined, { kind: 'leader' });
+  const first = !state.players.some((q) => q.id !== playerId && q.kind !== 'barbarian' && eraIndex(playerEra(q)) >= eraIndex(era));
+  if (!first) return;
+  for (const e of effectsOf(state, playerId, 'eraFirstCulture')) {
+    player.culture += e.culture;
+    addLog(state, playerId, `A historic milestone: first into the ${eraName(era)} era. +${e.culture} culture`, undefined, undefined, { kind: 'leader' });
   }
 }
 
@@ -142,7 +168,7 @@ export function learnTech(state: GameState, playerId: number, tech: TechId, text
  */
 export function turnsToLearn(state: GameState, playerId: number, tech: TechId): number | undefined {
   const player = state.players[playerId]!;
-  const remaining = techCost(player, tech) - player.science;
+  const remaining = techCost(state, playerId, tech) - player.science;
   if (remaining <= 0) return 1;
   const perTurn = empireIncome(state, playerId).science;
   return perTurn > 0 ? Math.ceil(remaining / perTurn) : undefined;

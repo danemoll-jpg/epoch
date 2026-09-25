@@ -171,3 +171,63 @@ export function medianTurn(values: (number | undefined)[]): number | undefined {
   const sorted = [...values].sort((a, b) => (a ?? Infinity) - (b ?? Infinity));
   return sorted[Math.floor((sorted.length - 1) / 2)];
 }
+
+export interface WinResult {
+  seed: number;
+  /** The civs in the game, in player order. */
+  civs: string[];
+  victory: Victory | null;
+  winnerCiv?: string;
+  /** Each civ's victory goal when the game ended. */
+  goals: VictoryKind[];
+  /** Cities taken by capture, and wars declared, over the whole game. */
+  captures: number;
+  wars: number;
+  eliminated: number;
+  state: GameState;
+}
+
+/**
+ * Round 11: plays a 5-civ all-AI game (civs drawn from the 12) until someone wins, or
+ * `maxTurns`. For the victory mix and which leaders win (scripts/leaders-report.sim.ts).
+ */
+export function playToVictory(seed: number, maxTurns = 320): WinResult {
+  const s = createGame({ seed, playerCount: 5 });
+  for (const p of s.players) if (p.kind === 'human') p.kind = 'ai';
+  const seenLog = new WeakSet<object>();
+  let captures = 0;
+  let wars = 0;
+  while (s.turn <= maxTurns && !s.victory) {
+    playComputerTurn(s, s.currentPlayer);
+    endTurn(s);
+    for (const e of s.log) {
+      if (seenLog.has(e)) continue;
+      seenLog.add(e);
+      if (/ captured /.test(e.text)) captures++;
+      if (e.kind === 'war') wars++;
+    }
+  }
+  const civs = s.players.filter((p) => p.kind !== 'barbarian');
+  return {
+    seed,
+    civs: civs.map((p) => p.civId),
+    victory: s.victory,
+    winnerCiv: s.victory ? s.players[s.victory.winner]!.civId : undefined,
+    goals: civs.map((p) => aiVictoryGoal(s, p.id)),
+    captures,
+    wars,
+    eliminated: civs.filter((p) => !p.alive).length,
+    state: s,
+  };
+}
+
+/**
+ * Prints a report line and appends it to `sim-report.txt` (git-ignored): Vitest 5 hides a
+ * passing test's console output, so `npm run sim` reports land in that file too.
+ */
+export function report(line: string): void {
+  console.log(line);
+  // Node only (the sim runs under Vitest); the game never calls this.
+  const fs = (globalThis as { process?: { getBuiltinModule?: (m: string) => { appendFileSync: (f: string, s: string) => void } } }).process?.getBuiltinModule?.('node:fs');
+  fs?.appendFileSync('sim-report.txt', line + '\n');
+}

@@ -117,6 +117,7 @@ npm test         # run unit tests (Vitest, tests/**/*.test.ts)
 npm run build    # type-check + production build into dist/
 npm run lint     # type-check only (tsc --noEmit); no ESLint yet
 npm run sim      # pace/war/victory/naval/barbarian/Great People/air report on 5 all-AI seeds + landmass stats (not part of npm test)
+npm run sim -- leaders   # Round 11: victory mix and wins per leader, 10 games of 5 civs from the 12 (SEEDS=20 for more)
 ```
 **iPad over the local network:**
 ```
@@ -135,7 +136,10 @@ the firewall; allow it on private networks.
   picker pages (`docs/*-candidates.html`) into `dist-play/docs/`
   (`scripts/copy-pickers.mjs`), so the iPad opens them at
   `http://10.0.0.224:4173/docs/<page>.html`; the Netlify build (`dist/`)
-  never gets them.
+  never gets them. Since Round 11 it also copies `docs/portraits.html` and
+  the portraits (into `dist-play/docs/portraits/`).
+- **Sim reports also go to `sim-report.txt`** (git-ignored, appended): Vitest 5
+  hides a passing test's console output, so read the file after `npm run sim`.
 - **Each address has its own saved game.** Safari keeps `localStorage` per
   host and port, so `play:lan` (:4173) and `dev:lan` (:5173) never share or
   overwrite each other's save. That's intended.
@@ -156,7 +160,7 @@ debugging, including from Safari's Web Inspector on the iPad.
 completes inside Safari's `pagehide`). Saved after every successful action
 (including End Turn), on `visibilitychange` → hidden, and on `pagehide`.
 The save carries `saveVersion` (= `STATE_VERSION` in `src/game/types.ts`,
-currently 9). **Bump `STATE_VERSION` whenever the state shape changes, and
+currently 10). **Bump `STATE_VERSION` whenever the state shape changes, and
 add a migration** to `MIGRATIONS` in `src/game/save.ts` (keyed by the
 version it upgrades from), plus a line in `MIGRATION_NOTES` for the notice,
 so Dan's game carries forward. Migrated so far: 2 → 3 (M3: no techs,
@@ -172,7 +176,11 @@ last player with every table grown by one, villages and huts only on tiles
 no civ has explored, and Great People counting only culture made from now
 on via `greatPeopleCultureBase`), and 8 → 9 (Round 10: nothing to change;
 no aircraft exist yet, Advanced Flight is unknown, and `City.airliftTurn`
-is simply absent).
+is simply absent), and 9 → 10 (Round 11: every civ kept, legacy ones
+included; bonuses come from the civ and its era, so no payouts and no
+starting tech; each city's `founder` is its owner, except a captured
+capital, which remembers whose it was; no unique used, no Challenge; ships
+afloat count as built).
 
 **Backups: a save is never thrown away.** All startup and replace logic
 is in `src/ui/storage.ts` (`loadOrStart`, `backupCurrentSave`,
@@ -204,7 +212,15 @@ never autosaves**, so the real game can't be overwritten. Current set:
 `take-village`, `village-artifact`, `village-resource`, `barbarian-raid`,
 `hut`, `great-person`, `engineer-wonder`, `all-resources`; (round 10)
 `air-strike`, `intercept`, `rebase`, `carrier-sunk`, `bomber-no-capture`,
-`helicopter`, `airlift`, `all-aircraft`, `all-map-icons`. The air ones use
+`helicopter`, `airlift`, `all-aircraft`, `all-map-icons`; (round 11)
+`new-game-setup` (opens the New Game screen), `starting-tech`, `era-bonus`,
+`caligula-buy-wonder`, `mansa-pilgrimage`, `henry-dissolution`,
+`bolivar-liberate`, `jfk-challenge`, `versailles`, `deterrence`,
+`portraits`. The leader ones use `asLeader(state, civId, techs)` (player 0
+plays that civ; its era follows from the techs). Scenario states from
+`makeState` use the legacy civs (Babylon, Maurya, Mali, Inca, Franks), so
+older scenarios and tests have no leader bonuses except Mali's and the
+Franks'. The air ones use
 `airfield()` (the combat `battlefield()` with Flight known). **Aircraft
 strike only what their owner can see**, so a strike scenario keeps a unit
 next to the target. The naval ones use `seaState()` (your
@@ -259,16 +275,25 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   (culture and gold goals, spaceship parts/cost/travel turns, warning line,
   the spaceship-part "project"), `civs.ts`
   (civs, leaders, colors, city names, each leader's `aggression` and
-  `tradeWillingness`, 1–5, and message grammar: `article: 'the'` and
-  `plural` for names like "the Franks"), rule constants (`rules.ts`: growth, focus
+  `tradeWillingness`, 1–5, message grammar: `article: 'the'` and
+  `plural` for names like "the Franks"; Round 11: Dan's 12 plus the
+  `legacy` Babylon/Maurya/Inca kept for old saves, `lean` (primary and
+  secondary victory), `startTech`, `portraitFocus` (face x, y, zoom for
+  small sizes), `PLAYABLE_CIVS`, `leaderInitials`), `leaders.ts` (Round
+  11: each leader's start, era, and drawback bonuses as typed effects,
+  `UNIQUE_RULES` for the Pilgrimage, Dissolution, Challenge, Return, and
+  Moonshot), rule constants (`rules.ts`: growth, focus
   weights, rush-buy formula, science rate, `RULES.combat` (fortify/veteran/
   city bonuses, army size and multiplier, veteran chance, AI attack
   threshold), `RULES.map` (land share, 3–4 continents and the water
   channels cut between them, minimum start landmass), `RULES.diplomacy` (treaty length, grace period, opinion
   events, AI war/peace weights, demand caps, tech prices), and `RULES.ai`
   (city target, settlers at once, defenders per city, unit caps, attack
-  force, gold reserve, and `victory`: goal weights, war bonus, science-rate
-  and gold-spending thresholds, each goal's first building), and `naval`:
+  force, gold reserve, and `victory`: goal weights (Round 11: primary 8,
+  secondary 5, other 2), war bonus, science-rate and gold-spending
+  thresholds, each goal's first building, and Round 11's conqueror tuning
+  (`domination*`: strength ratio, wars at once, attack odds, force, capital
+  pull, pace turn, research order; `runaway*`)), and `naval`:
   overseas site score, plan timeouts, escort and invasion waits, warships
   kept), and `air` (Round 10: fighters per border or coastal city, bombers
   per city at war, the strike odds rule)). A tech's
@@ -284,7 +309,14 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   `GREAT_PEOPLE_RULES`:
   thresholds and every effect's number). `TECH_COST.perKnown` is 8.5 since
   round 9 (was 6) to keep the era pace.
-- `src/game/`: pure rules. `types.ts` (state + `STATE_VERSION`), `rng.ts`,
+- `src/game/`: pure rules. Round 11: `leaders.ts` (the one place that
+  decides which leader effects are on, `effectsOf`, and the helpers for
+  costs, yields, culture, science, combat mods, tech costs, trade
+  willingness, and unique wonders/projects) and `uniques.ts` (Pilgrimage,
+  Dissolution, National Challenge, Return a liberated city, and the AI's use
+  of them). `techCost(state, p, tech)`, `itemCost(state, city, item)`, and
+  `buyCost(state, city)` take the state for leader discounts; `empireIncome`
+  applies empire-wide leader percents and also returns culture. `types.ts` (state + `STATE_VERSION`), `rng.ts`,
   `grid.ts`, `mapgen.ts` (continents; `landRegionIds`/`landmassAt`: which
   landmass a tile is on), `newGame.ts`, `movement.ts` (land and sea moves,
   boarding by stepping onto your ship, going ashore by stepping onto land,
@@ -349,6 +381,10 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   panels via `iconHtml`/`unitIconHtml`). A unit's look on the map is drawn
   only in `drawGlyph` (its icon, white on the owner's color; letters while
   it loads or if it's missing).
+- `src/assets/portraits/`: Dan's 12 leader portraits, `<civ-id>.png`
+  (512×512), bundled. `docs/PORTRAITS.md` explains names, size, framing, and
+  the focus/zoom; `docs/portraits.html` shows every size (refresh its data
+  with `python scripts/make-portraits-page.py`).
 - `src/assets/icons/`: the 53 icons Dan picked (29 units: 15 land, 9
   ships, 5 aircraft; 24 map icons: village, hut, barbarian badge, 15
   resources, 5 Great People, artifact; game-icons.net, CC BY 3.0; the
@@ -361,7 +397,11 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   whose config is `vitest.sim.config.ts`; it also counts overseas cities,
   landings, and ships), and `landmass.ts` (how often civs share or get their
   own landmass, and empty islands; Round 8's B7 check).
-- `src/ui/`: `app.ts` (view state, HUD, city panel, tech screen,
+- `src/ui/`: Round 11: `setup.ts` (the New Game screen: civ cards, Random
+  civ, Rivals 1–4, Start; `bonusListHtml`), `portraits.ts` (bundled
+  portraits, the initials placeholder, `portraitCrop`: zoom on the face at
+  48 px and under). `app.ts` (view state, HUD with the leader button and
+  leader panel, city panel, tech screen with the National Challenge,
   diplomacy screen, 🏆 victory progress screen, victory/defeat screens,
   notice panels for first contact / war / AI offers / near-win warnings,
   menu with About / Credits, dev scenario banner, dispatch),
@@ -390,8 +430,11 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   removed so it doesn't look like the Battleship; compare in
   `docs/carrier-trim-candidates.html`).
 - The version shown on the About screen comes from `package.json`
-  (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.10.0 for
-  round 10.
+  (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.11.0 for
+  round 11.
+- **Meeting a civ reveals where its capital is** (Round 11: the tile is
+  marked explored), so conquerors can find the capitals domination needs.
+- **Victory goals (Round 11):** culture 6000, gold 9000 (were 4000, 5500).
 - The barbarians, when present, are always the **last** player (kind
   `'barbarian'`). Loops over civs should skip them (`civPlayers`, or
   `p.kind !== 'barbarian'`): they're always at war with everyone but never
@@ -441,6 +484,10 @@ what was pushed.
 ## Where things stand
 **Always check `TODO.md` for the current objective before starting work.**
 
+- **Round 11 (Milestone 8, leaders) is done and waiting for Dan's review.**
+  Dan's 12 leaders with starting techs, era bonuses, unique actions, his
+  portraits, the New Game screen, 9 new buildings, and conquerors that win
+  by domination in the sim. See the Round 11 entry in TODO.md.
 - **Milestones 1–7, naval, and air** are done and accepted. The full unit
   roster (land, sea, and air) has Dan's icons, plus wonders, culture, the
   four victories, diplomacy, barbarians, villages, resources, huts, and
@@ -448,8 +495,8 @@ what was pushed.
 - **The play server:** http://10.0.0.224:4173/.
 - The epoch repo is pushed every round until Netlify is set up.
 
-**The current objective is Round 11 (Milestone 8), revised with Dan's own
-roster:**
+**Round 11 (Milestone 8), revised with Dan's own roster (done, pending
+review):**
 - **12 leaders:** Hatshepsut, Caligula, Charlemagne, Mansa Musa, Henry VIII,
   Louis XIV, Peter the Great, Simón Bolívar, JFK, Viktor Yushchenko, Angela
   Merkel, and Kim Jong Un;
@@ -461,8 +508,8 @@ roster:**
 - portrait support;
 - domination tuning.
 
-See items 0, A1–A2, B1, C1–C3, D1–D2, and E1–E3 in TODO.md. Next: Round 12
-(religion + roads), then M9 (polish).
+See items 0, A1–A2, B1, C1–C3, D1–D2, and E1–E3 in TODO.md (all done).
+Next: Round 12 (religion + roads), then M9 (polish).
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.

@@ -189,18 +189,18 @@ describe('production', () => {
     expect(rushBuyCost(0)).toBe(0);
     const s = makeState(['ggg']);
     const c = addCity(s, 0, 1, 0, { build: { kind: 'building', id: 'library' }, production: 20 });
-    expect(buyCost(c)).toBe(rushBuyCost(40));
+    expect(buyCost(s, c)).toBe(rushBuyCost(40));
   });
 
   it('rush-buying spends gold and the item appears at the end of the turn', () => {
     const s = makeState(['ggg', 'ggg']);
     const c = addCity(s, 0, 1, 0, { build: { kind: 'building', id: 'walls' } });
-    const cost = buyCost(c)!;
+    const cost = buyCost(s, c)!;
     expect(buyError(s, c)).toBe(`Needs ${cost} gold`);
     s.players[0]!.gold = cost + 5;
     expect(rushBuy(s, c.id).ok).toBe(true);
     expect(s.players[0]!.gold).toBe(5);
-    expect(buyCost(c)).toBeUndefined();
+    expect(buyCost(s, c)).toBeUndefined();
     expect(rushBuy(s, c.id).ok).toBe(false);
     processCities(s, 0);
     expect(c.buildings).toContain('walls');

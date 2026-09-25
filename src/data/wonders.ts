@@ -16,7 +16,9 @@ export type WonderId =
   | 'great_library' | 'great_wall' | 'war_academy' | 'grand_bazaar' | 'grand_cathedral'
   | 'royal_observatory' | 'grand_workshop'
   | 'broadcast_tower' | 'global_network'
-  | 'world_council' | 'global_exchange';
+  | 'world_council' | 'global_exchange'
+  // Round 11: Louis XIV's own wonder.
+  | 'versailles';
 
 export interface WonderEffects extends BuildingEffects {
   /** Extra food per turn in its city. */
@@ -27,6 +29,8 @@ export interface WonderEffects extends BuildingEffects {
   empire?: { sciencePct?: number; goldPct?: number; productionPct?: number; veteranUnits?: boolean };
   /** Given once, to every city the builder holds when the wonder is finished. */
   freeBuilding?: BuildingId;
+  /** Percent more production on wonders built in its city (Versailles). */
+  wonderProductionPct?: number;
 }
 
 export interface WonderDef {
@@ -39,6 +43,11 @@ export interface WonderDef {
   effects: WonderEffects;
   /** Finishing it wins the game (culture or economic victory; see victory.ts). */
   victory?: 'culture' | 'economic';
+  /**
+   * Round 11: a leader's unique wonder. Only this civ can build it, once it has the matching
+   * leader bonus (see leaders.ts), and only in its capital.
+   */
+  civ?: string;
 }
 
 function wonder(
@@ -78,6 +87,13 @@ export const WONDER_LIST: WonderDef[] = [
   // ---- Victory wonders (need the victory's goal first; see victory.ts) ----
   wonder('world_council', 'World Council', 300, 'philosophy', 'Wins the game by culture. Needs the culture goal first', { culture: 5 }, 'culture'),
   wonder('global_exchange', 'Global Exchange', 300, 'economics', 'Wins the game by wealth. Needs the gold goal first', { goldPct: 50 }, 'economic'),
+  // ---- Unique (Round 11) ----
+  {
+    ...wonder('versailles', 'Versailles', 220, 'economics', 'France only, in the capital: 10 culture · +25% gold in all your cities · +25% production on wonders here', {
+      culture: 10, empire: { goldPct: 25 }, wonderProductionPct: 25,
+    }),
+    civ: 'france',
+  },
 ];
 
 export const WONDERS = Object.fromEntries(WONDER_LIST.map((w) => [w.id, w])) as Record<WonderId, WonderDef>;

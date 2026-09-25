@@ -72,13 +72,16 @@ export interface UnitDef {
   airCargo?: number;
   /** The Helicopter: moves like a land unit over any terrain and water, 1 move a tile; can't capture. */
   hover?: boolean;
+  /** Round 11 (leader bonuses): a unit on horseback (Charlemagne), or a siege weapon or bomber (Kim Jong Un). */
+  mounted?: boolean;
+  siege?: boolean;
 }
 
 function unit(
   id: UnitTypeId, name: string, glyph: string, icon: string, cost: number,
-  attack: number, defense: number, moves: number, requires?: TechId,
+  attack: number, defense: number, moves: number, requires?: TechId, extra: Partial<UnitDef> = {},
 ): UnitDef {
-  return { id, name, glyph, icon, domain: 'land', cargo: 0, cost, moves, sight: 1, attack, defense, canFoundCity: false, popCost: 0, requires };
+  return { id, name, glyph, icon, domain: 'land', cargo: 0, cost, moves, sight: 1, attack, defense, canFoundCity: false, popCost: 0, requires, ...extra };
 }
 
 function ship(
@@ -106,16 +109,16 @@ export const UNITS: Record<UnitTypeId, UnitDef> = {
   warrior: unit('warrior', 'Warrior', 'W', 'caveman', 10, 1, 1, 1),
   archer: unit('archer', 'Archer', 'Ar', 'bowman', 20, 3, 2, 1, 'archery'),
   spearman: unit('spearman', 'Spearman', 'Sp', 'spartan', 20, 1, 3, 1, 'bronze_working'),
-  horseman: unit('horseman', 'Horseman', 'Ho', 'horse-head', 20, 2, 1, 2, 'horseback_riding'),
-  chariot: unit('chariot', 'Chariot', 'Ch', 'chariot', 30, 3, 1, 2, 'the_wheel'),
+  horseman: unit('horseman', 'Horseman', 'Ho', 'horse-head', 20, 2, 1, 2, 'horseback_riding', { mounted: true }),
+  chariot: unit('chariot', 'Chariot', 'Ch', 'chariot', 30, 3, 1, 2, 'the_wheel', { mounted: true }),
   legion: unit('legion', 'Legion', 'Lg', 'centurion-helmet', 30, 4, 2, 1, 'iron_working'),
-  catapult: unit('catapult', 'Catapult', 'Ca', 'catapult', 40, 6, 1, 1, 'mathematics'),
+  catapult: unit('catapult', 'Catapult', 'Ca', 'catapult', 40, 6, 1, 1, 'mathematics', { siege: true }),
   pikeman: unit('pikeman', 'Pikeman', 'Pk', 'pikeman', 30, 1, 4, 1, 'feudalism'),
-  knight: unit('knight', 'Knight', 'Kn', 'mounted-knight', 40, 4, 2, 2, 'chivalry'),
+  knight: unit('knight', 'Knight', 'Kn', 'mounted-knight', 40, 4, 2, 2, 'chivalry', { mounted: true }),
   musketman: unit('musketman', 'Musketman', 'Mu', 'blunderbuss', 40, 3, 6, 1, 'gunpowder'),
-  cannon: unit('cannon', 'Cannon', 'Cn', 'cannon', 50, 8, 1, 1, 'metallurgy'),
+  cannon: unit('cannon', 'Cannon', 'Cn', 'cannon', 50, 8, 1, 1, 'metallurgy', { siege: true }),
   rifleman: unit('rifleman', 'Rifleman', 'Ri', 'lee-enfield', 50, 5, 8, 1, 'conscription'),
-  artillery: unit('artillery', 'Artillery', 'At', 'mortar', 60, 10, 2, 1, 'machine_tools'),
+  artillery: unit('artillery', 'Artillery', 'At', 'mortar', 60, 10, 2, 1, 'machine_tools', { siege: true }),
   tank: unit('tank', 'Tank', 'Tk', 'tank', 80, 12, 8, 3, 'automobile'),
   // Ships (Round 8).   name          glyph cost att def mv sight cargo tech
   galley: ship('galley', 'Galley', 'Ga', 30, 1, 1, 3, 1, 2, 'map_making', { icon: 'drakkar', coastOnly: true }),
@@ -131,10 +134,10 @@ export const UNITS: Record<UnitTypeId, UnitDef> = {
   // intercepted; airAttack is its strength against aircraft.
   //                  name              glyph icon             cost att def range airAtt tech
   fighter: aircraft('fighter', 'Fighter', 'Fi', 'biplane', 60, 4, 4, 4, 8, 'flight'),
-  bomber: aircraft('bomber', 'Bomber', 'Bm', 'carpet-bombing', 80, 12, 3, 6, 0, 'flight'),
+  bomber: aircraft('bomber', 'Bomber', 'Bm', 'carpet-bombing', 80, 12, 3, 6, 0, 'flight', { siege: true }),
   jet_fighter: aircraft('jet_fighter', 'Jet Fighter', 'Jf', 'jet-fighter', 80, 8, 8, 6, 16, 'advanced_flight'),
   stealth_bomber: aircraft('stealth_bomber', 'Stealth Bomber', 'Sb', 'stealth-bomber', 120, 20, 6, 8, 0, 'advanced_flight', {
-    alsoRequires: 'computers', evadePct: 50,
+    alsoRequires: 'computers', evadePct: 50, siege: true,
   }),
   helicopter: {
     id: 'helicopter', name: 'Helicopter', glyph: 'He', icon: 'helicopter', domain: 'land', cargo: 0, cost: 70,

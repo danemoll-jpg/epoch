@@ -11,6 +11,7 @@
 // reaching an unguarded one (or killing its last defender), they raid it: some gold and 1
 // population, never below size 1 (Q13).
 
+import { applyPct, effectsOf } from './leaders';
 import { BARBARIANS as B, BARBARIAN_CIV } from '../data/barbarians';
 import { UNITS, type UnitTypeId } from '../data/units';
 import { attack, attackError, combatOdds, fortify } from './combat';
@@ -59,6 +60,10 @@ export function newBarbarianPlayer(id: number, tiles: number): Player {
     space: newSpaceProgram(),
     greatPeople: 0,
     greatPeopleCultureBase: 0,
+    uniquesUsed: [],
+    dissolvedUntil: null,
+    challenge: null,
+    shipsBuilt: [],
   };
 }
 
@@ -160,7 +165,9 @@ export function raidError(state: GameState, city: City): string | undefined {
 export function raidCity(state: GameState, raider: Unit, city: City): { gold: number; population: number } {
   const owner = state.players[city.owner]!;
   const want = Math.round((owner.gold * B.raidGoldPct) / 100);
-  const gold = Math.min(owner.gold, Math.max(B.raidGoldMin, Math.min(B.raidGoldMax, want)));
+  // Round 11: Merkel's cities lose less.
+  const lossPct = effectsOf(state, city.owner, 'raidLoss').reduce((s, e) => s + e.pct, 0);
+  const gold = applyPct(Math.min(owner.gold, Math.max(B.raidGoldMin, Math.min(B.raidGoldMax, want))), lossPct);
   owner.gold -= gold;
   const population = Math.min(B.raidPopulation, city.size - 1);
   city.size -= population;

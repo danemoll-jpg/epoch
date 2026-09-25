@@ -1,7 +1,7 @@
 // Builds a fresh game from a seed. Player 0 is the human; the rest are AI. A player's id is
 // always its index in state.players.
 
-import { CIVS } from '../data/civs';
+import { PLAYABLE_CIVS, findCiv, type CivDef } from '../data/civs';
 import { RULES } from '../data/rules';
 import { STARTING_TECHS } from '../data/techs';
 import { UNITS } from '../data/units';
@@ -20,6 +20,11 @@ export interface NewGameOptions {
   seed: number;
   /** Civs including the human. Defaults to RULES.defaultPlayers (5). */
   playerCount?: number;
+  /**
+   * The human's civ (Round 11, the New Game screen), or undefined for a random one. The rivals
+   * are drawn at random (seeded) from the rest of the playable roster.
+   */
+  civ?: string;
   /** Barbarians, their villages, and huts (Round 9). On unless a test turns them off. */
   barbarians?: boolean;
   width?: number;
@@ -28,11 +33,23 @@ export interface NewGameOptions {
 
 const MAX_MAP_ATTEMPTS = 30;
 
+/**
+ * The human's civ (the chosen one, or a random one) first, then `count − 1` rivals drawn at
+ * random from the rest of the playable roster. Seeded, and never the same civ twice.
+ */
+export function drawCivs(rng: { rngState: number }, count: number, humanCiv?: string): CivDef[] {
+  const pool = shuffle(rng, [...PLAYABLE_CIVS]);
+  const human = humanCiv ? findCiv(humanCiv)! : pool[0]!;
+  const rivals = pool.filter((c) => c.id !== human.id).slice(0, count - 1);
+  return [human, ...rivals];
+}
+
 export function createGame(opts: NewGameOptions): GameState {
   const playerCount = opts.playerCount ?? RULES.defaultPlayers;
-  if (playerCount < 1 || playerCount > RULES.maxPlayers || playerCount > CIVS.length) {
-    throw new Error(`playerCount must be 1..${Math.min(RULES.maxPlayers, CIVS.length)}`);
+  if (playerCount < 1 || playerCount > RULES.maxPlayers || playerCount > PLAYABLE_CIVS.length) {
+    throw new Error(`playerCount must be 1..${Math.min(RULES.maxPlayers, PLAYABLE_CIVS.length)}`);
   }
+  if (opts.civ !== undefined && !PLAYABLE_CIVS.some((c) => c.id === opts.civ)) throw new Error(`Unknown civ ${opts.civ}`);
   const width = opts.width ?? RULES.mapWidth;
   const height = opts.height ?? RULES.mapHeight;
   const rng = { rngState: hashSeed(opts.seed) };
@@ -49,7 +66,7 @@ export function createGame(opts: NewGameOptions): GameState {
   // Resources (Round 9) come from the seed on their own RNG stream (see resources.ts).
   placeResources(map, opts.seed, starts);
 
-  const civs = shuffle(rng, [...CIVS]).slice(0, playerCount);
+  const civs = drawCivs(rng, playerCount, opts.civ);
   const players: Player[] = civs.map((civ, i) => ({
     id: i,
     civId: civ.id,
@@ -60,12 +77,17 @@ export function createGame(opts: NewGameOptions): GameState {
     gold: RULES.startingGold,
     science: 0,
     scienceRate: RULES.defaultScienceRate,
-    techs: [...STARTING_TECHS],
+    // Round 11: each civ's starting tech (without its prerequisites).
+    techs: civ.startTech ? [...STARTING_TECHS, civ.startTech] : [...STARTING_TECHS],
     researching: null,
     culture: 0,
     space: newSpaceProgram(),
     greatPeople: 0,
     greatPeopleCultureBase: 0,
+    uniquesUsed: [],
+    dissolvedUntil: null,
+    challenge: null,
+    shipsBuilt: [],
   }));
   // The barbarians (Round 9) play last, always at war with everyone.
   const barbarians = opts.barbarians ?? true;

@@ -53,16 +53,18 @@ import { airBuild, runAiAir } from './aiAir';
 import { isAir, isShip } from './naval';
 import { attack, attackError, combatOdds, defenseStrength, fortify, formArmy, formArmyError } from './combat';
 import { capturableCity } from './conquest';
-import { runAiDiplomacy } from './diplomacy';
+import { runAiDiplomacy, runawayProgress, strengthRatio } from './diplomacy';
 import { canEnter, findUnit, isEnterable, moveUnit, moveUnitToward } from './movement';
 import { buildChoiceError, buyCost, buyError, clearBuild, rushBuy, sameItem, setBuild, setFocus, setScienceRate } from './production';
-import { launchError, launchSpaceship, victoryWonder } from './victory';
+import { capitalsHeld, launchError, launchSpaceship, victoryWonder } from './victory';
 import { cityYields } from './yields';
 import { nextFloat } from './rng';
 import { chooseAiResearch, setResearch } from './tech';
 import type { TechId } from '../data/techs';
 import { atWar } from './war';
 import type { AiPlan, BuildItem, City, Coord, GameState, Unit } from './types';
+import { aiUseUniques } from './uniques';
+import { PROJECT_IDS } from '../data/victory';
 
 const AI = RULES.ai;
 
@@ -231,18 +233,22 @@ export interface BuildContext {
   atWar: boolean;
   /** The victory this AI is going for. */
   goal: VictoryKind;
+  /** Round 11: a conqueror that hasn't met every rival yet keeps scouting, by land and sea. */
+  seeking: boolean;
 }
 
 export function buildContext(state: GameState, playerId: number): BuildContext {
   const target = aiCityTarget(state);
   const openSites = openSiteLandmasses(state, playerId);
   const cities = citiesOf(state, playerId).length;
+  const goal = aiVictoryGoal(state, playerId);
   return {
     target,
     openSites,
     boxedIn: openSites.size === 0 && cities > 0 && cities < target,
     atWar: atWarWithAnyone(state, playerId),
-    goal: aiVictoryGoal(state, playerId),
+    goal,
+    seeking: goal === 'domination' && state.players.some((q) => q.alive && q.kind !== 'barbarian' && q.id !== playerId && !state.diplomacy.met[playerId]?.[q.id]),
   };
 }
 
@@ -333,7 +339,7 @@ export function chooseBuild(state: GameState, city: City, ctx: BuildContext = bu
   if (settleHere && underWay < settlerCap) return { kind: 'unit', id: 'settler' };
   if (home < wanted) return defender;
   // A boat to look for land (boxed in) or for the enemy (at war with no city in sight to attack).
-  const navy = navalBuild(state, city, ctx.boxedIn || (ctx.atWar && !state.aiPlans[owner]));
+  const navy = navalBuild(state, city, ctx.boxedIn || (ctx.atWar && !state.aiPlans[owner]) || ctx.seeking);
   if (navy.boat) return { kind: 'unit', id: navy.boat };
   if (navy.warship && ctx.atWar) return { kind: 'unit', id: navy.warship };
   const air = airBuild(state, city, ctx.atWar);
@@ -343,6 +349,9 @@ export function chooseBuild(state: GameState, city: City, ctx: BuildContext = bu
   if (wonder && WONDERS[wonder].victory) return { kind: 'wonder', id: wonder };
   const part: BuildItem = { kind: 'project', id: 'spaceship' };
   if (!buildChoiceError(state, city, part)) return part;
+  // Round 11: a leader's own wonder (in the capital) or project (in the wonder city).
+  const unique = uniqueBuild(state, city);
+  if (unique && (unique.kind === 'wonder' || wonderHere)) return unique;
 
   const military = state.units.filter((u) => u.owner === owner && isMilitary(u)).length + others.filter(isMilitaryBuild).length;
   const kept = mine.length * AI.defendersPerCity;
@@ -350,7 +359,8 @@ export function chooseBuild(state: GameState, city: City, ctx: BuildContext = bu
   // Round 10: at war, a fighter to guard the skies and bombers to strike ahead of the army.
   if (ctx.atWar && air.fighter) return { kind: 'unit', id: air.fighter };
   if (ctx.atWar && air.bomber) return { kind: 'unit', id: air.bomber };
-  if (ctx.atWar && military < kept + Math.ceil(mine.length * AI.offensePerCityWar)) return attacker;
+  const warOffense = AI.offensePerCityWar * (ctx.goal === 'domination' ? AI.victory.dominationWarOffenseFactor : 1);
+  if (ctx.atWar && military < kept + Math.ceil(mine.length * warOffense)) return attacker;
 
   if (wonder && ctx.goal === 'culture') return { kind: 'wonder', id: wonder };
   if (navy.warship) return { kind: 'unit', id: navy.warship };
@@ -388,9 +398,9 @@ function manageCities(state: GameState, playerId: number): void {
       const k = c.build.kind;
       return k === 'building' || k === 'project' || isSettlerBuild(c) || (ctx.atWar && isMilitaryBuild(c));
     })
-    .sort((a, b) => buyCost(a)! - buyCost(b)! || a.id - b.id);
+    .sort((a, b) => buyCost(state, a)! - buyCost(state, b)! || a.id - b.id);
   for (const c of buys) {
-    if (player.gold - buyCost(c)! < reserve) break;
+    if (player.gold - buyCost(state, c)! < reserve) break;
     rushBuy(state, c.id);
   }
 }
@@ -415,6 +425,8 @@ function setAiScienceRate(state: GameState, playerId: number, goal: VictoryKind)
  * odds if they clear the threshold (an enemy city is preferred on a tie). True if it acted.
  */
 export function tryCombat(state: GameState, unit: Unit): boolean {
+  // Round 11: a conqueror accepts worse odds.
+  const minPct = aiVictoryGoal(state, unit.owner) === 'domination' ? AI.victory.dominationAttackMinChancePct : RULES.combat.aiAttackMinChancePct;
   if (UNITS[unit.type].attack <= 0 || unit.movesLeft <= 0) return false;
   for (const n of neighbors(state.map, unit)) {
     if (capturableCity(state, unit, n)) return moveUnit(state, unit.id, n).ok;
@@ -426,7 +438,7 @@ export function tryCombat(state: GameState, unit: Unit): boolean {
     const score = odds.chance + (cityAt(state, n.x, n.y) ? 0.05 : 0);
     if (!best || score > best.score) best = { at: n, chance: odds.chance, score };
   }
-  if (!best || best.chance * 100 < RULES.combat.aiAttackMinChancePct) return false;
+  if (!best || best.chance * 100 < minPct) return false;
   return attack(state, unit.id, best.at).ok;
 }
 
@@ -469,6 +481,15 @@ function explore(state: GameState, unit: Unit, wander = true): boolean {
   return false;
 }
 
+/** A leader's unique wonder or project this city could build now (Versailles, the Moonshot). */
+function uniqueBuild(state: GameState, city: City): BuildItem | undefined {
+  const items: BuildItem[] = [
+    ...WONDER_IDS.filter((id) => WONDERS[id].civ).map((id) => ({ kind: 'wonder', id }) as BuildItem),
+    ...PROJECT_IDS.filter((id) => id !== 'spaceship').map((id) => ({ kind: 'project', id }) as BuildItem),
+  ];
+  return items.find((item) => !buildChoiceError(state, city, item));
+}
+
 // ---- war plans -----------------------------------------------------------------------------
 
 function nearestCity(cities: City[], to: Coord): City | undefined {
@@ -477,15 +498,25 @@ function nearestCity(cities: City[], to: Coord): City | undefined {
   return best;
 }
 
-/** A fresh plan against the closest known city of anyone we're at war with, or null. */
+/**
+ * A fresh plan against the closest known city of anyone we're at war with, or null. A
+ * conqueror (Round 11) is drawn to rival capitals, which is what domination needs.
+ */
 function choosePlan(state: GameState, playerId: number): AiPlan | null {
   const mine = citiesOf(state, playerId);
   const explored = state.players[playerId]!.explored;
+  const pull = aiVictoryGoal(state, playerId) === 'domination' ? AI.victory.dominationCapitalPull : 0;
+  const held = capitalsHeld(state, playerId);
+  const lastOne = held.of - held.held === 1 && state.turn < AI.victory.dominationPaceTurn;
   let best: { city: City; d: number } | undefined;
   for (const c of state.cities) {
     if (!atWar(state, playerId, c.owner) || explored[tileIndex(state.map, c.x, c.y)] !== 1) continue;
     const home = nearestCity(mine, c);
-    const d = home ? distance(home, c) : 0;
+    const overseas = !mine.some((m) => landmassAt(state.map, m) === landmassAt(state.map, c)) ? AI.victory.overseasTargetPenalty : 0;
+    const capital = c.capitalOf !== null && c.capitalOf !== playerId && state.players[c.owner]?.kind !== 'barbarian' && !lastOne;
+    // ...and to a runaway leader's cities.
+    const runaway = pull && runawayProgress(state, c.owner) >= AI.victory.runawayProgress ? pull / 2 : 0;
+    const d = (home ? distance(home, c) : 0) + overseas - (capital ? pull : 0) - runaway;
     if (!best || d < best.d || (d === best.d && c.id < best.city.id)) best = { city: c, d };
   }
   if (!best) return null;
@@ -541,7 +572,9 @@ export function runAiTurn(state: GameState, playerId: number): void {
   let ctx = buildContext(state, playerId);
   if (!player.researching) {
     // Boxed in on its landmass: the sea techs come first (Round 8).
-    const tech = chooseAiResearch(player, ctx.boxedIn ? SEA_TECHS : []);
+    // Boxed in on its landmass: the sea techs come first (Round 8); a conqueror's arms next (Round 11).
+    const conquest = ctx.goal === 'domination' ? AI.victory.dominationResearch : [];
+    const tech = chooseAiResearch(player, [...(ctx.boxedIn ? SEA_TECHS : []), ...conquest]);
     if (tech) setResearch(state, tech);
   }
   // A finished spaceship goes up at once.
@@ -585,18 +618,21 @@ export function runAiTurn(state: GameState, playerId: number): void {
   const overseas = state.aiFerries[playerId]?.kind === 'invade';
   if (plan && staging && plan.phase === 'gather' && !overseas) {
     const gathered = free.filter((u) => distance(u, staging) <= 1).reduce((s, u) => s + unitWeight(u), 0);
-    if (gathered >= AI.minAttackForce) plan.phase = 'march';
+    const conqueror = ctx.goal === 'domination';
+    const force = conqueror ? AI.victory.dominationAttackForce : AI.minAttackForce;
+    // Round 11: a conqueror far stronger than its target doesn't wait to gather.
+    if (gathered >= force || (conqueror && free.reduce((w, u) => w + unitWeight(u), 0) >= force && strengthRatio(state, playerId, plan.target) >= AI.victory.dominationRushRatio)) plan.phase = 'march';
   } else if (plan && plan.phase === 'march' && free.length === 0) {
     plan.phase = 'gather';
   }
 
-  let explorer = expanding || !plan ? free.filter((u) => !reserved.has(u.id)).map((u) => u.id).sort((a, b) => a - b)[0] : undefined;
+  let explorer = expanding || !plan || ctx.seeking ? free.filter((u) => !reserved.has(u.id)).map((u) => u.id).sort((a, b) => a - b)[0] : undefined;
   const ids = state.units.filter((u) => u.owner === playerId).map((u) => u.id);
   for (const id of ids) {
     const unit = findUnit(state, id);
     if (!unit || unit.movesLeft <= 0 || reserved.has(id) || unit.carriedBy !== null || isAir(unit)) continue;
     if (isShip(unit)) {
-      playShip(state, unit, (u, wander) => explore(state, u, wander), ctx.boxedIn || (ctx.atWar && !plan));
+      playShip(state, unit, (u, wander) => explore(state, u, wander), ctx.boxedIn || (ctx.atWar && !plan) || ctx.seeking);
       continue;
     }
     if (UNITS[unit.type].canFoundCity) {
@@ -639,6 +675,8 @@ export function runAiTurn(state: GameState, playerId: number): void {
     if (!home && explore(state, unit)) continue;
     hold(state, unit);
   }
+  // Round 11: its leader's unique actions (after the fighting, so a city just taken can be returned).
+  aiUseUniques(state, playerId);
   // After moving, so a city founded this turn gets its first build choice right away.
   manageCities(state, playerId);
 }

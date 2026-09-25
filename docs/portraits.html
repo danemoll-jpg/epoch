@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Epoch: leader portraits</title>
+<style>
+  body { background: #0b1016; color: #e8eef5; font: 15px/1.4 -apple-system, system-ui, sans-serif; margin: 0; padding: 16px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p { color: #9fb0c2; margin: 0 0 14px; max-width: 900px; }
+  .row { display: flex; align-items: center; gap: 14px; padding: 12px; margin-bottom: 10px; border-radius: 12px; background: #16212e; flex-wrap: wrap; }
+  .who { width: 170px; }
+  .who b { display: block; }
+  .who span { color: #9fb0c2; font-size: 13px; }
+  .sizes { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; }
+  figure { margin: 0; text-align: center; font-size: 11px; color: #9fb0c2; }
+  .p { display: inline-block; border-radius: 50%; border: 2px solid; box-sizing: border-box; background-color: #0b1016; background-repeat: no-repeat; }
+  .ph { display: inline-flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); border-color: rgba(255, 255, 255, 0.6) !important; }
+  .full { width: 160px; height: 160px; border-radius: 8px; background-size: cover; position: relative; }
+  .full i { position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: #e6b73f; box-shadow: 0 0 0 2px #000; }
+  .missing { color: #f0a08a; font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>Leader portraits: every size the game uses</h1>
+<p>Each row: the full picture (the gold dot is the face focus, <code>portraitFocus</code> in src/data/civs.ts), then every size the game draws. At 48 px and under the game zooms in on the face. The placeholder (initials on the civ color) comes last: it's what a leader without a picture gets. If a small one looks off, adjust that leader's focus in civs.ts, then run <code>python scripts/make-portraits-page.py</code>.</p>
+<div id="list"></div>
+<script id="leaders" type="application/json">[{"id": "egypt", "leader": "Hatshepsut", "civ": "Egypt", "color": "#e8c547", "focus": {"x": 0.52, "y": 0.36, "zoom": 1.8}}, {"id": "rome", "leader": "Caligula", "civ": "Rome", "color": "#e07b39", "focus": {"x": 0.57, "y": 0.29, "zoom": 1.9}}, {"id": "franks", "leader": "Charlemagne", "civ": "Franks", "color": "#a060d0", "focus": {"x": 0.52, "y": 0.37, "zoom": 1.8}}, {"id": "mali", "leader": "Mansa Musa", "civ": "Mali", "color": "#d04a4a", "focus": {"x": 0.5, "y": 0.32, "zoom": 1.8}}, {"id": "england", "leader": "Henry VIII", "civ": "England", "color": "#2f5fb3", "focus": {"x": 0.52, "y": 0.35, "zoom": 1.8}}, {"id": "france", "leader": "Louis XIV", "civ": "France", "color": "#58c4e8", "focus": {"x": 0.52, "y": 0.27, "zoom": 2}}, {"id": "russia", "leader": "Peter the Great", "civ": "Russia", "color": "#1f8a4c", "focus": {"x": 0.52, "y": 0.23, "zoom": 2}}, {"id": "gran_colombia", "leader": "Simón Bolívar", "civ": "Gran Colombia", "color": "#e060b0", "focus": {"x": 0.48, "y": 0.23, "zoom": 2}}, {"id": "usa", "leader": "John F. Kennedy", "civ": "United States", "color": "#3b3b8f", "focus": {"x": 0.46, "y": 0.23, "zoom": 2.2}}, {"id": "ukraine", "leader": "Viktor Yushchenko", "civ": "Ukraine", "color": "#9acd32", "focus": {"x": 0.45, "y": 0.27, "zoom": 2.2}}, {"id": "germany", "leader": "Angela Merkel", "civ": "Germany", "color": "#8a929a", "focus": {"x": 0.48, "y": 0.27, "zoom": 2.2}}, {"id": "north_korea", "leader": "Kim Jong Un", "civ": "North Korea", "color": "#8a5a2b", "focus": {"x": 0.47, "y": 0.25, "zoom": 2.2}}]</script>
+<script>
+  // The same formula as portraitCrop in src/ui/portraits.ts.
+  var SMALL = 48;
+  function crop(f, size) {
+    if (!f || size > SMALL || f.zoom <= 1) return { size: 'cover', position: '50% 50%' };
+    var z = f.zoom;
+    var pos = function (v) { return Math.max(0, Math.min(100, ((v * z - 0.5) / (z - 1)) * 100)); };
+    return { size: Math.round(z * 100) + '%', position: pos(f.x).toFixed(1) + '% ' + pos(f.y).toFixed(1) + '%' };
+  }
+  // The same as leaderInitials in src/data/civs.ts.
+  function initials(name) {
+    var words = name.replace(/\./g, '').split(/\s+/).filter(function (w) { return w !== 'the' && w !== 'of'; });
+    var roman = words.filter(function (w) { return /^[IVX]+$/.test(w); })[0];
+    var letters = words.filter(function (w) { return !/^[IVX]+$/.test(w); }).map(function (w) { return w[0].toUpperCase(); });
+    if (roman) return letters[0] + roman;
+    if (letters.length === 1) return words[0].slice(0, 2);
+    return letters.slice(0, 3).join('');
+  }
+  // In the play build the pictures sit next to this page (docs/portraits/); in the repo, in src/assets.
+  var BASES = ['portraits/', '../src/assets/portraits/'];
+  function findUrl(id, cb, i) {
+    i = i || 0;
+    if (i >= BASES.length * 2) return cb(null);
+    var url = BASES[Math.floor(i / 2)] + id + (i % 2 ? '.webp' : '.png');
+    var img = new Image();
+    img.onload = function () { cb(url); };
+    img.onerror = function () { findUrl(id, cb, i + 1); };
+    img.src = url;
+  }
+  function disc(url, focus, color, s) {
+    var c = crop(focus, s);
+    return '<span class="p" style="width:' + s + 'px;height:' + s + 'px;border-color:' + color +
+      ';background-image:url(' + url + ');background-size:' + c.size + ';background-position:' + c.position + '"></span>';
+  }
+  var SIZES = [128, 96, 64, 48, 40, 36, 28];
+  var leaders = JSON.parse(document.getElementById('leaders').textContent);
+  var list = document.getElementById('list');
+  leaders.forEach(function (l) {
+    var row = document.createElement('div');
+    row.className = 'row';
+    list.appendChild(row);
+    findUrl(l.id, function (url) {
+      var html = '<div class="who"><b>' + l.leader + '</b><span>' + l.civ + ' · ' + l.id + '.png<br>focus ' + l.focus.x + ', ' + l.focus.y + ' · zoom ' + l.focus.zoom + '</span></div>';
+      if (url) html += '<div class="full" style="background-image:url(' + url + ')"><i style="left:' + l.focus.x * 100 + '%;top:' + l.focus.y * 100 + '%"></i></div>';
+      else html += '<div class="missing">No picture yet: the placeholder is used.</div>';
+      html += '<div class="sizes">';
+      if (url) SIZES.forEach(function (s) { html += '<figure>' + disc(url, l.focus, l.color, s) + '<figcaption>' + s + (s <= SMALL ? ' zoomed' : '') + '</figcaption></figure>'; });
+      var ini = initials(l.leader);
+      html += '<figure><span class="p ph" style="width:48px;height:48px;background:' + l.color + ';font-size:' + Math.max(10, Math.round(48 / (ini.length > 2 ? 3.2 : 2.4))) + 'px">' + ini + '</span><figcaption>placeholder</figcaption></figure></div>';
+      row.innerHTML = html;
+    });
+  });
+</script>
+</body>
+</html>

@@ -47,6 +47,7 @@ import { nextFloat } from './rng';
 import { atWar } from './war';
 import { armyWord, canCapture, defendsTile, hovers, isAir, isAircraft, isShip, isWaterAt, removeUnit } from './naval';
 import { airRange } from './air';
+import { attackMods, defenseMods, effectsOf } from './leaders';
 import type { ActionResult, CombatReport, Coord, GameState, Unit } from './types';
 
 export interface Modifier {
@@ -95,12 +96,16 @@ function generalMod(state: GameState | undefined, u: Unit): Modifier | undefined
   return n > 0 ? { label: 'Great General', pct: n * GREAT_PEOPLE_RULES.generalArmyPct } : undefined;
 }
 
-/** `vsAircraft`: a fighter attacking a Helicopter uses its strength against aircraft (Round 10). */
-export function attackStrength(u: Unit, state?: GameState, vsAircraft = false): Strength {
+/**
+ * `vsAircraft`: a fighter attacking a Helicopter uses its strength against aircraft (Round 10).
+ * `defenderOwner`: whom it's attacking, for leader bonuses that depend on it (Round 11).
+ */
+export function attackStrength(u: Unit, state?: GameState, vsAircraft = false, defenderOwner?: number): Strength {
   const mods: Modifier[] = [];
   if (u.veteran) mods.push({ label: 'Veteran', pct: RULES.combat.veteranPct });
   const general = generalMod(state, u);
   if (general) mods.push(general);
+  if (state) mods.push(...attackMods(state, u, defenderOwner));
   const def = UNITS[u.type];
   const base = vsAircraft && (def.airAttack ?? 0) > def.attack ? def.airAttack! : def.attack;
   return strength(base * armyFactor(u), mods);
@@ -134,6 +139,7 @@ export function defenseStrength(state: GameState, u: Unit, attackerIsLand = true
   if (u.veteran) mods.push({ label: 'Veteran', pct: RULES.combat.veteranPct });
   const general = generalMod(state, u);
   if (general) mods.push(general);
+  mods.push(...defenseMods(state, u));
   return strength(UNITS[u.type].defense * armyFactor(u), mods);
 }
 
@@ -233,7 +239,7 @@ export function overallChance(state: GameState, unit: Unit, at: Coord): number {
 export function combatOdds(state: GameState, unit: Unit, at: Coord): CombatOdds | undefined {
   const defender = pickDefender(state, at, unit.owner);
   if (!defender) return undefined;
-  const attack = attackStrength(unit, state, isAircraft(defender));
+  const attack = attackStrength(unit, state, isAircraft(defender), defender.owner);
   const defense = defenseStrength(state, defender, isLandAttack(unit));
   return { attacker: unit, defender, attack, defense, chance: winChance(attack.total, defense.total) };
 }
@@ -309,6 +315,7 @@ export function attack(state: GameState, unitId: number, at: Coord): ActionResul
   addLog(state, unit.owner, text, at, defender.owner, isAircraft(unit) ? { kind: 'strike' } : undefined);
   if (cargoLost > 0) addLog(state, loser.owner, `${cargoLost} unit${cargoLost === 1 ? '' : 's'} aboard the ${UNITS[loser.type].name} went down with it`, at, winner.owner);
   recordLoss(state, loser.owner, winner.owner, (loser.army ? RULES.combat.armySize : 1) + cargoLost);
+  winCulture(state, winner.owner);
 
   // The last defender of an enemy city fell: the winner moves in and takes the city. A ship
   // bombarding never moves in.
@@ -366,6 +373,13 @@ export function attack(state: GameState, unitId: number, at: Coord): ActionResul
       interception: intercepted,
     },
   };
+}
+
+/** Round 11: leaders whose bonus pays culture for every fight won (Caligula's triumphs). */
+function winCulture(state: GameState, p: number): void {
+  const player = state.players[p];
+  if (!player) return;
+  for (const e of effectsOf(state, p, 'winCulture')) player.culture += e.culture;
 }
 
 // ---- fortify -------------------------------------------------------------------------------

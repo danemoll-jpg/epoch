@@ -15,6 +15,7 @@ import { checkVictory, keepPlaying, launchSpaceship } from './victory';
 import type { ActionResult, BuildItem, Coord, GameState } from './types';
 import { chooseVillage, type VillageChoice } from './villages';
 import { useGreatPerson, type GreatPersonUse } from './greatPeople';
+import { dissolution, pilgrimage, returnCity, setChallenge } from './uniques';
 
 export type Action =
   | { type: 'move'; unitId: number; to: Coord }
@@ -45,6 +46,11 @@ export type Action =
   | { type: 'chooseVillage'; villageId: number; choice: VillageChoice }
   /** Round 9: settle a waiting Great Person in a city, or use it once. */
   | { type: 'useGreatPerson'; gpId: number; how: GreatPersonUse }
+  /** Round 11: leaders' unique actions. */
+  | { type: 'pilgrimage' }
+  | { type: 'dissolution' }
+  | { type: 'setChallenge'; tech: TechId }
+  | { type: 'returnCity'; cityId: number }
   | { type: 'launchSpaceship' }
   | { type: 'keepPlaying' }
   | { type: 'endTurn' };
@@ -100,6 +106,14 @@ function runAction(state: GameState, action: Action): ActionResult {
       return chooseVillage(state, action.villageId, action.choice);
     case 'useGreatPerson':
       return useGreatPerson(state, action.gpId, action.how);
+    case 'pilgrimage':
+      return pilgrimage(state);
+    case 'dissolution':
+      return dissolution(state);
+    case 'setChallenge':
+      return setChallenge(state, action.tech);
+    case 'returnCity':
+      return returnCity(state, action.cityId);
     case 'launchSpaceship':
       return launchSpaceship(state);
     case 'keepPlaying':

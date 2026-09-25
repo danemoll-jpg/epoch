@@ -10,21 +10,28 @@ import { RULES } from '../data/rules';
 import { TERRAIN, type Yields } from '../data/terrain';
 import { tileIndex, tilesInRadius } from './grid';
 import { resourceBonus } from './resources';
+import { applyPct, empireFlat, empirePct, leaderCityCulture, leaderCityGold, leaderCityPct, leaderProductionFlat, leaderProductionPct, resourceDoubled, terrainBonus, wasCaptured } from './leaders';
 import type { City, GameState } from './types';
 
 /**
  * What the tile gives: its terrain, plus its resource (Round 9) when `viewer` can see and use
- * it (hidden ones need revealing). Without a viewer, the terrain alone.
+ * it (hidden ones need revealing), plus the viewer's leader bonuses for it (Round 11). Without
+ * a viewer, the terrain alone.
  */
 export function tileYields(state: GameState, index: number, viewer?: number): Yields {
   const t = state.map.tiles[index]!;
   const y = { ...TERRAIN[t.terrain].yields };
-  const bonus = viewer === undefined ? undefined : resourceBonus(state, viewer, index);
+  if (viewer === undefined) return y;
+  const bonus = resourceBonus(state, viewer, index);
   if (bonus) {
-    y.food += bonus.food;
-    y.production += bonus.production;
-    y.trade += bonus.trade;
+    const times = resourceDoubled(state, viewer, index) ? 2 : 1;
+    y.food += bonus.food * times;
+    y.production += bonus.production * times;
+    y.trade += bonus.trade * times;
   }
+  const extra = terrainBonus(state, viewer, index);
+  y.food += extra.food;
+  y.trade += extra.trade;
   return y;
 }
 
@@ -109,8 +116,15 @@ export function cityYields(state: GameState, city: City): Yields {
   total.trade += sp * RULES.specialistYields.trade;
   // Wonders (Milestone 6): extra food in their city, and production bonuses.
   for (const w of cityWonderDefs(city)) total.food += w.effects.food ?? 0;
+  // Round 11: a Courthouse in a captured city helps it regrow; a leader's flat production.
+  if (wasCaptured(city)) for (const b of city.buildings) total.food += BUILDINGS[b].effects.capturedFood ?? 0;
+  total.production += leaderProductionFlat(state, city);
+  const buildingProd = city.buildings.reduce((sum, b) => sum + (BUILDINGS[b].effects.productionPct ?? 0), 0);
+  // Versailles: wonders built in its city go faster.
+  const wonderProd = city.build?.kind === 'wonder' ? cityWonderDefs(city).reduce((sum, w) => sum + (w.effects.wonderProductionPct ?? 0), 0) : 0;
   const prodPct =
-    cityWonderPct(city, 'productionPct') + empireWonderPct(state, city.owner, 'productionPct') + settled(city, 'engineer') * GP.engineerProductionPct;
+    cityWonderPct(city, 'productionPct') + empireWonderPct(state, city.owner, 'productionPct') + settled(city, 'engineer') * GP.engineerProductionPct +
+    buildingProd + wonderProd + leaderProductionPct(state, city);
   total.production += Math.floor((total.production * prodPct) / 100);
   return total;
 }
@@ -144,17 +158,22 @@ export function settled(city: City, kind: GreatPersonKind): number {
   return (city.greatPeople ?? []).filter((k) => k === kind).length;
 }
 
-/** Culture the city makes per turn: its buildings (Temple), wonders, and settled Artists. */
-export function cityCulture(_state: GameState, city: City): number {
-  let culture = settled(city, 'artist') * GP.artistCulture;
-  for (const b of city.buildings) culture += BUILDINGS[b].effects.culture ?? 0;
-  for (const w of cityWonderDefs(city)) culture += w.effects.culture ?? 0;
-  return culture;
+/**
+ * Culture the city makes per turn: its buildings (Temple), wonders, and settled Artists, with
+ * its owner's leader bonuses (Round 11). The empire-wide percent comes on top (empireCulture).
+ */
+export function cityCulture(state: GameState, city: City): number {
+  let building = 0;
+  for (const b of city.buildings) building += BUILDINGS[b].effects.culture ?? 0;
+  let wonder = 0;
+  for (const w of cityWonderDefs(city)) wonder += w.effects.culture ?? 0;
+  return settled(city, 'artist') * GP.artistCulture + leaderCityCulture(state, city, building, wonder);
 }
 
-/** Culture the player's empire makes per turn. */
+/** Culture the player's empire makes per turn, with empire-wide leader percents. */
 export function empireCulture(state: GameState, playerId: number): number {
-  return state.cities.filter((c) => c.owner === playerId).reduce((sum, c) => sum + cityCulture(state, c), 0);
+  const sum = state.cities.filter((c) => c.owner === playerId).reduce((s, c) => s + cityCulture(state, c), 0);
+  return Math.max(0, applyPct(sum, empirePct(state, playerId, 'culture')));
 }
 
 export function foodSurplus(state: GameState, city: City): number {
@@ -165,7 +184,7 @@ export function foodSurplus(state: GameState, city: City): number {
 function buildingPct(state: GameState, city: City, key: 'sciencePct' | 'goldPct'): number {
   const buildings = city.buildings.reduce((sum, b) => sum + (BUILDINGS[b].effects[key] ?? 0), 0);
   const people = key === 'sciencePct' ? settled(city, 'scientist') * GP.scientistSciencePct : settled(city, 'merchant') * GP.merchantGoldPct;
-  return buildings + people + cityWonderPct(city, key) + empireWonderPct(state, city.owner, key);
+  return buildings + people + cityWonderPct(city, key) + empireWonderPct(state, city.owner, key) + leaderCityPct(state, city, key);
 }
 
 /**
@@ -178,12 +197,17 @@ export function cityScienceGold(state: GameState, city: City): { science: number
   const baseScience = Math.round((trade * rate) / 100);
   const baseGold = trade - baseScience;
   const science = baseScience + Math.floor((baseScience * buildingPct(state, city, 'sciencePct')) / 100);
-  const gold = baseGold + Math.floor((baseGold * buildingPct(state, city, 'goldPct')) / 100);
+  // Flat gold (the Courthouse, Round 11; leader bonuses) comes after the percents.
+  const flat = city.buildings.reduce((sum, b) => sum + (BUILDINGS[b].effects.gold ?? 0), 0) + leaderCityGold(state, city);
+  const gold = baseGold + Math.floor((baseGold * buildingPct(state, city, 'goldPct')) / 100) + flat;
   return { science, gold };
 }
 
-/** What the player's empire earns per turn at current settings. */
-export function empireIncome(state: GameState, playerId: number): { science: number; gold: number } {
+/**
+ * What the player's empire earns per turn at current settings: its cities' science and gold,
+ * then the empire-wide leader percents and per-turn amounts (Round 11), and its culture.
+ */
+export function empireIncome(state: GameState, playerId: number): { science: number; gold: number; culture: number } {
   let science = 0;
   let gold = 0;
   for (const c of state.cities) {
@@ -192,5 +216,10 @@ export function empireIncome(state: GameState, playerId: number): { science: num
     science += r.science;
     gold += r.gold;
   }
-  return { science, gold };
+  const flat = empireFlat(state, playerId);
+  return {
+    science: Math.max(0, applyPct(science, empirePct(state, playerId, 'science')) + flat.science),
+    gold: Math.max(0, applyPct(gold, empirePct(state, playerId, 'gold')) + flat.gold),
+    culture: empireCulture(state, playerId),
+  };
 }

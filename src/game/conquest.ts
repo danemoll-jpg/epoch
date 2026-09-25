@@ -21,6 +21,7 @@ import { atWar } from './war';
 import { loseSpaceship } from './victory';
 import { canCapture, defendsTile, isAir, isShip, removeUnit } from './naval';
 import { refreshWorkedTiles } from './yields';
+import { bonusName, firstEffect } from './leaders';
 import type { City, Coord, GameState, Unit } from './types';
 
 // Civ names in messages. "the Franks" mid-sentence, "The Franks" to start one; Babylon stays
@@ -79,9 +80,14 @@ export function captureCity(state: GameState, city: City, newOwner: number): voi
   for (const ship of lost) sunk += removeUnit(state, ship.id).length;
   const planes = state.units.filter((u) => u.x === city.x && u.y === city.y && u.owner === oldOwner && isAir(u) && u.carriedBy === null);
   for (const a of planes) removeUnit(state, a.id);
+  // Round 11: Charlemagne takes cities whole; Bolívar's liberation keeps the people.
+  const keep = !!firstEffect(state, newOwner, 'captureKeep');
+  const lib = firstEffect(state, newOwner, 'liberation');
+  const liberated = !!lib && city.founder !== oldOwner;
   city.owner = newOwner;
-  city.size = Math.max(1, city.size - 1);
-  city.buildings = city.buildings.filter((b) => !BUILDINGS[b].effects.defenseBonusPct);
+  city.capturedTurn = state.turn;
+  if (!keep && !liberated) city.size = Math.max(1, city.size - 1);
+  if (!keep) city.buildings = city.buildings.filter((b) => !BUILDINGS[b].effects.defenseBonusPct);
   city.production = 0;
   city.build = null;
   refreshWorkedTiles(state);
@@ -101,6 +107,17 @@ export function captureCity(state: GameState, city: City, newOwner: number): voi
   }
   if (planes.length > 0) {
     addLog(state, newOwner, `${CivName(state, oldOwner)} lost ${planes.length === 1 ? 'an aircraft' : `${planes.length} aircraft`} on the ground at ${city.name}`, city, oldOwner);
+  }
+  if (liberated && lib) {
+    const p = state.players[newOwner]!;
+    p.culture += lib.culture;
+    p.gold += lib.gold;
+    addLog(state, newOwner, `${bonusName(state, newOwner, 'liberation')}: ${city.name} was freed from ${civName(state, oldOwner)}. +${lib.culture} culture and +${lib.gold} gold`, city, undefined, { kind: 'leader' });
+  }
+  const resilience = firstEffect(state, oldOwner, 'resilience');
+  if (resilience) {
+    state.players[oldOwner]!.culture += resilience.culture;
+    addLog(state, oldOwner, `${bonusName(state, oldOwner, 'resilience')}: losing ${city.name} steeled the nation. +${resilience.culture} culture`, undefined, undefined, { kind: 'leader' });
   }
   // A civ's spaceship is built in its capital: losing the capital loses the ship (Milestone 6).
   if (city.capitalOf === oldOwner) loseSpaceship(state, oldOwner, city);

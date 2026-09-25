@@ -24,11 +24,19 @@ import type { ActionResult, City, Coord, GameState, GreatPerson } from './types'
 import { freeTech } from './villages';
 import { atWar } from './war';
 import { addLog } from './log';
+import { effectsOf } from './leaders';
 import { cityCulture, cityScienceGold, cityYields } from './yields';
 
 /** Culture needed (since the civ's starting point) for its n-th Great Person (n from 0). */
 export function greatPersonThreshold(n: number): number {
   return GP.first + GP.step * n + (GP.growth * n * (n - 1)) / 2;
+}
+
+/** Culture needed for this player's n-th Great Person, with leader bonuses (Round 11: Henry VIII's are sooner). */
+export function greatPersonThresholdFor(state: GameState, playerId: number, n: number): number {
+  const pct = effectsOf(state, playerId, 'greatPeople').reduce((s, e) => s + e.pct, 0);
+  const base = greatPersonThreshold(n);
+  return pct === 0 ? base : Math.round((base * (100 + pct)) / 100);
 }
 
 /** Culture that counts toward Great People. */
@@ -40,7 +48,7 @@ export function greatPeopleCulture(state: GameState, playerId: number): number {
 /** Culture still needed for the next one. */
 export function cultureToNextGreatPerson(state: GameState, playerId: number): number {
   const p = state.players[playerId]!;
-  return Math.max(0, greatPersonThreshold(p.greatPeople ?? 0) - greatPeopleCulture(state, playerId));
+  return Math.max(0, greatPersonThresholdFor(state, playerId, p.greatPeople ?? 0) - greatPeopleCulture(state, playerId));
 }
 
 function nextName(state: GameState, kind: GreatPersonKind): string {
@@ -77,7 +85,7 @@ export function checkGreatPeople(state: GameState, playerId: number): GreatPerso
   const p = state.players[playerId];
   if (!p || !p.alive || isBarbarian(state, playerId)) return [];
   const out: GreatPerson[] = [];
-  while (greatPeopleCulture(state, playerId) >= greatPersonThreshold(p.greatPeople ?? 0)) {
+  while (greatPeopleCulture(state, playerId) >= greatPersonThresholdFor(state, playerId, p.greatPeople ?? 0)) {
     p.greatPeople = (p.greatPeople ?? 0) + 1;
     const kind = GREAT_PERSON_KINDS[nextInt(state, GREAT_PERSON_KINDS.length)]!;
     out.push(addGreatPerson(state, playerId, kind));
@@ -94,7 +102,7 @@ export type GreatPersonUse =
 /** Cities where an Engineer could finish something now: building a wonder or a building not yet paid for. */
 export function engineerCities(state: GameState, owner: number): City[] {
   return state.cities
-    .filter((c) => c.owner === owner && (c.build?.kind === 'wonder' || c.build?.kind === 'building') && c.production < itemCost(c.build))
+    .filter((c) => c.owner === owner && (c.build?.kind === 'wonder' || c.build?.kind === 'building') && c.production < itemCost(state, c, c.build))
     .sort((a, b) => a.id - b.id);
 }
 
@@ -180,7 +188,7 @@ export function useGreatPerson(state: GameState, gpId: number, how: GreatPersonU
         break;
       }
       case 'engineer':
-        city!.production = Math.max(city!.production, itemCost(city!.build!));
+        city!.production = Math.max(city!.production, itemCost(state, city!, city!.build!));
         message = `${gp.name} will finish ${city!.name}'s ${itemName(city!)} this turn`;
         break;
       case 'general': {

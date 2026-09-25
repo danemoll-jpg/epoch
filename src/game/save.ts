@@ -179,6 +179,24 @@ const MIGRATIONS: Record<number, (s: Raw) => void> = {
   // knows Advanced Flight (a new tech), and no city has airlifted anything (`airliftTurn` is
   // simply absent). Any unit with an unknown type would have been refused long before this.
   8: () => {},
+  // Round 10 → 11 (Milestone 8): leaders. Every civ keeps its civ (the legacy Babylon, Maurya,
+  // and Inca included; they have no bonuses). Bonuses are read from the civ and its current era,
+  // so Mali and the Franks get theirs at once, era bonuses for eras already reached are simply
+  // on, and nothing is paid out retroactively; no starting tech is granted. Each city's founder
+  // is its owner, except a captured capital, which remembers whose it was. Nobody has used a
+  // once-per-game action or named a National Challenge; ships already afloat count as built.
+  // The new buildings become available by tech like any other.
+  9: (s) => {
+    for (const p of s.players as Raw[]) {
+      p.uniquesUsed = [];
+      p.dissolvedUntil = null;
+      p.challenge = null;
+      const ships = new Set<string>();
+      for (const u of s.units as Raw[]) if (u.owner === p.id && UNITS[u.type as keyof typeof UNITS]?.domain === 'sea') ships.add(u.type);
+      p.shipsBuilt = [...ships];
+    }
+    for (const c of s.cities as Raw[]) c.founder = typeof c.capitalOf === 'number' ? c.capitalOf : c.owner;
+  },
 };
 
 /** What each migration brought, for the "your game was updated" notice. Keyed like MIGRATIONS. */
@@ -190,6 +208,7 @@ export const MIGRATION_NOTES: Record<number, string> = {
   6: 'ships and the sea',
   7: 'barbarians, villages, resources, huts, and Great People',
   8: 'aircraft and Airports',
+  9: 'leader bonuses and new buildings',
 };
 
 /** "the tech tree and combat and armies" for a save upgraded from version `from`. */
@@ -225,6 +244,8 @@ function shapeError(s: Record<string, unknown>): string | undefined {
   if (!s.units.every((u) => isObject(u) && (u.carriedBy === null || typeof u.carriedBy === 'number'))) return 'missing cargo';
   if (!Array.isArray(s.villages) || !Array.isArray(s.greatPeople) || !Array.isArray(s.greatPeopleNames)) return 'missing villages';
   if (!s.cities.every((c) => isObject(c) && Array.isArray(c.greatPeople))) return 'missing Great People';
+  if (!s.cities.every((c) => isObject(c) && typeof c.founder === 'number')) return 'missing founders';
+  if (!s.players.every((p) => isObject(p) && Array.isArray(p.uniquesUsed) && Array.isArray(p.shipsBuilt))) return 'missing leader state';
   return undefined;
 }
 

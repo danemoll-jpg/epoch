@@ -9,17 +9,20 @@
 // and spaceship parts (Milestone 6) are built the same way; wonders can't be bought.
 
 import { BUILDINGS, BUILDING_IDS } from '../data/buildings';
-import { PROJECTS } from '../data/victory';
+import { PROJECTS, PROJECT_IDS } from '../data/victory';
 import { WONDERS, WONDER_IDS } from '../data/wonders';
 import { CITY_FOCUSES, RULES, growthThreshold, rushBuyCost, type CityFocus } from '../data/rules';
 import { TECHS, type TechId } from '../data/techs';
 import { UNITS, UNIT_IDS } from '../data/units';
 import { addLog } from './log';
+import { CivName } from './conquest';
 import { hasTech } from './tech';
 import { addSpaceshipPart, spaceshipError, victoryWonderBlocker } from './victory';
 import { completeWonder, wonderError } from './wonders';
 import { coastalError, isAircraftType } from './naval';
-import { cityCulture, cityScienceGold, cityYields, empireWonderEffect, foodSurplus, refreshWorkedTiles, settled } from './yields';
+import { effectsOf, firstEffect, leaderCost, rushBuyPct, uniqueBuildError, wonderBuyMult } from './leaders';
+import { UNIQUE_RULES } from '../data/leaders';
+import { cityYields, empireIncome, empireWonderEffect, foodSurplus, refreshWorkedTiles, settled } from './yields';
 import type { ActionResult, BuildItem, City, GameState, Unit } from './types';
 
 export function findCity(state: GameState, cityId: number): City | undefined {
@@ -40,8 +43,20 @@ function itemDef(item: BuildItem): { name: string; cost: number; requires?: Tech
   }
 }
 
-export function itemCost(item: BuildItem): number {
+/** The item's cost in the data table, before any leader bonus. */
+export function baseCost(item: BuildItem): number {
   return itemDef(item)!.cost;
+}
+
+/** What the item costs this city's owner: the data cost with their leader bonuses (Round 11). */
+export function itemCost(state: GameState, city: City, item: BuildItem): number {
+  return leaderCost(state, city.owner, item, baseCost(item));
+}
+
+/** Gold due when this item is finished (Round 11: JFK's spaceship parts), or 0. */
+export function itemGold(state: GameState, city: City, item: BuildItem): number {
+  if (item.kind !== 'project' || item.id !== 'spaceship') return 0;
+  return effectsOf(state, city.owner, 'spaceshipGold').reduce((s, e) => s + e.gold, 0);
 }
 
 export function itemName(item: BuildItem): string {
@@ -61,6 +76,9 @@ export function itemRequires(item: BuildItem): TechId | undefined {
 export function buildChoiceError(state: GameState, city: City, item: BuildItem): string | undefined {
   if (!itemDef(item)) return `Unknown ${item.kind}`;
   if (item.kind === 'building' && city.buildings.includes(item.id)) return 'Already built';
+  // Round 11: some buildings need another first (a University needs a Library).
+  const needs = item.kind === 'building' ? BUILDINGS[item.id].needs : undefined;
+  if (needs && !city.buildings.includes(needs)) return `Needs a ${BUILDINGS[needs].name}`;
   const requires = itemRequires(item);
   if (!hasTech(state.players[city.owner]!, requires)) return `Needs ${TECHS[requires!].name}`;
   // A second tech (the Stealth Bomber, Round 10).
@@ -68,8 +86,11 @@ export function buildChoiceError(state: GameState, city: City, item: BuildItem):
   if (!hasTech(state.players[city.owner]!, also)) return `Needs ${TECHS[also!].name}`;
   const coast = coastalError(state, city, item);
   if (coast) return coast;
+  // Round 11: a leader's own wonder or project.
+  const unique = uniqueBuildError(state, city, item);
+  if (unique) return unique;
   if (item.kind === 'wonder') return wonderError(state, city, item.id);
-  if (item.kind === 'project') return spaceshipError(state, city);
+  if (item.kind === 'project' && item.id === 'spaceship') return spaceshipError(state, city);
   return undefined;
 }
 
@@ -78,7 +99,7 @@ export function buildOptions(state: GameState, city: City): BuildItem[] {
   const units: BuildItem[] = UNIT_IDS.map((id) => ({ kind: 'unit', id }));
   const buildings: BuildItem[] = BUILDING_IDS.map((id) => ({ kind: 'building', id }));
   const wonders: BuildItem[] = WONDER_IDS.map((id) => ({ kind: 'wonder', id }));
-  const projects: BuildItem[] = [{ kind: 'project', id: 'spaceship' }];
+  const projects: BuildItem[] = PROJECT_IDS.map((id) => ({ kind: 'project', id }));
   return [...units, ...buildings, ...wonders, ...projects].filter((item) => !buildChoiceError(state, city, item));
 }
 
@@ -92,6 +113,8 @@ export function completionBlocker(state: GameState, city: City, item: BuildItem)
     if (pop > 0 && city.size <= pop) return `Needs size ${pop + 1}`;
   }
   if (item.kind === 'wonder') return victoryWonderBlocker(state, city.owner, item.id);
+  const gold = itemGold(state, city, item);
+  if (gold > 0 && state.players[city.owner]!.gold < gold) return `Needs ${gold} gold`;
   return undefined;
 }
 
@@ -139,18 +162,30 @@ export function setScienceRate(state: GameState, rate: number): ActionResult {
   return { ok: true };
 }
 
-/** Gold to finish the current item now, or undefined if there's nothing to buy (wonders can't be bought). */
-export function buyCost(city: City): number | undefined {
-  if (!city.build || city.build.kind === 'wonder') return undefined;
-  const remaining = itemCost(city.build) - city.production;
-  return remaining > 0 ? rushBuyCost(remaining) : undefined;
+/**
+ * Gold to finish the current item now, or undefined if there's nothing to buy. Wonders can't
+ * be bought, except by a leader whose bonus allows it (Caligula, at a higher price). Leader
+ * bonuses change the price (Round 11).
+ */
+export function buyCost(state: GameState, city: City): number | undefined {
+  if (!city.build) return undefined;
+  let mult = 1;
+  if (city.build.kind === 'wonder') {
+    const m = wonderBuyMult(state, city.owner);
+    if (m === undefined) return undefined;
+    mult = m;
+  }
+  const remaining = itemCost(state, city, city.build) - city.production;
+  if (remaining <= 0) return undefined;
+  const pct = rushBuyPct(state, city.owner, city.build);
+  return Math.max(1, Math.ceil((rushBuyCost(remaining) * mult * (100 + pct)) / 100));
 }
 
 /** Why rush-buying isn't possible, or undefined if it is. */
 export function buyError(state: GameState, city: City): string | undefined {
   if (!city.build) return 'Nothing to buy';
-  if (city.build.kind === 'wonder') return "Wonders can't be bought";
-  const cost = buyCost(city);
+  if (city.build.kind === 'wonder' && wonderBuyMult(state, city.owner) === undefined) return "Wonders can't be bought";
+  const cost = buyCost(state, city);
   if (cost === undefined) return 'Already paid for';
   const blocker = completionBlocker(state, city, city.build);
   if (blocker) return blocker;
@@ -164,8 +199,8 @@ export function rushBuy(state: GameState, cityId: number): ActionResult {
   if (typeof city === 'string') return { ok: false, reason: city };
   const err = buyError(state, city);
   if (err) return { ok: false, reason: err };
-  state.players[city.owner]!.gold -= buyCost(city)!;
-  city.production = itemCost(city.build!);
+  state.players[city.owner]!.gold -= buyCost(state, city)!;
+  city.production = itemCost(state, city, city.build!);
   return { ok: true };
 }
 
@@ -182,7 +217,7 @@ export function growthForecast(state: GameState, city: City): { grows: boolean; 
 /** Turns until the current item is paid for, or undefined if nothing is being built. */
 export function turnsToFinish(state: GameState, city: City): number | undefined {
   if (!city.build) return undefined;
-  const remaining = itemCost(city.build) - city.production;
+  const remaining = itemCost(state, city, city.build) - city.production;
   if (remaining <= 0) return 1;
   const perTurn = cityYields(state, city).production;
   return perTurn > 0 ? Math.ceil(remaining / perTurn) : undefined;
@@ -194,7 +229,9 @@ function spawnUnit(state: GameState, city: City, type: Unit['type']): Unit {
   const veteran =
     city.buildings.some((b) => (air ? BUILDINGS[b].effects.veteranAircraft : BUILDINGS[b].effects.veteranUnits)) ||
     empireWonderEffect(state, city.owner, 'veteranUnits') ||
-    settled(city, 'general') > 0;
+    settled(city, 'general') > 0 ||
+    // Round 11: Charlemagne's mounted units.
+    (!!UNITS[type].mounted && !!firstEffect(state, city.owner, 'veteranMounted'));
   const unit: Unit = {
     id: state.nextId++,
     type,
@@ -230,7 +267,8 @@ function growCity(state: GameState, city: City): void {
     addLog(state, city.owner, `${city.name} grew to size ${city.size}`, city);
   } else if (city.food < 0) {
     city.food = 0;
-    if (city.size > 1) {
+    // Round 11: Merkel's cities never shrink from starvation.
+    if (city.size > 1 && !firstEffect(state, city.owner, 'noStarvation')) {
       city.size--;
       addLog(state, city.owner, `${city.name} is starving and shrank to size ${city.size}`, city);
     }
@@ -241,7 +279,7 @@ function produce(state: GameState, city: City, production: number): void {
   city.production += production;
   const item = city.build;
   if (!item) return;
-  const cost = itemCost(item);
+  const cost = itemCost(state, city, item);
   if (city.production < cost || completionBlocker(state, city, item)) return;
   // A wonder someone else finished first, or a spaceship part no longer allowed (capital
   // lost, ship launched): the production stays, and the city asks for a new choice.
@@ -250,9 +288,12 @@ function produce(state: GameState, city: City, production: number): void {
     return;
   }
   city.production -= cost;
+  state.players[city.owner]!.gold -= itemGold(state, city, item);
   if (item.kind === 'unit') {
     spawnUnit(state, city, item.id);
     city.size -= UNITS[item.id].popCost;
+    const built = state.players[city.owner]!.shipsBuilt;
+    if (UNITS[item.id].domain === 'sea' && built && !built.includes(item.id)) built.push(item.id);
     // Units repeat: the same item stays selected.
     addLog(state, city.owner, `${city.name} built ${itemName(item)}`, city);
   } else if (item.kind === 'building') {
@@ -262,10 +303,25 @@ function produce(state: GameState, city: City, production: number): void {
   } else if (item.kind === 'wonder') {
     city.build = null;
     completeWonder(state, city, item.id);
+    if (WONDERS[item.id].civ) state.players[city.owner]!.uniquesUsed.push(item.id as 'versailles');
+  } else if (item.id === 'moonshot') {
+    city.build = null;
+    completeMoonshot(state, city);
   } else {
     city.build = null;
     addSpaceshipPart(state, city);
   }
+}
+
+/** JFK's Moonshot (Round 11): culture now, and more science from then on (leaders.ts). */
+function completeMoonshot(state: GameState, city: City): void {
+  const p = state.players[city.owner]!;
+  p.uniquesUsed.push('moonshot');
+  p.culture += UNIQUE_RULES.moonshot.culture;
+  addLog(state, city.owner, `${city.name} completed the Moonshot! +${UNIQUE_RULES.moonshot.culture} culture and +${UNIQUE_RULES.moonshot.sciencePct}% science from now on`, city, undefined, {
+    publicText: `${CivName(state, city.owner)} landed a mission on the Moon`,
+    kind: 'leader',
+  });
 }
 
 /**
@@ -277,17 +333,17 @@ export function processCities(state: GameState, playerId: number): void {
   if (!player) return;
   refreshWorkedTiles(state);
   const mine = state.cities.filter((c) => c.owner === playerId).sort((a, b) => a.id - b.id);
+  // Income first, so a Global Exchange finishing this turn counts this turn's gold. Round 11:
+  // the empire's total, since leader bonuses add percents and per-turn amounts on top.
+  const income = empireIncome(state, playerId);
+  player.gold += income.gold;
+  player.science += income.science;
+  player.culture += income.culture;
+  // Read this turn's production before anything changes a city's size.
+  const production = new Map(mine.map((c) => [c.id, cityYields(state, c).production]));
   for (const city of mine) {
-    // Read this turn's yields before anything changes the city's size.
-    const production = cityYields(state, city).production;
-    const { science, gold } = cityScienceGold(state, city);
-    const culture = cityCulture(state, city);
-    // Income first, so a Global Exchange finishing this turn counts this turn's gold.
-    player.gold += gold;
-    player.science += science;
-    player.culture += culture;
     growCity(state, city);
-    produce(state, city, production);
+    produce(state, city, production.get(city.id)!);
   }
   refreshWorkedTiles(state);
 }

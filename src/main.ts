@@ -4,6 +4,7 @@ import type { Scenario } from './dev/scenarios';
 import { createGame } from './game/newGame';
 import type { GameState } from './game/types';
 import { App, type AppOptions } from './ui/app';
+import type { SetupChoice } from './ui/setup';
 import { preventBrowserGestures } from './ui/input';
 import { loadOrStart } from './ui/storage';
 
@@ -20,10 +21,11 @@ const playerCount =
     ? playersParam
     : RULES.defaultPlayers;
 
-function newGame(): GameState {
+/** A new game: from the New Game screen (Round 11: your civ, or random, and 1–4 rivals), else the URL's options. */
+function newGame(choice?: SetupChoice): GameState {
   // Picking a fresh seed is UI, not game logic, so the clock is fine here.
   const seed = Number.isFinite(seedParam) && seedParam > 0 ? Math.floor(seedParam) : Date.now() % 1_000_000_000;
-  return createGame({ seed, playerCount });
+  return createGame({ seed, playerCount: choice ? choice.rivals + 1 : playerCount, civ: choice?.civ });
 }
 
 async function boot(): Promise<void> {
@@ -61,6 +63,8 @@ async function boot(): Promise<void> {
   preventBrowserGestures();
   opts.notice = notice;
   const app = new App(state, opts);
+  // Round 11: the dev scenario for the New Game screen opens it straight away.
+  if (opts.scenario?.id === 'new-game-setup') app.openSetup();
 
   // Debug handle for diagnosing device-only bugs (e.g. from Safari's Web Inspector).
   (window as unknown as { __epoch: unknown }).__epoch = { app, seed: state.seed };

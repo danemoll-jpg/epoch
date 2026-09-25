@@ -1071,9 +1071,104 @@ Steps, Technical Notes.
   - **Observed, not fixed:**
     - Domination still never wins in the sim.
 
+* **Round 11 — Milestone 8: Dan's 12 leaders, starting techs, bonuses,
+  portraits, choosing your civ, and domination — done, awaiting Dan's
+  review.**
+  - **Result:** 585 unit tests passing (98 new). Type-check and production
+    build are clean, and the dev-code leak check passes. Preview-verified on
+    desktop and in iPad-sized touch emulation (768×1024 portrait and
+    1024×768 landscape). **Save format 10** (a v9 game loads, with the
+    original kept as a backup). Package version 0.11.0. Pushed; play server
+    restarted (see the end of this entry).
+  - **Mid-round addition from Dan:** his 12 portraits (512×512 PNG) were in
+    `docs/portraits-incoming/`. They're now in `src/assets/portraits/`,
+    renamed by civ id (the table is in `docs/PORTRAITS.md`), and the incoming
+    folder is gone. Each leader has a **`portraitFocus`** (face center x, y
+    and a zoom) in `src/data/civs.ts`; at **48 px and under** the game zooms
+    in on the face. Checked on `docs/portraits.html` (Kim Jong Un, Merkel,
+    Yushchenko, and JFK zoom 2.2×; the rest 1.8–2×).
+  - **Per-item status (coding round 11):**
+
+    | # | Item | Status | Verified by |
+    |---|------|--------|-------------|
+    | 0 | Commit docs first | Done (`be78388`), then re-read both. Nothing from last round's report was dropped | n/a |
+    | A1 | 12 civs | Done in `src/data/civs.ts`: Dan's 12 with grammar (`the Franks` plural, `the United States` singular), adjective, a distinct color (and distinct from the barbarians), 13–14 city names each (no name used by two civs), `aggression`/`tradeWillingness`, **`lean`** (primary/secondary, exactly Dan's table), and **`startTech`** (exactly Dan's table). **Starting techs come without prerequisites**; trading, research, the tech screen, and the AI all handle it (a known tech's prerequisites stay researchable; a starting tech can only be traded to a civ that knows its prerequisites). Babylon, Maurya, and the Inca are **`legacy`**: kept for old saves, never offered or drawn, no bonuses. Mali and the Franks keep their ids and colors, with the new bonuses | unit-tested (`tests/leaders.test.ts`: roster, table, grammar, legacy, starting-tech rule); `starting-tech` scenario |
+    | A2 | Bonuses | Done. Every bonus is **typed data** (`src/data/leaders.ts`, 45 small effect kinds) switched on by **one function** (`effects()` in `src/game/leaders.ts`: start + drawback always, each era's bonus once reached). Entering an era logs **"Medieval bonus: Legions. …"** (a toast). **Final table below, with the numbers I changed.** Unique actions: Pilgrimage, Dissolution, National Challenge, Return a liberated city (`src/game/uniques.ts`); Versailles (a wonder) and the Moonshot (a project) are built like any other. The AI uses them all | unit-tested: **every bonus and drawback** is checked against Babylon (no bonuses) in the same state; the unique actions and projects both ways (allowed, refused, once only) |
+    | B1 | New buildings | Done: Courthouse, Cathedral, Colosseum, University (needs Library), Bank (needs Marketplace), Factory, Power Plant (needs Factory), Research Lab (needs University), Stock Exchange (needs Bank), with the table's techs. New building field **`needs`** and effects `productionPct`, `gold`, `capturedFood`. **Courthouse "captured cities recover faster" = +1 food in a city you took** (so it regrows). The AI builds all 9 (`AI_BUILDING_ORDER`). Icons stay text. Era pace re-checked (below) | unit-tested (prerequisites, each effect, AI order); `pace.test.ts` passes |
+    | C1 | New Game setup screen | Done (`src/ui/setup.ts`): ☰ → New Game (and the end screen's New Game) open it. **12 civ cards** (portrait, leader, civ, color, starting tech, starting bonus); tap one to see **all its bonuses** at the top; **🎲 Random civ**; **Rivals − / +** (1–4, default 4); **Start**. Rivals are drawn at random (seeded) from the rest (`drawCivs`). The old game is backed up first (as before). Cards reflow: 3 columns in landscape, 2 in portrait. A **leader button** in the top bar (your portrait, civ, leader) opens your bonuses (reached ones bright, later ones dim) and the unique action buttons | unit-tested (choice, rivals 1–4, seeded, no repeats, random); preview-verified on desktop and in 768×1024 and 1024×768 emulation (picked Kim Jong Un, 2 rivals, Start: North Korea + Ukraine + Germany, knowing Archery) |
+    | C2 | Portraits | Done. `src/ui/portraits.ts` bundles `src/assets/portraits/<civ-id>.png` or `.webp` (a `.webp` wins); the placeholder is the initials on the civ color in a circle. Shown on the **civ cards, first contact, Diplomacy (list and detail, with their bonuses), demands and offers, the victory progress cards, the victory and defeat screens, the Return-a-city panel, the leader panel, and the top bar**. **`docs/PORTRAITS.md`** covers size, format, framing, the exact file names (all 12 listed), where to drop files, and the focus/zoom setting | unit-tested (every portrait present is square and ≥256 px; all 12 in place and listed in PORTRAITS.md; focus values sane; crop formula; initials); preview-verified (`portraits` scenario: Diplomacy list at 40 px, detail at 96 px) |
+    | C3 | `docs/portraits.html` | Done: all 12 at every size the game uses (128, 96, 64, 48, 40, 36, 28), the full picture with the focus point marked, and the placeholder. `build:play` copies it and the pictures into `dist-play/docs/`: **http://10.0.0.224:4173/docs/portraits.html**. `python scripts/make-portraits-page.py` refreshes its data from civs.ts; a test fails if they drift | unit-tested (data matches); preview-verified (dev server) |
+    | D1 | Personalities | Done. Goals now come from the **lean**: primary 8, secondary 5, others 2, plus 3 × progress, and **a tie goes to the primary lean** (a conqueror whose secondary is technology no longer flips at a full tree). The conquerors are **Caligula, Charlemagne, Kim Jong Un** (primary), with **Peter and Bolívar** secondary. **Deterrence** lowers every other AI's war score against Kim by 10 and its demand chance to a quarter | unit-tested (each starts on its primary; no drift; deterministic 30-turn replay; Deterrence −10) |
+    | D2 | Domination | Done: **domination wins happen** (sim below). Conquerors now: go to war at 1.1× strength (0.9× against a **runaway** leader, one ≥60% toward a culture or gold win, +3 war score); fight up to **3 wars** at once, and a war on a civ with **no cities left** no longer counts (it used to block every new war); stay at war while it goes their way (−2 peace desire, half war weariness); gather 5 before marching (or march at once when 4× stronger); accept 45% odds; build 3× the wartime attackers; research arms first; aim for **rival capitals** (and the runaway's cities), preferring targets on their own landmass; keep scouting by land and sea while any rival is unmet; and sail with 5. **Rule change: meeting a civ reveals where its capital is** (that tile is marked explored), for you and the AI; without it, North Korea fought Egypt for 60 turns without ever finding its capital. **Pacing (like the grace period):** before turn 160 a conqueror's plan isn't drawn to the *last* capital it needs (one game ended at t118 without it). **Victory goals raised:** culture 4000 → **6000**, gold 5500 → **9000** (the new culture buildings and bonuses made those wins land around t170) | `pace.test.ts` now also plays seed 122 to a domination win (after t150); `npm run sim -- leaders` |
+    | E1 | Migration v9 → v10 | Done: civs kept (legacy ones too); Mali and the Franks get their bonuses, legacy civs none; era bonuses for eras reached are on with **no payout**; **no starting tech** granted; the new buildings unlock by tech; each city's `founder` is its owner, except a captured capital, which remembers whose it was; no unique used, no Challenge; ships afloat count as built (Peter's discount). Backups as always | unit-tested (v9 → v10 with the three legacy civs, a captured capital, new buildings, plays on) |
+    | E2 | Dev scenarios | Done, 11 new: `new-game-setup` (opens the screen), `starting-tech`, `era-bonus`, `caligula-buy-wonder`, `mansa-pilgrimage`, `henry-dissolution`, `bolivar-liberate`, `jfk-challenge`, `versailles`, `deterrence`, `portraits`. Every number in their notes is computed. `ai-war` gained three Legions (Charlemagne, now a conqueror, marches with 5) | unit-tested (`tests/scenarios.test.ts`, 139); preview-verified on desktop: `new-game-setup`, `portraits`, `bolivar-liberate` (captured whole, returned, Mali friendly), `mansa-pilgrimage` (via the leader panel), `jfk-challenge` (19 → 28 science) |
+    | E3 | Unit tests | Done: 98 new (`tests/leaders.test.ts` 75, scenarios 22, pace 1). Roster; starting-tech rule; every bonus and drawback; unique actions and projects; buildings; rival drawing; the civ choice; portraits; personalities; a domination win in the sim; v9 → v10; every new scenario; `pace.test.ts` passes | `npm test`: 585 pass |
+
+  - **Final bonus table** (what's in `src/data/leaders.ts`; **bold** = a
+    number or reading I chose or changed):
+
+    | Leader | Start | Ancient | Medieval | Industrial | Modern | Unique / drawback |
+    |---|---|---|---|---|---|---|
+    | Hatshepsut | Wonders −15% | Meeting a civ +30 gold; +1 gold/turn per met civ (max 5) | Each wonder **in her cities** +3 culture, +2 gold | Harbors, Marketplaces −50% | +25% gold | Land units +10% (not Settlers or ships) |
+    | Caligula | Rush-buy −25% | +3 culture per fight won | Military units −20% | Buys wonders at 2× (only him) | Armies/fleets +25% | −10% gold |
+    | Charlemagne | Captures keep size and all buildings (Walls too) | Mounted units (Horseman, Chariot, Knight) start veteran | Captured cities +2 culture | 8+ cities: +1 production each | +2 culture per fight won | — |
+    | Mansa Musa | +1 gold per worked resource tile | Desert +1 trade; Oasis, Gold ×2 | Culture buildings −33% to rush-buy; **Pilgrimage** | Capital +50% gold | +25% gold | Pilgrimage: all gold (min 200) → 1.5× culture, **every met civ +3 opinion**, once |
+    | Henry VIII | Great People −20% culture | Temples, Cathedrals +1 culture | **Dissolution**: 40 gold per Temple/Cathedral, their culture −50% for 20 turns, once | Gifts ×2 opinion; **peace desire +1.5** | +25% culture | Breaking a treaty: **every civ that met him −2 opinion** (and world gossip) |
+    | Louis XIV | Wonders +50% culture | Wine, Silk, Spices, Gems, Gold +1 culture | Capital +1 culture, +1 gold per wonder | **Versailles** (**cost 220, needs Economics**, capital only): +10 culture, **+25% gold empire-wide**, +25% production on wonders there | +25% culture | −50% culture while a rival holds his capital |
+    | Peter the Great | Techs a met civ knows −25% | Ships in coastal cities +25% production | First ship of each type −50% | +2 science per met civ | +25% science while behind a met civ | — |
+    | Simón Bolívar | Liberation: +100 culture, +50 gold, keeps size | +25% attack vs civs with more cities | Return a liberated city: +150 culture, peace, **opinion → friendly (+6)**, only that turn | Captured cities +2 culture | +25% culture | −5% gold per captured city beyond 3 |
+    | John F. Kennedy | +10% science | Libraries, Universities −25% | First into an era: +50 culture | National Challenge: +50% science on one tech | **Moonshot (cost 250, Rocketry)**: +200 culture, +25% science; spaceship parts −50% production, **+100 gold each** | — |
+    | Viktor Yushchenko | Plains +1 food | Traded tech +20 science; AIs' willingness +1 | +2 science per met civ ahead | **+5% science per met civ at peace (max +20%)** (was 10%/30% per treaty) | +50 culture when losing a city or a war ends | — |
+    | Angela Merkel | Buildings −10% | City defenders +25% | Raids steal half; no starvation shrink | Factories +2 gold; +10% production | +25% science with a Factory | — |
+    | Kim Jong Un | Military-unlocking techs −25% | City defenders +25% | Military units −15% | Siege units and bombers +25% attack | Deterrence: **AI war score −10, demands ×¼** | −10% science and gold; AIs' willingness ×½ |
+
+    **Readings I chose (tell me if you want them different):** "peace
+    treaty" = any met civ you're at peace with (formal treaties only follow
+    a war, so they're rare); Versailles' +25% gold is empire-wide;
+    Hatshepsut's wonder bonus counts every wonder in her cities.
+  - **Sim (D2), 5 civs drawn from the 12, played to the first win:**
+    - **First 10 seeds (101…164):** culture 4, economic 3, technology 2,
+      **domination 1** (North Korea, t173). Wins t183–238 except that one;
+      none before 150.
+    - **20 seeds:** culture 10, economic 4, technology 4, **domination 2**
+      (North Korea t173, the Franks t227). Win turns 173–242, median 211.
+      Wins by civ (wins/games): Ukraine 4/11, France 3/10, Gran Colombia
+      3/10, Egypt 2/9, Germany 2/9, Franks 2/8, USA 2/8, North Korea 1/8,
+      Mali 1/5, England 0/6, Rome 0/7, Russia 0/9. Nobody dominates;
+      Ukraine is the strongest (I cut its peace science from 10%/30% to
+      5%/20% after it won 4 of 8).
+    - **Pace (`npm run sim`, seeds 8/13/21/33/42, 300 turns):** median
+      Medieval 61, Industrial 138, Modern 211 (targets 50–70, 120–150,
+      180–220); first full tree t173 (per seed 173–217, earlier than the
+      old ~250). Victories: culture ×2, economic ×3, t175–238.
+  - **Other changes worth knowing:**
+    - `techCost(state, playerId, tech)` and `itemCost(state, city, item)`,
+      `buyCost(state, city)` now take the state (leader discounts).
+      `empireIncome` returns culture too and applies empire-wide leader
+      percents after the cities' totals.
+    - New state: `City.founder`, `City.capturedTurn`; `Player.uniquesUsed`,
+      `dissolvedUntil`, `challenge`, `shipsBuilt`. Log kind `leader`.
+    - New actions: `pilgrimage`, `dissolution`, `setChallenge`,
+      `returnCity`.
+    - Units have `mounted` and `siege` flags.
+    - `npm run sim` reports also go to `sim-report.txt` (git-ignored):
+      Vitest 5 hides a passing test's console output. `npm run sim --
+      leaders` (SEEDS=20 for more) is the victory-mix report.
+  - **Observed, not fixed:**
+    - England, Rome, and Russia won none of their games in the 20-seed run.
+      Rome is a conqueror that often loses its wars early; worth a look in
+      the balance pass.
+    - The full tree now finishes earlier (t173–217) than the old ~250
+      target, because the new science buildings speed late research. Era
+      medians are still on target.
+
 ## Current Objective (Focus Area)
 
 ### Round 11 — Milestone 8: Dan's leader roster, starting techs, bonuses, portraits, and choosing your civ
+**STATUS (coding agent, 2026-09-24): every item below is done; see the Round
+11 entry at the end of Completed Tasks for the per-item report, the final
+bonus table, and the sim. Waiting for Dan's review.**
+
 **REVISED by Dan (2026-09-24), replacing the earlier 16-civ default list.**
 The roster is **Dan's own 12 leaders**. Each fits the game's existing
 mechanics as closely as possible, and **each civ starts with one free

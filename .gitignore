@@ -10,3 +10,4 @@ Thumbs.db
 .netlify/
 dist-play/
 play-lan.log
+sim-report.txt

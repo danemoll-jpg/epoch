@@ -3,6 +3,7 @@
 
 import type { Yields } from './terrain';
 import type { UnitTypeId } from './units';
+import type { TechId } from './techs';
 
 export type CityFocus = 'balanced' | 'food' | 'production' | 'trade';
 
@@ -246,12 +247,56 @@ export const RULES = {
     victory: {
       /** Each goal scores its personality base + this × its progress (0–1). */
       progressWeight: 3,
-      /** Technology's personality base (the others come from aggression and trade willingness). */
+      /** Technology's personality base for legacy civs (the others come from aggression and trade willingness). */
       techBase: 3.5,
+      /** Round 11: a leader's primary lean, its secondary, and every other goal. */
+      primaryBase: 8,
+      secondaryBase: 5,
+      otherBase: 2,
       /** An AI going for conquest adds this to its war score. */
       dominationWarBonus: 2,
       /** ...and keeps this many times more attackers in peacetime. */
       dominationOffenseFactor: 2,
+      // Round 11 (D2): conquerors that actually conquer.
+      /** A conqueror considers war once it's this much stronger (others: diplomacy.warMinStrengthRatio). */
+      dominationMinStrengthRatio: 1.1,
+      /** ...and this much more attack force per city at war. */
+      dominationWarOffenseFactor: 3,
+      /** Units (an army counts 3) it gathers before marching. */
+      dominationAttackForce: 5,
+      /** Its peace desire, less this while the war is going its way (or even). */
+      dominationStayAtWar: 2,
+      /** War weariness counts this share for a conqueror. */
+      dominationWearinessShare: 0.5,
+      /**
+       * A rival this far (0–1) toward a culture or gold win is a runaway: a conqueror gets this
+       * war-score bonus against it, and goes to war with it even at a smaller strength edge.
+       */
+      runawayProgress: 0.6,
+      runawayWarBonus: 3,
+      runawayMinStrengthRatio: 0.9,
+      /** Wars it may fight at once against civs that still have cities (others: one). */
+      dominationMaxWars: 3,
+      /** At this strength ratio over its target, it marches without gathering first. */
+      dominationRushRatio: 4,
+      /** It attacks at these odds or better (percent; others: combat.aiAttackMinChancePct). */
+      dominationAttackMinChancePct: 45,
+      /** Picking a target city: one overseas (no city of ours on its landmass) counts as this many tiles farther. */
+      overseasTargetPenalty: 8,
+      /** Picking a target city: a rival's capital counts as this many tiles closer. */
+      dominationCapitalPull: 20,
+      /**
+       * Pacing (like the grace period): before this turn, the last capital a conqueror needs
+       * doesn't pull its war plan, so AI domination wins don't come too early.
+       */
+      dominationPaceTurn: 160,
+      /** Techs a conqueror researches first (after any urgent ones). */
+      dominationResearch: [
+        'bronze_working', 'horseback_riding', 'iron_working', 'masonry', 'alphabet', 'mathematics', 'the_wheel', 'code_of_laws',
+        'monarchy', 'feudalism', 'currency', 'writing', 'chivalry', 'construction', 'invention', 'gunpowder', 'metallurgy',
+        'university', 'banking', 'democracy', 'conscription', 'physics', 'steam_engine', 'railroad', 'industrialization',
+        'machine_tools', 'electricity', 'refining', 'combustion', 'automobile', 'theory_of_gravity', 'flight',
+      ] as TechId[],
       /** An AI going for the economic win sets its science rate to this, to save gold. */
       economicScienceRate: 30,
       /** Gold piling up: past richGold + richGoldPerCity × cities, the science rate goes to richScienceRate... */

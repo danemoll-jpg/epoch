@@ -5,6 +5,7 @@ import type { HutResultKind } from '../data/barbarians';
 import type { BuildingId } from '../data/buildings';
 import type { GreatPersonKind } from '../data/greatPeople';
 import type { ResourceId } from '../data/resources';
+import type { UniqueId } from '../data/leaders';
 import type { CityFocus } from '../data/rules';
 import type { TechId } from '../data/techs';
 import type { TerrainId } from '../data/terrain';
@@ -68,6 +69,14 @@ export interface Player {
   greatPeople: number;
   /** Culture that doesn't count toward Great People (what a v7 save already had). */
   greatPeopleCultureBase: number;
+  /** Round 11: once-per-game leader actions and projects already used (Pilgrimage, Dissolution, Moonshot). */
+  uniquesUsed: UniqueId[];
+  /** Henry VIII's Dissolution: Temple and Cathedral culture is halved until this turn, or null. */
+  dissolvedUntil: number | null;
+  /** John F. Kennedy's National Challenge: the tech named as the goal, or null. */
+  challenge: TechId | null;
+  /** Ship types this player has finished (Peter the Great's cheaper first ship of each type). */
+  shipsBuilt: UnitTypeId[];
 }
 
 export interface SpaceProgram {
@@ -137,6 +146,13 @@ export interface City {
   worked: number[];
   /** Great People settled here for good (Round 9). */
   greatPeople: GreatPersonKind[];
+  /**
+   * The player who founded it (Round 11). A city whose founder isn't its owner was captured
+   * (or given): the Franks' and Gran Colombia's bonuses, the Courthouse, and Liberation read it.
+   */
+  founder: number;
+  /** The turn it last changed hands by capture (Round 11: Bolívar may return it that turn). */
+  capturedTurn?: number;
   /** The turn barbarians last raided the city, if ever. */
   lastRaid?: number;
   /** The turn its Airport last airlifted a unit (Round 10: once a turn). */
@@ -152,8 +168,9 @@ export interface City {
  * 7 = Round 8 (ships: cargo, and the AI's sea plans).
  * 8 = Round 9 (barbarians and villages, resources, huts, Great People).
  * 9 = Round 10 (aircraft: based in cities or on Carriers; the Airport's airlift).
+ * 10 = Round 11 (leaders: who founded each city, once-per-game actions, the National Challenge).
  */
-export const STATE_VERSION = 9;
+export const STATE_VERSION = 10;
 
 export interface GameState {
   version: number;
@@ -311,7 +328,9 @@ export interface LogEntry {
     // Round 9
     | 'village' | 'artifact' | 'hut' | 'raid' | 'greatPerson' | 'barbarians'
     // Round 10: an air strike (or a Helicopter's attack), and a fighter intercepting one.
-    | 'strike' | 'intercept';
+    | 'strike' | 'intercept'
+    // Round 11: a leader bonus paying out or switching on, and a leader's unique action.
+    | 'leader';
   /** Where it happened, so the UI can hide rival events the viewer can't see. */
   x?: number;
   y?: number;

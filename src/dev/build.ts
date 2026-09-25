@@ -53,6 +53,10 @@ export function makeState(
       space: newSpaceProgram(),
       greatPeople: 0,
       greatPeopleCultureBase: 0,
+      uniquesUsed: [],
+      dissolvedUntil: null,
+      challenge: null,
+      shipsBuilt: [],
     })),
     units: [],
     cities: [],
@@ -151,6 +155,7 @@ export function addCity(
     worked: [],
     greatPeople: [],
     ...extra,
+    founder: extra.founder ?? owner,
   };
   state.cities.push(city);
   refreshWorkedTiles(state);

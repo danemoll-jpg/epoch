@@ -449,7 +449,7 @@ describe('save migration v8 → v9', () => {
     if (res.kind !== 'ok') return;
     expect(res.migratedFrom).toBe(8);
     expect(res.state.version).toBe(STATE_VERSION);
-    expect(STATE_VERSION).toBe(9);
+    expect(STATE_VERSION).toBeGreaterThanOrEqual(9);
     expect(res.state.units.some((u) => UNITS[u.type].domain === 'air')).toBe(false);
     expect(res.state.players.every((p) => !p.techs.includes('advanced_flight'))).toBe(true);
     for (let i = 0; i < 3; i++) expect(applyAction(res.state, { type: 'endTurn' }).ok).toBe(true);

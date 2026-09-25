@@ -9,7 +9,13 @@ import { attackError, attackStrength, combatOdds, defenseStrength, formArmyError
 import { attitude, hasMet, metCivs } from '../src/game/diplomacy';
 import { distance } from '../src/game/grid';
 import { atWar } from '../src/game/war';
-import { buildOptions, buyError } from '../src/game/production';
+import { buildOptions, buyCost, buyError, itemCost } from '../src/game/production';
+import { createGame } from '../src/game/newGame';
+import { availableTechs } from '../src/game/tech';
+import { empireCulture, empireIncome } from '../src/game/yields';
+import { rushBuyCost } from '../src/data/rules';
+import { UNIQUE_RULES } from '../src/data/leaders';
+import { PLAYABLE_CIVS } from '../src/data/civs';
 import { deserializeGame, serializeGame } from '../src/game/save';
 import { playerEra } from '../src/game/tech';
 import type { City, GameState } from '../src/game/types';
@@ -54,6 +60,102 @@ function endTurn(s: GameState): void {
 
 /** What each scenario's note promises. A new scenario without an entry here fails the suite. */
 const OUTCOMES: Record<string, (s: GameState) => void> = {
+  // ---- Round 11: leaders ----
+  'new-game-setup': () => {
+    // What Start does: your civ first, rivals drawn from the rest, each with its starting tech.
+    const g = createGame({ seed: 11, playerCount: 3, civ: 'rome' });
+    expect(g.players[0]!.civId).toBe('rome');
+    const civs = g.players.filter((p) => p.kind !== 'barbarian').map((p) => p.civId);
+    expect(new Set(civs).size).toBe(3);
+    expect(g.players[0]!.techs).toEqual(['bronze_working']);
+  },
+  'starting-tech': (s) => {
+    const p = s.players[0]!;
+    expect(p.civId).toBe('russia');
+    expect(p.techs).toEqual(['map_making']);
+    expect(builds(s)).toContain('galley');
+    expect(availableTechs(p)).toContain('alphabet');
+    expect(availableTechs(p)).not.toContain('writing');
+    expect(s.turn).toBe(1);
+  },
+  'era-bonus': (s) => {
+    const legion = () => itemCost(s, capital(s), { kind: 'unit', id: 'legion' });
+    expect(legion()).toBe(UNITS.legion.cost);
+    endTurn(s);
+    expect(playerEra(s.players[0]!)).toBe('medieval');
+    expect(s.log.some((e) => e.player === 0 && e.kind === 'leader' && e.text.startsWith('Medieval bonus: Legions'))).toBe(true);
+    expect(legion()).toBe(Math.round(UNITS.legion.cost * 0.8));
+    expect(noteOf('era-bonus')).toContain(`costs ${Math.round(UNITS.legion.cost * 0.8)}`);
+  },
+  'caligula-buy-wonder': (s) => {
+    const c = capital(s);
+    expect(buyError(s, c)).toBeUndefined();
+    const price = buyCost(s, c)!;
+    expect(noteOf('caligula-buy-wonder')).toContain(`${price} gold`);
+    // Twice the usual price, less the 25% rush-buy discount.
+    expect(price).toBe(Math.ceil(rushBuyCost(itemCost(s, c, c.build!) - c.production) * 2 * 0.75));
+    expect(applyAction(s, { type: 'rushBuy', cityId: c.id }).ok).toBe(true);
+    endTurn(s);
+    expect(c.wonders).toContain('pyramids');
+  },
+  'mansa-pilgrimage': (s) => {
+    const before = s.diplomacy.opinion[1]![0]!;
+    const res = applyAction(s, { type: 'pilgrimage' });
+    expect(res.ok).toBe(true);
+    expect(s.players[0]!.gold).toBe(0);
+    expect(s.players[0]!.culture).toBe(600);
+    expect(s.diplomacy.opinion[1]![0]!).toBeGreaterThan(before);
+    s.players[0]!.gold = 500;
+    expect(applyAction(s, { type: 'pilgrimage' }).ok).toBe(false);
+  },
+  'henry-dissolution': (s) => {
+    const before = empireCulture(s, 0);
+    expect(applyAction(s, { type: 'dissolution' }).ok).toBe(true);
+    expect(s.players[0]!.gold).toBe(120);
+    expect(empireCulture(s, 0)).toBeLessThan(before);
+    expect(noteOf('henry-dissolution')).toContain(`drops to ${empireCulture(s, 0)} a turn`);
+    expect(applyAction(s, { type: 'dissolution' }).ok).toBe(false);
+  },
+  'bolivar-liberate': (s) => {
+    const army = s.units.find((u) => u.owner === 0 && u.army)!;
+    const res = applyAction(s, { type: 'attack', unitId: army.id, at: ENEMY });
+    expect(res.combat?.capturedCityId).toBeDefined();
+    const city = s.cities.find((c) => c.name === 'Djenné')!;
+    expect(city.owner).toBe(0);
+    expect(city.size).toBe(3);
+    expect(s.players[0]!.culture).toBe(100);
+    expect(s.players[0]!.gold).toBe(50);
+    expect(applyAction(s, { type: 'returnCity', cityId: city.id }).ok).toBe(true);
+    expect(city.owner).toBe(2);
+    expect(s.players[0]!.culture).toBe(100 + UNIQUE_RULES.returnCity.culture);
+    expect(attitude(s, 2, 0)).toBe('friendly');
+    // His army went home.
+    expect(s.units.some((u) => u.owner === 0 && u.x === city.x && u.y === city.y)).toBe(false);
+  },
+  'jfk-challenge': (s) => {
+    const before = empireIncome(s, 0).science;
+    expect(applyAction(s, { type: 'setChallenge', tech: 'physics' }).ok).toBe(true);
+    const after = empireIncome(s, 0).science;
+    expect(after).toBeGreaterThan(before);
+    expect(noteOf('jfk-challenge')).toContain(`rises to ${after} a turn`);
+    expect(applyAction(s, { type: 'setChallenge', tech: 'invention' }).ok).toBe(false);
+  },
+  versailles: (s) => {
+    expect(builds(s)).toContain('versailles');
+    const other = s.cities.find((c) => c.name === 'Marseille')!;
+    expect(buildOptions(s, other).map((i) => i.id)).not.toContain('versailles');
+  },
+  deterrence: (s) => {
+    for (let i = 0; i < 6; i++) {
+      endTurn(s);
+      expect(atWar(s, 0, 1)).toBe(false);
+    }
+    expect(noteOf('deterrence')).toMatch(/war score against you is -?\d/);
+  },
+  portraits: (s) => {
+    expect(s.players.map((p) => p.civId)).toEqual(PLAYABLE_CIVS.map((c) => c.id));
+    expect(metCivs(s, 0)).toHaveLength(11);
+  },
   // ---- Round 10: aircraft and the map icons ----
   'air-strike': (s) => {
     const bomber = mine(s, 'bomber');

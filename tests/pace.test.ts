@@ -4,7 +4,8 @@
 // than the targets, since three seeds are a small sample. `npm run sim` prints the full report.
 
 import { describe, expect, it } from 'vitest';
-import { medianTurn, simulate } from '../src/dev/sim';
+import { findCiv } from '../src/data/civs';
+import { medianTurn, playToVictory, simulate } from '../src/dev/sim';
 
 describe('research pace (all-AI simulation)', () => {
   it('civs move through the eras on schedule', () => {
@@ -30,5 +31,16 @@ describe('research pace (all-AI simulation)', () => {
       expect(r.victory, `seed ${r.seed}`).not.toBeNull();
       expect(r.victory!.turn, `seed ${r.seed}`).toBeGreaterThanOrEqual(150);
     }
+  }, 120_000);
+});
+
+// Round 11 (D2): the conquest-minded leaders can actually win by domination. Seed 122 draws
+// three conquerors (Franks, North Korea, Rome); `npm run sim -- leaders` has the full mix.
+describe('domination (all-AI simulation, Round 11)', () => {
+  it('a conqueror wins by domination in the report seeds, and not before turn 150', () => {
+    const r = playToVictory(122);
+    expect(r.victory?.kind).toBe('domination');
+    expect(r.victory!.turn).toBeGreaterThanOrEqual(150);
+    expect(findCiv(r.winnerCiv!)?.lean?.primary).toBe('domination');
   }, 120_000);
 });
