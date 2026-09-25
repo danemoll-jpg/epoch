@@ -10,6 +10,8 @@ import type { VictoryKind } from '../data/victory';
 import { aiVictoryGoal } from '../game/aiGoals';
 import { landmassAt } from '../game/mapgen';
 import { isAir, isShip } from '../game/naval';
+import { roadTilesNear } from '../game/roads';
+import { UNITS } from '../data/units';
 
 export interface CivPace {
   civId: string;
@@ -29,6 +31,21 @@ export interface CivPace {
   greatPeopleAt: Record<number, number>;
   /** Aircraft (not Helicopters) it had at the end of each listed turn (Round 10). */
   aircraftAt: Record<number, number>;
+  /** Round 12: road and rail tiles nearest its cities at the end of each listed turn. */
+  roadsAt: Record<number, number>;
+}
+
+/** Round 12: religion over the whole game. */
+export interface ReligionStats {
+  /** Each religion founded: by whom (civ id), with what (tech, or null = a national church), and when. */
+  founded: { name: string; civId: string; tech: string | null; turn: number }[];
+  /** Cities following any religion at turn 150, of all cities then. */
+  followersAt150: number;
+  citiesAt150: number;
+  /** Missionaries built, and cities converted by one (and in all, including passive spread). */
+  missionaries: number;
+  missionaryConversions: number;
+  conversions: number;
 }
 
 /** Barbarians, villages, and huts over the whole game (Round 9). */
@@ -66,6 +83,7 @@ export interface SimResult {
   intercepts: number;
   /** Cities taken by capture (not founded), for the domination check. */
   captures: number;
+  religion: ReligionStats;
   state: GameState;
 }
 
@@ -73,7 +91,9 @@ export interface SimResult {
 export function simulate(seed: number, turns: number, countUntil = 120, checkpoints = [25, 50, 100, 150, 200, 220, 250]): SimResult {
   const s = createGame({ seed, playerCount: 5 });
   for (const p of s.players) if (p.kind === 'human') p.kind = 'ai';
-  const civs: CivPace[] = s.players.map((p) => ({ civId: p.civId, eraTurn: { ancient: 1 }, techsAt: {}, cities: 0, alive: true, overseasCities: 0, shipsAt: {}, greatPeopleAt: {}, aircraftAt: {} }));
+  const civs: CivPace[] = s.players.map((p) => ({ civId: p.civId, eraTurn: { ancient: 1 }, techsAt: {}, cities: 0, alive: true, overseasCities: 0, shipsAt: {}, greatPeopleAt: {}, aircraftAt: {}, roadsAt: {} }));
+  const rel: ReligionStats = { founded: [], followersAt150: 0, citiesAt150: 0, missionaries: 0, missionaryConversions: 0, conversions: 0 };
+  const seenMissionaries = new Set<number>();
   const barbId = s.players.findIndex((p) => p.kind === 'barbarian');
   const barb: BarbarianStats = {
     villagesAtStart: s.villages.length, villagesDestroyed: 0, villagesSettled: 0, spawned: 0, killed: 0, raids: 0,
@@ -109,7 +129,12 @@ export function simulate(seed: number, turns: number, countUntil = 120, checkpoi
       if (e.kind === 'hut') barb.hutsEntered++;
       if (e.kind === 'artifact') barb.artifacts++;
       if (e.publicText?.includes('been eliminated') && e.other === barbId) barb.eliminationsByBarbarians++;
+      if (e.kind === 'religion' && / now follows /.test(e.text)) {
+        rel.conversions++;
+        if (e.text.includes('Missionary')) rel.missionaryConversions++;
+      }
     }
+    for (const u of s.units) if (UNITS[u.type].spreadsReligion) seenMissionaries.add(u.id);
     const nowBarb = new Set(s.units.filter((u) => u.owner === barbId).map((u) => u.id));
     for (const id of nowBarb) if (!barbUnits.has(id)) barb.spawned++;
     for (const id of barbUnits) if (!nowBarb.has(id)) barb.killed++;
@@ -147,7 +172,12 @@ export function simulate(seed: number, turns: number, countUntil = 120, checkpoi
           civs[q.id]!.shipsAt[turn] = s.units.filter((u) => u.owner === q.id && isShip(u)).length;
           civs[q.id]!.greatPeopleAt[turn] = q.greatPeople;
           civs[q.id]!.aircraftAt[turn] = s.units.filter((u) => u.owner === q.id && isAir(u)).length;
+          civs[q.id]!.roadsAt[turn] = roadTilesNear(s, q.id).length;
         }
+      }
+      if (turn === 150) {
+        rel.citiesAt150 = s.cities.length;
+        rel.followersAt150 = s.cities.filter((c) => c.religion !== null).length;
       }
       if (turn === countUntil) {
         for (const q of s.players) civs[q.id]!.alive = q.alive;
@@ -163,7 +193,9 @@ export function simulate(seed: number, turns: number, countUntil = 120, checkpoi
   const civList = civs.filter((_, i) => i !== barbId);
   const eliminated = civList.filter((c) => !c.alive).length;
   const goals = s.players.filter((q) => q.kind !== 'barbarian').map((q) => aiVictoryGoal(s, q.id));
-  return { seed, turns, civs: civList, warsDeclared, peaceTreaties, eliminated, victory: s.victory, goals, landings, barbarians: barb, strikes, intercepts, captures, state: s };
+  rel.founded = s.religions.map((r) => ({ name: r.name, civId: s.players[r.founder]!.civId, tech: r.tech, turn: r.foundedTurn }));
+  rel.missionaries = seenMissionaries.size;
+  return { seed, turns, civs: civList, warsDeclared, peaceTreaties, eliminated, victory: s.victory, goals, landings, barbarians: barb, strikes, intercepts, captures, religion: rel, state: s };
 }
 
 /** Median of the defined values (undefined counts as "later than any"). */

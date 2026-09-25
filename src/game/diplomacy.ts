@@ -35,6 +35,7 @@ import { attackStrength, winChance } from './combat';
 import { hasTech, learnTech, researchError, techCost } from './tech';
 import { atWar } from './war';
 import { bonusName, effectsOf, firstEffect, willingnessToward } from './leaders';
+import { faithOpinion } from './religion';
 import type { ActionResult, Diplomacy, GameState, Offer } from './types';
 
 const D = RULES.diplomacy;
@@ -156,10 +157,19 @@ export type Attitude = 'friendly' | 'neutral' | 'hostile';
 /** How `a` feels about `b`. Always hostile while they're at war. */
 export function attitude(state: GameState, a: number, b: number): Attitude {
   if (atWar(state, a, b)) return 'hostile';
-  const o = state.diplomacy.opinion[a]?.[b] ?? 0;
+  const o = opinionOf(state, a, b);
   if (o >= D.friendlyAt) return 'friendly';
   if (o <= D.hostileAt) return 'hostile';
   return 'neutral';
+}
+
+/**
+ * How `a` feels about `b` now: the opinion events built up, plus how their capitals' faiths
+ * compare (Round 12: shared +2, different −1). The faith part is never stored, so it changes
+ * the moment a capital converts.
+ */
+export function opinionOf(state: GameState, a: number, b: number): number {
+  return (state.diplomacy.opinion[a]?.[b] ?? 0) + faithOpinion(state, a, b);
 }
 
 export function changeOpinion(state: GameState, a: number, b: number, delta: number): void {
@@ -299,7 +309,7 @@ export function peaceDesire(state: GameState, ai: number, other: number): Desire
     { value: -going * D.peaceScoreWeight, yes: 'This war has cost us too much.', no: 'We are winning this war.' },
     { value: -(aggression - 3) * D.peaceAggressionWeight, yes: 'We never wanted this war.', no: 'We are not finished with you.' },
     { value: weariness, yes: 'Our people are tired of war.', no: '' },
-    { value: (d.opinion[ai]?.[other] ?? 0) * D.peaceOpinionWeight, yes: 'We would rather be friends.', no: 'We do not trust you.' },
+    { value: opinionOf(state, ai, other) * D.peaceOpinionWeight, yes: 'We would rather be friends.', no: 'We do not trust you.' },
   ];
   if (conqueror && going >= 0) factors.push({ value: -V.dominationStayAtWar, yes: '', no: 'Our conquest has only begun.' });
   // Round 11: Henry VIII's royal marriages make peace easier to agree to.
@@ -568,7 +578,7 @@ export function warScore(state: GameState, ai: number, target: number): number {
   return (
     (Math.min(ratio, 4) - D.warMinStrengthRatio) * D.warStrengthWeight +
     (aggression - 3) * D.warAggressionWeight -
-    (state.diplomacy.opinion[ai]?.[target] ?? 0) * D.warOpinionWeight +
+    opinionOf(state, ai, target) * D.warOpinionWeight +
     conquest -
     deterrence
   );

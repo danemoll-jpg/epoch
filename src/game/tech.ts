@@ -23,6 +23,9 @@ import { WONDER_LIST, type WonderDef } from '../data/wonders';
 import { CivName } from './conquest';
 import { effectsOf, eraBonus, techCostPct } from './leaders';
 import { addLog } from './log';
+import { checkFoundings } from './religion';
+import { upgradeRails } from './roads';
+import { ROADS } from '../data/roads';
 import type { ActionResult, GameState, Player } from './types';
 import { empireIncome } from './yields';
 
@@ -134,6 +137,12 @@ export function learnTech(state: GameState, playerId: number, tech: TechId, text
   // The National Challenge is met: a new one can be named.
   if (player.challenge === tech) player.challenge = null;
   addLog(state, playerId, text);
+  // Round 12: the first to a founding tech founds a religion; Railroad turns roads into rails.
+  checkFoundings(state, playerId);
+  if (tech === ROADS.railTech) {
+    const n = upgradeRails(state, playerId);
+    if (n) addLog(state, playerId, `Railroad: ${n} road tile${n === 1 ? '' : 's'} near your cities became rail`, undefined, undefined, { kind: 'road' });
+  }
   const eraAfter = playerEra(player);
   if (eraAfter !== eraBefore) {
     const era = eraName(eraAfter);

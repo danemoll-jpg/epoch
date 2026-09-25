@@ -13,6 +13,7 @@ import { processResearch } from './tech';
 import { checkVictory, issueWarnings } from './victory';
 import type { ActionResult, GameState } from './types';
 import { chooseVillage, pendingVillage } from './villages';
+import { checkFoundings, spreadReligions } from './religion';
 
 function startTurnFor(state: GameState, playerId: number): void {
   for (const u of state.units) {
@@ -31,13 +32,21 @@ export function endTurn(state: GameState): ActionResult {
   processResearch(state, state.currentPlayer);
   // The turn's culture is in: any Great People earned (Round 9). An AI uses its own at once.
   checkGreatPeople(state, state.currentPlayer);
+  // Round 12: a civ that knows a founding tech but had no city to found in (a starting tech).
+  checkFoundings(state, state.currentPlayer);
   const n = state.players.length;
   let next = state.currentPlayer;
+  let newTurn = false;
   for (let i = 0; i < n; i++) {
     next = (next + 1) % n;
-    if (next === 0) state.turn++;
+    if (next === 0) {
+      state.turn++;
+      newTurn = true;
+    }
     if (state.players[next]!.alive) break;
   }
+  // Round 12: religions spread once a game turn, before the first player moves.
+  if (newTurn) spreadReligions(state);
   state.currentPlayer = next;
   startTurnFor(state, next);
   // Wonders just finished, captures during the turn, a spaceship arriving at this turn's start.

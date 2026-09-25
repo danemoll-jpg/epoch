@@ -24,6 +24,9 @@ import { effectsOf, firstEffect, leaderCost, rushBuyPct, uniqueBuildError, wonde
 import { UNIQUE_RULES } from '../data/leaders';
 import { cityYields, empireIncome, empireWonderEffect, foodSurplus, refreshWorkedTiles, settled } from './yields';
 import type { ActionResult, BuildItem, City, GameState, Unit } from './types';
+import { missionaryBuildError } from './religion';
+import { RELIGION } from '../data/religion';
+import { upgradeRails } from './roads';
 
 export function findCity(state: GameState, cityId: number): City | undefined {
   return state.cities.find((c) => c.id === cityId);
@@ -79,6 +82,8 @@ export function buildChoiceError(state: GameState, city: City, item: BuildItem):
   // Round 11: some buildings need another first (a University needs a Library).
   const needs = item.kind === 'building' ? BUILDINGS[item.id].needs : undefined;
   if (needs && !city.buildings.includes(needs)) return `Needs a ${BUILDINGS[needs].name}`;
+  // Round 12: a Missionary needs a religion in the city (and Monotheism or its founding tech).
+  if (item.kind === 'unit' && UNITS[item.id].spreadsReligion) return missionaryBuildError(state, city);
   const requires = itemRequires(item);
   if (!hasTech(state.players[city.owner]!, requires)) return `Needs ${TECHS[requires!].name}`;
   // A second tech (the Stealth Bomber, Round 10).
@@ -245,6 +250,11 @@ function spawnUnit(state: GameState, city: City, type: Unit['type']): Unit {
     army: false,
     carriedBy: null,
   };
+  // Round 12: a Missionary carries its city's religion.
+  if (UNITS[type].spreadsReligion && city.religion !== null) {
+    unit.religion = city.religion;
+    unit.charges = RELIGION.missionaryCharges;
+  }
   state.units.push(unit);
   return unit;
 }
@@ -331,6 +341,8 @@ function completeMoonshot(state: GameState, city: City): void {
 export function processCities(state: GameState, playerId: number): void {
   const player = state.players[playerId];
   if (!player) return;
+  // Round 12: with Railroad, roads near its cities (new ones, captured ones) become rails.
+  upgradeRails(state, playerId);
   refreshWorkedTiles(state);
   const mine = state.cities.filter((c) => c.owner === playerId).sort((a, b) => a.id - b.id);
   // Income first, so a Global Exchange finishing this turn counts this turn's gold. Round 11:

@@ -117,6 +117,8 @@ export function createGame(opts: NewGameOptions): GameState {
     villages: [],
     greatPeople: [],
     greatPeopleNames: [],
+    religions: [],
+    religionTechsLapsed: [],
   };
 
   players.forEach((p, i) => {

@@ -1,4 +1,4 @@
-// Tech tree (Milestone 3). Four eras, 55 techs (Round 8 added four sea techs, Round 10 Advanced Flight), each with prerequisites, an era, and a
+// Tech tree (Milestone 3). Four eras, 56 techs (Round 8 added four sea techs, Round 10 Advanced Flight, Round 12 Theology), each with prerequisites, an era, and a
 // cost tier (its depth in the tree). What a tech unlocks is declared on the thing it unlocks
 // (`requires` on units, buildings, and wonders), so adding a unit never touches this file.
 // Names are common historical terms; the descriptions are our own.
@@ -28,7 +28,7 @@ export type TechId =
   // Medieval
   | 'monarchy' | 'literacy' | 'philosophy' | 'construction' | 'feudalism' | 'chivalry'
   | 'engineering' | 'trade' | 'astronomy' | 'monotheism' | 'banking' | 'university'
-  | 'invention' | 'seafaring' | 'navigation' | 'magnetism'
+  | 'invention' | 'seafaring' | 'navigation' | 'magnetism' | 'theology'
   // Industrial
   | 'gunpowder' | 'physics' | 'theory_of_gravity' | 'metallurgy' | 'democracy'
   | 'economics' | 'chemistry' | 'steam_engine' | 'railroad' | 'electricity' | 'conscription'
@@ -88,6 +88,8 @@ export const TECH_LIST: TechDef[] = [
   tech('university', 'University', 'medieval', 5, ['astronomy', 'philosophy'], 'Scholars gather to teach and to question.'),
   tech('invention', 'Invention', 'medieval', 5, ['engineering', 'literacy'], 'New devices from careful tinkering.'),
   tech('magnetism', 'Magnetism', 'medieval', 5, ['navigation', 'iron_working'], 'A needle that always points north, in any weather.'),
+  // Round 12: the last founding tech for a religion.
+  tech('theology', 'Theology', 'medieval', 6, ['monotheism', 'feudalism'], 'Scholars write down what the faithful believe, and argue over every word.'),
 
   // ---- Industrial ----
   tech('gunpowder', 'Gunpowder', 'industrial', 6, ['invention', 'iron_working'], 'A powder that burns fast enough to throw lead.'),

@@ -18,7 +18,9 @@ const USED = usedIcons();
 
 describe('icons', () => {
   it('every unit, ships and aircraft included, has an icon', () => {
-    for (const id of UNIT_IDS) expect(UNITS[id].icon, id).toBeDefined();
+    // Round 12: the Missionary waits for Dan's pick (letters until then).
+    for (const id of UNIT_IDS) if (!UNITS[id].iconPending) expect(UNITS[id].icon, id).toBeDefined();
+    expect(UNIT_IDS.filter((id) => UNITS[id].iconPending)).toEqual(['missionary']);
   });
 
   it('every resource, Great Person, and map feature has an icon', () => {

@@ -26,6 +26,7 @@ import { atWar } from './war';
 import { addLog } from './log';
 import { effectsOf } from './leaders';
 import { cityCulture, cityScienceGold, cityYields } from './yields';
+import { artistConvertError, convertCity, ownReligion } from './religion';
 
 /** Culture needed (since the civ's starting point) for its n-th Great Person (n from 0). */
 export function greatPersonThreshold(n: number): number {
@@ -97,7 +98,9 @@ export function checkGreatPeople(state: GameState, playerId: number): GreatPerso
 
 export type GreatPersonUse =
   | { mode: 'settle'; cityId: number }
-  | { mode: 'use'; cityId?: number; at?: Coord };
+  | { mode: 'use'; cityId?: number; at?: Coord }
+  /** Round 12: a Great Artist converts a city to its owner's religion. */
+  | { mode: 'convert'; cityId: number };
 
 /** Cities where an Engineer could finish something now: building a wonder or a building not yet paid for. */
 export function engineerCities(state: GameState, owner: number): City[] {
@@ -128,6 +131,10 @@ export function greatPersonError(state: GameState, gp: GreatPerson, how: GreatPe
   if (how.mode === 'settle') {
     if (!city || city.owner !== gp.owner) return 'Choose one of your cities';
     return undefined;
+  }
+  if (how.mode === 'convert') {
+    if (gp.kind !== 'artist') return 'Only a Great Artist can convert a city';
+    return artistConvertError(state, gp.owner, city);
   }
   switch (gp.kind) {
     case 'scientist':
@@ -169,6 +176,10 @@ export function useGreatPerson(state: GameState, gpId: number, how: GreatPersonU
   if (how.mode === 'settle') {
     city!.greatPeople.push(gp.kind);
     message = `${gp.name} settled in ${city!.name}: ${def.settleText}`;
+  } else if (how.mode === 'convert') {
+    const r = ownReligion(state, gp.owner)!;
+    convertCity(state, city!, r, 'artist', gp.owner);
+    message = `${gp.name}'s work moved ${city!.name} to follow ${r.name}`;
   } else {
     switch (gp.kind) {
       case 'scientist': {

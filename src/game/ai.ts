@@ -37,6 +37,12 @@
 //
 // The air (Round 10, aiAir.ts): fighters for defense in border and coastal cities; at war,
 // bombers. Aircraft strike (and rebase toward the front) before the land units move.
+//
+// Religion and roads (Round 12, religion.ts and roads.ts): religions are founded
+// automatically; in peacetime a city of its religion builds a Missionary (two out at most)
+// when there's a city nearby to convert, and Missionaries go to their own cities first, then
+// friends' (their capitals above all). Spare gold buys one road a turn: toward the war target
+// at war, else the cheapest missing link between two of its cities.
 
 import { AI_BUILDING_ORDER, type BuildingId } from '../data/buildings';
 import { RULES } from '../data/rules';
@@ -64,6 +70,8 @@ import type { TechId } from '../data/techs';
 import { atWar } from './war';
 import type { AiPlan, BuildItem, City, Coord, GameState, Unit } from './types';
 import { aiUseUniques } from './uniques';
+import { aiMissionaryBuild, aiReligion, playMissionary } from './religion';
+import { aiBuyRoads } from './roads';
 import { PROJECT_IDS } from '../data/victory';
 
 const AI = RULES.ai;
@@ -362,6 +370,11 @@ export function chooseBuild(state: GameState, city: City, ctx: BuildContext = bu
   const warOffense = AI.offensePerCityWar * (ctx.goal === 'domination' ? AI.victory.dominationWarOffenseFactor : 1);
   if (ctx.atWar && military < kept + Math.ceil(mine.length * warOffense)) return attacker;
 
+  // Round 12: a Missionary to spread its religion, in peacetime.
+  if (!ctx.atWar) {
+    const mission = aiMissionaryBuild(state, city, (item) => buildChoiceError(state, city, item));
+    if (mission) return mission;
+  }
   if (wonder && ctx.goal === 'culture') return { kind: 'wonder', id: wonder };
   if (navy.warship) return { kind: 'unit', id: navy.warship };
   if (air.fighter) return { kind: 'unit', id: air.fighter };
@@ -403,6 +416,8 @@ function manageCities(state: GameState, playerId: number): void {
     if (player.gold - buyCost(state, c)! < reserve) break;
     rushBuy(state, c.id);
   }
+  // Round 12: a road with what's left over.
+  aiBuyRoads(state, playerId, reserve);
 }
 
 /**
@@ -424,16 +439,36 @@ function setAiScienceRate(state: GameState, playerId: number, goal: VictoryKind)
  * Captures an adjacent undefended enemy city, or attacks the adjacent enemy with the best
  * odds if they clear the threshold (an enemy city is preferred on a tie). True if it acted.
  */
+/**
+ * Round 12 pacing (Round 11's rule, made firm): before `dominationPaceTurn`, an AI leaves alone
+ * the one city whose capture would win it the game at once (the last rival capital it needs, or
+ * the last city of the last rival standing), when that rival is another AI. Religion's extra
+ * gold and culture brought an all-AI domination win at turn 130 in the sim.
+ */
+function wouldWinTooSoon(state: GameState, p: number, city: City | undefined): boolean {
+  if (!city || state.turn >= AI.victory.dominationPaceTurn) return false;
+  const held = capitalsHeld(state, p);
+  if (held.of - held.held !== 1) return false;
+  const last = state.players.find(
+    (q) => q.id !== p && q.kind !== 'barbarian' && q.alive && !state.cities.some((c) => c.capitalOf === q.id && c.owner === p),
+  );
+  // It holds back only against another AI: the human gets no protection from a conqueror.
+  if (!last || last.kind !== 'ai') return false;
+  if (city.capitalOf === last.id) return true;
+  return city.owner === last.id && state.cities.filter((c) => c.owner === last.id).length === 1;
+}
+
 export function tryCombat(state: GameState, unit: Unit): boolean {
   // Round 11: a conqueror accepts worse odds.
   const minPct = aiVictoryGoal(state, unit.owner) === 'domination' ? AI.victory.dominationAttackMinChancePct : RULES.combat.aiAttackMinChancePct;
   if (UNITS[unit.type].attack <= 0 || unit.movesLeft <= 0) return false;
   for (const n of neighbors(state.map, unit)) {
+    if (wouldWinTooSoon(state, unit.owner, cityAt(state, n.x, n.y))) continue;
     if (capturableCity(state, unit, n)) return moveUnit(state, unit.id, n).ok;
   }
   let best: { at: Coord; chance: number; score: number } | undefined;
   for (const n of neighbors(state.map, unit)) {
-    if (attackError(state, unit, n)) continue;
+    if (attackError(state, unit, n) || wouldWinTooSoon(state, unit.owner, cityAt(state, n.x, n.y))) continue;
     const odds = combatOdds(state, unit, n)!;
     const score = odds.chance + (cityAt(state, n.x, n.y) ? 0.05 : 0);
     if (!best || score > best.score) best = { at: n, chance: odds.chance, score };
@@ -511,6 +546,7 @@ function choosePlan(state: GameState, playerId: number): AiPlan | null {
   let best: { city: City; d: number } | undefined;
   for (const c of state.cities) {
     if (!atWar(state, playerId, c.owner) || explored[tileIndex(state.map, c.x, c.y)] !== 1) continue;
+    if (wouldWinTooSoon(state, playerId, c)) continue;
     const home = nearestCity(mine, c);
     const overseas = !mine.some((m) => landmassAt(state.map, m) === landmassAt(state.map, c)) ? AI.victory.overseasTargetPenalty : 0;
     const capital = c.capitalOf !== null && c.capitalOf !== playerId && state.players[c.owner]?.kind !== 'barbarian' && !lastOne;
@@ -581,6 +617,8 @@ export function runAiTurn(state: GameState, playerId: number): void {
   if (!launchError(state, playerId)) launchSpaceship(state);
   setAiScienceRate(state, playerId, aiVictoryGoal(state, playerId));
   runAiDiplomacy(state, playerId);
+  // Round 12: Henry VIII's national church.
+  aiReligion(state, playerId);
   formArmies(state, playerId);
   const plan = updatePlan(state, playerId);
   updateFerry(state, playerId, ctx.boxedIn, plan);
@@ -637,6 +675,14 @@ export function runAiTurn(state: GameState, playerId: number): void {
     }
     if (UNITS[unit.type].canFoundCity) {
       playSettler(state, unit);
+      continue;
+    }
+    // Round 12: a Missionary spreads its faith, else waits at home.
+    if (UNITS[unit.type].spreadsReligion) {
+      if (!playMissionary(state, unit, (u, to) => moveUnitToward(state, u.id, to).ok)) {
+        const home = nearestCity(citiesOf(state, playerId), unit);
+        if (home) goHome(state, unit, home);
+      }
       continue;
     }
     if (guards.has(id)) {

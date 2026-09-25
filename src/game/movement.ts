@@ -13,6 +13,9 @@
 // Aircraft (Round 10, see air.ts) never walk: a 'move' order for one is a rebase. The
 // Helicopter hovers: it goes onto any tile, water and mountains too, at 1 move a tile, never
 // boards a ship, and never captures a city.
+//
+// Roads (Round 12, see roads.ts): a land unit stepping from one road tile (or city) to another
+// pays 1/3 of a move, 1/10 on rails, so moves can be fractional. Everyone uses every road.
 
 import { TERRAIN } from '../data/terrain';
 import { UNITS } from '../data/units';
@@ -23,6 +26,7 @@ import { updateContacts } from './diplomacy';
 import { updateExplored } from './fog';
 import { airRoom, cargoCapacity, cargoRoom, carriedBy, hovers, isAir, isShip, isWaterAt, shipTerrainError, shipWithRoom, terrainAllows } from './naval';
 import { rebase, rebaseTargets } from './air';
+import { roadStepCost } from './roads';
 import { atWar } from './war';
 import { enterTile, pendingVillage } from './villages';
 import type { ActionResult, Coord, GameState, Unit } from './types';
@@ -54,9 +58,23 @@ export function moveCost(state: GameState, x: number, y: number): number {
   return tile ? TERRAIN[tile.terrain].moveCost : Infinity;
 }
 
-/** What a unit pays to step onto a tile: ships and Helicopters 1 a tile, land units the terrain's cost. */
-function stepCost(state: GameState, unit: Unit, to: Coord): number {
-  return isShip(unit) || hovers(unit) ? 1 : moveCost(state, to.x, to.y);
+/**
+ * What a unit pays to step from `from` onto a neighbor: ships and Helicopters 1 a tile, land
+ * units the terrain's cost, or less along a road (Round 12).
+ */
+export function stepCost(state: GameState, unit: Unit, from: Coord, to: Coord): number {
+  if (isShip(unit) || hovers(unit)) return 1;
+  const terrain = moveCost(state, to.x, to.y);
+  const road = roadStepCost(state, from, to);
+  return road === undefined ? terrain : Math.min(terrain, road);
+}
+
+/** Tiny leftovers from fractional road moves (1 − 3 × 1/3) count as nothing. */
+const EPS = 1e-6;
+
+function spend(left: number, cost: number): number {
+  const after = left - cost;
+  return after < EPS ? 0 : Math.round(after * 1e6) / 1e6;
 }
 
 /** How a legal step happens: an ordinary move, boarding a ship there, or going ashore from one. */
@@ -95,9 +113,9 @@ export function stepError(state: GameState, unit: Unit, to: Coord): string | und
   if (occupiedByOthers(state, unit.owner, to.x, to.y) && !capturableCity(state, unit, to)) return blockedReason(state, unit, to);
   if (!isShip(unit) && !hovers(unit) && kind.kind !== 'board' && !TERRAIN[tileAt(state.map, to.x, to.y)!.terrain].landPassable) return 'Tile is impassable';
   if (kind.kind !== 'move') return undefined; // boarding and going ashore take whatever moves are left
-  const cost = stepCost(state, unit, to);
+  const cost = stepCost(state, unit, unit, to);
   const full = UNITS[unit.type].moves;
-  if (cost > unit.movesLeft && unit.movesLeft < full) return 'Not enough moves left';
+  if (cost > unit.movesLeft + EPS && unit.movesLeft < full) return 'Not enough moves left';
   return undefined;
 }
 
@@ -121,11 +139,12 @@ export function moveUnit(state: GameState, unitId: number, to: Coord): ActionRes
   const captured = capturableCity(state, unit, to);
   // Everything aboard (land units, and aircraft on a Carrier) sails with the ship.
   const cargo = isShip(unit) ? carriedBy(state, unit) : [];
+  const cost = stepCost(state, unit, unit, to);
   unit.x = to.x;
   unit.y = to.y;
   unit.fortified = false;
   if (kind.kind === 'move') {
-    unit.movesLeft = Math.max(0, unit.movesLeft - stepCost(state, unit, to));
+    unit.movesLeft = spend(unit.movesLeft, cost);
   } else {
     unit.movesLeft = 0;
     unit.carriedBy = kind.kind === 'board' ? kind.shipId : null;
@@ -214,7 +233,7 @@ export function findPath(state: GameState, unit: Unit, to: Coord): Coord[] | und
       if (done.has(k)) continue;
       const isKnown = known(k);
       if (isKnown && !canEnter(state, unit, n.x, n.y) && !(k === goal && boardGoal)) continue;
-      const nc = cost.get(cur)! + (isKnown && !isShip(unit) && !hovers(unit) ? moveCost(state, n.x, n.y) : 1);
+      const nc = cost.get(cur)! + (isKnown && !isShip(unit) && !hovers(unit) ? stepCost(state, unit, c, n) : 1);
       if (nc < (cost.get(k) ?? Infinity)) {
         cost.set(k, nc);
         prev.set(k, cur);
@@ -305,9 +324,9 @@ function walkable(state: GameState, unit: Unit): Coord[] {
     if (left <= 0) continue;
     for (const n of neighbors(map, cur)) {
       if (!canEnter(state, unit, n.x, n.y)) continue;
-      const cost = stepCost(state, unit, n);
-      if (cost > left && left < full) continue;
-      const after = Math.max(0, left - cost);
+      const cost = stepCost(state, unit, cur, n);
+      if (cost > left + EPS && left < full) continue;
+      const after = spend(left, cost);
       const k = key(n);
       if ((best.get(k) ?? -1) >= after) continue;
       if (!best.has(k)) out.push(n);

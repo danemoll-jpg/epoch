@@ -160,7 +160,7 @@ debugging, including from Safari's Web Inspector on the iPad.
 completes inside Safari's `pagehide`). Saved after every successful action
 (including End Turn), on `visibilitychange` → hidden, and on `pagehide`.
 The save carries `saveVersion` (= `STATE_VERSION` in `src/game/types.ts`,
-currently 10). **Bump `STATE_VERSION` whenever the state shape changes, and
+currently 11). **Bump `STATE_VERSION` whenever the state shape changes, and
 add a migration** to `MIGRATIONS` in `src/game/save.ts` (keyed by the
 version it upgrades from), plus a line in `MIGRATION_NOTES` for the notice,
 so Dan's game carries forward. Migrated so far: 2 → 3 (M3: no techs,
@@ -180,7 +180,10 @@ is simply absent), and 9 → 10 (Round 11: every civ kept, legacy ones
 included; bonuses come from the civ and its era, so no payouts and no
 starting tech; each city's `founder` is its owner, except a captured
 capital, which remembers whose it was; no unique used, no Challenge; ships
-afloat count as built).
+afloat count as built), and 10 → 11 (Round 12: no religions and no city
+follows one; a founding tech any civ already knows is "lapsed"
+(`religionTechsLapsed`) and founds nothing, but the next unknown one still
+can; no roads; no Missionaries; Theology is simply unknown).
 
 **Backups: a save is never thrown away.** All startup and replace logic
 is in `src/ui/storage.ts` (`loadOrStart`, `backupCurrentSave`,
@@ -216,7 +219,11 @@ never autosaves**, so the real game can't be overwritten. Current set:
 `new-game-setup` (opens the New Game screen), `starting-tech`, `era-bonus`,
 `caligula-buy-wonder`, `mansa-pilgrimage`, `henry-dissolution`,
 `bolivar-liberate`, `jfk-challenge`, `versailles`, `deterrence`,
-`portraits`. The leader ones use `asLeader(state, civId, techs)` (player 0
+`portraits`; (round 12) `found-religion`, `missionary`, `religion-spread`,
+`holy-city-income`, `shared-faith`, `henry-national-church`, `build-road`,
+`road-speed`, `railroad`, `all-religion-symbols`. The religion ones use
+`withReligion(state, p, city, name)` (founds it already named, so no
+naming panel pops up). The leader ones use `asLeader(state, civId, techs)` (player 0
 plays that civ; its era follows from the techs). Scenario states from
 `makeState` use the legacy civs (Babylon, Maurya, Mali, Inca, Franks), so
 older scenarios and tests have no leader bonuses except Mali's and the
@@ -262,15 +269,26 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   `coastOnly` (Galley), `stealth` (Submarine); Round 10's `range`,
   `airAttack` (strength against aircraft), `evadePct` (Stealth Bomber),
   `airCargo` (Carrier: 3), `hover` (Helicopter), `alsoRequires` (a second
-  tech); 16 land units counting the Helicopter, 9 ships, 4 based aircraft),
+  tech); Round 12's `spreadsReligion` and `iconPending` (the Missionary:
+  letters until Dan picks its icon); 17 land units counting the Helicopter
+  and the Missionary, 9 ships, 4 based aircraft),
   `icons.ts` (each used icon's CC BY 3.0 credit, `MAP_ICONS` for the
   village/hut/barbarian badge/artifact, and `usedIcons()`, the list the
   credits and the icon test use),
   buildings (`requires` tech; Walls' `defenseBonusPct`; Temple culture;
   Harbor `coastal` + `waterFood`; Round 10's Airport: `veteranAircraft`,
   `airlift`; AI building order), `techs.ts` (eras,
-  the 55 techs with prereqs/era/tier/description, the tech cost formula,
-  AI research priority), `wonders.ts` (13 wonders + the 2 victory wonders:
+  the 56 techs with prereqs/era/tier/description (Round 12 added the
+  Medieval Theology), the tech cost formula, AI research priority),
+  `religion.ts` (Round 12: `FOUNDING_TECHS`, the 8 `RELIGION_SYMBOLS`
+  (color, name, stand-in letter), `RELIGION_NAMES` (our invented names for
+  the AI and "Suggest"), and `RELIGION`: max religions 5, **one per civ**
+  (`maxPerCiv`), spread radius and pressure weights, chance per pressure,
+  switching, holy-city and follower yields, the faith opinion, the
+  conversion reward, Missionary charges, the AI's Missionary cap),
+  `roads.ts` (Round 12: `ROADS`: gold per tile, max distance, road and
+  rail move costs, road trade, rail production, the rail tech, the AI's
+  link distance, reserve, and war distance), `wonders.ts` (13 wonders + the 2 victory wonders:
   cost, tech, city/empire effects, free building, `victory`), `victory.ts`
   (culture and gold goals, spaceship parts/cost/travel turns, warning line,
   the spaceship-part "project"), `civs.ts`
@@ -281,8 +299,9 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   secondary victory), `startTech`, `portraitFocus` (face x, y, zoom for
   small sizes), `PLAYABLE_CIVS`, `leaderInitials`), `leaders.ts` (Round
   11: each leader's start, era, and drawback bonuses as typed effects,
-  `UNIQUE_RULES` for the Pilgrimage, Dissolution, Challenge, Return, and
-  Moonshot), rule constants (`rules.ts`: growth, focus
+  `UNIQUE_RULES` for the Pilgrimage, Dissolution, Challenge, Return,
+  Moonshot, and Round 12's national church; effect kinds `roadCost`
+  (Merkel) and `roadGold` (Hatshepsut)), rule constants (`rules.ts`: growth, focus
   weights, rush-buy formula, science rate, `RULES.combat` (fortify/veteran/
   city bonuses, army size and multiplier, veteran chance, AI attack
   threshold), `RULES.map` (land share, 3–4 continents and the water
@@ -309,7 +328,19 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   `GREAT_PEOPLE_RULES`:
   thresholds and every effect's number). `TECH_COST.perKnown` is 8.5 since
   round 9 (was 6) to keep the era pace.
-- `src/game/`: pure rules. Round 11: `leaders.ts` (the one place that
+- `src/game/`: pure rules. Round 12: `religion.ts` (founding and naming,
+  `checkFoundings` after a tech and at each player's end of turn, passive
+  spread once a game turn in `spreadReligions`, the Missionary's
+  `spreadReligion`, the Great Artist's conversion, holy-city and follower
+  yields, `faithOpinion`, Henry's `nationalChurch`, and the AI's
+  Missionaries) and `roads.ts` (`roadAt` (a city counts as road, and as
+  rail once its owner knows Railroad), `roadStepCost`, `roadPath`/
+  `roadOption`/`roadTargets`/`buyRoad`, `upgradeRails` (roads whose
+  nearest city is yours), `roadConnected`, and `aiBuyRoads`). Moves can
+  now be fractional (1/3 on roads, 1/10 on rails): `movement.ts` spends
+  them with a small tolerance, and the UI shows them with `movesText`
+  ("⅔"). `diplomacy.ts`'s `opinionOf` = stored opinion + faith; read
+  opinions through it. Round 11: `leaders.ts` (the one place that
   decides which leader effects are on, `effectsOf`, and the helpers for
   costs, yields, culture, science, combat mods, tech costs, trade
   willingness, and unique wonders/projects) and `uniques.ts` (Pilgrimage,
@@ -397,7 +428,12 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   whose config is `vitest.sim.config.ts`; it also counts overseas cities,
   landings, and ships), and `landmass.ts` (how often civs share or get their
   own landmass, and empty islands; Round 8's B7 check).
-- `src/ui/`: Round 11: `setup.ts` (the New Game screen: civ cards, Random
+- `src/ui/`: Round 12 in `app.ts`: the city panel's Religion line and
+  "Build road to…" list, the naming panel (notices can carry a text
+  field, and a `stay` button like Suggest), the Religion screen (☰ →
+  Religions, the city panel, or Diplomacy), the Missionary's ✦ Spread
+  buttons, the diplomacy Faith row, Henry's 👑 button in the leader panel,
+  and the Great Artist's "Convert a city…". Round 11: `setup.ts` (the New Game screen: civ cards, Random
   civ, Rivals 1–4, Start; `bonusListHtml`), `portraits.ts` (bundled
   portraits, the initials placeholder, `portraitCrop`: zoom on the face at
   48 px and under). `app.ts` (view state, HUD with the leader button and
@@ -420,6 +456,12 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   People, and the artifact (72 icons, same picker; picks saved under
   `epoch.mapIconPicks`; `SOURCES.md` has each author). Dan's picks are
   wired in (Round 10).
+- `docs/religion-road-icon-candidates.html` +
+  `docs/religion-road-icon-candidates/`: round 12's candidates for the
+  Missionary (3), 8 religion symbols (2 each; Moon became Mountain, since
+  every moon icon is a crescent), and the holy-city marker (3); picks are
+  saved under `epoch.religionIconPicks`; `SOURCES.md` has each author.
+  **Not wired in yet** (next round): letters and colored dots until then.
 - `docs/bomber-size-candidates.html`: round 10's check of the Bomber icon
   at map size next to the other aircraft (and round 8's Bomber A and C),
   for Dan to decide whether to swap it.
@@ -430,11 +472,22 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   removed so it doesn't look like the Battleship; compare in
   `docs/carrier-trim-candidates.html`).
 - The version shown on the About screen comes from `package.json`
-  (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.11.0 for
-  round 11.
+  (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.12.0 for
+  round 12.
 - **Meeting a civ reveals where its capital is** (Round 11: the tile is
   marked explored), so conquerors can find the capitals domination needs.
-- **Victory goals (Round 11):** culture 6000, gold 9000 (were 4000, 5500).
+- **Victory goals:** culture 7000 (Round 12, was 6000; religion adds
+  culture), gold 9000.
+- **Religion (Round 12):** the first civ to know a founding tech
+  (Mysticism, Astronomy, Philosophy, Monotheism, Theology) founds a
+  religion, **one per civ** (a civ that has one leaves the tech to the
+  next civ that knows it); 5 at most, plus Henry VIII's national church.
+  No religious victory.
+- **Roads (Round 12):** bought from the city panel with gold, laid at once;
+  everyone uses them; Railroad upgrades roads near your cities to rails
+  for free. **AI pacing:** before turn 160 an AI won't take the city that
+  would win it domination at once when the last rival is another AI (the
+  human gets no protection).
 - The barbarians, when present, are always the **last** player (kind
   `'barbarian'`). Loops over civs should skip them (`civPlayers`, or
   `p.kind !== 'barbarian'`): they're always at war with everyone but never
@@ -489,10 +542,15 @@ what was pushed.
   victories; diplomacy; barbarians, villages, resources, huts, and Great
   People; and **Dan's 12 leaders** with starting techs, bonuses, portraits,
   and the New Game setup.
+- **Round 12 (religion, roads and railroads)** is done and waiting for Dan's
+  review; the report is in TODO.md. Dan still has to pick the Missionary,
+  religion, and holy-city icons on
+  http://10.0.0.224:4173/docs/religion-road-icon-candidates.html.
 - **The play server:** http://10.0.0.224:4173/.
 - The epoch repo is pushed every round until Netlify is set up.
 
-**The current objective is Round 12:**
+**The last round was Round 12** (the next one comes from the planning
+session):
 - **Religion** (Dan's own twist): founding with names Dan chooses, spread,
   Missionaries, holy cities, and diplomacy effects. It feeds culture, with
   no religious victory. Plus Henry VIII's national church.

@@ -10,6 +10,8 @@ import { RULES } from '../data/rules';
 import { TERRAIN, type Yields } from '../data/terrain';
 import { tileIndex, tilesInRadius } from './grid';
 import { resourceBonus } from './resources';
+import { religionCityCulture, religionCityGold } from './religion';
+import { ROADS } from '../data/roads';
 import { applyPct, empireFlat, empirePct, leaderCityCulture, leaderCityGold, leaderCityPct, leaderProductionFlat, leaderProductionPct, resourceDoubled, terrainBonus, wasCaptured } from './leaders';
 import type { City, GameState } from './types';
 
@@ -35,12 +37,18 @@ export function tileYields(state: GameState, index: number, viewer?: number): Yi
   return y;
 }
 
-/** What a tile gives when this city works it: its terrain and resource, plus the Harbor's food on water (Round 8). */
+/**
+ * What a tile gives when this city works it: its terrain and resource, plus the Harbor's food
+ * on water (Round 8), and a road's trade and a rail's production (Round 12).
+ */
 export function workedTileYields(state: GameState, city: City, index: number): Yields {
   const y = tileYields(state, index, city.owner);
-  if (TERRAIN[state.map.tiles[index]!.terrain].isWater) {
+  const tile = state.map.tiles[index]!;
+  if (TERRAIN[tile.terrain].isWater) {
     for (const b of city.buildings) y.food += BUILDINGS[b].effects.waterFood ?? 0;
   }
+  if (tile.road) y.trade += ROADS.roadTrade;
+  if (tile.road === 'rail') y.production += ROADS.railProduction;
   return y;
 }
 
@@ -167,7 +175,8 @@ export function cityCulture(state: GameState, city: City): number {
   for (const b of city.buildings) building += BUILDINGS[b].effects.culture ?? 0;
   let wonder = 0;
   for (const w of cityWonderDefs(city)) wonder += w.effects.culture ?? 0;
-  return settled(city, 'artist') * GP.artistCulture + leaderCityCulture(state, city, building, wonder);
+  // Round 12: a holy city, and a following city's Temple and Cathedral.
+  return settled(city, 'artist') * GP.artistCulture + leaderCityCulture(state, city, building, wonder) + religionCityCulture(state, city);
 }
 
 /** Culture the player's empire makes per turn, with empire-wide leader percents. */
@@ -198,7 +207,8 @@ export function cityScienceGold(state: GameState, city: City): { science: number
   const baseGold = trade - baseScience;
   const science = baseScience + Math.floor((baseScience * buildingPct(state, city, 'sciencePct')) / 100);
   // Flat gold (the Courthouse, Round 11; leader bonuses) comes after the percents.
-  const flat = city.buildings.reduce((sum, b) => sum + (BUILDINGS[b].effects.gold ?? 0), 0) + leaderCityGold(state, city);
+  // Round 12: a holy city's gold.
+  const flat = city.buildings.reduce((sum, b) => sum + (BUILDINGS[b].effects.gold ?? 0), 0) + leaderCityGold(state, city) + religionCityGold(state, city);
   const gold = baseGold + Math.floor((baseGold * buildingPct(state, city, 'goldPct')) / 100) + flat;
   return { science, gold };
 }

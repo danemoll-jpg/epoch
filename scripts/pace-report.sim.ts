@@ -15,6 +15,10 @@ it('report', () => {
   const gp150: number[] = [];
   const air220: number[] = [];
   let strikes = 0, intercepts = 0, captures = 0;
+  const religionsPerGame: number[] = [];
+  let followers150 = 0, cities150 = 0, missionaries = 0, missionaryConv = 0, conversions = 0;
+  const roads100: number[] = [], roads200: number[] = [];
+  const earliestWin: number[] = [];
   for (const seed of seeds) {
     const t0 = Date.now();
     const r = simulate(seed, turns);
@@ -40,6 +44,16 @@ it('report', () => {
     const b = r.barbarians;
     report(`  BARBARIANS villages=${b.villagesAtStart} destroyed=${b.villagesDestroyed} settled=${b.villagesSettled} spawned=${b.spawned} killed=${b.killed} raids=${b.raids} elimByBarb=${b.eliminationsByBarbarians} huts=${b.hutsEntered} artifacts=${b.artifacts}; GP@150 ${r.civs.map((c) => `${c.civId}:${c.greatPeopleAt[150] ?? '-'}`).join(' ')}`);
     seedTree.push(Math.min(...r.civs.map((c) => c.treeDoneTurn ?? Infinity)));
+    // Round 12: religion and roads.
+    const rel = r.religion;
+    religionsPerGame.push(rel.founded.length);
+    followers150 += rel.followersAt150; cities150 += rel.citiesAt150;
+    missionaries += rel.missionaries; missionaryConv += rel.missionaryConversions; conversions += rel.conversions;
+    roads100.push(...r.civs.map((c) => c.roadsAt[100] ?? 0));
+    roads200.push(...r.civs.map((c) => c.roadsAt[200] ?? 0));
+    if (r.victory) earliestWin.push(r.victory.turn);
+    report(`  RELIGION founded ${rel.founded.map((f) => `${f.name} (${f.civId}, ${f.tech ?? 'national church'}, t${f.turn})`).join('; ') || 'none'}; followers@150=${rel.followersAt150}/${rel.citiesAt150} cities; missionaries=${rel.missionaries} (conversions by them ${rel.missionaryConversions}, all ${rel.conversions})`);
+    report(`  ROADS tiles@100 ${r.civs.map((c) => `${c.civId}:${c.roadsAt[100] ?? '-'}`).join(' ')}; @200 ${r.civs.map((c) => `${c.civId}:${c.roadsAt[200] ?? '-'}`).join(' ')}`);
   }
   const alive = all;
   const med = (k: string) => medianTurn(alive.map((c) => c.eraTurn[k]));
@@ -56,6 +70,9 @@ it('report', () => {
   report(`BARBARIANS per game: villages at start=${sum('villagesAtStart')} destroyed=${sum('villagesDestroyed')} settled=${sum('villagesSettled')} spawned=${sum('spawned')} killed=${sum('killed')} raids=${sum('raids')} eliminations by barbarians=${sum('eliminationsByBarbarians')} huts entered=${sum('hutsEntered')} artifacts=${sum('artifacts')}`);
   report(`AIR per game: strikes=${strikes / seeds.length} intercepts=${intercepts / seeds.length} city captures=${captures / seeds.length}; aircraft per civ at turn 220: avg ${avg1(air220)} (max ${Math.max(...air220)}); domination wins: ${wins.filter((w) => w.includes('domination')).length} of ${seeds.length}`);
   report(`GREAT PEOPLE per civ by turn 150: avg ${avg1(gp150)} (min ${Math.min(...gp150)}, max ${Math.max(...gp150)})`);
+  report(`RELIGION per game: founded=${avg1(religionsPerGame)} (${religionsPerGame.join(',')}); cities following a religion at turn 150: ${followers150}/${cities150} (${((100 * followers150) / Math.max(1, cities150)).toFixed(0)}%); missionaries=${missionaries / seeds.length} (their conversions ${missionaryConv / seeds.length}, all conversions ${conversions / seeds.length})`);
+  report(`ROADS per civ: tiles at turn 100 avg ${avg1(roads100)} (max ${Math.max(...roads100)}); at turn 200 avg ${avg1(roads200)} (max ${Math.max(...roads200)})`);
+  report(`EARLIEST WIN: turn ${Math.min(...earliestWin)} (no win before 150: ${earliestWin.every((t) => t >= 150) ? 'yes' : 'NO'})`);
   const lm = landmassStats(100);
   report(`LANDMASSES (100 seeds): each civ alone=${lm.allSeparate} all on one=${lm.allTogether} shared/mixed=${lm.mixed}; distinct start landmasses 1..5=${lm.distinctStarts.join('/')}; empty island (room for a city)=${lm.emptyIsland} (room for 2+: ${lm.emptyBigIsland})`);
 }, 600000);

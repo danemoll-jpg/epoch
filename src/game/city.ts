@@ -75,6 +75,7 @@ export function createCity(state: GameState, owner: number, at: Coord): City {
     worked: [],
     greatPeople: [],
     founder: owner,
+    religion: null,
   };
   player.citiesFounded++;
   state.cities.push(city);

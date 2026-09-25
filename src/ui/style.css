@@ -1234,7 +1234,8 @@ button.bigBtn {
   background: #4a3d1a;
 }
 
-#victoryPanel {
+#victoryPanel,
+#religionPanel {
   position: absolute;
   top: calc(8px + var(--safe-top));
   bottom: calc(8px + var(--safe-bottom));
@@ -1250,7 +1251,8 @@ button.bigBtn {
   overflow: hidden;
 }
 
-#victoryBody {
+#victoryBody,
+#religionBody {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -1260,7 +1262,8 @@ button.bigBtn {
   padding: 10px 14px 16px;
 }
 
-#victoryBody .label {
+#victoryBody .label,
+#religionBody .label {
   color: var(--muted);
   font-size: 13px;
   text-transform: uppercase;
@@ -1690,4 +1693,104 @@ button.primary {
 }
 .dcivPortrait {
   margin-right: 8px;
+}
+
+/* ---- Round 12: religion and roads ---- */
+
+/* A religion's dot (its color and symbol letter), in panels; a gold ring on a holy city. */
+.rdot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid #111;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  vertical-align: middle;
+  margin-right: 6px;
+  flex: none;
+}
+
+.rdot.holy {
+  box-shadow: 0 0 0 3px #ffd24a, 0 0 0 4px #111;
+}
+
+.rcards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.rcard {
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.rcard.mine {
+  border-color: #e6b73f;
+}
+
+.rcard .rhead {
+  display: flex;
+  align-items: center;
+  font-size: 17px;
+  margin-bottom: 4px;
+}
+
+.rcard dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  margin: 4px 0 0;
+  font-size: 14px;
+}
+
+.rcard dt {
+  color: var(--muted);
+}
+
+.rcard dd {
+  margin: 0;
+}
+
+/* The name field on the founding panel: 16px so iPad Safari doesn't zoom in on focus. */
+#noticeInput {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 10px;
+  min-height: 44px;
+  padding: 8px 10px;
+  font-size: 16px;
+  border-radius: 10px;
+  border: 1px solid var(--panel-border);
+  background: #0e1620;
+  color: var(--text);
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.roadList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.roadList button {
+  min-height: 44px;
+  text-align: left;
+}
+
+.navalBtn.spreadBtn {
+  background: #3d2a5a;
+  border-color: #b28be0;
+}
+
+.rcard .rhead .badge {
+  margin-left: 8px;
 }

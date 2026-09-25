@@ -35,6 +35,12 @@ import { RESOURCES, RESOURCE_IDS } from '../data/resources';
 import { addBarbarianUnit } from '../game/barbarians';
 import { updateExplored, visibleTiles } from '../game/fog';
 import { greatPersonThreshold } from '../game/greatPeople';
+import { RELIGION, RELIGION_NAMES, RELIGION_SYMBOLS } from '../data/religion';
+import { ROADS } from '../data/roads';
+import { conversionChancePct, faithOpinion, foundReligion, religionCityCulture, religionCityGold } from '../game/religion';
+import { roadOption } from '../game/roads';
+import { attitude, opinionOf } from '../game/diplomacy';
+import type { Religion } from '../game/types';
 
 /** Appears in every dev bundle and must never appear in dist/ (see scripts/check-dist.mjs). */
 export const SCENARIO_MARKER = 'epoch-dev-scenarios';
@@ -1274,6 +1280,232 @@ const LEADER_SCENARIOS: Scenario[] = [
   },
 ];
 
+// ---- Round 12: religion and roads ------------------------------------------------------------
+
+/** Founds a religion for `p` in `city` with a set name (already named, so no naming panel). */
+function withReligion(state: GameState, p: number, city: City, name: string, tech: TechId | null = 'mysticism'): Religion {
+  const r = foundReligion(state, p, tech, city);
+  r.name = name;
+  r.named = true;
+  return r;
+}
+
+const capitalOfCiv = (s: GameState, p = 0) => s.cities.find((c) => c.capitalOf === p && c.owner === p)!;
+const cityNamed = (s: GameState, name: string) => s.cities.find((c) => c.name === name)!;
+
+/** One End Turn from Mysticism, the first founding tech; nobody has a religion yet. */
+function foundReligionScenario(): GameState {
+  const { state } = withCapital(undefined, { size: 3 });
+  oneTurnFromLearning(state, ['alphabet', 'ceremonial_burial'], 'mysticism');
+  return state;
+}
+
+const FAITH = RELIGION_NAMES[0]!;
+const OTHER_FAITH = RELIGION_NAMES[1]!;
+
+/**
+ * Your religion (holy city Babylon) and a Missionary standing between York (yours, no religion)
+ * and Pataliputra (Maurya, at peace, no religion): it can reach both.
+ */
+function missionaryScenario(): GameState {
+  const state = diplomacyBase();
+  state.players[0]!.techs = ['alphabet', 'ceremonial_burial', 'mysticism'];
+  const r = withReligion(state, 0, capitalOfCiv(state), FAITH);
+  addCity(state, 0, 10, 6, { name: 'York', size: 2, build: { kind: 'unit', id: 'warrior' } });
+  state.players[0]!.citiesFounded = 2;
+  addUnit(state, 'missionary', 0, 11, 7, { religion: r.id, charges: RELIGION.missionaryCharges });
+  return state;
+}
+
+/** Your holy city (size 6, Temple, Cathedral) and York 3 tiles east, joined by road, with no religion. */
+function religionSpreadBase(): GameState {
+  const { state, city } = withCapital(undefined, { size: 6, buildings: ['temple', 'cathedral'] });
+  withReligion(state, 0, city, FAITH);
+  addCity(state, 0, CITY_X + 3, CITY_Y, { name: 'York', size: 2, build: { kind: 'unit', id: 'warrior' } });
+  state.players[0]!.citiesFounded = 2;
+  for (let x = CITY_X + 1; x < CITY_X + 3; x++) state.map.tiles[tileIndex(state.map, x, CITY_Y)]!.road = 'road';
+  return state;
+}
+
+function spreadChance(s: GameState): number {
+  return conversionChancePct(s, cityNamed(s, 'York'), s.religions[0]!);
+}
+
+/** Babylon, holy city of your faith, with York, Ur, and Maurya's Pataliputra following it. */
+function holyCityIncomeScenario(): GameState {
+  const state = diplomacyBase();
+  const r = withReligion(state, 0, capitalOfCiv(state), FAITH);
+  addCity(state, 0, 4, 8, { name: 'York', size: 2, religion: r.id, build: { kind: 'unit', id: 'warrior' } });
+  addCity(state, 0, 10, 3, { name: 'Ur', size: 2, religion: r.id, build: { kind: 'unit', id: 'warrior' } });
+  state.players[0]!.citiesFounded = 3;
+  cityNamed(state, RIVAL_CAPITAL).religion = r.id;
+  return state;
+}
+
+/**
+ * Your capital follows your faith; Maurya's capital, Pataliputra, follows theirs (its holy city
+ * is Taxila, further east). Your Missionary stands next to Pataliputra.
+ */
+function sharedFaithScenario(): GameState {
+  const state = diplomacyBase();
+  const mine = withReligion(state, 0, capitalOfCiv(state), FAITH);
+  addCity(state, RIVAL, 13, 3, { name: 'Taxila', size: 2, build: { kind: 'unit', id: 'warrior' } });
+  state.players[RIVAL]!.citiesFounded = 2;
+  const theirs = withReligion(state, RIVAL, cityNamed(state, 'Taxila'), OTHER_FAITH, 'astronomy');
+  cityNamed(state, RIVAL_CAPITAL).religion = theirs.id;
+  state.diplomacy.opinion[RIVAL]![0] = 2;
+  addUnit(state, 'missionary', 0, 11, 7, { religion: mine.id, charges: RELIGION.missionaryCharges });
+  return state;
+}
+
+function sharedFaithAfter(): GameState {
+  const s = sharedFaithScenario();
+  const m = s.units.find((u) => u.type === 'missionary')!;
+  applyAction(s, { type: 'spreadReligion', unitId: m.id, cityId: cityNamed(s, RIVAL_CAPITAL).id });
+  return s;
+}
+
+/** Henry VIII (Medieval) with a Temple in London; Maurya already founded a religion. */
+function henryChurchScenario(): GameState {
+  const state = diplomacyBase();
+  capitalOfCiv(state).name = 'London';
+  capitalOfCiv(state).buildings = ['temple'];
+  asLeader(state, 'england', [...MEDIEVAL]);
+  state.players[RIVAL]!.techs = ['alphabet', 'ceremonial_burial', 'mysticism'];
+  withReligion(state, RIVAL, capitalOfCiv(state, RIVAL), OTHER_FAITH);
+  return state;
+}
+
+/** Babylon and York, 5 tiles apart on open land, and 200 gold. */
+function buildRoadScenario(): GameState {
+  const { state } = withCapital(undefined, { size: 3 });
+  addCity(state, 0, CITY_X + 5, CITY_Y, { name: 'York', size: 2, build: { kind: 'unit', id: 'warrior' } });
+  state.players[0]!.citiesFounded = 2;
+  state.players[0]!.gold = 200;
+  return state;
+}
+
+function roadToYork(s: GameState) {
+  return roadOption(s, 0, capitalOfCiv(s), cityNamed(s, 'York'))!;
+}
+
+const ROAD_ROW = CITY_Y + 2;
+
+/** A Warrior (1 move) at the west end of a road 4 tiles long, south of the capital. */
+function roadSpeedScenario(): GameState {
+  const { state } = withCapital(undefined, {});
+  for (let x = CITY_X + 1; x <= CITY_X + 4; x++) state.map.tiles[tileIndex(state.map, x, ROAD_ROW)]!.road = 'road';
+  addUnit(state, 'warrior', 0, CITY_X + 1, ROAD_ROW);
+  return state;
+}
+
+/** Every tech Railroad needs (its whole tree), so it's one End Turn away. */
+function prereqsOf(tech: TechId): TechId[] {
+  const out = new Set<TechId>();
+  const walk = (t: TechId) => {
+    for (const p of TECHS[t].prereqs) {
+      if (!out.has(p)) {
+        out.add(p);
+        walk(p);
+      }
+    }
+  };
+  walk(tech);
+  return TECH_LIST.map((t) => t.id).filter((t) => out.has(t));
+}
+
+/** One End Turn from Railroad, with a road from Babylon to York (5 tiles east) and a Warrior in Babylon. */
+function railroadScenario(): GameState {
+  const state = buildRoadScenario();
+  for (let x = CITY_X + 1; x < CITY_X + 5; x++) state.map.tiles[tileIndex(state.map, x, CITY_Y)]!.road = 'road';
+  oneTurnFromLearning(state, prereqsOf('railroad'), 'railroad');
+  // Religions from the founding techs in that tree aren't the point here.
+  state.religionTechsLapsed = ['mysticism', 'astronomy', 'philosophy', 'monotheism', 'theology'];
+  addUnit(state, 'warrior', 0, CITY_X, CITY_Y);
+  return state;
+}
+
+/** Eight holy cities, one per symbol (and four followers), for Dan's icon check. */
+const SYMBOL_SPOTS = [
+  [3, 3], [7, 2], [11, 3], [3, 8], [11, 8], [7, 9], [13, 5], [2, 5],
+] as const;
+const FOLLOWER_SPOTS = [[5, 5], [9, 5], [5, 7], [9, 7]] as const;
+
+function allReligionSymbolsScenario(): GameState {
+  const { state } = withCapital(undefined, {});
+  // Babylon (the capital) follows the first religion; Missionaries show their letters.
+  const holies = SYMBOL_SPOTS.map(([x, y], i) => addCity(state, 0, x, y, { name: `Shrine ${i + 1}`, build: { kind: 'unit', id: 'warrior' } }));
+  const religions = holies.map((c, i) => withReligion(state, 0, c, RELIGION_NAMES[i]!, null));
+  FOLLOWER_SPOTS.forEach(([x, y], i) => addCity(state, 0, x, y, { name: `Town ${i + 1}`, religion: religions[i * 2]!.id, build: { kind: 'unit', id: 'warrior' } }));
+  capitalOfCiv(state).religion = religions[2]!.id;
+  state.players[0]!.citiesFounded = 1 + holies.length + FOLLOWER_SPOTS.length;
+  addUnit(state, 'missionary', 0, CITY_X, CITY_Y + 1, { religion: religions[0]!.id, charges: RELIGION.missionaryCharges });
+  return state;
+}
+
+const ROUND12_SCENARIOS: Scenario[] = [
+  {
+    id: 'found-religion',
+    title: 'Religion: found one',
+    note: `You're one End Turn from ${TECHS.mysticism.name}, and nobody has a religion yet. Tap End Turn: you learn it first and found a religion in ${CAPITAL}, now its holy city (a dot with a gold ring on the city). A panel asks for its name: type your own, or tap Suggest for another invented one, then Found it. Tap ${CAPITAL}: its Religion line shows +${RELIGION.holyCity.culture} culture and +${RELIGION.holyCity.gold} gold a turn. ☰ → Religions lists it.`,
+    build: foundReligionScenario,
+  },
+  {
+    id: 'missionary',
+    title: 'Religion: a Missionary',
+    note: `Your Missionary (letters “Mi”, ${RELIGION.missionaryCharges} spreads of ${FAITH}) stands between York (yours) and ${RIVAL_CAPITAL} (Maurya, at peace), neither following a religion. Select it: two ✦ Spread buttons. Spread to York (its moves are used up). Tap End Turn, select it again, and spread to ${RIVAL_CAPITAL}: as the faith's founder you get +${RELIGION.conversionReward.gold} gold and +${RELIGION.conversionReward.culture} culture, and the Missionary is used up.`,
+    build: missionaryScenario,
+  },
+  {
+    id: 'religion-spread',
+    title: 'Religion: it spreads',
+    note: `${CAPITAL} (size 6, Temple, Cathedral) is the holy city of ${FAITH}. York, 3 tiles east and joined by road, follows no religion: it has a ${spreadChance(religionSpreadBase())}% chance a turn to convert on its own (closer, bigger, holy, Temples, Cathedrals, and the road all push). The dice are set so it converts on the first End Turn: York gets the dot, and its Temple-less panel says ${FAITH}.`,
+    build: () => withDice(religionSpreadBase, (s) => cityNamed(s, 'York').religion === s.religions[0]!.id),
+  },
+  {
+    id: 'holy-city-income',
+    title: 'Religion: holy city income',
+    note: `${CAPITAL} is the holy city of ${FAITH}, and York, Ur, and Maurya's ${RIVAL_CAPITAL} follow it. Tap ${CAPITAL}: its Religion line says +${religionCityCulture(holyCityIncomeScenario(), capitalOfCiv(holyCityIncomeScenario()))} culture and +${religionCityGold(holyCityIncomeScenario(), capitalOfCiv(holyCityIncomeScenario()))} gold a turn (${RELIGION.holyCity.gold} for the holy city and +${RELIGION.holyCity.goldPerFollower} for each of the 3 cities following it, up to +${RELIGION.holyCity.maxFollowerGold}). Whoever holds the holy city gets it.`,
+    build: holyCityIncomeScenario,
+  },
+  {
+    id: 'shared-faith',
+    title: 'Religion: a shared faith',
+    note: `Your capital follows ${FAITH}; Maurya's, ${RIVAL_CAPITAL}, follows ${OTHER_FAITH}. Open 🤝 Diplomacy → Maurya: Faith “Different faith (−${Math.abs(faithOpinion(sharedFaithScenario(), RIVAL, 0))} opinion)”, attitude ${attitude(sharedFaithScenario(), RIVAL, 0)}. Close it, select your Missionary next to ${RIVAL_CAPITAL}, and spread ${FAITH} there. Diplomacy now says “Shares your faith (+${faithOpinion(sharedFaithAfter(), RIVAL, 0)} opinion)”: opinion ${opinionOf(sharedFaithScenario(), RIVAL, 0)} → ${opinionOf(sharedFaithAfter(), RIVAL, 0)}, attitude ${attitude(sharedFaithAfter(), RIVAL, 0)}.`,
+    build: sharedFaithScenario,
+  },
+  {
+    id: 'henry-national-church',
+    title: 'Religion: Henry VIII’s national church',
+    note: `You are Henry VIII in the Medieval era, with a Temple in London. Maurya already founded ${OTHER_FAITH}. Tap your leader (top left), then “👑 Found a national church”: London becomes the holy city of a faith of your own anyway, and the naming panel opens. Once per game.`,
+    build: henryChurchScenario,
+  },
+  {
+    id: 'build-road',
+    title: 'Roads: buy a road',
+    note: `${CAPITAL} and York are 5 tiles apart, and you have 200 gold. Tap ${CAPITAL}: under “Build road to…”, York costs ${roadToYork(buildRoadScenario()).cost} gold (${roadToYork(buildRoadScenario()).newTiles} new tiles at ${ROADS.goldPerTile} each). Tap it: a brown road appears between them at once, and your gold drops to ${200 - roadToYork(buildRoadScenario()).cost}. Tap ${CAPITAL} again: York now says “joined by road”.`,
+    build: buildRoadScenario,
+  },
+  {
+    id: 'road-speed',
+    title: 'Roads: moving on a road',
+    note: `Your Warrior (1 move) stands at the west end of a road, south-east of ${CAPITAL}. Tap the road tile 3 east of it: the Warrior gets there this turn, ⅓ of a move a tile (off the road it would take 3 turns).`,
+    build: roadSpeedScenario,
+  },
+  {
+    id: 'railroad',
+    title: 'Roads: Railroad',
+    note: `You're one End Turn from ${TECHS.railroad.name}, with a road from ${CAPITAL} to York. Tap End Turn: the road turns into rail (dark, with ties), for free. Then select your Warrior in ${CAPITAL} and tap York: 5 tiles for half a move (1/10 a tile); it can ride back too. Worked rail tiles also give +${ROADS.railProduction} production.`,
+    build: railroadScenario,
+  },
+  {
+    id: 'all-religion-symbols',
+    title: 'Religion: all symbols',
+    note: `All ${RELIGION_SYMBOLS.length} religion symbols (${RELIGION_SYMBOLS.map((x) => x.name).join(', ')}), each on its holy city (gold ring), four plain follower dots, and a Missionary (“Mi”) south of ${CAPITAL}. Pinch-zoom to see them at other sizes; ☰ → Religions shows them in the panel. Dan's picks on docs/religion-road-icon-candidates.html replace the letters next round.`,
+    build: allReligionSymbolsScenario,
+  },
+];
+
 export const SCENARIOS: Scenario[] = [
   {
     id: 'grow',
@@ -1657,6 +1889,7 @@ export const SCENARIOS: Scenario[] = [
     build: allMapIconsScenario,
   },
   ...LEADER_SCENARIOS,
+  ...ROUND12_SCENARIOS,
 ];
 
 export function findScenario(id: string): Scenario | undefined {

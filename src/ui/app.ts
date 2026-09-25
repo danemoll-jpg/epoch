@@ -98,6 +98,26 @@ import { SetupScreen, bonusListHtml, type SetupChoice } from './setup';
 import { UNIQUE_RULES } from '../data/leaders';
 import { hasUnique } from '../game/leaders';
 import { challengeError, dissolutionError, dissolutionGold, pilgrimageError, returnCityError } from '../game/uniques';
+import { FOUNDING_TECHS, RELIGION } from '../data/religion';
+import { ROADS } from '../data/roads';
+import {
+  artistConvertTargets,
+  cityReligion,
+  faithOpinion,
+  followerCities,
+  holyCity,
+  holyReligion,
+  nationalChurchError,
+  ownReligion,
+  religionById,
+  religionCityCulture,
+  religionCityGold,
+  spreadTargets,
+  suggestReligionName,
+  symbolOf,
+} from '../game/religion';
+import { roadGoldPerTile, roadTargets } from '../game/roads';
+import type { Religion } from '../game/types';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -188,6 +208,7 @@ export class App {
       else if (btn.dataset.act === 'board') this.boardShip(id, Number(btn.dataset.ship));
       else if (btn.dataset.act === 'unload') this.unloadHere(id);
       else if (btn.dataset.act === 'airlift') this.pickAirlift(id);
+      else if (btn.dataset.act === 'spread') this.spreadReligion(id, Number(btn.dataset.city));
       else this.select(id);
     });
     $('attackGoBtn').addEventListener('click', () => this.confirmAttack());
@@ -218,6 +239,15 @@ export class App {
       this.openVictory();
     });
     $('victoryOverlay').addEventListener('click', (e) => this.handleVictoryClick(e));
+    // Round 12: the Religion screen (from the menu, the city panel, or Diplomacy).
+    $('religionMenuBtn').addEventListener('click', () => {
+      this.closeMenu();
+      this.openReligion();
+    });
+    $('religionOverlay').addEventListener('click', (e) => {
+      const t = e.target as HTMLElement;
+      if (t === $('religionOverlay') || t.closest('#religionCloseBtn')) $('religionOverlay').hidden = true;
+    });
     $('rateDown').addEventListener('click', () => this.changeRate(-RULES.scienceRateStep));
     $('rateUp').addEventListener('click', () => this.changeRate(RULES.scienceRateStep));
     $('cityPanel').addEventListener('click', (e) => this.handleCityPanelClick(e));
@@ -282,6 +312,10 @@ export class App {
     }
     for (const gp of this.state.greatPeople) {
       if (gp.owner === this.human && !this.gpLater.has(gp.id)) this.queueGreatPerson(gp);
+    }
+    // Round 12: a religion you founded waits for its name.
+    for (const r of this.state.religions) {
+      if (r.founder === this.human && !r.named) this.queueNameReligion(r);
     }
   }
 
@@ -485,6 +519,7 @@ export class App {
     $('diploOverlay').hidden = true;
     $('victoryOverlay').hidden = true;
     $('leaderOverlay').hidden = true;
+    $('religionOverlay').hidden = true;
     this.save();
     this.startHumanTurn();
     this.toast(message);
@@ -620,6 +655,10 @@ export class App {
       if (e.key === 'Escape') this.closeVictory();
       return;
     }
+    if (!$('religionOverlay').hidden) {
+      if (e.key === 'Escape') $('religionOverlay').hidden = true;
+      return;
+    }
     if (!$('attackOverlay').hidden) {
       if (e.key === 'Escape') this.closeAttack();
       return;
@@ -687,6 +726,11 @@ export class App {
     } else if (act === 'buy') {
       const name = city.build ? itemName(city.build) : '';
       if (this.dispatch({ type: 'rushBuy', cityId: city.id })) this.toast(`Bought ${name}; it's ready next turn`);
+    } else if (act === 'road') {
+      const res = this.dispatchResult({ type: 'buyRoad', fromCityId: city.id, toCityId: Number(btn.dataset.to) });
+      if (res.ok && res.message) this.toast(res.message);
+    } else if (act === 'religions') {
+      this.openReligion();
     } else if (act === 'unit') {
       // Selecting a unit closes the city so the unit's own buttons (Fortify, Form Army) show.
       this.closeCity();
@@ -789,7 +833,7 @@ export class App {
           .map(
             (u) => `<button type="button" data-act="unit" data-unit="${u.id}" class="unitItem">
             ${this.badge(u.type, u.owner)}${UNITS[u.type].name}${u.army ? ` ${armyWord(u.type)} ×${RULES.combat.armyMultiplier}` : ''}${u.veteran ? ' ★' : ''}${u.fortified && !isShip(u) ? ' 🛡' : ''}${u.carriedBy !== null ? ' ⚓ aboard' : ''}
-            <span class="sub">${isAir(u) ? (u.movesLeft > 0 ? `ready · range ${airRange(u)}` : 'flown this turn') : `moves ${u.movesLeft}/${UNITS[u.type].moves}`}${isShip(u) && UNITS[u.type].cargo ? ` · cargo ${cargoOf(this.state, u).length}/${cargoCapacity(u)}` : ''}${isShip(u) && UNITS[u.type].airCargo ? ` · aircraft ${aircraftOf(this.state, u).length}/${airCapacity(u)}` : ''} · tap to select</span></button>`,
+            <span class="sub">${isAir(u) ? (u.movesLeft > 0 ? `ready · range ${airRange(u)}` : 'flown this turn') : `moves ${movesText(u.movesLeft)}/${UNITS[u.type].moves}`}${isShip(u) && UNITS[u.type].cargo ? ` · cargo ${cargoOf(this.state, u).length}/${cargoCapacity(u)}` : ''}${isShip(u) && UNITS[u.type].airCargo ? ` · aircraft ${aircraftOf(this.state, u).length}/${airCapacity(u)}` : ''} · tap to select</span></button>`,
           )
           .join('') + armyBtns
       : '<span class="sub">None</span>';
@@ -822,6 +866,8 @@ export class App {
       .filter((r) => !!r)
       .map((r) => `<span class="micon res">${iconHtml(r!.icon, r!.glyph)}</span><b>${r!.name}</b> <span class="sub">${bonusText(r!.bonus)}</span>`);
     const resHtml = resList.length ? `<div class="section"><div class="label">Resources worked</div><div>${resList.join('<br>')}</div></div>` : '';
+    const faithHtml = this.cityFaithHtml(city);
+    const roadHtml = this.cityRoadsHtml(city, gold);
     const gpHtml = city.greatPeople.length
       ? `<div class="section"><div class="label">Great People settled here</div><div>${city.greatPeople
           .map((k) => `<span class="micon gp">${iconHtml(GREAT_PEOPLE[k].icon, GREAT_PEOPLE[k].glyph)}</span><b>${GREAT_PEOPLE[k].name}</b> <span class="sub">${GREAT_PEOPLE[k].settleText}</span>`)
@@ -851,15 +897,53 @@ export class App {
         <span>Culture <b>${culture}</b></span>
       </div>
       ${resHtml}
+      ${faithHtml}
       <div class="section"><div class="label">Focus</div><div class="seg">${focusBtns}</div></div>
       <div class="section"><div class="label">Build</div><div class="buildList">${buildBtns}</div></div>
       ${spaceHtml}
+      ${roadHtml}
       <div class="section"><div class="label">Buildings</div><div>${builtList}</div></div>
       ${wonderList}
       ${gpHtml}
     `;
     panel.hidden = false;
     panel.scrollTop = scrollTop;
+  }
+
+  /** Round 12: the city's religion line (its dot, name, and holy city), and what it brings. */
+  private cityFaithHtml(city: City): string {
+    const r = cityReligion(this.state, city);
+    const holy = holyReligion(this.state, city);
+    if (!r && !this.state.religions.length) return '';
+    const extra: string[] = [];
+    const cul = religionCityCulture(this.state, city);
+    const gold = religionCityGold(this.state, city);
+    if (cul) extra.push(`+${cul} culture`);
+    if (gold) extra.push(`+${gold} gold`);
+    const line = r
+      ? `${religionDot(r, !!holy)}<b>${esc(r.name)}</b>${holy ? ` <span class="sub">· holy city${holy.id !== r.id ? ` of ${esc(holy.name)}` : ''}</span>` : ''}`
+      : '<span class="sub">Follows no religion yet</span>';
+    return `<div class="section"><div class="label">Religion</div><div>${line}${extra.length ? ` <span class="sub">· ${extra.join(', ')} a turn</span>` : ''}</div>
+      <button type="button" data-act="religions">All religions…</button></div>`;
+  }
+
+  /** Round 12: "Build road to…": the nearest cities it could be joined to, with each road's gold cost. */
+  private cityRoadsHtml(city: City, gold: number): string {
+    const options = roadTargets(this.state, city).slice(0, 8);
+    if (!options.length) return '';
+    const per = roadGoldPerTile(this.state, this.human);
+    const rail = this.state.players[this.human]!.techs.includes(ROADS.railTech);
+    const btns = options
+      .map((o) => {
+        const whose = o.city.owner === this.human ? '' : ` <span class="sub">(${esc(civDef(this.state, o.city.owner).name)})</span>`;
+        if (o.newTiles === 0) return `<button type="button" disabled>${esc(o.city.name)}${whose} <span class="sub">· joined by road</span></button>`;
+        return `<button type="button" data-act="road" data-to="${o.city.id}" ${gold < o.cost ? 'disabled' : ''}>${esc(o.city.name)}${whose}
+          <span class="sub">· ${plural(o.newTiles, 'new tile')} · ${o.cost} gold</span></button>`;
+      })
+      .join('');
+    return `<div class="section"><div class="label">Build ${rail ? 'railroad' : 'road'} to…</div>
+      <div class="sub">${per} gold a tile, laid at once. Moving along a ${rail ? 'rail costs 1/10' : 'road costs 1/3'} of a move a tile, and worked ${rail ? 'rail tiles give +1 trade and +1 production' : 'road tiles give +1 trade'}. Anyone may use it.</div>
+      <div class="roadList">${btns}</div></div>`;
   }
 
   // ---- menu ------------------------------------------------------------------------------
@@ -1170,7 +1254,7 @@ export class App {
 
   /** A unique action the human could take right now (a dot on the leader button). */
   private uniqueReady(): boolean {
-    return !pilgrimageError(this.state, this.human) || !dissolutionError(this.state, this.human);
+    return !pilgrimageError(this.state, this.human) || !dissolutionError(this.state, this.human) || !nationalChurchError(this.state, this.human);
   }
 
   private openLeader(): void {
@@ -1187,7 +1271,7 @@ export class App {
     const btn = target.closest('button');
     if (!btn || btn.disabled) return;
     if (btn.id === 'leaderCloseBtn') $('leaderOverlay').hidden = true;
-    else if (btn.dataset.act === 'pilgrimage' || btn.dataset.act === 'dissolution') {
+    else if (btn.dataset.act === 'pilgrimage' || btn.dataset.act === 'dissolution' || btn.dataset.act === 'nationalChurch') {
       const res = this.dispatchResult({ type: btn.dataset.act });
       if (res.ok && res.message) this.toast(res.message);
     } else if (btn.dataset.act === 'techs') {
@@ -1213,6 +1297,12 @@ export class App {
       const err = dissolutionError(this.state, this.human);
       actions.push(`<button type="button" data-act="dissolution" ${err ? 'disabled' : ''}>⛪ The Dissolution: +${dissolutionGold(this.state, this.human)} gold</button>
         <div class="sub">${err ? esc(err) : `${UNIQUE_RULES.dissolution.goldPerBuilding} gold per Temple and Cathedral, but their culture is halved for ${UNIQUE_RULES.dissolution.turns} turns. Once per game.`}${me.dissolvedUntil && this.state.turn < me.dissolvedUntil ? ` Halved until turn ${me.dissolvedUntil}.` : ''}</div>`);
+    }
+    // Round 12: Henry VIII's national church.
+    if (hasUnique(this.state, this.human, 'nationalChurch') || me.uniquesUsed.includes('nationalChurch')) {
+      const err = nationalChurchError(this.state, this.human);
+      actions.push(`<button type="button" data-act="nationalChurch" ${err ? 'disabled' : ''}>👑 Found a national church</button>
+        <div class="sub">${err ? esc(err) : 'Your capital becomes the holy city of a faith of your own (you name it), even if others founded theirs first. Needs a Temple. Once per game.'}</div>`);
     }
     if (hasUnique(this.state, this.human, 'challenge')) {
       actions.push(`<button type="button" data-act="techs">⭐ National Challenge: ${me.challenge ? esc(TECHS[me.challenge].name) : 'none named'}</button>
@@ -1639,6 +1729,10 @@ export class App {
       gpId: gp.id,
       buttons: [
         { label: 'Decide later', run: () => this.gpLater.add(gp.id) },
+        // Round 12: a Great Artist can bring your faith to a city instead.
+        ...(gp.kind === 'artist' && artistConvertTargets(this.state, this.human).length
+          ? [{ label: `Convert a city to ${ownReligion(this.state, this.human)!.name}…`, run: () => this.pickGreatPersonTarget(gp, 'convert') }]
+          : []),
         { label: 'Settle in a city…', cls: 'bigBtn', run: () => this.pickGreatPersonTarget(gp, 'settle') },
         { label: 'Use now', cls: 'bigBtn', disabled: !!noTarget, run: () => (needsTarget ? this.pickGreatPersonTarget(gp, 'use') : this.useGreatPerson(gp, { mode: 'use' })) },
       ],
@@ -1646,9 +1740,31 @@ export class App {
   }
 
   /** A list of cities (settle, or an Engineer) or tiles (a General) to choose from. */
-  private pickGreatPersonTarget(gp: GreatPerson, mode: 'settle' | 'use'): void {
+  private pickGreatPersonTarget(gp: GreatPerson, mode: 'settle' | 'use' | 'convert'): void {
     const back = { label: '← Back', run: () => this.showNow(this.greatPersonNotice(gp)) };
     const def = GREAT_PEOPLE[gp.kind];
+    if (mode === 'convert') {
+      const faith = ownReligion(this.state, this.human);
+      this.showNow({
+        title: `${gp.name}: convert which city?`,
+        icon: def.icon,
+        iconCls: 'gp',
+        text: `The city will follow ${faith?.name ?? 'your faith'}. A rival's city (at peace with you) also brings its founder gold and culture.`,
+        gpId: gp.id,
+        list: true,
+        buttons: [
+          ...artistConvertTargets(this.state, this.human).map((c) => ({
+            label: `${c.name}${c.owner === this.human ? '' : ` (${civDef(this.state, c.owner).name})`}${c.religion !== null ? ` · now ${religionById(this.state, c.religion)?.name ?? ''}` : ''}`,
+            run: () => {
+              const res = this.dispatchResult({ type: 'useGreatPerson', gpId: gp.id, how: { mode: 'convert', cityId: c.id } });
+              if (res.ok && res.message) this.toast(res.message);
+            },
+          })),
+          back,
+        ],
+      });
+      return;
+    }
     if (mode === 'use' && gp.kind === 'general') {
       const tiles = generalTiles(this.state, this.human);
       this.showNow({
@@ -1705,7 +1821,9 @@ export class App {
     if (!n) return;
     const portrait = n.portrait !== undefined ? portraitHtml(this.state.players[n.portrait]?.civId ?? '', 64) : '';
     $('noticeTitle').innerHTML = `${portrait}${n.icon ? `<span class="micon ${n.iconCls ?? ''}">${iconHtml(n.icon, '')}</span>` : ''}${esc(n.title)}`;
-    $('noticeText').innerHTML = `${esc(n.text)}${n.sub ? `<span class="sub">${esc(n.sub)}</span>` : ''}`;
+    $('noticeText').innerHTML = `${esc(n.text)}${n.sub ? `<span class="sub">${esc(n.sub)}</span>` : ''}${
+      n.input ? `<input id="noticeInput" type="text" maxlength="${n.input.max}" value="${esc(n.input.value)}" aria-label="${esc(n.input.label)}" autocomplete="off" autocapitalize="words" spellcheck="false">` : ''
+    }`;
     // A long list of choices (cities, tiles) stacks up and scrolls.
     $('noticeButtons').className = n.list ? 'row list scroll' : 'row';
     $('noticeButtons').innerHTML = n.buttons
@@ -1723,8 +1841,112 @@ export class App {
     const n = this.notices[0];
     if (!btn || btn.disabled || !n) return;
     const b = n.buttons[Number(btn.dataset.i)];
+    const input = document.getElementById('noticeInput') as HTMLInputElement | null;
+    const value = input?.value;
+    if (b?.stay) {
+      b.run?.(value);
+      return;
+    }
     this.closeNotice();
-    b?.run?.();
+    b?.run?.(value);
+  }
+
+  // ---- Round 12: religion ---------------------------------------------------------------------
+
+  /** The naming panel for a religion you just founded: type a name, or tap Suggest. */
+  private queueNameReligion(r: Religion): void {
+    if (this.notices.some((n) => n.religionId === r.id)) return;
+    this.queueNotice(this.nameReligionNotice(r, r.name));
+  }
+
+  private nameReligionNotice(r: Religion, value: string): Notice {
+    const city = holyCity(this.state, r);
+    let n = 0;
+    return {
+      title: r.tech ? 'A new religion!' : 'A national church!',
+      text: r.tech
+        ? `Your people in ${city?.name ?? 'your city'} have founded a faith of their own. What is it called?`
+        : `The King's new church in ${city?.name ?? 'your capital'} needs a name. (Something grander than “the King's church”, perhaps.)`,
+      sub: `${city?.name ?? 'The city'} is its holy city: +${RELIGION.holyCity.culture} culture and +${RELIGION.holyCity.gold} gold a turn, and more gold for every city that follows it. Missionaries and nearby cities spread it.`,
+      religionId: r.id,
+      dismissible: false,
+      input: { value, max: RELIGION.maxNameLength, label: 'Name of your religion' },
+      buttons: [
+        {
+          label: 'Suggest',
+          stay: true,
+          run: () => {
+            const input = document.getElementById('noticeInput') as HTMLInputElement | null;
+            if (input) input.value = suggestReligionName(this.state, ++n);
+          },
+        },
+        {
+          label: 'Found it',
+          cls: 'bigBtn',
+          run: (name) => {
+            const res = this.dispatchResult({ type: 'nameReligion', religionId: r.id, name: name ?? '' });
+            if (res.ok) this.toast(`${religionById(this.state, r.id)!.name} is founded in ${city?.name ?? 'your city'}`);
+            else this.showNow(this.nameReligionNotice(r, name ?? r.name));
+          },
+        },
+      ],
+    };
+  }
+
+  /** A Missionary converts a city next to (or under) it. */
+  private spreadReligion(unitId: number, cityId: number): void {
+    const res = this.dispatchResult({ type: 'spreadReligion', unitId, cityId });
+    if (res.ok) {
+      if (res.message) this.toast(res.message);
+      if (!findUnit(this.state, unitId) || findUnit(this.state, unitId)!.movesLeft <= 0) this.selectNext(false);
+    }
+  }
+
+  private openReligion(): void {
+    $('religionOverlay').hidden = false;
+    this.renderReligion();
+  }
+
+  /** The Religion screen: every religion founded, its founder, holy city, followers, and whether it's yours. */
+  private renderReligion(): void {
+    const st = this.state;
+    const R = RELIGION;
+    const known = (c: City) => st.players[this.human]!.explored[c.y * st.map.width + c.x] === 1;
+    const who = (p: number) => (p === this.human ? 'You' : p === undefined ? '' : hasMet(st, this.human, p) ? esc(CivName(st, p)) : 'A civ you haven’t met');
+    const mineFaith = ownReligion(st, this.human);
+    $('religionStatus').textContent = `${plural(st.religions.length, 'religion')} founded · ${st.cities.filter((c) => c.religion !== null).length} of ${st.cities.length} cities follow one`;
+    const cards = st.religions
+      .map((r) => {
+        const city = holyCity(st, r);
+        const followers = followerCities(st, r);
+        const mineCount = followers.filter((c) => c.owner === this.human).length;
+        const yours = r.founder === this.human || city?.owner === this.human;
+        const holyText = city ? (known(city) ? `${esc(city.name)} <span class="sub">(${who(city.owner)})</span>` : 'Somewhere you haven’t explored') : 'Gone';
+        return `<div class="rcard${yours ? ' mine' : ''}">
+          <div class="rhead">${religionDot(r, true)}<b>${esc(r.name)}</b>${yours ? ' <span class="badge peace">Yours</span>' : ''}</div>
+          <dl>
+            <dt>Founded</dt><dd>${who(r.founder)} · turn ${r.foundedTurn}${r.tech ? ` · ${TECHS[r.tech].name}` : ' · a national church'}</dd>
+            <dt>Holy city</dt><dd>${holyText}</dd>
+            <dt>Followers</dt><dd>${followers.length} ${followers.length === 1 ? 'city' : 'cities'}${mineCount ? ` · ${mineCount} of yours` : ''}</dd>
+            ${mineFaith?.id === r.id ? '<dt>Your faith</dt><dd>Your capital follows it</dd>' : ''}
+          </dl></div>`;
+      })
+      .join('');
+    const open = FOUNDING_TECHS.filter((t) => !st.religions.some((r) => r.tech === t) && !st.religionTechsLapsed.includes(t));
+    const lapsed = st.religionTechsLapsed.map((t) => TECHS[t].name);
+    const rules = `<div class="vrules">
+      <div><b>Founding</b> <span class="sub">The first civ to learn ${FOUNDING_TECHS.map((t) => TECHS[t].name).join(', ')} founds a religion (${R.maxReligions} at most) in its capital, the holy city.</span></div>
+      <div><b>Spreading</b> <span class="sub">Cities near a city of a religion may convert each turn (closer, bigger, holy, Temples, Cathedrals, and roads help). A Missionary (${R.missionaryCharges} spreads) or a Great Artist converts a city at once. Holy cities never change faith.</span></div>
+      <div><b>Holy city</b> <span class="sub">+${R.holyCity.culture} culture, +${R.holyCity.gold} gold, and +${R.holyCity.goldPerFollower} gold per follower city (up to +${R.holyCity.maxFollowerGold}), for whoever holds it.</span></div>
+      <div><b>Followers</b> <span class="sub">A Temple makes +${R.followerCulture.temple} culture and a Cathedral +${R.followerCulture.cathedral} in a city that follows any religion. Capitals of the same faith: +${R.sharedFaithOpinion} opinion; different faiths ${R.differentFaithOpinion}.</span></div>
+    </div>`;
+    const still = open.length ? `<p class="sub">Still to be founded: ${open.map((t) => TECHS[t].name).join(', ')}.</p>` : '<p class="sub">Every founding tech has been used.</p>';
+    const gone = lapsed.length ? `<p class="sub">Known before religions came (no religion from them): ${lapsed.join(', ')}.</p>` : '';
+    $('religionBody').innerHTML = `${rules}
+      <div class="label">Religions of the world</div>
+      ${cards ? `<div class="rcards">${cards}</div>` : '<p class="sub">No religion has been founded yet.</p>'}
+      ${still}${gone}
+      <p class="sub">No religious victory: faith feeds culture, gold, and friendships.</p>`;
   }
 
   // ---- diplomacy screen ------------------------------------------------------------------
@@ -1771,6 +1993,10 @@ export class App {
       if (this.dispatch({ type: 'declareWar', target: civ })) {
         this.diploAnswer = { civ, accepted: true, reason: `You are at war with ${civName(this.state, civ)}.` };
       }
+    } else if (d.act === 'religions') {
+      this.closeDiplo();
+      this.openReligion();
+      return;
     } else if (d.act === 'back') {
       this.diploPage = 'main';
       this.tradeGet = undefined;
@@ -1859,6 +2085,7 @@ export class App {
         <dt>Cities</dt><dd>${cities}</dd>
         <dt>Military</dt><dd>${strengthWords(strengthRatio(this.state, civ, this.human))}</dd>
         <dt>Culture</dt><dd>${this.state.players[civ]!.culture} <span class="sub">(+${empireCulture(this.state, civ)} per turn)</span></dd>
+        <dt>Faith</dt><dd>${this.faithWords(civ)}</dd>
       </dl>${answer}`;
 
     if (this.diploPage === 'confirmWar') {
@@ -1924,7 +2151,18 @@ export class App {
       ${warErr ? `<div class="sub">${esc(warErr)}</div>` : ''}
       ${theirs ? '' : `<div class="sub">${name} knows no tech you could learn right now.</div>`}
       <div class="label">Gifts <span class="sub">(you have ${me.gold} gold)</span></div>
-      <div class="diploActions">${gifts}</div>`;
+      <div class="diploActions">${gifts}</div>
+      <div class="diploActions"><button type="button" data-act="religions">Religions of the world…</button></div>`;
+  }
+
+  /** Round 12: their capital's faith, and how it colors their view of you ("Shares your faith"). */
+  private faithWords(civ: number): string {
+    const cap = this.state.cities.find((c) => c.capitalOf === civ && c.owner === civ);
+    const r = cap ? cityReligion(this.state, cap) : undefined;
+    if (!r) return '<span class="sub">Their capital follows no religion</span>';
+    const f = faithOpinion(this.state, civ, this.human);
+    const how = f > 0 ? ` · <b class="att-friendly">Shares your faith</b> <span class="sub">(+${f} opinion)</span>` : f < 0 ? ` · <span class="att-hostile">Different faith</span> <span class="sub">(−${Math.abs(f)} opinion)</span>` : '';
+    return `${religionDot(r, !!holyReligion(this.state, cap!))}${esc(r.name)}${how}`;
   }
 
   // ---- dev scenarios (dev server only) ---------------------------------------------------
@@ -2074,9 +2312,12 @@ export class App {
         ? ` · range ${airRange(sel)}${def.airAttack ? ` · vs aircraft ${def.airAttack}` : ''} · ${sel.movesLeft > 0 ? 'tap an outlined target to strike, or a city or Carrier to rebase' : 'flown this turn'}`
         : hovers(sel) ? ' · flies over anything · can’t capture' : '';
       const carrierAir = isShip(sel) && def.airCargo ? ` · aircraft ${aircraftOf(this.state, sel).length}/${airCapacity(sel)}` : '';
+      // Round 12: a Missionary's faith and spreads left.
+      const faith = def.spreadsReligion ? religionById(this.state, sel.religion) : undefined;
+      const mission = faith ? ` · ${esc(faith.name)} · ${plural(sel.charges ?? 0, 'spread')} left` : '';
       $('unitInfo').innerHTML = `${this.badge(sel.type, sel.owner)}${def.name}${army}${vet}${fort} <span class="sub">· attack ${def.attack * mult} · defense ${
         def.defense * mult
-      }${isAir(sel) ? '' : ` · moves ${sel.movesLeft}/${def.moves}`}${naval}${carrierAir}${air}${isAir(sel) ? '' : ` · ${terrain}`}</span>`;
+      }${isAir(sel) ? '' : ` · moves ${movesText(sel.movesLeft)}/${def.moves}`}${mission}${naval}${carrierAir}${air}${isAir(sel) ? '' : ` · ${terrain}`}</span>`;
       foundBtn.hidden = !def.canFoundCity;
       const err = foundCityError(this.state, sel.id);
       foundBtn.disabled = err !== undefined;
@@ -2085,7 +2326,7 @@ export class App {
       fortifyBtn.hidden = def.canFoundCity || sel.owner !== this.human;
       fortifyBtn.disabled = fortifyError(this.state, sel) !== undefined;
       // Ships don't dig in; "Stay" just leaves them out of Next Unit until they move.
-      const stays = isShip(sel) || isAir(sel) || hovers(sel);
+      const stays = isShip(sel) || isAir(sel) || hovers(sel) || !!def.spreadsReligion;
       fortifyBtn.textContent = stays ? (sel.fortified ? 'Staying' : 'Stay') : sel.fortified ? 'Fortified' : 'Fortify';
       fortifyBtn.hidden = fortifyBtn.hidden || (sel.carriedBy !== null && !isAir(sel));
       this.renderStackList(sel);
@@ -2152,6 +2393,15 @@ export class App {
     if (mine && !isAir(sel) && sel.carriedBy !== null && isWaterAt(this.state, sel.x, sel.y)) {
       navalBtns += '<div class="label">Tap a land tile next to the ship to go ashore there.</div>';
     }
+    // Round 12: a Missionary converts the city it stands in or next to.
+    if (mine && UNITS[sel.type].spreadsReligion) {
+      const faith = religionById(this.state, sel.religion);
+      const targets = sel.movesLeft > 0 ? spreadTargets(this.state, sel) : [];
+      for (const c of targets) {
+        navalBtns += `<button type="button" data-act="spread" data-unit="${sel.id}" data-city="${c.id}" class="navalBtn spreadBtn">✦ Spread ${esc(faith?.name ?? 'the faith')} to ${esc(c.name)}${c.owner !== this.human ? ` (${esc(civDef(this.state, c.owner).name)})` : ''}</button>`;
+      }
+      if (!targets.length) navalBtns += `<div class="label">Walk into or next to a city that doesn’t follow ${esc(faith?.name ?? 'your faith')} (yours, or a civ at peace with you), then spread it.</div>`;
+    }
     let html = '';
     if (units.length > 1) {
       const head = `<div class="label">${isMixedStack(units) ? '<span class="mixed">Mixed</span> ' : ''}${units.length} units here: ${stackLabel(units)}</div>`;
@@ -2160,7 +2410,7 @@ export class App {
             .map(
               (u) => `<button type="button" data-unit="${u.id}" class="stackItem${u.id === sel.id ? ' on' : ''}">
               ${this.badge(u.type, u.owner)}${UNITS[u.type].name}${u.army ? ` ${armyWord(u.type)} ×${RULES.combat.armyMultiplier}` : ''}${u.veteran ? ' ★' : ''}${u.fortified && !isShip(u) ? ' 🛡' : ''}${u.carriedBy !== null ? ' ⚓' : ''}
-              <span class="sub">${u.movesLeft}/${UNITS[u.type].moves}${u.carriedBy !== null ? ' · aboard' : ''}</span></button>`,
+              <span class="sub">${movesText(u.movesLeft)}/${UNITS[u.type].moves}${u.carriedBy !== null ? ' · aboard' : ''}</span></button>`,
             )
             .join('')
         : '';
@@ -2213,7 +2463,12 @@ interface Notice {
   title: string;
   text: string;
   sub?: string;
-  buttons: { label: string; cls?: string; disabled?: boolean; run?: () => void }[];
+  /** `run` gets the text field's value (Round 12); `stay` keeps the panel open (e.g. "Suggest"). */
+  buttons: { label: string; cls?: string; disabled?: boolean; stay?: boolean; run?: (input?: string) => void }[];
+  /** Round 12: a text field under the text (naming a religion). */
+  input?: { value: string; max: number; label: string };
+  /** Round 12: set for a religion waiting for its name, so its panel is queued once. */
+  religionId?: number;
   /** Set for an AI offer, so it's queued once. */
   offerId?: number;
   /** False when the panel needs an answer (Esc doesn't close it). */
@@ -2291,7 +2546,28 @@ function unitSummary(id: BuildItem['id']): string {
   if (def.airCargo) parts.push(`carries ${def.airCargo} aircraft`);
   if (def.canFoundCity) parts.push('founds a city');
   if (def.popCost > 0) parts.push(`costs ${def.popCost} population`);
+  // Round 12: the Missionary can't fight.
+  if (def.spreadsReligion) {
+    parts[0] = `moves ${def.moves}`;
+    parts.push(`spreads this city’s religion ${RELIGION.missionaryCharges} times · can’t fight`);
+  }
   return parts.join(' · ');
+}
+
+/** Round 12: moves left, which roads can make fractional ("⅓", "1⅔", "0.4"). */
+function movesText(n: number): string {
+  if (Number.isInteger(n)) return String(n);
+  const whole = Math.floor(n);
+  const frac = n - whole;
+  const third = Math.abs(frac - 1 / 3) < 0.01 ? '⅓' : Math.abs(frac - 2 / 3) < 0.01 ? '⅔' : undefined;
+  if (third) return `${whole || ''}${third}`;
+  return String(Math.round(n * 10) / 10);
+}
+
+/** Round 12: a religion's dot (its color and symbol letter) for panels; a gold ring for a holy city. */
+function religionDot(r: Religion, holy = false): string {
+  const sym = symbolOf(r);
+  return `<span class="rdot${holy ? ' holy' : ''}" style="background:${sym.color}" title="${esc(sym.name)}">${esc(sym.glyph)}</span>`;
 }
 
 function esc(text: string): string {

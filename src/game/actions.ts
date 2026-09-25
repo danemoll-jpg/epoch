@@ -16,6 +16,8 @@ import type { ActionResult, BuildItem, Coord, GameState } from './types';
 import { chooseVillage, type VillageChoice } from './villages';
 import { useGreatPerson, type GreatPersonUse } from './greatPeople';
 import { dissolution, pilgrimage, returnCity, setChallenge } from './uniques';
+import { nameReligion, nationalChurch, spreadReligion } from './religion';
+import { buyRoad } from './roads';
 
 export type Action =
   | { type: 'move'; unitId: number; to: Coord }
@@ -51,6 +53,12 @@ export type Action =
   | { type: 'dissolution' }
   | { type: 'setChallenge'; tech: TechId }
   | { type: 'returnCity'; cityId: number }
+  /** Round 12: name the religion you just founded; a Missionary converts a city; Henry's church. */
+  | { type: 'nameReligion'; religionId: number; name: string }
+  | { type: 'spreadReligion'; unitId: number; cityId: number }
+  | { type: 'nationalChurch' }
+  /** Round 12: buy a road from one of your cities to another city. */
+  | { type: 'buyRoad'; fromCityId: number; toCityId: number }
   | { type: 'launchSpaceship' }
   | { type: 'keepPlaying' }
   | { type: 'endTurn' };
@@ -114,6 +122,14 @@ function runAction(state: GameState, action: Action): ActionResult {
       return setChallenge(state, action.tech);
     case 'returnCity':
       return returnCity(state, action.cityId);
+    case 'nameReligion':
+      return nameReligion(state, action.religionId, action.name);
+    case 'spreadReligion':
+      return spreadReligion(state, action.unitId, action.cityId);
+    case 'nationalChurch':
+      return nationalChurch(state);
+    case 'buyRoad':
+      return buyRoad(state, action.fromCityId, action.toCityId);
     case 'launchSpaceship':
       return launchSpaceship(state);
     case 'keepPlaying':

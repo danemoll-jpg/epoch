@@ -3,6 +3,7 @@
 // business; see src/ui/storage.ts.
 
 import { BUILDINGS } from '../data/buildings';
+import { FOUNDING_TECHS } from '../data/religion';
 import type { TechId } from '../data/techs';
 import { RULES } from '../data/rules';
 import { UNITS } from '../data/units';
@@ -197,6 +198,18 @@ const MIGRATIONS: Record<number, (s: Raw) => void> = {
     }
     for (const c of s.cities as Raw[]) c.founder = typeof c.capitalOf === 'number' ? c.capitalOf : c.owner;
   },
+  // Round 11 → 12: religion and roads. No religions yet and no city follows one; a founding
+  // tech some civ already knows doesn't found anything after the fact (it lapses), but the
+  // next one nobody knows yet can still be founded. No roads anywhere and no Missionaries
+  // (none could exist). Theology is a new tech, simply unknown.
+  10: (s) => {
+    s.religions = [];
+    const known = new Set<string>();
+    for (const p of s.players as Raw[]) for (const t of (p.techs as string[]) ?? []) known.add(t);
+    s.religionTechsLapsed = FOUNDING_TECHS.filter((t) => known.has(t));
+    for (const c of s.cities as Raw[]) c.religion = null;
+    for (const t of (s.map as Raw).tiles as Raw[]) delete t.road;
+  },
 };
 
 /** What each migration brought, for the "your game was updated" notice. Keyed like MIGRATIONS. */
@@ -209,6 +222,7 @@ export const MIGRATION_NOTES: Record<number, string> = {
   7: 'barbarians, villages, resources, huts, and Great People',
   8: 'aircraft and Airports',
   9: 'leader bonuses and new buildings',
+  10: 'religion, Missionaries, and roads',
 };
 
 /** "the tech tree and combat and armies" for a save upgraded from version `from`. */
@@ -246,6 +260,8 @@ function shapeError(s: Record<string, unknown>): string | undefined {
   if (!s.cities.every((c) => isObject(c) && Array.isArray(c.greatPeople))) return 'missing Great People';
   if (!s.cities.every((c) => isObject(c) && typeof c.founder === 'number')) return 'missing founders';
   if (!s.players.every((p) => isObject(p) && Array.isArray(p.uniquesUsed) && Array.isArray(p.shipsBuilt))) return 'missing leader state';
+  if (!Array.isArray(s.religions) || !Array.isArray(s.religionTechsLapsed)) return 'missing religions';
+  if (!s.cities.every((c) => isObject(c) && (c.religion === null || typeof c.religion === 'number'))) return 'missing city religions';
   return undefined;
 }
 

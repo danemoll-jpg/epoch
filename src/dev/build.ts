@@ -72,6 +72,8 @@ export function makeState(
     villages: [],
     greatPeople: [],
     greatPeopleNames: [],
+    religions: [],
+    religionTechsLapsed: [],
   };
   if (opts.barbarians) addBarbarians(state);
   return state;
@@ -156,6 +158,7 @@ export function addCity(
     greatPeople: [],
     ...extra,
     founder: extra.founder ?? owner,
+    religion: extra.religion ?? null,
   };
   state.cities.push(city);
   refreshWorkedTiles(state);

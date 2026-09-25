@@ -1112,17 +1112,17 @@ Steps, Technical Notes.
 
     | Leader | Start | Ancient | Medieval | Industrial | Modern | Unique / drawback |
     |---|---|---|---|---|---|---|
-    | Hatshepsut | Wonders −15% | Meeting a civ +30 gold; +1 gold/turn per met civ (max 5) | Each wonder **in her cities** +3 culture, +2 gold | Harbors, Marketplaces −50% | +25% gold | Land units +10% (not Settlers or ships) |
+    | Hatshepsut | Wonders −15% | Meeting a civ +30 gold; +1 gold/turn per met civ (max 5); **Round 12: +1 gold per worked road tile** | Each wonder **in her cities** +3 culture, +2 gold | Harbors, Marketplaces −50% | +25% gold | Land units +10% (not Settlers or ships) |
     | Caligula | Rush-buy −25% | +3 culture per fight won | Military units −20% | Buys wonders at 2× (only him) | Armies/fleets +25% | −10% gold |
     | Charlemagne | Captures keep size and all buildings (Walls too) | Mounted units (Horseman, Chariot, Knight) start veteran | Captured cities +2 culture | 8+ cities: +1 production each | +2 culture per fight won | — |
     | Mansa Musa | +1 gold per worked resource tile | Desert +1 trade; Oasis, Gold ×2 | Culture buildings −33% to rush-buy; **Pilgrimage** | Capital +50% gold | +25% gold | Pilgrimage: all gold (min 200) → 1.5× culture, **every met civ +3 opinion**, once |
-    | Henry VIII | Great People −20% culture | Temples, Cathedrals +1 culture | **Dissolution**: 40 gold per Temple/Cathedral, their culture −50% for 20 turns, once | Gifts ×2 opinion; **peace desire +1.5** | +25% culture | Breaking a treaty: **every civ that met him −2 opinion** (and world gossip) |
+    | Henry VIII | Great People −20% culture | Temples, Cathedrals +1 culture | **Dissolution**: 40 gold per Temple/Cathedral, their culture −50% for 20 turns, once; **Round 12: national church** (capital, needs a Temple, once) | Gifts ×2 opinion; **peace desire +1.5** | +25% culture | Breaking a treaty: **every civ that met him −2 opinion** (and world gossip) |
     | Louis XIV | Wonders +50% culture | Wine, Silk, Spices, Gems, Gold +1 culture | Capital +1 culture, +1 gold per wonder | **Versailles** (**cost 220, needs Economics**, capital only): +10 culture, **+25% gold empire-wide**, +25% production on wonders there | +25% culture | −50% culture while a rival holds his capital |
     | Peter the Great | Techs a met civ knows −25% | Ships in coastal cities +25% production | First ship of each type −50% | +2 science per met civ | +25% science while behind a met civ | — |
     | Simón Bolívar | Liberation: +100 culture, +50 gold, keeps size | +25% attack vs civs with more cities | Return a liberated city: +150 culture, peace, **opinion → friendly (+6)**, only that turn | Captured cities +2 culture | +25% culture | −5% gold per captured city beyond 3 |
     | John F. Kennedy | +10% science | Libraries, Universities −25% | First into an era: +50 culture | National Challenge: +50% science on one tech | **Moonshot (cost 250, Rocketry)**: +200 culture, +25% science; spaceship parts −50% production, **+100 gold each** | — |
     | Viktor Yushchenko | Plains +1 food | Traded tech +20 science; AIs' willingness +1 | +2 science per met civ ahead | **+5% science per met civ at peace (max +20%)** (was 10%/30% per treaty) | +50 culture when losing a city or a war ends | — |
-    | Angela Merkel | Buildings −10% | City defenders +25% | Raids steal half; no starvation shrink | Factories +2 gold; +10% production | +25% science with a Factory | — |
+    | Angela Merkel | Buildings −10%; **Round 12: roads −50% gold** | City defenders +25% | Raids steal half; no starvation shrink | Factories +2 gold; +10% production | +25% science with a Factory | — |
     | Kim Jong Un | Military-unlocking techs −25% | City defenders +25% | Military units −15% | Siege units and bombers +25% attack | Deterrence: **AI war score −10, demands ×¼** | −10% science and gold; AIs' willingness ×½ |
 
     **Readings I chose (tell me if you want them different):** "peace
@@ -1353,6 +1353,83 @@ Dan then:
 - (a) picks icons on the picker page;
 - (b) tries the religion and road scenarios;
 - (c) founds and names a religion in a real game, and buys a road.
+
+**Round 12 report (coding agent, 2026-09-24): done, waiting for Dan.**
+Version 0.12.0, save format 11. `npm test`: **655 pass** (70 new: 31 in
+`tests/religion.test.ts`, 19 in `tests/roads.test.ts`, 20 in the scenario
+suite). Lint and build clean; the dev-code check passes.
+
+| # | Item | Status | Verified by |
+|---|------|--------|-------------|
+| 0 | Commit docs first | Done (`7875083`), then re-read both. Nothing from last round's report was dropped | n/a |
+| A1 | Icon picker page | Done: `docs/religion-road-icon-candidates.html` (+ folder, `SOURCES.md`), same format as before, picks saved under `epoch.religionIconPicks`. **Missionary** 3 candidates; **8 religion symbols**, 2 each (Sun disc, Flame, Star, Eye, Tree, Spiral, **Mountain**, Wave); **holy-city marker** 3. **Moon became Mountain**: every moon icon on game-icons.net is a crescent. No real-world religious symbols (crosses, crescents, hexagrams, etc. left out on purpose; laurels left out too, since they're close to the Great General's). The page's "Watch out" notes flag look-alikes (Star A = the capital star; Star B and Holy city A are both four-point sparkles). Until the picks are wired in: "Mi" for the Missionary, colored dots with a letter for religions | Page loads in the dev server (130 SVG previews, no console errors); served by the play server at http://10.0.0.224:4173/docs/religion-road-icon-candidates.html |
+| B1 | Founding | Done. Founding techs **Mysticism, Astronomy, Philosophy, Monotheism, and a new Medieval Theology** (Monotheism + Feudalism; the tree is 56 techs). The first civ to know one founds a religion in its capital (or its biggest non-holy city), the holy city; **5 at most** (Q24). **Change from the plan: one religion per civ** (`RELIGION.maxPerCiv`, 1; set it to 5 for the literal rule): in the first sim the tech leader founded all 5 in every game, so a civ that has one leaves the next founding tech to the next civ that knows it. Checked when a tech is learned and at each player's end of turn (so France, starting with Mysticism, founds once it has a city). **Naming:** a panel with a text field (16 px, so iPad Safari doesn't zoom), **Suggest** (cycles our invented names), and **Found it**; it can't be dismissed without a name. The AI names from `RELIGION_NAMES` (16 invented names; a test checks none names a real religion). Each religion gets one of 8 colors/symbols | unit-tested; `found-religion` preview-verified on desktop (typed a name, Suggest, Found it) |
+| B2 | Spread | Done. One religion per city or none. **Passive spread once a game turn** (seeded): pressure from each city of a religion within 4 tiles = (5 − distance) + size/3 + Temple 1 + Cathedral 2 + **road link 2**, doubled from the holy city; chance = pressure × 1%, max 15%. A follower switches only when another religion pushes at least twice as hard, at half the chance; **holy cities never switch**. **Missionary** (30 production, 2 moves, 0/0, **2 spreads**): needs a city that follows a religion, and Monotheism **or that religion's founding tech**; carries its city's religion; ✦ Spread converts the city it's in or next to (yours, or a met civ's at peace); uses its moves, gone after the last spread. **Great Artist:** "Convert a city…" to your religion | unit-tested; `missionary`, `religion-spread`, `shared-faith` preview-verified (Missionary tapped in 768×1024 emulation) |
+| B3 | Effects | Done, Dan's numbers: holy city **+3 culture, +2 gold, +1 gold per follower city anywhere (max +8)** for whoever holds it; follower cities **Temple +1, Cathedral +2** culture; capitals sharing a religion **+2 opinion**, different **−1** (computed live, never stored: `opinionOf`); the diplomacy detail has a **Faith** row ("Shares your faith (+2 opinion)" / "Different faith (−1 opinion)"). A Missionary or Great Artist converting a city its founder doesn't own: **+20 gold, +10 culture** to the founder (passive spread pays nothing, or the gold would pile up). Capturing a holy city moves its income; the founder is kept for the name. No religious victory | unit-tested; `holy-city-income`, `shared-faith` preview-verified (Neutral → Friendly after the spread) |
+| B4 | Henry VIII | Done: **👑 Found a national church** in the leader panel (England, Medieval, a Temple somewhere, capital not already a holy city, once). London becomes the holy city of his own religion (on top of the 5), and the naming panel opens with its own line. World news: "England's king broke with the old priests and founded his own church. The courts of the world are scandalized (and a little jealous)"; his own: "The King needed a divorce, so the King founded a church…". It counts as his one religion. The AI Henry uses it when he has no religion. Dissolution unchanged | unit-tested; `henry-national-church` preview-verified |
+| B5 | UI | Done: city panel **Religion** line (dot, name, "holy city", the +culture/+gold it brings, "All religions…"); **Religion screen** from ☰ → Religions, the city panel, or Diplomacy ("Religions of the world…"): rules, a card per religion (founder, turn, tech or "national church", holy city, followers, "Yours"), what's still to be founded. **Map:** a small dot in the religion's color (with its letter) in a city's lower-right corner (units sit lower-left), a **gold ring** on a holy city; no tinting | preview-verified on desktop, 768×1024 and 1024×768 emulation (`all-religion-symbols`) |
+| B6 | AI | Done: founds automatically; in peacetime builds a Missionary (**2 out at most**) when its religion has a target within 10 tiles; targets its own cities first, then friends (a civ it dislikes is skipped, a capital preferred: shared faith = +opinion); **a rival's city that already has a faith is left alone** (AIs converting each other back and forth made 87 Missionaries in one game). Deterministic | unit-tested (incl. a 70-turn all-AI replay, identical twice) |
+| C1 | Buying roads | Done: city panel **"Build road to…"** (8 nearest: your cities and met civs' at peace, within 12 tiles), each with its gold cost (**10 per tile without a road**); laid at once along the cheapest explored land path (no water or mountains; fewest new tiles, then straight). Cities count as road | unit-tested; `build-road` preview-verified (40 gold, road drawn, "joined by road") |
+| C2 | Movement | Done: road to road costs **1/3 of a move**; everyone uses roads; pathing (`findPath`), reachable tiles (the highlight), and the AI all use it. Moves can now be fractional; the HUD shows "⅔" | unit-tested; `road-speed` preview-verified |
+| C3 | Railroads | Done: learning **Railroad upgrades roads for free** (Q25): every road tile whose nearest city is yours, then again each of your turns (roads near cities you take or found); roads you buy after are rails. **Rails cost 1/10 of a move** (not "free in your territory"). A city counts as rail once its owner knows Railroad. **+1 production** on worked rail tiles | unit-tested; `railroad` preview-verified (4 tiles upgraded; Warrior to York and back, 0.5 each way) |
+| C4 | Road trade | Done: a worked road or rail tile **+1 trade** (city centers don't count) | unit-tested |
+| C5 | Ownership | Done: roads belong to no one, captured areas keep them, **no pillaging** (Q26) | unit-tested (an enemy moves on your road) |
+| C6 | Leader hooks | Done through the bonus system: **Merkel** (start bonus) roads −50% gold; **Hatshepsut** (Ancient "Envoys and caravans") +1 gold per worked road tile. Bonus table above updated (and Henry's national church) | unit-tested |
+| C7 | AI roads | Done: one road a turn with spare gold (its usual reserve + 40): at war, from its city nearest the war target toward it (up to 10 tiles); else the **cheapest missing link** between two of its cities up to 8 apart. Deterministic | unit-tested |
+| C8 | Map drawing | Done: roads thin brown lines between tile centers, rails darker with ties (ties from 20 px up); under resources, cities, and units | preview-verified at several zooms |
+| D1 | Migration v10 → v11 | Done: no religions; a founding tech any civ already knows **lapses** (the Religion screen lists it); the next unknown one can still be founded; no roads, no Missionaries; backups as always | unit-tested (v10 save with Mysticism known: Mysticism founds nothing, Astronomy does, it plays on) |
+| D2 | Dev scenarios | Done, all 10: `found-religion`, `missionary`, `religion-spread`, `holy-city-income`, `shared-faith`, `henry-national-church`, `build-road`, `road-speed`, `railroad`, `all-religion-symbols`. Every number in a note is computed | unit-tested (each outcome); 9 of 10 preview-verified (`religion-spread` only by its test) |
+| D3 | Sim report | Done (`npm run sim`, numbers below) | `npm run sim` |
+| D4 | Unit tests | Done: all the listed areas, plus the migration and every scenario; `pace.test.ts` passes | `npm test`: 655 pass |
+
+- **Sim (`npm run sim`), after the changes below:**
+  - **Pace** (seeds 8/13/21/33/42, 300 turns): median Medieval 64, Industrial
+    143, Modern 198, tree 250 (Round 11: 61 / 138 / 211). First full tree
+    t170–197.
+  - **Religions:** 4.2 per game (4, 4, 4, 4, 5), five different founders in
+    most games (e.g. Ukraine t66 Mysticism, Gran Colombia t88, Rome t159,
+    Egypt t194). England's national church came at t43 and t83 in the two
+    games it was in. **Theology was never used** (by then every civ that
+    reaches it has a religion). **83% of cities follow a religion at turn
+    150** (124 of 149). Missionaries: 13.6 a game.
+  - **Roads per civ:** 2.4 tiles at turn 100 (max 14), 8.3 at turn 200 (max
+    36). Most AIs spend their gold on rush-buying first, so roads come late
+    and unevenly.
+  - **Victories:** pace seeds: culture ×5, t177–237. `npm run sim -- leaders`
+    (seeds 101…164): **culture 5, economic 3, domination 1 (North Korea
+    t163), technology 1**, wins t163–205, median 194 (Round 11: culture 4,
+    economic 3, tech 2, domination 1, t183–238). **No win before turn 150**
+    (earliest t163).
+- **Changes made to keep the pace (please check):**
+  - **Culture goal 6000 → 7000**: religion adds culture everywhere (holy
+    cities, follower Temples and Cathedrals), and culture wins had moved
+    about 20 turns earlier.
+  - **AI domination pacing made firm:** before turn 160 an AI won't take
+    the city that would win it domination at once (the last rival capital
+    it needs, or the last city of the last rival), **only when that rival is
+    another AI**; the human gets no such protection. Without it North Korea
+    won by domination at t130 in seed 122.
+  - **One religion per civ** (B1 above) and slower passive spread (1% per
+    pressure, max 15%; it was 2%/25% in the first run, which converted 87%
+    of cities by t150 anyway).
+- **Readings I chose (tell me if you want them different):** rails 1/10 of
+  a move rather than free; "your roads" for the Railroad upgrade = roads
+  whose nearest city is yours; the conversion reward only for a Missionary
+  or Great Artist, not passive spread; a founder is paid for converting any
+  city it doesn't own (a rival's, or a third civ's); the Missionary is
+  0 attack / 0 defense with 2 moves; a road can go to a met civ's city at
+  peace; the national church counts as Henry's one religion.
+- **Observed, not fixed (for M9's balance pass):** culture is still the most
+  common win (5 of 10, and all 5 pace seeds); the AI builds few roads early;
+  Theology goes unused with one religion per civ (the Religion screen still
+  lists it as "still to be founded").
+- **Dan, next:** (a) pick icons on
+  http://10.0.0.224:4173/docs/religion-road-icon-candidates.html (Copy my
+  picks, and paste them to the planning session); (b) try the 10 scenarios
+  (☰ → Dev scenarios, on `dev:lan`); (c) found and name a religion in a real
+  game, and buy a road. Note: in a game saved before this round, Mysticism
+  (and any founding tech someone already knows) won't found anything; the
+  next founding tech nobody knows yet still does.
 
 **Open questions (defaults in bold; the coding agent proceeds on the default
 unless Dan decides otherwise):**

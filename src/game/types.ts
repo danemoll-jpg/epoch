@@ -28,7 +28,12 @@ export interface Tile {
   hut?: boolean;
   /** A hut's result set in advance (the dev scenarios use it to show each one); normally random. */
   hutResult?: HutResultKind;
+  /** A road or, once upgraded by the Railroad tech, a rail (Round 12). Nobody owns it. */
+  road?: RoadKind;
 }
+
+/** Round 12. City tiles always count as road (and as rail once their owner knows Railroad). */
+export type RoadKind = 'road' | 'rail';
 
 export interface GameMap {
   width: number;
@@ -108,6 +113,9 @@ export interface Unit {
   carriedBy: number | null;
   /** A barbarian unit's village (Round 9): it stays near it. Absent for everyone else. */
   home?: number;
+  /** A Missionary's religion (a Religion id) and spreads left (Round 12). Absent for everyone else. */
+  religion?: number;
+  charges?: number;
 }
 
 export type BuildItem =
@@ -157,6 +165,8 @@ export interface City {
   lastRaid?: number;
   /** The turn its Airport last airlifted a unit (Round 10: once a turn). */
   airliftTurn?: number;
+  /** Round 12: the religion most of its people follow (a Religion id), or null. */
+  religion: number | null;
 }
 
 /**
@@ -169,8 +179,9 @@ export interface City {
  * 8 = Round 9 (barbarians and villages, resources, huts, Great People).
  * 9 = Round 10 (aircraft: based in cities or on Carriers; the Airport's airlift).
  * 10 = Round 11 (leaders: who founded each city, once-per-game actions, the National Challenge).
+ * 11 = Round 12 (religions, each city's religion, Missionaries; roads and rails on tiles).
  */
-export const STATE_VERSION = 10;
+export const STATE_VERSION = 11;
 
 export interface GameState {
   version: number;
@@ -207,6 +218,29 @@ export interface GameState {
   greatPeople: GreatPerson[];
   /** Great People names already given out, so each is used once per game. */
   greatPeopleNames: string[];
+  /** Religions founded so far (Round 12), in founding order. A religion is never removed. */
+  religions: Religion[];
+  /**
+   * Founding techs whose chance has passed without a religion (Round 12: some civ already knew
+   * it when an older save was upgraded), so nobody founds with them.
+   */
+  religionTechsLapsed: TechId[];
+}
+
+/** A founded religion (Round 12). Its holy city's owner gets the holy-city income. */
+export interface Religion {
+  id: number;
+  name: string;
+  /** The civ that founded it (kept for naming only; it never changes). */
+  founder: number;
+  holyCityId: number;
+  /** Index into RELIGION_SYMBOLS: its color and symbol. */
+  symbol: number;
+  /** The founding tech it came with, or null for Henry VIII's national church. */
+  tech: TechId | null;
+  foundedTurn: number;
+  /** False while a human founder hasn't named it yet (it has a suggested name meanwhile). */
+  named: boolean;
 }
 
 /**
@@ -330,7 +364,9 @@ export interface LogEntry {
     // Round 10: an air strike (or a Helicopter's attack), and a fighter intercepting one.
     | 'strike' | 'intercept'
     // Round 11: a leader bonus paying out or switching on, and a leader's unique action.
-    | 'leader';
+    | 'leader'
+    // Round 12: a religion founded, a city converted; a road bought.
+    | 'religion' | 'road';
   /** Where it happened, so the UI can hide rival events the viewer can't see. */
   x?: number;
   y?: number;

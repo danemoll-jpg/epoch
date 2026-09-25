@@ -287,7 +287,8 @@ export const RULES = {
       dominationCapitalPull: 20,
       /**
        * Pacing (like the grace period): before this turn, the last capital a conqueror needs
-       * doesn't pull its war plan, so AI domination wins don't come too early.
+       * doesn't pull its war plan, and (Round 12) no AI takes the city that would win it the
+       * game at once, so AI domination wins don't come too early.
        */
       dominationPaceTurn: 160,
       /** Techs a conqueror researches first (after any urgent ones). */

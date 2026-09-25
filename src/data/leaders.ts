@@ -25,7 +25,7 @@ export type CostScope =
   | 'spaceship'
   | { buildings: BuildingId[] };
 
-export type UniqueId = 'pilgrimage' | 'dissolution' | 'challenge' | 'returnCity' | 'versailles' | 'moonshot';
+export type UniqueId = 'pilgrimage' | 'dissolution' | 'challenge' | 'returnCity' | 'versailles' | 'moonshot' | 'nationalChurch';
 
 export type LeaderEffect =
   // ---- costs ----
@@ -84,6 +84,11 @@ export type LeaderEffect =
   | { kind: 'capturedGoldPenalty'; pct: number; free: number }
   /** −pct culture empire-wide while a rival holds your original capital. */
   | { kind: 'capitalLossCulture'; pct: number }
+  // ---- roads (Round 12) ----
+  /** Roads cost pct less gold per tile (Merkel). */
+  | { kind: 'roadCost'; pct: number }
+  /** +gold on every worked road or rail tile in your cities (Hatshepsut). */
+  | { kind: 'roadGold'; gold: number }
   // ---- techs ----
   /** Techs a met civ already knows cost pct less. */
   | { kind: 'metTechCost'; pct: number }
@@ -154,6 +159,8 @@ export const UNIQUE_RULES = {
   challenge: { sciencePct: 50 },
   returnCity: { culture: 150, opinion: 6 },
   moonshot: { culture: 200, sciencePct: 25 },
+  /** Round 12: Henry VIII's national church needs a Temple somewhere in his empire. */
+  nationalChurch: { needs: 'temple' as BuildingId },
 };
 
 const b = (name: string, text: string, ...effects: LeaderEffect[]): Bonus => ({ name, text, effects });
@@ -165,7 +172,7 @@ export const LEADER_BONUSES: Record<string, LeaderBonuses> = {
   egypt: {
     start: b('Monument builders', 'Wonders cost 15% less.', { kind: 'cost', of: 'wonders', pct: -15 }),
     eras: {
-      ancient: b('Envoys', 'Meeting a new civ brings 30 gold; +1 gold a turn per civ you know (up to +5).', { kind: 'meetGold', gold: 30 }, { kind: 'goldPerMetCiv', gold: 1, max: 5 }),
+      ancient: b('Envoys and caravans', 'Meeting a new civ brings 30 gold; +1 gold a turn per civ you know (up to +5); +1 gold on every worked road tile.', { kind: 'meetGold', gold: 30 }, { kind: 'goldPerMetCiv', gold: 1, max: 5 }, { kind: 'roadGold', gold: 1 }),
       medieval: b('Royal patronage', 'Each wonder in your cities also makes +3 culture and +2 gold a turn there.', { kind: 'wonderCityYield', culture: 3, gold: 2 }),
       industrial: b('River trade', 'Harbors and Marketplaces cost half as much.', { kind: 'cost', of: { buildings: ['harbor', 'marketplace'] }, pct: -50 }),
       modern: b('Treasury', '+25% gold in every city.', { kind: 'empirePct', yield: 'gold', pct: 25 }),
@@ -204,7 +211,7 @@ export const LEADER_BONUSES: Record<string, LeaderBonuses> = {
     start: b('Court of talent', 'Great People arrive 20% sooner.', { kind: 'greatPeople', pct: -20 }),
     eras: {
       ancient: b('Church and crown', 'Temples and Cathedrals make +1 culture.', { kind: 'buildingCulture', buildings: ['temple', 'cathedral'], culture: 1 }),
-      medieval: b('Dissolution', 'Once per game: sell off the monasteries (40 gold per Temple and Cathedral), but their culture is halved for 20 turns.', { kind: 'unique', id: 'dissolution' }),
+      medieval: b('Dissolution', 'Once per game: sell off the monasteries (40 gold per Temple and Cathedral), but their culture is halved for 20 turns. Also once: found a national church in your capital (needs a Temple), even if others got there first.', { kind: 'unique', id: 'dissolution' }, { kind: 'unique', id: 'nationalChurch' }),
       industrial: b('Royal marriages', 'Gold gifts count double, and AIs accept your peace offers more readily.', { kind: 'royalMarriages', giftMult: 2, peaceBonus: 1.5 }),
       modern: b('Crown jewels', '+25% culture.', { kind: 'empirePct', yield: 'culture', pct: 25 }),
     },
@@ -258,7 +265,7 @@ export const LEADER_BONUSES: Record<string, LeaderBonuses> = {
     },
   },
   germany: {
-    start: b('Engineering', 'Buildings cost 10% less.', { kind: 'cost', of: 'buildings', pct: -10 }),
+    start: b('Engineering', 'Buildings cost 10% less, and roads half the gold.', { kind: 'cost', of: 'buildings', pct: -10 }, { kind: 'roadCost', pct: -50 }),
     eras: {
       ancient: b('Hard to knock over', 'Units defending in your cities get +25%.', { kind: 'cityDefense', pct: 25 }),
       medieval: b('Order', 'Barbarian raids steal half as much, and your cities never shrink from starvation.', { kind: 'raidLoss', pct: -50 }, { kind: 'noStarvation' }),

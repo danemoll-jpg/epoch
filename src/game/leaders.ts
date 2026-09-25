@@ -174,6 +174,9 @@ export function leaderCityGold(state: GameState, city: City): number {
   for (const e of effectsOf(state, o, 'wonderCityYield')) gold += e.gold * city.wonders.length;
   if (isCapital(city)) for (const e of effectsOf(state, o, 'capitalWonderYield')) gold += e.gold * city.wonders.length;
   for (const e of effectsOf(state, o, 'buildingGold')) if (city.buildings.includes(e.building)) gold += e.gold;
+  // Round 12: Hatshepsut's caravans, on every worked road or rail tile (not the city's own).
+  const perRoad = effectsOf(state, o, 'roadGold').reduce((s, e) => s + e.gold, 0);
+  if (perRoad) gold += perRoad * city.worked.filter((k) => state.map.tiles[k]?.road).length;
   return gold;
 }
 

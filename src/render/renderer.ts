@@ -11,6 +11,9 @@
 // red skull badge. Letters (and the old shapes) stand in while an icon loads or if one is
 // missing. Aircraft (Round 10) sit in their city behind its ground units, and a Carrier's
 // badge counts the aircraft aboard with its cargo.
+// Round 12: roads are thin brown lines between tile centers and rails darker lines with ties,
+// under everything else on the tile. A city following a religion has a dot in the religion's
+// color (with its symbol's letter) in its lower-right corner; a holy city's dot has a gold ring.
 
 import { BARBARIAN_CIV, BARBARIANS } from '../data/barbarians';
 import { CIVS } from '../data/civs';
@@ -23,6 +26,8 @@ import { unitVisibleTo, visibleTiles } from '../game/fog';
 import { carriedBy, isAir } from '../game/naval';
 import { tileIndex } from '../game/grid';
 import { visibleResource } from '../game/resources';
+import { roadAt } from '../game/roads';
+import { cityReligion, holyReligion, symbolOf } from '../game/religion';
 import type { Coord, GameState, Unit } from '../game/types';
 import { worldToScreen, type Camera } from './camera';
 import { iconBitmap } from './icons';
@@ -159,6 +164,113 @@ function drawHut(ctx: CanvasRenderingContext2D, x: number, y: number, s: number,
   ctx.textBaseline = 'middle';
   ctx.fillText('?', cx, cy - r * 0.15);
   ctx.restore();
+}
+
+/**
+ * Roads and rails (Round 12) on explored tiles: a line from each road tile (or city) to each
+ * road neighbor. Each pair is drawn once (only toward E, SE, S, SW). Rails: dark, with ties.
+ */
+function drawRoads(ctx: CanvasRenderingContext2D, state: GameState, explored: number[], x0: number, x1: number, y0: number, y1: number, s: number, pos: (x: number, y: number) => Coord): void {
+  const { map } = state;
+  const dirs = [
+    [1, 0],
+    [1, 1],
+    [0, 1],
+    [-1, 1],
+  ] as const;
+  const roads: [Coord, Coord][] = [];
+  const rails: [Coord, Coord][] = [];
+  for (let ty = Math.max(0, y0 - 1); ty <= y1; ty++) {
+    for (let tx = Math.max(0, x0 - 1); tx <= x1; tx++) {
+      if (explored[tileIndex(map, tx, ty)] !== 1) continue;
+      const a = roadAt(state, tx, ty);
+      if (!a) continue;
+      for (const [dx, dy] of dirs) {
+        const nx = tx + dx;
+        const ny = ty + dy;
+        if (nx < 0 || ny < 0 || nx >= map.width || ny >= map.height) continue;
+        if (explored[tileIndex(map, nx, ny)] !== 1) continue;
+        const b = roadAt(state, nx, ny);
+        if (!b) continue;
+        // Two cities side by side aren't joined by a road just for being cities.
+        if (!map.tiles[tileIndex(map, tx, ty)]!.road && !map.tiles[tileIndex(map, nx, ny)]!.road) continue;
+        const pa = pos(tx, ty);
+        const pb = pos(nx, ny);
+        const seg: [Coord, Coord] = [
+          { x: pa.x + s / 2, y: pa.y + s / 2 },
+          { x: pb.x + s / 2, y: pb.y + s / 2 },
+        ];
+        (a === 'rail' && b === 'rail' ? rails : roads).push(seg);
+      }
+    }
+  }
+  ctx.lineCap = 'round';
+  if (roads.length) {
+    ctx.strokeStyle = '#8a5a2b';
+    ctx.lineWidth = Math.max(2, s * 0.07);
+    ctx.beginPath();
+    for (const [a, b] of roads) {
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+    }
+    ctx.stroke();
+  }
+  if (rails.length) {
+    ctx.strokeStyle = '#2b1d12';
+    ctx.lineWidth = Math.max(2, s * 0.06);
+    ctx.beginPath();
+    for (const [a, b] of rails) {
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+    }
+    ctx.stroke();
+    // Ties across the line, when zoomed in enough to see them.
+    if (s >= 20) {
+      ctx.lineWidth = Math.max(1, s * 0.03);
+      ctx.beginPath();
+      const tie = s * 0.12;
+      for (const [a, b] of rails) {
+        const len = Math.hypot(b.x - a.x, b.y - a.y);
+        const ux = (b.x - a.x) / len;
+        const uy = (b.y - a.y) / len;
+        for (let d = s * 0.2; d < len - s * 0.1; d += s * 0.22) {
+          const cx = a.x + ux * d;
+          const cy = a.y + uy * d;
+          ctx.moveTo(cx - uy * tie, cy + ux * tie);
+          ctx.lineTo(cx + uy * tie, cy - ux * tie);
+        }
+      }
+      ctx.stroke();
+    }
+  }
+  ctx.lineCap = 'butt';
+}
+
+/** Round 12: a religion's dot (its color and symbol letter) in a city's lower-right corner; a gold ring on a holy city. */
+function drawReligionDot(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, color: string, glyph: string, holy: boolean): void {
+  if (holy) {
+    ctx.fillStyle = '#ffd24a';
+    ctx.strokeStyle = '#111';
+    ctx.lineWidth = Math.max(1, r * 0.15);
+    ctx.beginPath();
+    ctx.arc(x, y, r * 1.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.fillStyle = color;
+  ctx.strokeStyle = '#111';
+  ctx.lineWidth = Math.max(1, r * 0.2);
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  if (r >= 5) {
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `800 ${Math.round(r * 1.2)}px system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(glyph, x, y + r * 0.05);
+  }
 }
 
 /** A resource (Round 9): its icon, white on a small dark badge in the tile's upper-right corner (its letters while the icon loads). */
@@ -444,6 +556,9 @@ export function render(
   }
   ctx.stroke();
 
+  // Round 12: roads and rails, under everything that stands on a tile.
+  drawRoads(ctx, state, explored, x0, x1, y0, y1, s, pos);
+
   // Round 9: resources the viewer can see, huts, and barbarian villages, on explored tiles.
   if (s >= 14) {
     for (let ty = y0; ty <= y1; ty++) {
@@ -514,6 +629,12 @@ export function render(
     ctx.textBaseline = 'middle';
     ctx.fillText(String(city.size), p.x + s / 2, p.y + s / 2 + s * 0.02);
     if (city.capitalOf !== null) drawStar(ctx, p.x + inset, p.y + inset, s * 0.13);
+    // Round 12: its religion, and a gold ring if it's a holy city.
+    const faith = cityReligion(state, city);
+    if (faith && s >= 14) {
+      const sym = symbolOf(faith);
+      drawReligionDot(ctx, p.x + s - inset, p.y + s - inset, Math.max(4, s * 0.11), sym.color, sym.glyph, !!holyReligion(state, city));
+    }
     if (city.owner === view.viewer && city.build === null) {
       const bx = p.x + s - inset;
       const by = p.y + inset;

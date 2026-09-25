@@ -32,6 +32,10 @@ import { visibleResource } from '../src/game/resources';
 import { pendingVillage } from '../src/game/villages';
 import { interception } from '../src/game/combat';
 import { airliftTargets } from '../src/game/air';
+import { RELIGION, RELIGION_SYMBOLS } from '../src/data/religion';
+import { ROADS } from '../src/data/roads';
+import { faithOpinion, holyReligion, religionCityCulture, religionCityGold, spreadTargets } from '../src/game/religion';
+import { roadAt } from '../src/game/roads';
 
 const AIR_TARGET = { x: 10, y: 5 };
 const mine = (s: GameState, type: string) => s.units.find((u) => u.owner === 0 && u.type === type)!;
@@ -60,6 +64,111 @@ function endTurn(s: GameState): void {
 
 /** What each scenario's note promises. A new scenario without an entry here fails the suite. */
 const OUTCOMES: Record<string, (s: GameState) => void> = {
+  // ---- Round 12: religion and roads ----
+  'found-religion': (s) => {
+    expect(s.religions).toEqual([]);
+    endTurn(s);
+    expect(s.players[0]!.techs).toContain('mysticism');
+    expect(s.religions).toHaveLength(1);
+    const r = s.religions[0]!;
+    expect(r).toMatchObject({ founder: 0, holyCityId: capital(s).id, tech: 'mysticism', named: false });
+    expect(capital(s).religion).toBe(r.id);
+    expect(noteOf('found-religion')).toContain(`+${religionCityCulture(s, capital(s))} culture`);
+    // The naming panel's action.
+    expect(applyAction(s, { type: 'nameReligion', religionId: r.id, name: '  The   Lantern Folk ' }).ok).toBe(true);
+    expect(r).toMatchObject({ name: 'The Lantern Folk', named: true });
+    expect(applyAction(s, { type: 'nameReligion', religionId: r.id, name: 'Again' }).ok).toBe(false);
+  },
+  missionary: (s) => {
+    const m = mine(s, 'missionary');
+    const york = s.cities.find((c) => c.name === 'York')!;
+    const rival = s.cities.find((c) => c.owner === 1)!;
+    expect(spreadTargets(s, m).map((c) => c.id).sort()).toEqual([york.id, rival.id].sort());
+    expect(applyAction(s, { type: 'spreadReligion', unitId: m.id, cityId: york.id }).ok).toBe(true);
+    expect(york.religion).toBe(s.religions[0]!.id);
+    expect(m.charges).toBe(RELIGION.missionaryCharges - 1);
+    // Its moves are used up: the rival must wait for the next turn.
+    expect(applyAction(s, { type: 'spreadReligion', unitId: m.id, cityId: rival.id }).ok).toBe(false);
+    endTurn(s);
+    const gold = s.players[0]!.gold;
+    const culture = s.players[0]!.culture;
+    expect(applyAction(s, { type: 'spreadReligion', unitId: m.id, cityId: rival.id }).ok).toBe(true);
+    expect(rival.religion).toBe(s.religions[0]!.id);
+    expect(s.players[0]!.gold).toBe(gold + RELIGION.conversionReward.gold);
+    expect(s.players[0]!.culture).toBe(culture + RELIGION.conversionReward.culture);
+    expect(s.units.some((u) => u.id === m.id)).toBe(false);
+  },
+  'religion-spread': (s) => {
+    const york = s.cities.find((c) => c.name === 'York')!;
+    expect(york.religion).toBeNull();
+    endTurn(s);
+    expect(york.religion).toBe(s.religions[0]!.id);
+    expect(noteOf('religion-spread')).toMatch(/has a \d+% chance a turn/);
+  },
+  'holy-city-income': (s) => {
+    const c = capital(s);
+    const H = RELIGION.holyCity;
+    expect(religionCityGold(s, c)).toBe(H.gold + 3 * H.goldPerFollower);
+    expect(religionCityCulture(s, c)).toBe(H.culture);
+    expect(noteOf('holy-city-income')).toContain(`+${religionCityGold(s, c)} gold a turn`);
+    // It's in the city's real income.
+    const withFaith = cityScienceGold(s, c).gold;
+    const r = holyReligion(s, c)!;
+    r.holyCityId = -1;
+    expect(cityScienceGold(s, c).gold).toBe(withFaith - H.gold - 3 * H.goldPerFollower);
+  },
+  'shared-faith': (s) => {
+    expect(faithOpinion(s, 1, 0)).toBe(RELIGION.differentFaithOpinion);
+    const m = mine(s, 'missionary');
+    const rival = s.cities.find((c) => c.capitalOf === 1)!;
+    expect(applyAction(s, { type: 'spreadReligion', unitId: m.id, cityId: rival.id }).ok).toBe(true);
+    expect(faithOpinion(s, 1, 0)).toBe(RELIGION.sharedFaithOpinion);
+    expect(attitude(s, 1, 0)).toBe('friendly');
+    expect(noteOf('shared-faith')).toContain('attitude friendly');
+  },
+  'henry-national-church': (s) => {
+    expect(s.religions).toHaveLength(1);
+    expect(applyAction(s, { type: 'nationalChurch' }).ok).toBe(true);
+    const r = s.religions[1]!;
+    expect(r).toMatchObject({ founder: 0, tech: null, holyCityId: capital(s).id, named: false });
+    expect(capital(s).religion).toBe(r.id);
+    expect(s.players[0]!.uniquesUsed).toContain('nationalChurch');
+    expect(applyAction(s, { type: 'nationalChurch' }).ok).toBe(false);
+  },
+  'build-road': (s) => {
+    const york = s.cities.find((c) => c.name === 'York')!;
+    const res = applyAction(s, { type: 'buyRoad', fromCityId: capital(s).id, toCityId: york.id });
+    expect(res.ok).toBe(true);
+    for (let x = 8; x <= 11; x++) expect(roadAt(s, x, 5)).toBe('road');
+    expect(s.players[0]!.gold).toBe(200 - 4 * ROADS.goldPerTile);
+    expect(noteOf('build-road')).toContain(`drops to ${s.players[0]!.gold}`);
+    expect(applyAction(s, { type: 'buyRoad', fromCityId: capital(s).id, toCityId: york.id }).ok).toBe(false);
+  },
+  'road-speed': (s) => {
+    const w = mine(s, 'warrior');
+    const to = { x: w.x + 3, y: w.y };
+    expect(applyAction(s, { type: 'move', unitId: w.id, to }).ok).toBe(true);
+    expect({ x: w.x, y: w.y }).toEqual(to);
+    expect(w.movesLeft).toBe(0);
+  },
+  railroad: (s) => {
+    expect(roadAt(s, 9, 5)).toBe('road');
+    endTurn(s);
+    expect(s.players[0]!.techs).toContain('railroad');
+    for (let x = 8; x <= 11; x++) expect(roadAt(s, x, 5)).toBe('rail');
+    const w = s.units.find((u) => u.owner === 0 && u.type === 'warrior' && u.x === 7)!;
+    expect(applyAction(s, { type: 'move', unitId: w.id, to: { x: 12, y: 5 } }).ok).toBe(true);
+    expect(w.x).toBe(12);
+    expect(w.movesLeft).toBeCloseTo(0.5, 6);
+    expect(s.religions).toEqual([]);
+  },
+  'all-religion-symbols': (s) => {
+    expect(s.religions).toHaveLength(RELIGION_SYMBOLS.length);
+    expect(new Set(s.religions.map((r) => r.symbol)).size).toBe(RELIGION_SYMBOLS.length);
+    expect(s.cities.filter((c) => holyReligion(s, c))).toHaveLength(RELIGION_SYMBOLS.length);
+    expect(s.cities.filter((c) => c.religion !== null && !holyReligion(s, c)).length).toBeGreaterThanOrEqual(4);
+    expect(mine(s, 'missionary').religion).toBe(s.religions[0]!.id);
+  },
   // ---- Round 11: leaders ----
   'new-game-setup': () => {
     // What Start does: your civ first, rivals drawn from the rest, each with its starting tech.

@@ -21,7 +21,9 @@ export type UnitTypeId =
   | 'galley' | 'caravel' | 'frigate' | 'ironclad' | 'transport' | 'destroyer' | 'battleship'
   | 'submarine' | 'carrier'
   // Aircraft (Round 10)
-  | 'fighter' | 'bomber' | 'jet_fighter' | 'stealth_bomber' | 'helicopter';
+  | 'fighter' | 'bomber' | 'jet_fighter' | 'stealth_bomber' | 'helicopter'
+  // Religion (Round 12)
+  | 'missionary';
 
 /** Land units walk; sea units sail (Round 8); air units fly from a base (Round 10). */
 export type UnitDomain = 'land' | 'sea' | 'air';
@@ -75,6 +77,14 @@ export interface UnitDef {
   /** Round 11 (leader bonuses): a unit on horseback (Charlemagne), or a siege weapon or bomber (Kim Jong Un). */
   mounted?: boolean;
   siege?: boolean;
+  /**
+   * Round 12: the Missionary. It carries the religion of the city that built it (which must
+   * follow one) and can spread it `charges` times (src/game/religion.ts). Buildable with its
+   * `requires` tech (Monotheism) or by a civ that knows its city's religion's founding tech.
+   */
+  spreadsReligion?: boolean;
+  /** Round 12: its icon is still being picked (letters until then; the icon test allows it). */
+  iconPending?: boolean;
 }
 
 function unit(
@@ -142,6 +152,12 @@ export const UNITS: Record<UnitTypeId, UnitDef> = {
   helicopter: {
     id: 'helicopter', name: 'Helicopter', glyph: 'He', icon: 'helicopter', domain: 'land', cargo: 0, cost: 70,
     moves: 5, sight: 2, attack: 10, defense: 4, canFoundCity: false, popCost: 0, requires: 'advanced_flight', hover: true,
+  },
+  // Round 12: no attack or defense (it can't fight or guard), two moves, 2 spreads.
+  missionary: {
+    id: 'missionary', name: 'Missionary', glyph: 'Mi', domain: 'land', cargo: 0, cost: 30,
+    moves: 2, sight: 1, attack: 0, defense: 0, canFoundCity: false, popCost: 0, requires: 'monotheism',
+    spreadsReligion: true, iconPending: true,
   },
 };
 

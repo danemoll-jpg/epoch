@@ -16,8 +16,11 @@ export const VICTORY_NAMES: Record<VictoryKind, string> = {
 };
 
 export const VICTORY = {
-  /** Culture: this much culture in total, then build the World Council. */
-  cultureGoal: 6000,
+  /**
+   * Culture: this much culture in total, then build the World Council. Round 12: 6000 → 7000,
+   * since religion (holy cities, follower Temples and Cathedrals) adds culture everywhere.
+   */
+  cultureGoal: 7000,
   /** Economic: this much gold in the treasury (when starting and finishing), then build the Global Exchange. */
   goldGoal: 9000,
   /** Technology: build the spaceship's parts in your capital, launch it, and it arrives later. */

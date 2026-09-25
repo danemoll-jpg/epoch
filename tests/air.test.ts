@@ -71,7 +71,7 @@ describe('techs and data', () => {
     // Tier = depth in the tree.
     const tier = Math.max(...TECHS.advanced_flight.prereqs.map((t) => TECHS[t].tier)) + 1;
     expect(TECHS.advanced_flight.tier).toBe(tier);
-    expect(TECH_LIST).toHaveLength(55);
+    expect(TECH_LIST).toHaveLength(56); // Round 12 added Theology
   });
 
   it('the Stealth Bomber needs Advanced Flight and Computers', () => {

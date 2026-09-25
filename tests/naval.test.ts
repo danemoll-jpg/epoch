@@ -53,7 +53,7 @@ describe('sea techs and ship data', () => {
     expect(TECHS.seafaring).toMatchObject({ era: 'medieval', prereqs: ['pottery', 'map_making'] });
     expect(TECHS.navigation).toMatchObject({ era: 'medieval', prereqs: ['seafaring', 'astronomy'] });
     expect(TECHS.magnetism).toMatchObject({ era: 'medieval', prereqs: ['navigation', 'iron_working'] });
-    expect(TECH_LIST).toHaveLength(55);
+    expect(TECH_LIST).toHaveLength(56); // Round 12 added Theology
     // Tiers are still the depth in the tree.
     for (const t of ['map_making', 'seafaring', 'navigation', 'magnetism'] as const) {
       const depth = 1 + Math.max(0, ...TECHS[t].prereqs.map((p) => TECHS[p].tier));
