@@ -746,7 +746,11 @@ what was pushed.
   for that round only. Commit as usual, push only when told, and list the
   waiting commits in the report.
 
-**Current objective:** waiting for the planning session (see TODO.md).
+**Current objective: Round 17** (see TODO.md): ◀ ▶ arrows to cycle cities
+in the city panel, tapping your own city with a unit selected opens the city
+(with a "Move here" button) instead of moving, an optional "Tap twice to
+move" setting, and a technology-icon candidates page for Dan (not wired in
+yet). **Don't push** unless Dan says.
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.

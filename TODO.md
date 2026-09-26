@@ -1601,110 +1601,7 @@ saves on the device, but signing in on the iPad and saving to the cloud fail.
 
 **Dan, next:** (a) the two steps in `docs/FIREBASE-SETUP.md`; (b) say "push"; (c) on the live site, sign in on the PC and play a few turns, then on the iPad (Safari, then the Home Screen icon) continue the same game; play a turn on each without syncing to see the keep-which question; (d) compare the portraits on http://10.0.0.224:4173/docs/portraits.html.
 
-
-## Current Objective (Focus Area)
-
-### Round 16b — Cloud saves polish: a manual save, a clearer sign-in, and the hub card — done and pushed (2026-09-25, live as 0.16.1); report at the end of this section
-
-**Dan's first real test (2026-09-25, live site, both console steps done):**
-**cloud saves work.** The PC's game showed up on the iPad once he was
-actually signed in. At first he **thought the iPad had signed in when it
-hadn't**, looked for the game, and found "none". So: make signed-in vs not
-unmistakable, and add the **manual save** he asked for.
-
-**This round Dan asks for pushes:** push the `epoch` repo at the end (so he
-can test on the live site), and **add the Epoch card to the hub and push the
-hub** (item C1). Both are Dan's instruction for this round only; the
-standing rule stays "pushing is Dan's call".
-
-**Items for the coding agent. Report status on each one individually:**
-
-0. **Commit the updated docs first:** `CLAUDE.md` and `TODO.md` as their own
-   commit, then re-read them.
-
-**Part A — A clearer sign-in, and a manual save**
-
-A1. **Make it obvious whether you're signed in** (Dan thought he was when he
-    wasn't):
-    - find out what the iPad showed: did the sign-in fail or get cancelled
-      (redirect came back signed out, popup closed), or did it simply not
-      start? Report it;
-    - when sign-in doesn't complete, say so plainly in a toast ("Not signed
-      in: sign-in was cancelled or didn't finish. Try again") — never
-      leave it silent;
-    - the main menu shows the state at a glance: "Signed in as Dan ☁" with
-      the cloud games listed, or "Not signed in: sign in to see your cloud
-      games" next to the button;
-    - if the device has no game but the player isn't signed in, the main
-      menu and ☰ → Restore a backup say "Looking for a game from another
-      device? Sign in with Google";
-    - ☰ → Restore a backup notes that cloud games are on the main menu.
-
-A2. **Check these hold** (they may already; report, and fix only if not):
-    - signing in with a game already in progress uploads it (linked to a
-      slot), with a toast;
-    - after a redirect sign-in (Home Screen icon), the main menu's cloud
-      list refreshes without reopening the app;
-    - tapping the ☁ mark shows the last error in plain words and when it
-      last succeeded.
-
-A3. **Manual save (Dan asked):**
-    - **☰ → Save now**: saves on this device at once and, when signed in,
-      writes the cloud copy immediately (not waiting for End Turn), then
-      shows "Saved ✓ on this device and in the cloud" or exactly what
-      failed. It works mid-turn (between the player's own moves), and is
-      disabled while the rivals are moving (it saves right after);
-    - **☰ → Save to a new cloud slot…** (signed in): saves the current game
-      as another slot with a name, to keep a copy before a risky move. It
-      counts toward the 5;
-    - tapping the ☁ mark also offers **Sync now**.
-
-A4. **Tests and scenarios:**
-    - sign-in not completing shows the toast, and the signed-in/out states on
-      the main menu;
-    - sign-in uploads an existing unlinked game;
-    - Save now (device and cloud, mid-turn, while rivals move, offline);
-    - Save to a new slot, including when full;
-    - the error shown on the ☁ tap;
-    - **run the rules tests against the emulator if at all possible**
-      (install Java 21 if Dan's PC allows it without admin changes;
-      otherwise say so);
-    - a new scenario `cloud-signin-existing-game` (sign in with a game in
-      progress: it uploads), and `cloud-slots` updated for Save now.
-
-**Part B — Try it for real**
-
-B1. After pushing, **check on the live site with the real project as far as
-    you can without Dan's Google account** (the SDK loads, the rules answer,
-    no console errors). Then write a short checklist at the end of the
-    report for Dan (PC then iPad, Safari and the Home Screen icon).
-
-**Part C — The hub**
-
-C1. **Add the Epoch card to the hub and push the hub (Dan says so, this
-    round):**
-    - in `danemoll-jpg/game-hub`, add the card from `docs/GO-LIVE.md` step 5
-      (URL https://epoch-fsts.netlify.app/) to `games.js`, matching the
-      other cards' format exactly;
-    - check the hub page locally first (the card shows, the link opens the
-      game, nothing else changed);
-    - commit and **push the hub**, then check the live hub shows the card;
-    - report the hub commit.
-
-**Done means:**
-- every item (0, A1–A4, B1, C1) is reported individually;
-- tests pass;
-- the epoch repo is **pushed** (this round only, on Dan's say-so) and the
-  live site shows the new version; the hub is pushed and shows the card;
-- the play server is restarted.
-
-**Dan then:**
-- (a) on the PC (live site): signed in, uses ☰ → Save now, and sees it
-  saved to the cloud;
-- (b) on the iPad from the Home Screen icon: signs in (and sees clearly
-  that it worked), and the PC's game is on the main menu;
-- (c) checks the hub card;
-- (d) compares the portraits (still open from Round 16).
+* **Round 16b — Cloud saves polish: Save now, Save to a new cloud slot, Sync now, the sign-in-failed toast, rules tightened, and the Epoch card in the hub — done and pushed (2026-09-25, live as 0.16.1; hub `0a18c16`).** Rounds 16 and 16b await Dan's remaining checks (iPad Home Screen sign-in, the keep-which question, the portraits, republishing the rules); these are listed in Round 17's "Still open". The agent's report follows, moved from Current Objective.
 
 #### Round 16b report (coding agent, 2026-09-25): all items done; epoch and hub pushed
 
@@ -1738,6 +1635,132 @@ C1. **Add the Epoch card to the hub and push the hub (Dan says so, this
 8. **Hub:** https://dansgamehub.netlify.app/ ends with the Epoch card; tap Play.
 9. Still open from Round 16: compare the portraits at http://10.0.0.224:4173/docs/portraits.html.
 
+
+## Current Objective (Focus Area)
+
+### Round 17 — City arrows, no accidental moves into cities, and technology icons (candidates)
+
+**Dan's requests (2026-09-25), from playing the live game:**
+1. In a city screen, arrows to cycle through his other cities.
+2. Tapping a city shouldn't accidentally move a unit.
+3. Icons for the technologies.
+
+**Pushing is Dan's call:** commit as usual, **don't push unless the relay
+says to**, and list the waiting commits in the report. Never push the hub.
+
+**Items for the coding agent. Report status on each one individually:**
+
+0. **Commit the updated docs first:** `CLAUDE.md` and `TODO.md` as their own
+   commit, then re-read them.
+
+**Part A — Cycling through cities**
+
+A1. **◀ ▶ arrows in the city panel's header**, either side of the city
+    name:
+    - they go to the previous / next of **your** cities, in a fixed order
+      (founding order, the capital first), wrapping around; the map
+      recenters on the new city, and the panel keeps the same tab or scroll
+      section where that makes sense (e.g. the build list stays the build
+      list);
+    - show "3 / 12" (this city's place in the list) small under the name,
+      or next to the arrows;
+    - hidden with one city; 44 px tap targets; works in iPad portrait and
+      landscape, and in the landscape side panel;
+    - **PC:** keyboard shortcuts too (e.g. `,` and `.`, or `[` and `]`,
+      whichever doesn't clash with existing keys), shown in the button's
+      tooltip;
+    - **a swipe** left or right on the panel's header does the same on
+      touch, if it can be done without fighting the panel's scrolling;
+      otherwise skip it and say so;
+    - optional, if cheap: a small "needs a build" dot on the arrows' city
+      count when another city is idle.
+
+**Part B — No accidental moves when tapping a city**
+
+B1. **Today's rule** (`src/ui/tap.ts`): with a unit selected, tapping your
+    own city **moves the unit there** (it only opens the city if the unit
+    can't reach it). That's what catches Dan. **New rule:**
+    - with a unit selected, **tapping your own city opens the city panel**
+      instead of moving, **unless the unit is on a tile next to the city**
+      (a one-step move into a city is almost always intended);
+    - **within the city panel**, when it was opened with a unit selected
+      that can reach the city, show a clear button: **"Move [Legion] here
+      (2 turns)"** (the unit's icon, name, and the turns the path takes). It
+      moves the unit and closes the panel;
+    - tapping any other tile moves exactly as today (no change to normal
+      movement);
+    - update the rule's comment, its unit tests, and How to Play / the tip
+      that explains moving, if either says otherwise.
+
+B2. **An optional safety setting, off by default (Q35):** ☰ → Settings →
+    **"Tap twice to move"**: the first tap on a destination shows the path
+    and turns; a second tap on the same tile moves; tapping elsewhere
+    cancels. Only if it fits cleanly with the existing path preview;
+    otherwise report and skip.
+
+**Part C — Technology icons: candidates for Dan to pick (don't wire them in yet)**
+
+C1. **`docs/tech-icon-candidates.html`**, like the earlier icon pickers
+    (building, map, and religion/road icons):
+    - all **56 techs**, grouped by era, each with **3 candidates (A, B, C)**
+      from **game-icons.net (CC BY 3.0)**, with the author shown;
+    - each candidate shown at the sizes it will actually be used (the tech
+      tree card, the research picker, the top bar's research chip, and a
+      toast), on the game's own panel colors;
+    - pick icons that **say what the tech is** at a glance (e.g. The Wheel →
+      a wheel, Writing → a quill or scroll, Railroad → a locomotive,
+      Rocketry → a rocket). **Avoid reusing an icon the game already uses
+      for a unit, building, wonder, resource, or map mark**; where a
+      clash is unavoidable (e.g. Railroad vs the railroad map mark), say so
+      on the card;
+    - the icons stay single-color (tinted by the game), like the others;
+    - a **"Dan's picks" summary** at the bottom Dan can fill in or just tell
+      the planning session ("all A except …");
+    - served on the play server at `/docs/tech-icon-candidates.html`, and
+      checked in iPad-size emulation.
+
+C2. **Where the icons will go** (plan only, for the wiring round): the tech
+    tree, the research picker, the top bar's research chip, the "You
+    learned …" toast, the Almanac, and the leader cards' starting tech.
+    List the places in the report so the next round can wire them.
+
+**Part D — Wrap-up**
+
+D1. **Dev scenarios, each with a note:**
+    - `city-cycle`: 5 cities, one idle; the arrows and count;
+    - `tap-city-with-unit`: a Legion selected 4 tiles from your city;
+      tapping the city opens it with the "Move Legion here" button; a
+      Warrior next to the city moves in with one tap.
+
+D2. **Tests:** the new tap rule (selected unit far vs next to your city;
+    enemy and other tiles unchanged; aircraft unchanged), city cycling
+    (order, wrap, one city, a city lost mid-cycle), the Move-here button's
+    turns, the setting if built, the scenarios, and `pace.test.ts`.
+
+**Done means:**
+- every item (0, A1, B1–B2, C1–C2, D1–D2) is reported individually;
+- tests pass;
+- it's preview-verified on desktop and in iPad emulation;
+- the commits are **listed as waiting for Dan to push**; the play server is
+  restarted.
+
+**Dan then:**
+- (a) tries the arrows and the city tap on the play server
+  (http://10.0.0.224:4173/, `city-cycle` and `tap-city-with-unit`);
+- (b) picks the tech icons on
+  http://10.0.0.224:4173/docs/tech-icon-candidates.html and tells the
+  planning session;
+- (c) says "push" when he wants it live.
+
+**Still open from Round 16/16b (Dan, when convenient):** republish
+`firestore.rules`; the Round 16b checklist (iPad Safari and the Home Screen
+icon sign-in, the keep-which question); compare the WebP portraits.
+
+**Open questions (defaults in bold):**
+- **Q31 — Epic's label on the iPad:** **keep "best on a computer"** until Dan
+  times it.
+- **Q35 — "Tap twice to move" setting:** **built, off by default.**
+
 ## Next Steps (Do Not Start Yet)
 
 All of these are deferred for **sequencing only**. Each depends on the
@@ -1769,7 +1792,8 @@ milestone before it. None has been decided against.
   a credit). Tests: every unit has a bundled, credited icon (366 pass).
   Preview-verified on desktop (`all-ships`: all 9 drawn, Carrier distinct
   from the Battleship). Only the aircraft icons remain (round 10).
-- **Round 16 — Cloud saves with Firebase: done and pushed; Round 16b fixes it** (see Current Objective).
+- **Rounds 16 and 16b — Cloud saves: done and pushed** (see Completed Tasks).
+- **Tech icons, step 2 (after Dan picks in Round 17):** wire the picks into the places listed in Round 17 C2, credited like the other icons.
 - **A later balance round (after Round 16, whenever Dan wants):** from Round 15's leftovers: North Korea (1 win in 54), Russia, and the Franks under their share (conquerors struggle to finish); no domination on Huge or Epic; Huge 45% economic; Legendary 55% technology; Small games can run long (to t266). Use `npm run sim -- matrix` with more games per row (20 is noisy).
 - **Before any public release (only if Dan decides to go beyond family and
   friends, or to sell it):** review the leader list, the name, and all art
