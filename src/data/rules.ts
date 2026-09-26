@@ -319,10 +319,14 @@ export const RULES = {
        * game at once, so AI domination wins don't come too early.
        */
       dominationPaceTurn: 160,
-      /** Techs a conqueror researches first (after any urgent ones). */
+      /**
+       * Techs a conqueror researches first (after any urgent ones). Round 20 (item 6): Map Making
+       * and the road to Navigation too, or it could neither find nor reach rivals overseas.
+       */
       dominationResearch: [
-        'bronze_working', 'horseback_riding', 'iron_working', 'masonry', 'alphabet', 'mathematics', 'the_wheel', 'code_of_laws',
-        'monarchy', 'feudalism', 'currency', 'writing', 'chivalry', 'construction', 'invention', 'gunpowder', 'metallurgy',
+        'bronze_working', 'horseback_riding', 'iron_working', 'masonry', 'alphabet', 'map_making', 'mathematics', 'the_wheel', 'code_of_laws',
+        'monarchy', 'feudalism', 'currency', 'writing', 'chivalry', 'construction', 'invention', 'pottery', 'seafaring', 'ceremonial_burial',
+        'mysticism', 'astronomy', 'navigation', 'gunpowder', 'metallurgy',
         'university', 'banking', 'democracy', 'conscription', 'physics', 'steam_engine', 'railroad', 'industrialization',
         'machine_tools', 'electricity', 'refining', 'combustion', 'automobile', 'theory_of_gravity', 'flight',
       ] as TechId[],

@@ -39,7 +39,8 @@ describe('research pace (all-AI simulation)', () => {
 describe('domination (all-AI simulation, Round 11)', () => {
   it('a conqueror wins by domination in the report seeds, and not before turn 150', () => {
     // Round 19 (B): seed 171 (122 went economic once borders, spies and the new war numbers came in).
-    const r = playToVictory(171);
+    // Round 20: seed 178 (the Franks, t165); 171 went to culture with the new leader numbers.
+    const r = playToVictory(178);
     expect(r.victory?.kind).toBe('domination');
     expect(r.victory!.turn).toBeGreaterThanOrEqual(150);
     expect(findCiv(r.winnerCiv!)?.lean?.primary).toBe('domination');

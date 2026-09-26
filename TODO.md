@@ -1945,6 +1945,38 @@ without hurting another, say which and why rather than forcing it.
 **Done means:** every item reported (1–7 with numbers, 8 with its fix); tests pass (`pace.test.ts` and `balance.test.ts`
 included); committed; **not pushed**; the play server restarted.
 
+#### Round 20 report (coding agent, 2026-09-26)
+
+Numbers: `npm run sim -- matrix`, **40 games per row**, the same seeds (101, 108, … 374) before and after.
+"Top" = the most common kind of win (target: 40% or less).
+
+| # | Item | Status | Before → after | Verified |
+|---|---|---|---|---|
+| 0 | Docs commit | Done (`65f3439`), then re-read. | n/a | n/a |
+| 8 | Metz bug | Done, **pushed** as 0.19.1 (`6a0401b`, `93186c4`), play server restarted. The rules already let a land unit take a city with only ships in it; the tap called it an attack. Now the tap opens **"Capture Metz?"** ("Nobody defends Metz…", and which ships sink); **Capture Metz** walks in, and the ships in port **sink with their cargo** (as before in `captureCity`). Aircraft can strike ships in port when no land unit defends. The AI already took such cities; now tested. | n/a | Unit-tested (`tests/round20.test.ts`); scenario `city-only-ships`; preview (desktop). |
+| 1 | Legendary | Done as agreed: AI science +20% → +10%; goals back to 100%. | Top: technology 55% → technology/culture 35%. First win t158 → t161. Stand-in wins 0 → 1. | Matrix |
+| 2 | Huge | Done. Gold goal ×1.5 → ×1.65 (×1.8 also tested), culture ×1.75 → ×1.6. | Economic 52% → 35% (economic 14, technology 14, culture 12). First win t178 → t185. | Matrix |
+| 3 | Novice | Done: Novice's culture goal is 10% higher (new `cultureGoalPct`). (+20% gold for the player was tested first: 33% one run, 43% the next, so it was dropped.) | Culture 50% → 25%; top now technology/economic 30%. | Matrix |
+| 4 | Strong leaders | Done (data only). Ukraine: trade science 20 → 10, Catching up +2 → +1, Partners 4%/12% → 2%/6%. USA: National Challenge +50% → +30%, Moonshot science +25% → +15%, spaceship parts 25% → 15% cheaper. Germany: Factories +2 → +1 gold. | Ukraine on Normal 2.4× → 1.9× ✓; **Ukraine on Legendary 2.1× → 2.1×** ✗ (9 wins in 21 games). Germany on Huge 2.75× → 1.75× ✓. USA on Huge 2.2× → 1.4× ✓; **USA on Epic 3.7× → 2.6×** ✗ (9 of 21). Also over 2× after: Mali on Legendary (5 of 11 games, 2.3×; a small sample). | Matrix; tests updated |
+| 5 | Weak leaders | Done, partly. **Why conquerors struggle** (new `npm run sim -- conquest`): on Normal, conquerors spent 29% of their turns at peace, and marching armies spent 26% of turns not yet at the target. On Huge they spent 49% of their turns having met nobody, and 34% "marching" at a city across the sea with no ship to carry them. Sieges hardly ever stall (2%). **Fixes:** a war plan no longer marches at a city across the sea without a ship; an invasion now uses a ship that can make the trip (a Caravel or Transport, not a Galley on the coast); a conqueror researches Map Making and Navigation early; its scout boat and a boat looking for a sea route go out on the ocean. **Bonuses:** Russia's tech discount 35% → 45% and advisers +4 → +6 science per civ; North Korea no longer loses 5% science. | Russia, wins on Normal: 1 → 2 (fair share 3.6); North Korea 3 → 3 (3.4); the Franks 4 → 2 (3.2). All three are still under their share on the big maps. | Matrix; diagnostic sim |
+| 6 | Domination on Huge/Epic | Not reached. The fixes above help conquerors find and reach rivals: on Huge, "met nobody" went from 49% to 31% of their turns, and marching at a city across the sea with no ship from 34% to 7%. They take cities (up to 17 in one game), but still no capitals sweep. | Huge 0 → 0, Epic 0 → 0. Elsewhere: Small 11 → 13, Normal 5 → 3, Large 1 → 1, Novice 4 → 6, Legendary 6 → 4. No game won before turn 160. | Matrix |
+| 7 | Wars | Kept about the same where you play (Normal). They went up on big maps, because conquerors now meet more rivals. | Wars a human would see (AI vs AI, plus wars declared on the stand-in): Normal 4.7 → 4.8, Large 5.3 → 5.7, Huge 3.1 → 4.2, Epic 2.8 → 4.0. | Matrix |
+
+**Each row, top kind before → after:** Small culture 40% → domination 33%; Normal culture 35% → technology 33%;
+Large economic 40% → culture/technology 35%; Huge economic 52% → 35%; Epic technology 40% → culture/economic 35%
+(economic went to 45% at gold ×1.6 once the USA was trimmed, so Epic's gold goal is ×1.75 now);
+Novice culture 50% → 30%; Legendary technology 55% → 35%. **Earliest win on any row: t160** (target ≥ 150).
+Median game length about the same (Normal t211 → t210); Small's longest went from t274 to t297.
+
+**Targets not met:** Ukraine on Legendary (2.1×) and the USA on Epic (2.6×) are still just over 2×. Russia,
+North Korea and the Franks are still under their share on the big maps. And there's still no domination win on Huge or Epic.
+More trimming would weaken Ukraine and the USA on the other rows, where they're now at or under their
+share.
+
+**Committed, not pushed:** the balance commit on `main` after `93186c4`. Tests: 1062 pass (pace and balance included).
+The play server was restarted after item 8 and again at the end of the round (http://10.0.0.224:4173/), so it now has the balance changes too (saves carry over; nothing in the state changed). The live site has only item 8.
+
+
 **Still open for Dan (no agent work needed):**
 - play a full game on the live site with Round 19;
 - the iPad **Home Screen icon** sign-in, and the **keep-which question**;

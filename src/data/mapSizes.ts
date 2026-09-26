@@ -117,9 +117,10 @@ export const MAP_SIZES: Record<MapSizeId, MapSizeDef> = {
     // Huge games ended around turn 185 and Epic ones around 181, sooner than Normal (~192): every
     // civ has more cities, so more culture, gold, and science. These bring them to about 200.
     victoryPct: 165,
-    // Round 15 (B1): culture was the most common win on Huge.
-    culturePct: 175,
-    goldPct: 150,
+    // Round 15 (B1): culture was the most common win on Huge. Round 20 (item 2): economic won
+    // 52% at gold ×1.5 (×1.65 and ×1.8 tested), and culture only 7 in 40 at ×1.75.
+    culturePct: 160,
+    goldPct: 165,
     techCostPct: 35,
   },
   epic: {
@@ -136,8 +137,9 @@ export const MAP_SIZES: Record<MapSizeId, MapSizeDef> = {
     huts: { min: 12, max: 38 },
     victoryPct: 150,
     // Round 15 (B1): economic was half of Epic's wins at ×1.5 gold; ×1.75 swung it to culture.
+    // Round 20: back to ×1.75 (economic won 45% at ×1.6 once the United States were trimmed).
     culturePct: 145,
-    goldPct: 160,
+    goldPct: 175,
     techCostPct: 25,
     bestOnComputer: true,
   },
@@ -154,11 +156,15 @@ export function mapShape(size: MapSizeId): typeof RULES.map {
 
 /**
  * The culture and gold goals on this map size (VICTORY's, scaled by `victoryPct`, or the size's
- * own `culturePct` / `goldPct`), and (Round 15) by the difficulty's `goalPct`; rounded to 50.
+ * own `culturePct` / `goldPct`), and (Round 15) by the difficulty's `goalPct` (Round 20: or its
+ * own `cultureGoalPct` for the culture goal); rounded to 50.
  */
 export function victoryGoals(size: MapSizeId | undefined, difficulty?: DifficultyId): { culture: number; gold: number } {
   const def = MAP_SIZES[size ?? DEFAULT_MAP_SIZE];
-  const level = DIFFICULTIES[difficulty ?? 'normal'].goalPct;
-  const scale = (n: number, pct: number) => Math.round((n * pct * level) / 10000 / 50) * 50;
-  return { culture: scale(VICTORY.cultureGoal, def.culturePct ?? def.victoryPct), gold: scale(VICTORY.goldGoal, def.goldPct ?? def.victoryPct) };
+  const level = DIFFICULTIES[difficulty ?? 'normal'];
+  const scale = (n: number, pct: number, lvl: number) => Math.round((n * pct * lvl) / 10000 / 50) * 50;
+  return {
+    culture: scale(VICTORY.cultureGoal, def.culturePct ?? def.victoryPct, level.cultureGoalPct ?? level.goalPct),
+    gold: scale(VICTORY.goldGoal, def.goldPct ?? def.victoryPct, level.goalPct),
+  };
 }

@@ -55,7 +55,7 @@ import { UNITS, UNIT_IDS, type UnitTypeId } from '../data/units';
 import { distance, neighbors, tileIndex } from './grid';
 import { foundCity, foundCityError } from './city';
 import { landmassAt, siteScore } from './mapgen';
-import { navalBuild, playShip, runFerry, updateFerry } from './aiNaval';
+import { cargoShipTypes, navalBuild, playShip, runFerry, updateFerry } from './aiNaval';
 import { airBuild, runAiAir } from './aiAir';
 import { isAir, isShip } from './naval';
 import { attack, attackError, combatOdds, defenseStrength, fortify, formArmy, formArmyError } from './combat';
@@ -258,6 +258,8 @@ export interface BuildContext {
   goal: VictoryKind;
   /** Round 11: a conqueror that hasn't met every rival yet keeps scouting, by land and sea. */
   seeking: boolean;
+  /** Round 20 (item 6): its war plan's target is overseas and no sea route to it is known yet: a boat goes looking. */
+  seaRoute: boolean;
 }
 
 export function buildContext(state: GameState, playerId: number): BuildContext {
@@ -272,7 +274,15 @@ export function buildContext(state: GameState, playerId: number): BuildContext {
     atWar: atWarWithAnyone(state, playerId),
     goal,
     seeking: goal === 'domination' && state.players.some((q) => q.alive && q.kind !== 'barbarian' && q.id !== playerId && !state.diplomacy.met[playerId]?.[q.id]),
+    seaRoute: needsSeaRoute(state, playerId),
   };
+}
+
+function needsSeaRoute(state: GameState, playerId: number): boolean {
+  const plan = state.aiPlans[playerId];
+  if (!plan || state.aiFerries[playerId]?.kind === 'invade') return false;
+  const target = state.cities.find((c) => c.id === plan.cityId);
+  return !!target && !citiesOf(state, playerId).some((c) => landmassAt(state.map, c) === landmassAt(state.map, target));
 }
 
 /**
@@ -367,7 +377,7 @@ export function chooseBuild(state: GameState, city: City, ctx: BuildContext = bu
   const temple: BuildItem = { kind: 'building', id: 'temple' };
   if (!buildChoiceError(state, city, temple) && (city.unrest > 0 || pullOn(state, city) || nearRivalCity(state, city))) return temple;
   // A boat to look for land (boxed in) or for the enemy (at war with no city in sight to attack).
-  const navy = navalBuild(state, city, ctx.boxedIn || (ctx.atWar && !state.aiPlans[owner]) || ctx.seeking);
+  const navy = navalBuild(state, city, ctx.boxedIn || (ctx.atWar && !state.aiPlans[owner]) || ctx.seeking || ctx.seaRoute);
   if (navy.boat) return { kind: 'unit', id: navy.boat };
   if (navy.warship && ctx.atWar) return { kind: 'unit', id: navy.warship };
   const air = airBuild(state, city, ctx.atWar);
@@ -572,12 +582,17 @@ function choosePlan(state: GameState, playerId: number): AiPlan | null {
   const pull = aiVictoryGoal(state, playerId) === 'domination' ? AI.victory.dominationCapitalPull : 0;
   const held = capitalsHeld(state, playerId);
   const lastOne = held.of - held.held === 1 && state.turn < AI.victory.dominationPaceTurn;
+  // Round 20 (item 6): with no ship to carry an army (none built, none it can build), a city
+  // overseas isn't a target: the war plan would march at it and never arrive.
+  const canInvade = cargoShipTypes(state, playerId).length > 0 || state.units.some((u) => u.owner === playerId && isShip(u) && UNITS[u.type].cargo > 0);
   let best: { city: City; d: number } | undefined;
   for (const c of state.cities) {
     if (!atWar(state, playerId, c.owner) || explored[tileIndex(state.map, c.x, c.y)] !== 1) continue;
     if (wouldWinTooSoon(state, playerId, c)) continue;
     const home = nearestCity(mine, c);
-    const overseas = !mine.some((m) => landmassAt(state.map, m) === landmassAt(state.map, c)) ? AI.victory.overseasTargetPenalty : 0;
+    const across = !mine.some((m) => landmassAt(state.map, m) === landmassAt(state.map, c));
+    if (across && !canInvade) continue;
+    const overseas = across ? AI.victory.overseasTargetPenalty : 0;
     const capital = c.capitalOf !== null && c.capitalOf !== playerId && state.players[c.owner]?.kind !== 'barbarian' && !lastOne;
     // ...and to a runaway leader's cities.
     const runaway = pull && runawayProgress(state, c.owner) >= AI.victory.runawayProgress ? pull / 2 : 0;
@@ -681,8 +696,11 @@ export function runAiTurn(state: GameState, playerId: number): void {
   const staging = plan?.stagingCityId != null ? state.cities.find((c) => c.id === plan.stagingCityId) : undefined;
   const targetCity = plan ? state.cities.find((c) => c.id === plan.cityId) : undefined;
   const free = state.units.filter((u) => u.owner === playerId && isMilitary(u) && !guards.has(u.id) && u.carriedBy === null);
-  // A war overseas marches only once the sea plan has landed the force.
-  const overseas = state.aiFerries[playerId]?.kind === 'invade';
+  // A war overseas marches only once the sea plan has landed the force (Round 20: and never
+  // without one: marching at a city across the sea only left the army standing on the shore).
+  const overseas =
+    state.aiFerries[playerId]?.kind === 'invade' ||
+    (!!targetCity && !citiesOf(state, playerId).some((c) => landmassAt(state.map, c) === landmassAt(state.map, targetCity)));
   if (plan && staging && plan.phase === 'gather' && !overseas) {
     const gathered = free.filter((u) => distance(u, staging) <= 1).reduce((s, u) => s + unitWeight(u), 0);
     const conqueror = ctx.goal === 'domination';
@@ -699,7 +717,7 @@ export function runAiTurn(state: GameState, playerId: number): void {
     const unit = findUnit(state, id);
     if (!unit || unit.movesLeft <= 0 || reserved.has(id) || unit.carriedBy !== null || isAir(unit)) continue;
     if (isShip(unit)) {
-      playShip(state, unit, (u, wander) => explore(state, u, wander), ctx.boxedIn || (ctx.atWar && !plan) || ctx.seeking);
+      playShip(state, unit, (u, wander) => explore(state, u, wander), ctx.boxedIn || (ctx.atWar && !plan) || ctx.seeking || ctx.seaRoute);
       continue;
     }
     if (UNITS[unit.type].canFoundCity) {

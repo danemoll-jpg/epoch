@@ -427,9 +427,9 @@ describe('Louis XIV (France)', () => {
 });
 
 describe('Peter the Great (Russia)', () => {
-  it('start: techs a met civ knows cost 35% less', () => {
+  it('start: techs a met civ knows cost 45% less (Round 20: was 35%)', () => {
     const [r, b] = vs('russia', ['map_making'], (w) => ((w.s.players[1]!.techs = ['alphabet']), techCost(w.s, 0, 'alphabet')));
-    expect(r).toBe(Math.round(b * 0.65));
+    expect(r).toBe(Math.round(b * 0.55));
   });
   it('ancient: ships in coastal cities +25% production; medieval: first ship of each type half price', () => {
     const rows = ['ccccccccc', 'cgggggggc', 'cgggggggc', 'cgggggggc', 'cgggggggc', 'ccccccccc'];
@@ -440,9 +440,9 @@ describe('Peter the Great (Russia)', () => {
     s.players[0]!.shipsBuilt.push('galley');
     expect(itemCost(s, city, { kind: 'unit', id: 'galley' })).toBe(30);
   });
-  it('industrial: +4 science per met civ; modern: +25% science while behind', () => {
+  it('industrial: +6 science per met civ (Round 20: was +4); modern: +35% science while behind', () => {
     const [r, b] = vs('russia', ERA.industrial, science);
-    expect(r - b).toBe(4);
+    expect(r - b).toBe(6);
     const [rm, bm] = vs('russia', ERA.modern, (w) => ((w.s.players[1]!.techs = ['alphabet', 'writing', 'bronze_working']), science(w)));
     expect(rm).toBeGreaterThan(bm + 2);
   });
@@ -531,7 +531,7 @@ describe('John F. Kennedy (the United States)', () => {
     const nope = world('usa', ERA.medieval);
     expect(applyAction(nope.s, { type: 'setChallenge', tech: 'physics' }).ok).toBe(false);
   });
-  it('modern: the Moonshot (200 culture, +25% science), and spaceship parts at 25% less that cost 100 gold', () => {
+  it('modern: the Moonshot (200 culture, +15% science), and spaceship parts at 15% less that cost 100 gold (Round 20: 25%)', () => {
     const { s, city } = world('usa', [...ERA.modern, 'rocketry'], { city: { size: 6 } });
     const m = { kind: 'project', id: 'moonshot' } as const;
     expect(buildChoiceError(s, city, m)).toBeUndefined();
@@ -545,7 +545,7 @@ describe('John F. Kennedy (the United States)', () => {
     expect(buildChoiceError(s, city, m)).toBe('Already built');
     const rome = world('rome', [...ERA.modern, 'rocketry']);
     expect(buildChoiceError(rome.s, rome.city, m)).toBe('Only United States can build it');
-    expect(vs('usa', ERA.modern, (w) => cost(w, { kind: 'project', id: 'spaceship' }))).toEqual([135, 180]);
+    expect(vs('usa', ERA.modern, (w) => cost(w, { kind: 'project', id: 'spaceship' }))).toEqual([153, 180]);
   });
 });
 
@@ -557,21 +557,21 @@ describe('Viktor Yushchenko (Ukraine)', () => {
     s.players[0]!.civId = 'babylon';
     expect(u - tileYields(s, 1, 0).food).toBe(1);
   });
-  it('ancient: a traded tech brings 20 science, and AIs trade more willingly', () => {
+  it('ancient: a traded tech brings 10 science (Round 20: was 20), and AIs trade more willingly', () => {
     const { s } = world('ukraine', ['alphabet']);
     s.players[1]!.techs = ['alphabet', 'writing'];
     s.players[0]!.gold = 1000;
     const res = applyAction(s, { type: 'tradeTech', partner: 1, get: 'writing', give: null });
     expect(res.answer?.accepted).toBe(true);
-    expect(s.players[0]!.science).toBe(20);
+    expect(s.players[0]!.science).toBe(10);
     expect(willingnessToward(s, 3, 0)).toBe(4);
     const [u, b] = vs('ukraine', ['alphabet'], (w) => ((w.s.players[1]!.techs = ['writing', 'alphabet']), techPrice(w.s, 1, 0, 'writing')));
     expect(u).toBeLessThan(b);
   });
-  it('medieval: +2 science per met civ ahead; industrial: +4% per civ at peace; modern: resilience', () => {
+  it('medieval: +1 science per met civ ahead; industrial: +2% per civ at peace (Round 20: +2 and 4%); modern: resilience', () => {
     const [u, b] = vs('ukraine', ERA.medieval, (w) => ((w.s.players[1]!.techs = ['alphabet', 'pottery', 'archery']), science(w)));
-    expect(u - b).toBe(2);
-    expect(vs('ukraine', ERA.industrial, (w) => empirePct(w.s, 0, 'science'))).toEqual([4, 0]);
+    expect(u - b).toBe(1);
+    expect(vs('ukraine', ERA.industrial, (w) => empirePct(w.s, 0, 'science'))).toEqual([2, 0]);
     const { s } = world('ukraine', ERA.modern, { peace: false });
     makePeace(s, 0, 1);
     expect(s.players[0]!.culture).toBe(50);
@@ -603,9 +603,9 @@ describe('Angela Merkel (Germany)', () => {
     }, { rows: starving, city: { size: 4 } });
     expect([gs, bs]).toEqual([4, 3]);
   });
-  it('industrial: Factories +2 gold and +10% production; modern: +25% science with a Factory', () => {
+  it('industrial: Factories +1 gold (Round 20: was +2) and +10% production; modern: +25% science with a Factory', () => {
     const [g, b] = vs('germany', ERA.industrial, (w) => cityScienceGold(w.s, w.city).gold, { city: { buildings: ['factory'] } });
-    expect(g - b).toBe(2);
+    expect(g - b).toBe(1);
     const [gp, bp] = vs('germany', ERA.industrial, (w) => cityYields(w.s, w.city).production, { city: { size: 8 } });
     expect(gp).toBeGreaterThanOrEqual(bp);
     const [gm, bm] = vs('germany', ERA.modern, (w) => cityScienceGold(w.s, w.city).science, { city: { size: 8, buildings: ['factory'] } });
@@ -638,9 +638,9 @@ describe('Kim Jong Un (North Korea)', () => {
     });
     expect(b - k).toBeCloseTo(10);
   });
-  it('drawback: −10% science and gold; AIs half as willing to trade with him', () => {
+  it('drawback: less gold (no longer less science, Round 20); AIs half as willing to trade with him', () => {
     const [ks, bs] = vs('north_korea', [], science, { city: { size: 8 } });
-    expect(ks).toBe(bs + Math.floor((-bs * 10) / 100));
+    expect(ks).toBe(bs);
     const [kg, bg] = vs('north_korea', [], gold, { city: { size: 8 } });
     expect(kg).toBe(bg + Math.floor((-bg * 10) / 100));
     const { s } = world('north_korea');

@@ -334,14 +334,15 @@ describe('C2: "Update available" on the page', () => {
 
 describe('B1, B3: the Round 15 goals', () => {
   // Round 19 (B): the culture goal is 9500 on Normal (was 8000), and scales the same way.
-  it('each size has its own culture and gold goals, and Legendary adds 15%', async () => {
+  it('each size has its own culture and gold goals (Legendary added 15% until Round 20)', async () => {
     const { victoryGoals } = await import('../src/data/mapSizes');
     expect(victoryGoals('small')).toEqual({ culture: 10950, gold: 7800 });
     expect(victoryGoals('normal')).toEqual({ culture: 9500, gold: 13000 });
     expect(victoryGoals('large')).toEqual({ culture: 11900, gold: 14950 });
-    expect(victoryGoals('huge')).toEqual({ culture: 16650, gold: 19500 });
-    expect(victoryGoals('epic')).toEqual({ culture: 13800, gold: 20800 });
-    expect(victoryGoals('normal', 'legendary')).toEqual({ culture: 10950, gold: 14950 });
-    expect(victoryGoals('normal', 'novice')).toEqual(victoryGoals('normal'));
+    expect(victoryGoals('huge')).toEqual({ culture: 15200, gold: 21450 }); // Round 20: was 16650 / 19500
+    expect(victoryGoals('epic')).toEqual({ culture: 13800, gold: 22750 }); // Round 20: gold was 20800
+    expect(victoryGoals('normal', 'legendary')).toEqual(victoryGoals('normal'));
+    // Round 20 (item 3): Novice's culture goal is 10% higher.
+    expect(victoryGoals('normal', 'novice')).toEqual({ culture: 10450, gold: 13000 });
   });
 });

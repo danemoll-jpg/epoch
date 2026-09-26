@@ -96,8 +96,8 @@ describe('difficulty levels (B1)', () => {
     expect(DIFFICULTIES.novice.ai).toMatchObject({ production: -15, science: -15 });
     expect(DIFFICULTIES.novice.demandsFromTurn).toBe(60);
     expect(DIFFICULTIES.veteran.ai).toEqual({ production: 15, science: 15, gold: 15 });
-    // Round 15 (B3): was +30% of each.
-    expect(DIFFICULTIES.legendary.ai).toEqual({ production: 25, science: 20, gold: 10 });
+    // Round 15 (B3): was +30% of each. Round 20 (item 1): science +20% → +10%.
+    expect(DIFFICULTIES.legendary.ai).toEqual({ production: 25, science: 10, gold: 10 });
     expect([...DIFFICULTIES.legendary.extraAiUnits].sort()).toEqual(['settler', 'warrior']);
     expect(DIFFICULTIES.novice.aggression).toBeLessThan(0);
     expect(DIFFICULTIES.veteran.aggression).toBeGreaterThan(0);

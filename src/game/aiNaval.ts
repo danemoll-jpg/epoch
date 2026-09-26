@@ -151,6 +151,19 @@ function planShipType(state: GameState, p: number): UnitTypeId | undefined {
   return cargoShips(state, p)[0]?.type ?? cargoShipTypes(state, p)[0];
 }
 
+/**
+ * Round 20 (item 6): the ship types an invasion could sail with, the ones it has first. A Galley
+ * it already owns can't cross the ocean, but a Caravel or Transport it could build may.
+ */
+function invasionShipTypes(state: GameState, p: number): UnitTypeId[] {
+  return [...new Set([...cargoShips(state, p).map((u) => u.type), ...cargoShipTypes(state, p)])];
+}
+
+/** Round 20: can a ship of this type sail from `from` to the water tile `to`? */
+function canSail(state: GameState, p: number, type: UnitTypeId, from: Coord, to: Coord): boolean {
+  return seaSteps(state, p, type, from).has(tileIndex(state.map, to.x, to.y));
+}
+
 // ---- plans ---------------------------------------------------------------------------------
 
 function ferryValid(state: GameState, p: number, f: AiFerry, war: AiPlan | null): boolean {
@@ -178,7 +191,9 @@ export function updateFerry(state: GameState, p: number, boxedIn: boolean, war: 
     if (type) {
       const target = war ? state.cities.find((c) => c.id === war.cityId) : undefined;
       const overseas = target && landmassAt(state.map, target) >= 0 && !hasCityOn(state, p, landmassAt(state.map, target));
-      const voyage = overseas ? findLanding(state, p, type, target) : boxedIn ? findOverseasSite(state, p, type) : undefined;
+      let voyage: Voyage | undefined;
+      if (overseas) for (const t of invasionShipTypes(state, p)) if ((voyage = findLanding(state, p, t, target))) break;
+      if (!overseas && boxedIn) voyage = findOverseasSite(state, p, type);
       if (voyage) {
         f = {
           kind: overseas ? 'invade' : 'settle',
@@ -231,7 +246,10 @@ export function runFerry(state: GameState, p: number, guards: Set<number>): Set<
   const port = state.cities.find((c) => c.id === f.portCityId)!;
   let ship = f.shipId !== null ? findUnit(state, f.shipId) : undefined;
   if (!ship) {
-    ship = cargoShips(state, p).sort((a, b) => distance(a, port) - distance(b, port) || a.id - b.id)[0];
+    // Round 20: an invasion only takes a ship that can make the voyage (not a Galley across the ocean).
+    ship = cargoShips(state, p)
+      .filter((u) => f.kind !== 'invade' || canSail(state, p, u.type, port, f.landing))
+      .sort((a, b) => distance(a, port) - distance(b, port) || a.id - b.id)[0];
     if (ship) f.shipId = ship.id;
   }
   // The units it wants walk to the port (and wait there while a ship is built).
@@ -341,8 +359,22 @@ export function navalBuild(state: GameState, city: City, scout: boolean): NavalB
   if (!isCoastal(state, city)) return out;
   const mine = citiesOf(state, p);
   const f = state.aiFerries[p] ?? null;
-  const types = cargoShipTypes(state, p).filter((t) => !buildChoiceError(state, city, { kind: 'unit', id: t }));
-  const haveBoat = cargoShips(state, p).length > 0 || mine.some((c) => isShipBuild(c, (id) => UNITS[id].cargo > 0));
+  let types = cargoShipTypes(state, p).filter((t) => !buildChoiceError(state, city, { kind: 'unit', id: t }));
+  let haveBoat = cargoShips(state, p).length > 0 || mine.some((c) => isShipBuild(c, (id) => UNITS[id].cargo > 0));
+  // Round 20 (item 6): an invasion needs a boat that can make its voyage; one that can't doesn't count.
+  const port = f?.kind === 'invade' ? state.cities.find((c) => c.id === f.portCityId) : undefined;
+  if (f?.kind === 'invade' && port && f.shipId === null) {
+    const known = new Map<UnitTypeId, boolean>();
+    const fits = (t: UnitTypeId) => known.get(t) ?? known.set(t, canSail(state, p, t, port, f.landing)).get(t)!;
+    types = types.filter(fits);
+    haveBoat = cargoShips(state, p).some((u) => fits(u.type)) || mine.some((c) => isShipBuild(c, (id) => UNITS[id].cargo > 0 && fits(id)));
+  }
+  // Round 20 (item 6): a boat sent to explore goes past the coast once it can: with an
+  // ocean-going type available, a Galley no longer counts as the explorer.
+  if (scout && !f && types.some((t) => !UNITS[t].coastOnly)) {
+    types = types.filter((t) => !UNITS[t].coastOnly);
+    haveBoat = cargoShips(state, p).some((u) => !UNITS[u.type].coastOnly) || mine.some((c) => isShipBuild(c, (id) => UNITS[id].cargo > 0 && !UNITS[id].coastOnly));
+  }
   if (types.length && !haveBoat) {
     // The sea plan's port builds its ship; otherwise the first port builds an explorer.
     const boatPort = f ? f.portCityId : scout ? ports(state, p)[0]?.id : undefined;

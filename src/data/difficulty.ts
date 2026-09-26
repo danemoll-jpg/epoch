@@ -44,6 +44,8 @@ export interface DifficultyDef {
    * Legendary's boosted AIs reached them before turn 160; this keeps the pressure but not the rush.
    */
   goalPct: number;
+  /** Round 20: the culture goal's own percent, when it differs from `goalPct`. */
+  cultureGoalPct?: number;
   /** Round 19 (item 8): the player's unit upgrade prices, as a percent (100 = the rules' price). */
   upgradePct: number;
 }
@@ -55,7 +57,7 @@ export const DIFFICULTIES: Record<DifficultyId, DifficultyDef> = {
     id: 'novice',
     name: 'Novice',
     forWhom: 'First-timers',
-    summary: 'You get +25% production and science; the AIs get −15%, are less warlike, and make no demands before turn 60.',
+    summary: 'You get +25% production and science; the AIs get −15%, are less warlike, and make no demands before turn 60. The culture goal is 10% higher.',
     player: { production: 25, science: 25, gold: 0 },
     ai: { production: -15, science: -15, gold: 0 },
     aggression: -1.5,
@@ -63,6 +65,8 @@ export const DIFFICULTIES: Record<DifficultyId, DifficultyDef> = {
     warGraceTurns: 30,
     extraAiUnits: [],
     goalPct: 100,
+    // Round 20 (item 3): culture won 50% of Novice games (+20% gold for the player was tried: 32–43%).
+    cultureGoalPct: 110,
     upgradePct: 90,
   },
   normal: {
@@ -97,15 +101,16 @@ export const DIFFICULTIES: Record<DifficultyId, DifficultyDef> = {
     id: 'legendary',
     name: 'Legendary',
     forWhom: 'The brave',
-    summary: 'The AIs get +25% production, +20% science, and +10% gold, a free Warrior and Settler, are more warlike, and may go to war with you sooner. The culture and gold goals are 15% higher.',
+    summary: 'The AIs get +25% production, +10% science, and +10% gold, a free Warrior and Settler, are more warlike, and may go to war with you sooner.',
     player: NONE,
-    // Round 15 (B3): was +30% of each, and games ended as early as turn 140.
-    ai: { production: 25, science: 20, gold: 10 },
+    // Round 15 (B3): was +30% of each, and games ended as early as turn 140. Round 20 (item 1):
+    // science +20% → +10% and the goals back to 100% (technology won 58% of Legendary games).
+    ai: { production: 25, science: 10, gold: 10 },
     aggression: 1,
     demandsFromTurn: 15,
     warGraceTurns: 12,
     extraAiUnits: ['warrior', 'settler'],
-    goalPct: 115,
+    goalPct: 100,
     upgradePct: 125,
   },
 };

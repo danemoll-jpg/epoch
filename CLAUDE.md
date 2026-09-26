@@ -129,6 +129,7 @@ npm run sim -- sizes       # Round 13: the same at each map size with its most r
 npm run sim -- perf        # Round 14: End Turn time per map size, by stretch of turns (SIZES=, SEEDS=2, TURNS=250)
 npm run sim -- map-fixtures  # Round 14: remake the late Huge/Epic saves the huge-map/epic-map scenarios load
 npm run sim -- matrix        # Round 15: the full matrix (every size at Normal + Novice/Legendary on Normal, 20 games each); CONFIGS=normal,large to pick, TUNE="VICTORY.goldGoal=12000" to try numbers without editing, TAG= to keep runs apart; JSON in sim-out/sim-matrix-*.json
+npm run sim -- conquest      # Round 20: what conquerors' war plans do (no war, gathering, marching, overseas with no ferry, stalled sieges); CONFIG=normal|huge|epic, LEVEL=, SEEDS=
 npm run sim -- save-size     # Round 16: the Epic save's size raw and gzipped, turn 151 → 220 (TURNS=)
 npm run test:rules           # Round 16: firestore.rules against the Firestore emulator (scripts/test-rules.mjs: firebase-tools 15 via npx, and the portable Java 21 in %LOCALAPPDATA%\epoch-tools\, since the system Java is 8; 6 pass since Round 16b)
 python scripts/make-portrait-webp.py      # Round 16: remake src/assets/portraits/*.webp from docs/portraits-master/*.png
@@ -295,7 +296,7 @@ arrows, "n / 5", the dot), `tap-city-with-unit` (a Legion 4 tiles from Babylon
 selected first: tapping Babylon opens it with "Move Legion here (4 turns)"; the
 Warrior next to it moves in with one tap); (round 19) `rival-victory-wonder`,
 `keep-playing-spaceship`, `rival-era`, `built-this-turn`, `upgrade-units`, `spies`,
-`new-units` (Modern Infantry and the Drone), `culture-flip`, `leader-scenes`. A scenario can open a screen at load
+`new-units` (Modern Infantry and the Drone), `culture-flip`, `leader-scenes`; (round 20) `city-only-ships` (Metz held only by ships in port: "Capture Metz?", and a Bomber striking the ships). A scenario can open a screen at load
 (`opens: 'mainMenu' | 'settings' | 'almanac' | 'howToPlay' | 'setup'`) and
 show every tip afresh (`freshTips`, without touching the device's list);
 scenarios are silent unless Settings → Sound in dev scenarios. The religion ones use
@@ -655,7 +656,7 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   `docs/carrier-trim-candidates.html`).
 - The version shown on the About screen comes from `package.json`
   (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.19.0 for
-  round 19.
+  round 19 (0.19.1: Round 20's Metz fix).
 - **Round 19: the news, the cards, and the log's running count.** The log is
   capped (`RULES.maxLogEntries`, 400), so **never find new entries by the log's
   length**: use `state.logCount` (the running count) and `entriesSince(state, mark)`
@@ -732,10 +733,11 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   cards, the leader panel, and the diplomacy trades (CSS `.ticon`).
 - **Meeting a civ reveals where its capital is** (Round 11: the tile is
   marked explored), so conquerors can find the capitals domination needs.
-- **Victory goals (Round 15):** culture 8000, gold 13000 on Normal. Each
-  size scales them (`victoryPct`, or its own `culturePct`/`goldPct`): Small
-  9200 / 7800, Large 10000 / 14950, Huge 14000 / 19500, Epic 11600 / 20800;
-  Legendary adds 15% (`goalPct` in `difficulty.ts`). Techs cost +15% on
+- **Victory goals (Round 15, retuned in Rounds 19 and 20):** culture 9500, gold 13000 on
+  Normal. Each size scales them (`victoryPct`, or its own `culturePct`/`goldPct`): Small
+  10950 / 7800, Large 11900 / 14950, Huge 15200 / 21450, Epic 13800 / 22750;
+  a difficulty can scale them (`goalPct`, and `cultureGoalPct` for culture alone:
+  Novice's culture goal is 10% higher since Round 20; Legendary's 15% went in Round 20). Techs cost +15% on
   Large, +35% on Huge, +25% on Epic (`techCostPct`). Read the goals with
   `victoryGoals(state.mapSize, state.difficulty)`, never `VICTORY` directly
   (tests and scenarios on the Normal map may).
@@ -852,9 +854,11 @@ what was pushed.
 - **Round 19 (version 0.19.0): done, pushed 2026-09-26 on Dan's say-so, live.** See the
   Round 19 report in TODO.md (balance leftovers listed there). Pushing is Dan's call again.
 
-**Current objective: Round 20** (see TODO.md): the balance follow-up to Round 19
-(Legendary, Huge, Novice, strong and weak leaders, domination on big maps),
-measured with the sim matrix at 40+ games per row. **Don't push.**
+- **Round 20: done.** Item 8 (a city held only by ships can be captured; bombers strike
+  ships in port) was pushed on Dan's say-so as 0.19.1 and is live. The balance items (1–7)
+  are committed but **not pushed**; see the Round 20 report in TODO.md. Pushing is Dan's call.
+
+**Current objective:** none set; the planning session picks the next round (see TODO.md).
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.

@@ -77,7 +77,7 @@ export const PROJECTS: Record<ProjectId, ProjectDef> = {
     name: 'Moonshot',
     cost: 250,
     requires: 'rocketry',
-    summary: 'United States only, once: 200 culture and +25% science from then on',
+    summary: 'United States only, once: 200 culture and +15% science from then on',
     civ: 'usa',
   },
 };
