@@ -40,6 +40,9 @@ unchanged except where noted below. The SVG files are in `src/assets/icons/`, an
 | Stealth Bomber | Stealth bomber | Delapouite | https://game-icons.net/1x1/delapouite/stealth-bomber.html | CC BY 3.0 |
 | Helicopter | Helicopter | Delapouite | https://game-icons.net/1x1/delapouite/helicopter.html | CC BY 3.0 |
 | Missionary | Robe | Lorc | https://game-icons.net/1x1/lorc/robe.html | CC BY 3.0 |
+| Spy | Spy | Delapouite | https://game-icons.net/1x1/delapouite/spy.html | CC BY 3.0 |
+| Modern Infantry | Kevlar vest | Skoll | https://game-icons.net/1x1/skoll/kevlar-vest.html | CC BY 3.0 |
+| Drone | Delivery drone | Delapouite | https://game-icons.net/1x1/delapouite/delivery-drone.html | CC BY 3.0 |
 
 **Modified:** the Carrier icon has its wave lines removed and is cropped a
 little larger, so it reads differently from the Battleship at map size.

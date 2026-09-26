@@ -14,6 +14,7 @@ import { RESOURCES, RESOURCE_IDS } from '../data/resources';
 import { ERAS, TECHS, TECH_LIST, type TechId } from '../data/techs';
 import { TERRAIN } from '../data/terrain';
 import { UNITS, UNIT_IDS, type UnitTypeId } from '../data/units';
+import { SPIES, SPY_ACTIONS, SPY_ACTION_IDS } from '../data/spies';
 import { PROJECTS, PROJECT_IDS, VICTORY_NAMES } from '../data/victory';
 import { WONDER_LIST } from '../data/wonders';
 import { bonusText } from '../game/resources';
@@ -87,6 +88,7 @@ function unitCards(): AlmanacCard[] {
       row('Needs', needs(u.requires, u.alsoRequires)) +
       row('Sight', String(u.sight)) +
       // Round 19 (item 8): its upgrade line.
+      (u.spy ? SPY_ACTION_IDS.map((a) => row(SPY_ACTIONS[a].name, esc(`${SPY_ACTIONS[a].summary}${SPY_ACTIONS[a].basePct < 100 ? ` Base chance ${SPY_ACTIONS[a].basePct}%.` : ''}`))).join('') + row('Chances', esc(`${SPIES.perDefenderPct}% per defender, ${SPIES.defensePct}% with a ${BUILDINGS[SPIES.defenseBuilding].name}, +${SPIES.veteranPct}% for a veteran, ${SPIES.atWarPct}% at war; ${SPIES.minPct}–${SPIES.maxPct}%.`)) : '') +
       (u.upgradesTo ? row('Upgrades to', cardLink(`unit:${u.upgradesTo}`, UNITS[u.upgradesTo].name)) : '') +
       (replaces.get(id)?.length ? row('Replaces', replaces.get(id)!.map((r) => cardLink(`unit:${r}`, UNITS[r].name)).join(', ')) : '');
     return card(`unit:${id}`, 'unit', u.name, kind, disc(unitIconHtml(id)), facts);

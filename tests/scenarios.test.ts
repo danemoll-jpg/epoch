@@ -36,7 +36,7 @@ import { RELIGION, RELIGION_SYMBOLS } from '../src/data/religion';
 import { ROADS } from '../src/data/roads';
 import { faithOpinion, holyReligion, religionCityCulture, religionCityGold, spreadTargets } from '../src/game/religion';
 import { roadAt, roadConnected } from '../src/game/roads';
-import { BUILT_CITIES, RIVAL_WONDER, UPGRADE_GOLD, CYCLE_CITIES, FORTIFIED, LARGE_MAP_TURNS, MINIMAP_SEED, NEXT_UNIT, TAP_CITY_LEGION, TAP_CITY_WARRIOR, TAP_OWN } from '../src/dev/scenarios';
+import { BUILT_CITIES, NEW_UNITS_SCOUT, RIVAL_WONDER, UPGRADE_GOLD, CYCLE_CITIES, FORTIFIED, LARGE_MAP_TURNS, MINIMAP_SEED, NEXT_UNIT, TAP_CITY_LEGION, TAP_CITY_WARRIOR, TAP_OWN } from '../src/dev/scenarios';
 import { listUnits } from '../src/ui/unitsList';
 import { cityOrder, cycleCity, otherIdleCities } from '../src/ui/cityCycle';
 import { resolveTap } from '../src/ui/tap';
@@ -54,6 +54,8 @@ import { findCard, searchAlmanac } from '../src/ui/almanac';
 import { guidePages } from '../src/ui/guide';
 import { dueTips } from '../src/ui/tips';
 import { upgradeCost, upgradeError } from '../src/game/upgrades';
+import { spyActionError, spyTargets } from '../src/game/spies';
+import { unitVisibleTo } from '../src/game/fog';
 
 const AIR_TARGET = { x: 10, y: 5 };
 const mine = (s: GameState, type: string) => s.units.find((u) => u.owner === 0 && u.type === type)!;
@@ -97,6 +99,43 @@ const OUTCOMES: Record<string, (s: GameState) => void> = {
     expect(inCity.find((u) => u.army)!.type).toBe('musketman');
     const outside = s.units.find((u) => u.owner === 0 && u.type === 'archer')!;
     expect(upgradeError(s, outside)).toBe('Only in one of your cities');
+  },
+  spies: (s) => {
+    const spies = s.units.filter((u) => u.owner === 0 && u.type === 'spy');
+    expect(spies).toHaveLength(4);
+    const london = s.cities.find((c) => c.name === RIVAL_WONDER.city)!;
+    const york = s.cities.find((c) => c.name === 'York')!;
+    expect(spyTargets(s, spies[0]!).map((c) => c.name).sort()).toEqual(['London', 'York']);
+    expect(spyActionError(s, spies[0]!, london, 'incite')).toBe('A capital never revolts');
+    expect(spyActionError(s, spies[0]!, york, 'incite')).toBeUndefined();
+    // England can't see them.
+    expect(spies.every((u) => !unitVisibleTo(s, 1, u))).toBe(true);
+    expect(applyAction(s, { type: 'spy', unitId: spies[0]!.id, cityId: london.id, action: 'investigate' }).ok).toBe(true);
+    expect(s.players[0]!.intel.map((i) => i.cityId)).toEqual([london.id]);
+    const before = london.production;
+    expect(before).toBeGreaterThan(0);
+    applyAction(s, { type: 'spy', unitId: spies[1]!.id, cityId: london.id, action: 'sabotage' });
+    const sab = s.log.at(-1)!;
+    expect(sab.kind).toBe('spy');
+    expect(london.production === 0 || sab.text.includes('caught')).toBe(true);
+    applyAction(s, { type: 'spy', unitId: spies[3]!.id, cityId: york.id, action: 'incite' });
+    expect(york.owner === 0 || s.log.at(-1)!.text.includes('caught')).toBe(true);
+    expect(s.units.filter((u) => u.owner === 0 && u.type === 'spy')).toHaveLength(1);
+  },
+  'new-units': (s) => {
+    expect(builds(s)).toContain('modern_infantry');
+    expect(builds(s)).not.toContain('rifleman');
+    const rifle = mine(s, 'rifleman');
+    expect(upgradeCost(s, rifle)).toBe(40);
+    expect(noteOf('new-units')).toContain('(40 gold)');
+    expect(applyAction(s, { type: 'upgrade', unitId: rifle.id }).ok).toBe(true);
+    expect(rifle).toMatchObject({ type: 'modern_infantry', veteran: true });
+    const drone = mine(s, 'drone');
+    const at = NEW_UNITS_SCOUT;
+    expect(s.players[0]!.explored[at.y * s.map.width + at.x]).toBe(0);
+    expect(applyAction(s, { type: 'recon', unitId: drone.id, at }).ok).toBe(true);
+    expect(s.players[0]!.explored[at.y * s.map.width + at.x]).toBe(1);
+    expect(visibleTiles(s, 0)[at.y * s.map.width + at.x]).toBe(true);
   },
   // ---- Round 19 Part A ----
   'rival-victory-wonder': (s) => {

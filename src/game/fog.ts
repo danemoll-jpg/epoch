@@ -3,6 +3,7 @@
 
 import { RULES } from '../data/rules';
 import { UNITS } from '../data/units';
+import { SPIES } from '../data/spies';
 import { distance, tileIndex } from './grid';
 import type { GameState, Unit } from './types';
 
@@ -17,7 +18,12 @@ export function visibleTiles(state: GameState, playerId: number): boolean[] {
     const x1 = Math.min(w - 1, x + r);
     for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) vis[ty * w + tx] = true;
   };
-  for (const u of state.units) if (u.owner === playerId) mark(u.x, u.y, UNITS[u.type].sight);
+  for (const u of state.units) {
+    if (u.owner !== playerId) continue;
+    mark(u.x, u.y, UNITS[u.type].sight);
+    // Round 19: a Drone's scouting run, for the rest of the turn.
+    if (u.recon && u.recon.turn === state.turn) mark(u.recon.x, u.recon.y, UNITS[u.type].sight);
+  }
   for (const c of state.cities) if (c.owner === playerId) mark(c.x, c.y, RULES.citySight);
   return vis;
 }
@@ -37,6 +43,8 @@ export function updateExplored(state: GameState, playerId: number): void {
  */
 export function unitVisibleTo(state: GameState, viewer: number, u: Unit, vis?: boolean[]): boolean {
   if (u.owner === viewer) return true;
+  // Round 19 (item 11): a Spy only from one of the viewer's cities with a spy defense, next to it.
+  if (UNITS[u.type].spy) return state.cities.some((c) => c.owner === viewer && c.buildings.includes(SPIES.defenseBuilding) && distance(c, u) <= 1);
   if (UNITS[u.type].stealth) {
     return (
       state.units.some((o) => o.owner === viewer && distance(o, u) <= 1) ||

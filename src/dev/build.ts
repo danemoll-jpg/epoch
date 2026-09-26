@@ -58,6 +58,7 @@ export function makeState(
       dissolvedUntil: null,
       challenge: null,
       shipsBuilt: [],
+      intel: [],
     })),
     units: [],
     cities: [],

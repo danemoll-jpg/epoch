@@ -64,6 +64,7 @@ export function newBarbarianPlayer(id: number, tiles: number): Player {
     dissolvedUntil: null,
     challenge: null,
     shipsBuilt: [],
+      intel: [],
   };
 }
 

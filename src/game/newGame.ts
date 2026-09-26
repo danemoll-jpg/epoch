@@ -100,6 +100,7 @@ export function createGame(opts: NewGameOptions): GameState {
     dissolvedUntil: null,
     challenge: null,
     shipsBuilt: [],
+      intel: [],
   }));
   // The barbarians (Round 9) play last, always at war with everyone.
   const barbarians = opts.barbarians ?? true;

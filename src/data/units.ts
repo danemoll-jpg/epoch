@@ -17,13 +17,19 @@ export type UnitTypeId =
   | 'settler' | 'warrior' | 'archer' | 'spearman' | 'horseman' | 'chariot' | 'legion'
   | 'catapult' | 'pikeman' | 'knight' | 'musketman' | 'cannon' | 'rifleman' | 'artillery'
   | 'tank'
+  // Round 19 (Dan's mid-round addition): the Rifleman's successor.
+  | 'modern_infantry'
   // Ships (Round 8)
   | 'galley' | 'caravel' | 'frigate' | 'ironclad' | 'transport' | 'destroyer' | 'battleship'
   | 'submarine' | 'carrier'
   // Aircraft (Round 10)
   | 'fighter' | 'bomber' | 'jet_fighter' | 'stealth_bomber' | 'helicopter'
+  // Round 19 (Dan's mid-round addition): a cheap scout-and-strike aircraft.
+  | 'drone'
   // Religion (Round 12)
-  | 'missionary';
+  | 'missionary'
+  // Spies (Round 19)
+  | 'spy';
 
 /** Land units walk; sea units sail (Round 8); air units fly from a base (Round 10). */
 export type UnitDomain = 'land' | 'sea' | 'air';
@@ -88,6 +94,13 @@ export interface UnitDef {
    * leaves the build list, and units of this kind in a city can be upgraded (src/game/upgrades.ts).
    */
   upgradesTo?: UnitTypeId;
+  /** Round 19 (item 11): a Spy: invisible to rivals, acts once on a rival city (src/game/spies.ts). */
+  spy?: boolean;
+  /**
+   * Round 19 (Dan's addition): an aircraft that can Scout a tile in range instead of striking:
+   * everything within its `sight` of that tile is explored and seen for the rest of the turn (the Drone).
+   */
+  recon?: boolean;
 }
 
 function unit(
@@ -133,6 +146,8 @@ export const UNITS: Record<UnitTypeId, UnitDef> = {
   rifleman: unit('rifleman', 'Rifleman', 'Ri', 'lee-enfield', 50, 5, 8, 1, 'conscription'),
   artillery: unit('artillery', 'Artillery', 'At', 'mortar', 60, 10, 2, 1, 'machine_tools', { siege: true }),
   tank: unit('tank', 'Tank', 'Tk', 'tank', 80, 12, 8, 3, 'automobile'),
+  // Round 19: the best defender of the Modern era (the Rifleman's 5/8 → 8/12; the Tank is the attacker).
+  modern_infantry: unit('modern_infantry', 'Modern Infantry', 'MI', 'kevlar-vest', 70, 8, 12, 1, 'mass_production'),
   // Ships (Round 8).   name          glyph cost att def mv sight cargo tech
   galley: ship('galley', 'Galley', 'Ga', 30, 1, 1, 3, 1, 2, 'map_making', { icon: 'drakkar', coastOnly: true }),
   caravel: ship('caravel', 'Caravel', 'Cv', 40, 1, 2, 3, 2, 3, 'navigation', { icon: 'caravel' }),
@@ -152,6 +167,9 @@ export const UNITS: Record<UnitTypeId, UnitDef> = {
   stealth_bomber: aircraft('stealth_bomber', 'Stealth Bomber', 'Sb', 'stealth-bomber', 120, 20, 6, 8, 0, 'advanced_flight', {
     alsoRequires: 'computers', evadePct: 50, siege: true,
   }),
+  // Round 19: cheaper and weaker than the Bomber (attack 6, and defense 1: a fighter shoots it
+  // down most of the time), but the longest range and the widest sight; it can Scout.
+  drone: aircraft('drone', 'Drone', 'Dr', 'delivery-drone', 45, 6, 1, 10, 0, 'computers', { sight: 4, recon: true }),
   helicopter: {
     id: 'helicopter', name: 'Helicopter', glyph: 'He', icon: 'helicopter', domain: 'land', cargo: 0, cost: 70,
     moves: 5, sight: 2, attack: 10, defense: 4, canFoundCity: false, popCost: 0, requires: 'advanced_flight', hover: true,
@@ -161,6 +179,11 @@ export const UNITS: Record<UnitTypeId, UnitDef> = {
     id: 'missionary', name: 'Missionary', glyph: 'Mi', icon: 'robe', domain: 'land', cargo: 0, cost: 30,
     moves: 2, sight: 1, attack: 0, defense: 0, canFoundCity: false, popCost: 0, requires: 'monotheism',
     spreadsReligion: true,
+  },
+  // Round 19: no attack or defense, two moves, sees two tiles; used up when it acts.
+  spy: {
+    id: 'spy', name: 'Spy', glyph: 'Sy', icon: 'spy', domain: 'land', cargo: 0, cost: 30,
+    moves: 2, sight: 2, attack: 0, defense: 0, canFoundCity: false, popCost: 0, requires: 'literacy', spy: true,
   },
 };
 
@@ -172,7 +195,7 @@ export const UNITS: Record<UnitTypeId, UnitDef> = {
  */
 const UPGRADE_LINES: [UnitTypeId, UnitTypeId][] = [
   ['warrior', 'spearman'], ['spearman', 'pikeman'], ['pikeman', 'musketman'], ['musketman', 'rifleman'],
-  ['archer', 'musketman'], ['legion', 'rifleman'],
+  ['archer', 'musketman'], ['legion', 'rifleman'], ['rifleman', 'modern_infantry'],
   ['horseman', 'chariot'], ['chariot', 'knight'], ['knight', 'tank'],
   ['catapult', 'cannon'], ['cannon', 'artillery'],
   ['galley', 'caravel'], ['caravel', 'transport'],

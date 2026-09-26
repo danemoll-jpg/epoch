@@ -388,3 +388,194 @@ describe('Round 19 item 8: obsolete units and upgrades', () => {
     expect(upgradableUnits(s, 1).map((x) => x.unit.id)).toEqual([roamer.id]);
   });
 });
+
+// ---- Part C: spies (item 11) -----------------------------------------------------------------
+
+import { SPIES } from '../src/data/spies';
+import { unitVisibleTo } from '../src/game/fog';
+import { stepError } from '../src/game/movement';
+import { aiSpyMission, inciteCost, spyAction, spyActionError, spyChance, stealableTechs } from '../src/game/spies';
+
+describe('Round 19 item 11: spies', () => {
+  /** You (0) and a rival (1) at peace; the rival's Kish at (10, 5) and capital at (13, 9); your spy at (9, 5). */
+  function spyState(opts: { war?: boolean } = {}) {
+    const s = makeState(MAP, { peace: !opts.war });
+    addCity(s, 0, 2, 2, { name: 'Babylon', capitalOf: 0 });
+    const kish = addCity(s, 1, 10, 5, { name: 'Kish', size: 3, build: { kind: 'unit', id: 'warrior' }, production: 8 });
+    addCity(s, 1, 13, 9, { name: 'Taxila', capitalOf: 1 });
+    const spy = addUnit(s, 'spy', 0, 9, 5);
+    s.players[0]!.techs = ['literacy'];
+    s.players[1]!.techs = ['literacy', 'alphabet', 'bronze_working'];
+    return { s, kish, spy };
+  }
+
+  it('the chance: base, less per defender and a Courthouse, more for a veteran, within the limits', () => {
+    const { s, kish, spy } = spyState();
+    expect(spyChance(s, spy, kish, 'steal')).toBe(55);
+    expect(spyChance(s, spy, kish, 'investigate')).toBe(100);
+    addUnit(s, 'spearman', 1, 10, 5);
+    addUnit(s, 'spearman', 1, 10, 5);
+    expect(spyChance(s, spy, kish, 'steal')).toBe(55 + 2 * SPIES.perDefenderPct);
+    kish.buildings.push('courthouse');
+    expect(spyChance(s, spy, kish, 'steal')).toBe(55 + 2 * SPIES.perDefenderPct + SPIES.defensePct);
+    spy.veteran = true;
+    expect(spyChance(s, spy, kish, 'steal')).toBe(55 + 2 * SPIES.perDefenderPct + SPIES.defensePct + SPIES.veteranPct);
+    for (let i = 0; i < 10; i++) addUnit(s, 'spearman', 1, 10, 5);
+    expect(spyChance(s, spy, kish, 'steal')).toBe(SPIES.minPct);
+  });
+
+  it('unseen by rivals, except next to their city with a Courthouse; never blocks or defends', () => {
+    const { s, kish, spy } = spyState();
+    expect(unitVisibleTo(s, 1, spy)).toBe(false);
+    kish.buildings.push('courthouse');
+    expect(unitVisibleTo(s, 1, spy)).toBe(true);
+    // A rival unit can walk onto the spy's tile.
+    s.currentPlayer = 1;
+    const w = addUnit(s, 'warrior', 1, 8, 5);
+    expect(stepError(s, w, { x: 9, y: 5 })).toBeUndefined();
+  });
+
+  it('walks into a city at peace, not one at war', () => {
+    const { s, spy } = spyState();
+    expect(stepError(s, spy, { x: 10, y: 5 })).toBeUndefined();
+    const war = spyState({ war: true });
+    expect(stepError(war.s, war.spy, { x: 10, y: 5 })).toBeDefined();
+    // At war it still acts from next door.
+    expect(spyActionError(war.s, war.spy, war.kish, 'sabotage')).toBeUndefined();
+  });
+
+  it('investigate always works and leaves a report for a while; the spy is used up', () => {
+    const { s, kish, spy } = spyState();
+    const res = spyAction(s, spy.id, kish.id, 'investigate');
+    expect(res.ok).toBe(true);
+    expect(s.units.some((u) => u.id === spy.id)).toBe(false);
+    expect(s.players[0]!.intel).toEqual([{ cityId: kish.id, until: s.turn + SPIES.investigateTurns }]);
+    const told = s.log.at(-1)!;
+    expect(told.other).toBe(1);
+    expect(told.otherText).toContain('A spy was seen');
+  });
+
+  it('steal, sabotage and incite: success does it and tells the victim without a name', () => {
+    const { s, kish, spy } = spyState();
+    expect(stealableTechs(s, 0, 1).sort()).toEqual(['alphabet', 'bronze_working']);
+    // Whichever way the dice fall, each branch does what it says.
+    const res = spyAction(s, spy.id, kish.id, 'steal', 'bronze_working');
+    expect(res.ok).toBe(true);
+    if (res.spy!.success) {
+      expect(s.players[0]!.techs).toContain('bronze_working');
+      expect(s.log.at(-1)!.otherText).toBe('A spy stole Bronze Working from Kish!');
+    } else {
+      expect(s.log.at(-1)!.otherText).toMatch(/^Caught a .* spy trying to steal a technology in Kish!$/);
+      expect(s.diplomacy.opinion[1]![0]).toBe(SPIES.caughtOpinion);
+    }
+  });
+
+  it('incite: costs gold (paid either way), never a capital, cheaper far from the capital; success moves the city and sends its units home', () => {
+    const { s, kish, spy } = spyState();
+    const taxila = s.cities.find((c) => c.name === 'Taxila')!;
+    const cost = inciteCost(s, kish);
+    expect(cost).toBeGreaterThan(0);
+    expect(spyActionError(s, spy, kish, 'incite')).toBe(`Needs ${cost} gold`);
+    s.players[0]!.gold = cost + 5;
+    expect(spyActionError(s, spy, taxila, 'incite')).toBe('Go inside or next to the city first');
+    // Find dice that make it work (deterministic).
+    let won = false;
+    for (let seed = 1; seed < 200 && !won; seed++) {
+      const t = spyState();
+      t.s.players[0]!.gold = cost + 5;
+      const g = addUnit(t.s, 'warrior', 1, 10, 5);
+      t.s.rngState = seed;
+      const r = spyAction(t.s, t.spy.id, t.kish.id, 'incite');
+      expect(t.s.players[0]!.gold).toBe(5);
+      if (r.spy!.success) {
+        won = true;
+        expect(t.kish.owner).toBe(0);
+        expect(t.kish.capturedTurn).toBe(t.s.turn);
+        const tx = t.s.cities.find((c) => c.name === 'Taxila')!;
+        expect([g.x, g.y]).toEqual([tx.x, tx.y]);
+      }
+    }
+    expect(won).toBe(true);
+  });
+
+  it('the AI goes for a victory wonder first, then the tech leader', () => {
+    const { s, kish } = spyState();
+    s.players[1]!.techs.push('writing', 'currency');
+    expect(aiSpyMission(s, 0, { x: 3, y: 3 })).toMatchObject({ action: 'steal' });
+    kish.build = { kind: 'wonder', id: 'global_exchange' };
+    kish.production = 40;
+    expect(aiSpyMission(s, 0, { x: 3, y: 3 })).toMatchObject({ action: 'sabotage', city: kish });
+  });
+
+  it('a v13 save migrates: no spy reports', () => {
+    const g = createGame({ seed: 7 }) as unknown as { players: Record<string, unknown>[]; version: number };
+    for (const p of g.players) delete p.intel;
+    g.version = 13;
+    const res = deserializeGame(JSON.stringify({ saveVersion: 13, savedAt: 1, state: g }));
+    expect(res.kind).toBe('ok');
+    if (res.kind === 'ok') expect(res.state.players.every((p) => Array.isArray(p.intel) && p.intel.length === 0)).toBe(true);
+  });
+});
+
+// ---- Dan's mid-round addition: Modern Infantry and the Drone ------------------------------------
+
+import { reconError } from '../src/game/air';
+import { interception } from '../src/game/combat';
+import { bestDefender } from '../src/game/ai';
+import { airBuild, runAiAir } from '../src/game/aiAir';
+import { visibleTiles } from '../src/game/fog';
+
+describe('Round 19 (Dan): Modern Infantry and the Drone', () => {
+  it('Modern Infantry tops the foot line and is the AI\'s best defender once known', () => {
+    expect(UNITS.rifleman.upgradesTo).toBe('modern_infantry');
+    expect(UNITS.modern_infantry.defense).toBeGreaterThan(UNITS.rifleman.defense);
+    expect(UNITS.modern_infantry.defense).toBeGreaterThan(UNITS.tank.defense);
+    const s = makeState(MAP);
+    const c = addCity(s, 1, 10, 5, { name: 'Kish' });
+    s.players[1]!.techs = ['conscription', 'automobile', 'mass_production'];
+    expect(bestDefender(s, c)).toBe('modern_infantry');
+  });
+
+  it('the Drone: cheaper and weaker than the Bomber, longer range and sight; fighters shoot it down easily', () => {
+    const d = UNITS.drone;
+    expect(d.cost).toBeLessThan(UNITS.bomber.cost);
+    expect(d.attack).toBeLessThan(UNITS.bomber.attack);
+    expect(d.range!).toBeGreaterThan(UNITS.stealth_bomber.range!);
+    expect(d.sight).toBeGreaterThan(UNITS.bomber.sight);
+    const s = makeState(MAP);
+    addCity(s, 0, 2, 5, { name: 'Ur' });
+    addCity(s, 1, 10, 5, { name: 'Kish' });
+    const drone = addUnit(s, 'drone', 0, 2, 5);
+    addUnit(s, 'fighter', 1, 10, 5);
+    addUnit(s, 'warrior', 1, 10, 5);
+    addUnit(s, 'warrior', 0, 9, 5); // eyes on the target
+    const i = interception(s, drone, { x: 10, y: 5 });
+    expect(i?.chance).toBeGreaterThan(0.75);
+  });
+
+  it('scouting: in range, away from base, once a turn; the area is seen until the turn ends', () => {
+    const s = makeState(MAP, { exploreAll: false });
+    addCity(s, 0, 2, 5, { name: 'Ur' });
+    const drone = addUnit(s, 'drone', 0, 2, 5);
+    expect(reconError(s, drone, { x: 2, y: 5 })).toBe('Pick a tile away from its base');
+    expect(reconError(s, drone, { x: 15, y: 5 })).toBe('Out of range (10 tiles)');
+    expect(applyAction(s, { type: 'recon', unitId: drone.id, at: { x: 11, y: 5 } }).ok).toBe(true);
+    expect(visibleTiles(s, 0)[5 * 16 + 14]).toBe(true);
+    expect(reconError(s, drone, { x: 11, y: 5 })).toBe('Already flew this turn');
+    s.turn++;
+    expect(visibleTiles(s, 0)[5 * 16 + 14]).toBe(false);
+    expect(s.players[0]!.explored[5 * 16 + 14]).toBe(1);
+  });
+
+  it('the AI builds a Drone and scouts the dark with it', () => {
+    const s = makeState(MAP, { exploreAll: false, peace: true });
+    const c = addCity(s, 1, 3, 5, { name: 'Kish' });
+    s.players[1]!.techs = ['computers', 'flight'];
+    expect(airBuild(s, c, false).drone).toBe('drone');
+    const drone = addUnit(s, 'drone', 1, 3, 5);
+    s.currentPlayer = 1;
+    runAiAir(s, 1, null);
+    expect(drone.recon?.turn).toBe(s.turn);
+    expect(airBuild(s, c, false).drone).toBeUndefined();
+  });
+});

@@ -28,8 +28,8 @@ describe('icons', () => {
     for (const id of RESOURCE_IDS) expect(RESOURCES[id].icon, id).toBeTruthy();
     for (const k of GREAT_PERSON_KINDS) expect(GREAT_PEOPLE[k].icon, k).toBeTruthy();
     for (const icon of Object.values(MAP_ICONS)) expect(icon).toBeTruthy();
-    // 24 units + 5 aircraft + the Missionary, and Dan's 24 map picks + the holy city and 8 religion symbols (Round 12).
-    expect(USED.filter((u) => u.group === 'Units')).toHaveLength(30);
+    // 24 units + 5 aircraft + the Missionary, Round 19's Spy, Modern Infantry and Drone, and Dan's 24 map picks + the holy city and 8 religion symbols (Round 12).
+    expect(USED.filter((u) => u.group === 'Units')).toHaveLength(33);
     expect(USED.filter((u) => u.group === 'Map')).toHaveLength(33);
     for (const r of RELIGION_SYMBOLS) expect(r.icon, r.id).toBeTruthy();
   });

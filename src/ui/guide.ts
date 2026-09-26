@@ -76,13 +76,14 @@ export function guidePages(): GuidePage[] {
       title: 'Ships and aircraft',
       html: `${pics(unit('galley'), unit('transport'), unit('fighter'), unit('bomber'))}
         <p><b>Ships</b> are built in coastal cities. A land unit boards by stepping onto your ship, and goes ashore by stepping onto land. The ${card('unit:galley', 'Galley')} must stay near the coast; later ships cross the ocean. Ships can bombard units on the shore but never take a city.</p>
-        <p><b>Aircraft</b> live in a city (or on a ${card('unit:carrier', 'Carrier')}). They strike any enemy in range that you can see, then fly home. Enemy fighters nearby may intercept them first. Aircraft never capture cities. An <b>Airport</b> can airlift one land unit a turn to another Airport city.</p>`,
+        <p><b>Aircraft</b> live in a city (or on a ${card('unit:carrier', 'Carrier')}). They strike any enemy in range that you can see, then fly home. Enemy fighters nearby may intercept them first. Aircraft never capture cities. An <b>Airport</b> can airlift one land unit a turn to another Airport city. The ${card('unit:drone', 'Drone')} (Computers) is cheap and fragile, with the longest range: tap any tile in range to <b>scout</b> it (you see all around it until the turn ends), or strike like a small bomber.</p>`,
     },
     {
       id: 'diplomacy',
       title: 'Diplomacy',
       html: `<p>You meet another civ when your units or cities see each other. Open <b>🤝 Diplomacy</b> to see everyone you've met: their leader, attitude toward you, and strength.</p>
         <p>From there you can <b>declare war</b>, <b>propose peace</b>, <b>trade techs</b> (for gold or a tech of yours), and give gifts of gold to make friends.</p>
+        <p><b>Spies</b> (${card('unit:spy', 'Spy')}, from Literacy) can't be seen by rivals, and can walk into the cities of civs you're at peace with. Inside or next to a rival city a Spy can <b>investigate</b> it (always works: its buildings, what it's building, its defenders), <b>steal a technology</b>, <b>sabotage</b> its production, or pay to <b>incite a revolt</b> so it joins you (never a capital). The chance shows before you act; the Spy is used up either way, and a caught spy makes its victim angry. A <b>Courthouse</b> guards a city against spies and shows them next to it. You're told when a spy acts against you.</p>
         <p>Computer players remember how you treat them. They may demand tribute; refusing makes them angrier. A peace treaty holds for ${RULES.diplomacy.minPeaceTurns} turns.</p>`,
     },
     {

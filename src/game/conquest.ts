@@ -19,7 +19,8 @@ import { RULES } from '../data/rules';
 import { addLog } from './log';
 import { atWar } from './war';
 import { loseSpaceship } from './victory';
-import { canCapture, defendsTile, isAir, isShip, removeUnit } from './naval';
+import { canCapture, defendsTile, isAir, isCoastal, isShip, removeUnit } from './naval';
+import { distance } from './grid';
 import { refreshWorkedTiles } from './yields';
 import { bonusName, firstEffect } from './leaders';
 import type { City, Coord, GameState, Unit } from './types';
@@ -121,6 +122,38 @@ export function captureCity(state: GameState, city: City, newOwner: number): voi
   }
   // A civ's spaceship is built in its capital: losing the capital loses the ship (Milestone 6).
   if (city.capitalOf === oldOwner) loseSpaceship(state, oldOwner, city);
+  checkEliminations(state, newOwner, city);
+}
+
+/**
+ * Round 19: a city joins another civ without a fight (a spy's revolt, item 11, or a
+ * referendum, item 7). It keeps its size, buildings, and wonders; what it was building starts
+ * over. The old owner's units in it go home to their nearest city (ships to a coastal one), or
+ * are lost if there's none. It can't flip again for a while (`capturedTurn`).
+ */
+export function transferCity(state: GameState, city: City, newOwner: number): void {
+  const oldOwner = city.owner;
+  const home = state.cities.filter((c) => c.owner === oldOwner && c.id !== city.id);
+  for (const u of state.units.filter((x) => x.x === city.x && x.y === city.y && x.owner === oldOwner && x.carriedBy === null)) {
+    const ok = isShip(u) ? home.filter((c) => isCoastal(state, c)) : home;
+    const dest = [...ok].sort((a, b) => distance(a, city) - distance(b, city) || a.id - b.id)[0];
+    if (!dest) {
+      removeUnit(state, u.id);
+      continue;
+    }
+    for (const m of [u, ...state.units.filter((x) => x.carriedBy === u.id)]) {
+      m.x = dest.x;
+      m.y = dest.y;
+      m.fortified = false;
+    }
+  }
+  city.owner = newOwner;
+  city.capturedTurn = state.turn;
+  city.build = null;
+  city.production = 0;
+  refreshWorkedTiles(state);
+  updateExplored(state, newOwner);
+  updateContacts(state);
   checkEliminations(state, newOwner, city);
 }
 

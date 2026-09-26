@@ -154,7 +154,8 @@ export function shipWithRoom(state: GameState, owner: number, x: number, y: numb
  * units not aboard a ship. Ships in port and aircraft (Round 10) never defend.
  */
 export function defendsTile(state: GameState, u: Unit): boolean {
-  if (isAir(u)) return false;
+  // Round 19: a Spy never defends (or blocks) a tile.
+  if (isAir(u) || UNITS[u.type].spy) return false;
   if (isWaterAt(state, u.x, u.y)) return isShip(u) || hovers(u);
   return !isShip(u) && u.carriedBy === null;
 }

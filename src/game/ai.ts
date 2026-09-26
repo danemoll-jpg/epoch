@@ -64,6 +64,7 @@ import { runAiDiplomacy, runawayProgress, strengthRatio } from './diplomacy';
 import { canEnter, findUnit, isEnterable, moveUnit, moveUnitToward } from './movement';
 import { buildChoiceError, buyCost, buyError, clearBuild, rushBuy, sameItem, setBuild, setFocus, setScienceRate } from './production';
 import { aiUpgrade } from './upgrades';
+import { aiSpyBuild, playSpy } from './spies';
 import { capitalsHeld, launchError, launchSpaceship, victoryWonder } from './victory';
 import { cityYields } from './yields';
 import { nextFloat } from './rng';
@@ -371,6 +372,7 @@ export function chooseBuild(state: GameState, city: City, ctx: BuildContext = bu
   // Round 10: at war, a fighter to guard the skies and bombers to strike ahead of the army.
   if (ctx.atWar && air.fighter) return { kind: 'unit', id: air.fighter };
   if (ctx.atWar && air.bomber) return { kind: 'unit', id: air.bomber };
+  if (ctx.atWar && air.drone) return { kind: 'unit', id: air.drone };
   const warOffense = AI.offensePerCityWar * (ctx.goal === 'domination' ? AI.victory.dominationWarOffenseFactor : 1);
   if (ctx.atWar && military < kept + Math.ceil(mine.length * warOffense)) return attacker;
 
@@ -379,9 +381,13 @@ export function chooseBuild(state: GameState, city: City, ctx: BuildContext = bu
     const mission = aiMissionaryBuild(state, city, (item) => buildChoiceError(state, city, item));
     if (mission) return mission;
   }
+  // Round 19 (item 11): a Spy from the capital, when there's a mission for one.
+  const spy = aiSpyBuild(state, city, (item) => buildChoiceError(state, city, item));
+  if (spy) return spy;
   if (wonder && ctx.goal === 'culture') return { kind: 'wonder', id: wonder };
   if (navy.warship) return { kind: 'unit', id: navy.warship };
   if (air.fighter) return { kind: 'unit', id: air.fighter };
+  if (air.drone) return { kind: 'unit', id: air.drone };
   const next = buildingOrder(ctx.goal).find((b) => !buildChoiceError(state, city, { kind: 'building', id: b }));
   if (next) return { kind: 'building', id: next };
   if (wonder) return { kind: 'wonder', id: wonder };
@@ -683,6 +689,14 @@ export function runAiTurn(state: GameState, playerId: number): void {
     }
     if (UNITS[unit.type].canFoundCity) {
       playSettler(state, unit);
+      continue;
+    }
+    // Round 19 (item 11): a Spy goes on its mission, else waits at home.
+    if (UNITS[unit.type].spy) {
+      if (!playSpy(state, unit, (u, to) => moveUnitToward(state, u.id, to).ok)) {
+        const home = nearestCity(citiesOf(state, playerId), unit);
+        if (home) goHome(state, unit, home);
+      }
       continue;
     }
     // Round 12: a Missionary spreads its faith, else waits at home.

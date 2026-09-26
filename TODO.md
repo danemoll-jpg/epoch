@@ -2012,6 +2012,43 @@ the leader-scene crops if not already done, and says "push".
 - **Dan, try:** a game past Gunpowder: old units gone from the Build list; bring one home and
   upgrade it. Nothing needed from you.
 
+**Part C — Spies (item 11), plus Dan's mid-round addition (Modern Infantry and the Drone): done,
+2026-09-26.** Save version 14 (migration: no spy reports yet).
+- **Icon picker first: `docs/spy-icon-candidates.html`** (on the play server:
+  http://10.0.0.224:4173/docs/spy-icon-candidates.html). **Dan: pick one per unit and paste the
+  list.** Spy: A Spy (Delapouite), B Cloak and dagger, C Domino mask (Lorc). Modern Infantry: A
+  Body armor (Skoll), B Modern rifle (Sbed), C Trench assault (Quoting; it didn't read as a soldier,
+  so it's C). Drone: A Quadcopter drone (Delapouite), B Radar sweep, C Satellite (Lorc). Each shown
+  big, on the map among the units it stands with, in the unit panel and the Units list. The game
+  uses **A** for all three until you pick (credited in `CREDITS.md` and About).
+- **The Spy** (Literacy, Medieval; 30 production, 2 moves, sight 2, no attack or defense): rivals
+  can't see it (except right next to their city with a **Courthouse**, the spy defense: an existing
+  building, now also "guards against spies"); it walks into the cities of civs you're at peace with
+  (at war, it acts from next door); it never blocks or defends a tile. From inside or next to a
+  rival city: **Investigate** (sure: buildings, what it's building and turns, defenders, yields;
+  the report stays readable 10 turns: tap the city), **Steal a technology** (you pick; base 55%),
+  **Sabotage production** (60%), **Incite a revolt** (55%; gold by size, culture and closeness to
+  its capital, paid either way; never a capital; half price in unrest, for Part E). −6% per
+  defender, −25% with a Courthouse, +15% veteran, −10% at war, 5–90%; shown on each button before
+  you confirm. Used up either way. The victim is told (a success without a name; a caught spy with
+  its civ, and −4 opinion toward it, which feeds the AI's war decisions). **The AI** builds a Spy in
+  its capital (1 at a time, 2 from turn 150) when it has a mission: sabotage a rival's victory
+  wonder or spaceship part, else steal from the civ with the most techs it lacks, else incite a
+  small city it can afford; it acts at 30%+. All numbers in `src/data/spies.ts`.
+- **Dan's mid-round addition (2026-09-26):** **Modern Infantry** (Mass Production; attack 8,
+  defense 12, 1 move, 70): the new top of the foot line, Rifleman → Modern Infantry (Riflemen go out
+  of date and upgrade for 40 gold); the AI's best defender from then on. **The Drone** (Computers;
+  45 production, attack 6, defense 1, range 10, sight 4): cheaper and weaker than the Bomber, the
+  longest range; a Fighter shoots it down about 4 times in 5. Besides striking, it can **Scout**:
+  tap any tile in range and everything within 4 tiles of it is explored and seen until the turn
+  ends. The AI keeps one Drone (two at war), scouts the dark or its war target, and strikes with it
+  like a bomber.
+- **Also:** "4 Spys" → "4 Spies" in stack labels. Almanac (the Spy's actions and chances; "Upgrades
+  to"); How to Play (Diplomacy page: spies; Ships and aircraft: the Drone).
+- **Scenarios:** `spies`, `new-units`; `all-aircraft` now has a Drone. **Verified:** tests (1038
+  pass), build clean; preview-verified in iPad landscape (the spy buttons with odds and prices,
+  London "can't revolt", the Investigate report; the Drone scouting by a real tap).
+
 ## Next Steps (Do Not Start Yet)
 
 All of these are deferred for **sequencing only**. Each depends on the

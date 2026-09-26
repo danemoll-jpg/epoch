@@ -5,7 +5,7 @@ import type { CityFocus } from '../data/rules';
 import type { TechId } from '../data/techs';
 import { foundCity } from './city';
 import { attack, formArmy, fortify, wake } from './combat';
-import { airlift, rebase } from './air';
+import { airlift, rebase, recon } from './air';
 import { answerOffer, declareWar, giveGold, proposePeace, tradeTech } from './diplomacy';
 import { boardShip, moveUnitToward, unloadHere } from './movement';
 import { rushBuy, setBuild, setFocus, setScienceRate } from './production';
@@ -19,6 +19,8 @@ import { dissolution, pilgrimage, returnCity, setChallenge } from './uniques';
 import { nameReligion, nationalChurch, spreadReligion } from './religion';
 import { buyRoad } from './roads';
 import { upgradeUnit } from './upgrades';
+import { spyAction } from './spies';
+import type { SpyActionId } from '../data/spies';
 
 export type Action =
   | { type: 'move'; unitId: number; to: Coord }
@@ -29,6 +31,10 @@ export type Action =
   | { type: 'wake'; unitId: number }
   /** Round 19 (item 8): upgrade a unit in one of your cities to the newest of its line. */
   | { type: 'upgrade'; unitId: number }
+  /** Round 19: a Drone scouts a tile in range. */
+  | { type: 'recon'; unitId: number; at: Coord }
+  /** Round 19 (item 11): a spy acts on a rival city (a tech to steal may be named). */
+  | { type: 'spy'; unitId: number; cityId: number; action: SpyActionId; tech?: TechId }
   | { type: 'formArmy'; unitId: number }
   /** Board a ship docked on the unit's own tile (in a city). At sea, boarding is a move onto the ship. */
   | { type: 'board'; unitId: number; shipId: number }
@@ -89,6 +95,10 @@ function runAction(state: GameState, action: Action): ActionResult {
       return wake(state, action.unitId);
     case 'upgrade':
       return upgradeUnit(state, action.unitId);
+    case 'recon':
+      return recon(state, action.unitId, action.at);
+    case 'spy':
+      return spyAction(state, action.unitId, action.cityId, action.action, action.tech);
     case 'formArmy':
       return formArmy(state, action.unitId);
     case 'board':

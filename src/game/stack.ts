@@ -36,7 +36,9 @@ export function stackLabel(units: Unit[]): string {
     if (k) k.n++;
     else kinds.push({ name, n: 1 });
   }
-  return kinds.map((k) => `${k.n} ${k.n === 1 ? k.name : k.name.endsWith(' army') ? k.name.replace(/ army$/, ' armies') : `${k.name}s`}`).join(', ');
+  // Round 19: "Spies", not "Spys".
+  const many = (name: string) => (name.endsWith(' army') ? name.replace(/ army$/, ' armies') : /[^aeiou]y$/.test(name) ? `${name.slice(0, -1)}ies` : `${name}s`);
+  return kinds.map((k) => `${k.n} ${k.n === 1 ? k.name : many(k.name)}`).join(', ');
 }
 
 /** One unit per type that could form an army right now (any type on the tile, not just the selected one). */

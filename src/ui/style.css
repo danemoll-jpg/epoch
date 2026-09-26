@@ -3034,3 +3034,17 @@ button.alink {
   display: block;
   margin-top: 4px;
 }
+
+/* ---- Round 19 Part C: spies ---- */
+.spyBtns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 4px 0 6px;
+}
+.spyBtn {
+  text-align: left;
+  background: #2b2440;
+  border-color: #7a6aa8;
+  min-height: 44px;
+}

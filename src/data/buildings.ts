@@ -94,7 +94,7 @@ export const BUILDINGS: Record<BuildingId, BuildingDef> = {
   // ---- Round 11 ----
   courthouse: {
     id: 'courthouse', name: 'Courthouse', cost: 50, requires: 'code_of_laws',
-    summary: '+1 gold; +1 food in a city you captured, so it regrows faster',
+    summary: '+1 gold; +1 food in a city you captured, so it regrows faster; guards against spies (and shows spies next to it)',
     effects: { gold: 1, capturedFood: 1 },
   },
   cathedral: {

@@ -44,15 +44,19 @@ export function isEnterable(state: GameState, owner: number, x: number, y: numbe
   return !occupiedByOthers(state, owner, x, y);
 }
 
-function occupiedByOthers(state: GameState, owner: number, x: number, y: number): boolean {
-  if (state.units.some((u) => u.x === x && u.y === y && u.owner !== owner)) return true;
-  return state.cities.some((c) => c.x === x && c.y === y && c.owner !== owner);
+function occupiedByOthers(state: GameState, owner: number, x: number, y: number, mover?: Unit): boolean {
+  // Round 19 (item 11): nobody is blocked by a spy (it's unseen), and a spy walks in among the
+  // units and into the cities of civs it's at peace with.
+  const spy = !!mover && !!UNITS[mover.type].spy;
+  const blocks = (other: number) => !spy || atWar(state, owner, other);
+  if (state.units.some((u) => u.x === x && u.y === y && u.owner !== owner && !UNITS[u.type].spy && blocks(u.owner))) return true;
+  return state.cities.some((c) => c.x === x && c.y === y && c.owner !== owner && blocks(c.owner));
 }
 
 /** Can this unit ever stand on this tile by walking or sailing (not boarding), ignoring move points? */
 export function canEnter(state: GameState, unit: Unit, x: number, y: number): boolean {
   if (!terrainAllows(state, unit.type, unit.owner, x, y)) return false;
-  return !occupiedByOthers(state, unit.owner, x, y);
+  return !occupiedByOthers(state, unit.owner, x, y, unit);
 }
 
 export function moveCost(state: GameState, x: number, y: number): number {
@@ -109,10 +113,10 @@ export function stepError(state: GameState, unit: Unit, to: Coord): string | und
   if (unit.movesLeft <= 0) return 'No moves left';
   const kind = stepKind(state, unit, to);
   if (typeof kind === 'string') {
-    if (occupiedByOthers(state, unit.owner, to.x, to.y)) return blockedReason(state, unit, to);
+    if (occupiedByOthers(state, unit.owner, to.x, to.y, unit)) return blockedReason(state, unit, to);
     return kind;
   }
-  if (occupiedByOthers(state, unit.owner, to.x, to.y) && !capturableCity(state, unit, to)) return blockedReason(state, unit, to);
+  if (occupiedByOthers(state, unit.owner, to.x, to.y, unit) && !capturableCity(state, unit, to)) return blockedReason(state, unit, to);
   if (!isShip(unit) && !hovers(unit) && kind.kind !== 'board' && !TERRAIN[tileAt(state.map, to.x, to.y)!.terrain].landPassable) return 'Tile is impassable';
   if (kind.kind !== 'move') return undefined; // boarding and going ashore take whatever moves are left
   const cost = stepCost(state, unit, unit, to);

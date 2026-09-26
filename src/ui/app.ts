@@ -18,6 +18,8 @@ import { RESOURCES } from '../data/resources';
 import { villageAt } from '../game/barbarians';
 import { cityNameFor, foundCityError } from '../game/city';
 import { upgradableUnits, upgradeCost, upgradeError, upgradeTarget } from '../game/upgrades';
+import { hasIntel, hasSpyDefense, inciteCost, isSpy, spyActionError, spyChance, spyDefenseName, spyTargets, stealableTechs, type SpyOutcome } from '../game/spies';
+import { SPY_ACTIONS, SPY_ACTION_IDS, type SpyActionId } from '../data/spies';
 import { cultureToNextGreatPerson, engineerCities, generalTiles, greatPersonError, merchantGold } from '../game/greatPeople';
 import { bonusText, visibleResource } from '../game/resources';
 import { pendingVillage, settleVillageError } from '../game/villages';
@@ -350,6 +352,7 @@ export class App {
       else if (btn.dataset.act === 'spread') this.spreadReligion(id, Number(btn.dataset.city));
       else if (btn.dataset.act === 'moveHere') this.moveUnitHere(id);
       else if (btn.dataset.act === 'upgrade') this.upgradeUnit(id);
+      else if (btn.dataset.act === 'spy') this.confirmSpy(id, Number(btn.dataset.city), btn.dataset.spy as SpyActionId);
       else this.select(id);
     });
     $('attackGoBtn').addEventListener('click', () => this.confirmAttack());
@@ -665,6 +668,9 @@ export class App {
         return batch.some((w) => w.kind === 'wonder' && w.player !== me && sameRefItem(w.ref?.item, e.ref?.item));
       case 'victory':
         return e.ref?.step === 'later' && e.player === me;
+      case 'spy':
+        // Against you: a panel. Your own spy's result has its own panel when it acts.
+        return aimed || e.player === me;
       case 'leader':
         // The era bonus is on the new-era card.
         return e.player === me && batch.some((x) => x.kind === 'era' && x.player === me && x.ref?.era && e.text.startsWith(`${eraName(x.ref.era)} bonus:`));
@@ -733,6 +739,7 @@ export class App {
       else if (e.kind === 'warning' && aimed) this.queueWarningCard(e);
       else if (e.kind === 'capture' && aimed) this.queueCityLostCard(e);
       else if (e.kind === 'victory' && e.ref?.step === 'later' && e.player === me) this.queueLaterWinCard(e);
+      else if (e.kind === 'spy' && aimed) this.queueSpyAlert(e);
     }
   }
 
@@ -999,6 +1006,115 @@ export class App {
       this.toast(`Upgraded ${plural(n, 'unit')} for ${gold} gold${n < list.length ? ` (${list.length - n} left: not enough gold)` : ''}`);
     }
     this.renderUnitsList();
+  }
+
+  // ---- Round 19 (item 11): spies ------------------------------------------------------------
+
+  /** The spy's actions on each rival city it's in or next to, with each one's chance (or why not). */
+  private spyButtons(spy: Unit): string {
+    const targets = spyTargets(this.state, spy);
+    if (!targets.length) return `<div class="label">🕵 Walk into or next to a rival city (you can enter the cities of civs you're at peace with), then investigate, steal a tech, sabotage, or incite a revolt. Rivals can't see a Spy unless it's next to their city with a ${esc(spyDefenseName())}.</div>`;
+    return targets
+      .map((c) => {
+        const rows = SPY_ACTION_IDS.map((a) => {
+          const err = spyActionError(this.state, spy, c, a);
+          const odds = a === 'investigate' ? 'sure' : `${spyChance(this.state, spy, c, a)}%`;
+          const cost = a === 'incite' && c.capitalOf === null ? `${inciteCost(this.state, c)} gold, ` : '';
+          return `<button type="button" data-act="spy" data-unit="${spy.id}" data-city="${c.id}" data-spy="${a}" class="spyBtn" ${err ? 'disabled' : ''} title="${esc(err ?? SPY_ACTIONS[a].summary)}">${esc(SPY_ACTIONS[a].name)} <span class="sub">(${cost}${odds}${err ? ` · ${esc(err)}` : ''})</span></button>`;
+        }).join('');
+        return `<div class="label">🕵 ${esc(c.name)} <span class="sub">(${esc(civDef(this.state, c.owner).name)}${hasSpyDefense(c) ? `, ${esc(spyDefenseName())}` : ''})</span></div><div class="spyBtns">${rows}</div>`;
+      })
+      .join('');
+  }
+
+  /** Before a spy acts: what it does, the chance, and (to steal) which tech. */
+  private confirmSpy(spyId: number, cityId: number, action: SpyActionId): void {
+    const spy = findUnit(this.state, spyId);
+    const city = findCity(this.state, cityId);
+    if (!spy || !city) return;
+    const chance = spyChance(this.state, spy, city, action);
+    const who = civName(this.state, city.owner);
+    const run = (tech?: TechId) => this.doSpy(spyId, cityId, action, tech);
+    const risk =
+      action === 'investigate'
+        ? 'It always works. The report stays readable for a while (tap the city).'
+        : `Chance: ${chance}%. The spy is used up either way; if it's caught, ${who} will know it was you and like you less.`;
+    const cost = action === 'incite' ? ` It costs ${inciteCost(this.state, city)} gold, paid even if it fails.` : '';
+    if (action === 'steal') {
+      const techs = stealableTechs(this.state, spy.owner, city.owner);
+      this.showNow({
+        title: `Steal a technology in ${city.name}?`,
+        text: `${SPY_ACTIONS.steal.summary} Pick the one you want:`,
+        sub: risk,
+        list: true,
+        buttons: [...techs.map((t) => ({ label: TECHS[t].name, run: () => run(t) })), { label: 'Cancel' }],
+      });
+      return;
+    }
+    this.showNow({
+      title: `${SPY_ACTIONS[action].name}: ${city.name}?`,
+      text: `${SPY_ACTIONS[action].summary}${cost}`,
+      sub: risk,
+      buttons: [
+        { label: 'Cancel', cls: 'bigBtn' },
+        { label: action === 'investigate' ? 'Investigate' : `Go (${chance}%)`, cls: 'bigBtn primary', run: () => run() },
+      ],
+    });
+  }
+
+  private doSpy(spyId: number, cityId: number, action: SpyActionId, tech?: TechId): void {
+    const res = this.dispatchResult({ type: 'spy', unitId: spyId, cityId, action, tech }) as ActionResult & { spy?: SpyOutcome };
+    if (!res.ok || !res.spy) return;
+    const city = findCity(this.state, cityId);
+    if (action === 'investigate' && city) {
+      this.showIntel(city);
+    } else {
+      this.showNow({
+        title: res.spy.success ? 'Your spy succeeded' : 'Your spy was caught',
+        icon: UNITS.spy.icon,
+        text: res.message ?? '',
+        sub: res.spy.success ? undefined : `It had a ${res.spy.chance}% chance.`,
+        buttons: [
+          ...(res.spy.success && action === 'incite' && city ? [{ label: `Open ${city.name}`, run: () => this.openCity(city.id) }] : []),
+          { label: 'OK', cls: 'bigBtn' },
+        ],
+      });
+      this.sound.play(res.spy.success ? 'combat-win' : 'combat-loss');
+    }
+    this.selectNext(false);
+  }
+
+  /** A spy's report on a rival city (Investigate): buildings, build and turns, defenders, yields. */
+  private showIntel(city: City): void {
+    const y = cityYields(this.state, city);
+    const units = unitsOnTile(this.state, city.x, city.y).filter((u) => u.owner === city.owner);
+    const turns = turnsToFinish(this.state, city);
+    const until = this.state.players[this.human]!.intel.find((i) => i.cityId === city.id)?.until;
+    const lines = [
+      `Size ${city.size} · food ${y.food}, production ${y.production}, trade ${y.trade} · culture ${cityCulture(this.state, city)} a turn`,
+      `Building: ${city.build ? `${itemName(city.build)} (${city.production}/${itemCost(this.state, city, city.build)}${turns !== undefined ? `, about ${plural(turns, 'turn')}` : ''})` : 'nothing'}`,
+      `Defenders: ${units.length ? stackLabel(units) : 'none'}`,
+      `Buildings: ${city.buildings.length ? city.buildings.map((b) => BUILDINGS[b].name).join(', ') : 'none'}${city.wonders.length ? ` · wonders: ${city.wonders.map((w) => WONDERS[w].name).join(', ')}` : ''}`,
+    ];
+    this.showNow({
+      title: `Spy report: ${city.name}`,
+      icon: UNITS.spy.icon,
+      text: `${CivName(this.state, city.owner)}'s city, as your spy saw it.`,
+      lines: lines.map((l) => esc(l)),
+      buttons: [{ label: until !== undefined ? `OK (readable until turn ${until})` : 'OK', cls: 'bigBtn' }],
+    });
+  }
+
+  /** A spy acted against you: a panel (caught ones say whose). */
+  private queueSpyAlert(e: LogEntry): void {
+    const text = entryText(e, this.human);
+    this.queueNotice({
+      title: text.startsWith('Caught') ? 'A spy caught!' : 'Spies!',
+      icon: UNITS.spy.icon,
+      text,
+      sub: `A ${spyDefenseName()} in a city guards it against spies and shows spies next to it; more defenders help too.`,
+      buttons: [{ label: 'OK', cls: 'bigBtn' }],
+    });
   }
 
   /** Round 19 (item 4): the city that finished this unit last turn (or this turn), if any. */
@@ -1498,6 +1614,20 @@ export class App {
       case 'attack':
         this.openAttack(result.unitId, { x: tx, y: ty });
         return;
+      // Round 19: a Drone scouts the tile (with "Tap twice to move", the second tap does it).
+      case 'recon': {
+        if (!confirmMove(this.settings.tapTwice, this.pendingMove, result.unitId, tx, ty)) {
+          this.toast('Tap the same tile again to scout it with the Drone');
+          this.pendingMove = { unitId: result.unitId, x: tx, y: ty, path: [], turns: 0 };
+          return;
+        }
+        this.pendingMove = undefined;
+        if (this.dispatch({ type: 'recon', unitId: result.unitId, at: { x: tx, y: ty } })) {
+          this.toast(`Drone scouted the area: you can see it until the end of the turn`);
+          this.selectNext(false);
+        }
+        return;
+      }
       case 'openCity':
         this.openCity(result.cityId);
         // Round 17 (B1): opened with a unit selected that could go there: offer to move it.
@@ -1518,6 +1648,11 @@ export class App {
         const explored = this.state.players[this.human]!.explored[ty * this.state.map.width + tx] === 1;
         if (explored) {
           const city = this.state.cities.find((c) => c.x === tx && c.y === ty);
+          // Round 19 (item 11): a rival city your spy investigated shows its report.
+          if (city && city.owner !== this.human && hasIntel(this.state, this.human, city.id)) {
+            this.showIntel(city);
+            break;
+          }
           const def = TERRAIN[tile.terrain];
           const y = def.yields;
           const cityText = city ? `${city.name} · ` : '';
@@ -2982,7 +3117,8 @@ export class App {
     const portrait = n.portrait !== undefined && !card ? portraitHtml(this.state.players[n.portrait]?.civId ?? '', 64) : '';
     const icon = n.icon && !card ? `<span class="micon ${n.iconCls ?? ''}">${iconHtml(n.icon, '')}</span>` : '';
     $('noticeTitle').innerHTML = `${portrait}${icon}${esc(n.title)}`;
-    const list = card?.list?.length ? `<ul class="cardList">${card.list.map((li) => `<li>${li}</li>`).join('')}</ul>` : '';
+    const items = card?.list ?? n.lines;
+    const list = items?.length ? `<ul class="cardList">${items.map((li) => `<li>${li}</li>`).join('')}</ul>` : '';
     $('noticeText').innerHTML = `${esc(n.text)}${n.sub ? `<span class="sub">${esc(n.sub)}</span>` : ''}${list}${
       n.input ? `<input id="noticeInput" type="text" maxlength="${n.input.max}" value="${esc(n.input.value)}" aria-label="${esc(n.input.label)}" autocomplete="off" autocapitalize="words" spellcheck="false">` : ''
     }`;
@@ -3947,7 +4083,7 @@ export class App {
           ? ` · ⚓ aboard the ${UNITS[carrier.type].name}`
           : '';
       const air = isAir(sel)
-        ? ` · range ${airRange(sel)}${def.airAttack ? ` · vs aircraft ${def.airAttack}` : ''} · ${sel.movesLeft > 0 ? 'tap an outlined target to strike, or a city or Carrier to rebase' : 'flown this turn'}`
+        ? ` · range ${airRange(sel)}${def.airAttack ? ` · vs aircraft ${def.airAttack}` : ''} · ${sel.movesLeft > 0 ? `tap an outlined target to strike, or a city or Carrier to rebase${def.recon ? ', or any other tile in range to scout it' : ''}` : 'flown this turn'}`
         : hovers(sel) ? ' · flies over anything · can’t capture' : '';
       const carrierAir = isShip(sel) && def.airCargo ? ` · aircraft ${aircraftOf(this.state, sel).length}/${airCapacity(sel)}` : '';
       // Round 12: a Missionary's faith and spreads left.
@@ -4050,6 +4186,8 @@ export class App {
     }
     // Round 19 (item 8): an out-of-date unit in one of your cities can be upgraded.
     if (mine) navalBtns += this.upgradeButton(sel);
+    // Round 19 (item 11): a Spy inside or next to a rival city: its four actions, with the odds.
+    if (mine && isSpy(sel)) navalBtns += this.spyButtons(sel);
     // Round 18 (item 3): another unit was selected when this tile was tapped from afar.
     const offer = mine ? this.unitOfferNow() : undefined;
     if (offer && offer.x === sel.x && offer.y === sel.y) {
@@ -4173,6 +4311,8 @@ interface Notice {
    * portrait or an icon), a small line above the title, a tinted background, and a list.
    */
   card?: { hero?: string; kicker?: string; tint?: string; list?: string[] };
+  /** Round 19: rows (HTML) under the text, in a small panel too (a spy's report). */
+  lines?: string[];
 }
 
 const ATTITUDE_LABEL = { friendly: 'Friendly', neutral: 'Neutral', hostile: 'Hostile' } as const;

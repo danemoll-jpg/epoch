@@ -85,6 +85,11 @@ export const ICON_CREDITS: Record<string, IconCredit> = {
   amphora: { title: 'Amphora', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/amphora.html' },
   // Round 12 (Dan's picks, 2026-09-25): the Missionary, the 8 religion symbols, the holy city.
   robe: { title: 'Robe', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/robe.html' },
+  // Round 19: the Spy (candidate A until Dan picks; docs/spy-icon-candidates.html).
+  spy: { title: 'Spy', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/spy.html' },
+  // Round 19 (Dan's addition; candidate A until he picks): Modern Infantry and the Drone.
+  'kevlar-vest': { title: 'Kevlar vest', author: 'Skoll', url: 'https://game-icons.net/1x1/skoll/kevlar-vest.html' },
+  'delivery-drone': { title: 'Delivery drone', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/delivery-drone.html' },
   sun: { title: 'Sun', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/sun.html' },
   flame: { title: 'Flame', author: 'Carl Olsen', url: 'https://game-icons.net/1x1/carl-olsen/flame.html' },
   'round-star': { title: 'Round star', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/round-star.html' },

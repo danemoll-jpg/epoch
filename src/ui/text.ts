@@ -25,12 +25,15 @@ export function unitSummary(id: string): string {
     if (def.coastOnly) parts.push('coast only');
     if (def.stealth) parts.push('seen only from next to it');
   }
+  // Round 19: a Spy.
+  if (def.spy) parts.push('unseen by rivals · investigate, steal, sabotage, incite · used up when it acts');
   if (def.domain === 'air') {
     parts[0] = `attack ${def.attack} · defense ${def.defense}`;
     parts.push(`aircraft · range ${def.range}`);
     if (def.airAttack) parts.push(`${def.airAttack} vs aircraft, intercepts`);
     if (def.evadePct) parts.push('hard to intercept');
     parts.push('strikes and flies back to base');
+    if (def.recon) parts.push(`scouts a tile in range (sees ${def.sight} around it)`);
   }
   if (def.hover) parts.push('flies over anything, can’t capture');
   if (def.airCargo) parts.push(`carries ${def.airCargo} aircraft`);

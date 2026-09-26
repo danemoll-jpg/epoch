@@ -1037,6 +1037,8 @@ const AIRCRAFT_CITIES = [
   { name: 'Ur', x: 4, y: 3, type: 'bomber' },
   { name: 'Nineveh', x: 10, y: 3, type: 'jet_fighter' },
   { name: 'Uruk', x: 4, y: 8, type: 'stealth_bomber' },
+  // Round 19 (Dan's addition): the Drone.
+  { name: 'Lagash', x: 12, y: 2, type: 'drone' },
 ] as const;
 
 /** Each based aircraft alone in its own city (the 22 px in-city disc), a Helicopter in the open, and a Carrier with three aboard. */
@@ -2082,7 +2084,53 @@ export function upgradeUnitsScenario(): GameState {
   return state;
 }
 
+// ---- Round 19 Part C: spies ----------------------------------------------------------------
+
+/** Where the spies scenario's Spy stands: next to London (building the Global Exchange) and York. */
+export const SPY_SPOT = { x: 11, y: 7 };
+export function spiesScenario(): GameState {
+  const state = rivalVictoryWonderScenario();
+  const york = addCity(state, RIVAL, 12, 6, { name: 'York', size: 2, build: { kind: 'unit', id: 'warrior' } });
+  state.players[RIVAL]!.citiesFounded = 2;
+  addUnit(state, 'warrior', RIVAL, york.x, york.y, { fortified: true });
+  const me = state.players[0]!;
+  me.techs = ['literacy', 'alphabet', 'writing', 'code_of_laws', 'currency'];
+  me.gold = 900;
+  addUnit(state, 'spy', 0, SPY_SPOT.x, SPY_SPOT.y);
+  addUnit(state, 'spy', 0, SPY_SPOT.x, SPY_SPOT.y);
+  addUnit(state, 'spy', 0, SPY_SPOT.x, SPY_SPOT.y, { veteran: true });
+  addUnit(state, 'spy', 0, SPY_SPOT.x, SPY_SPOT.y);
+  return state;
+}
+
+/** Round 19 (Dan's mid-round addition): Modern Infantry and the Drone. The east is still dark. */
+export const NEW_UNITS_SCOUT = { x: 13, y: 5 };
+export function newUnitsScenario(): GameState {
+  const { state } = withCapital(undefined, { size: 5, build: { kind: 'unit', id: 'modern_infantry' } });
+  const p = state.players[0]!;
+  p.techs = ['conscription', 'mass_production', 'computers', 'flight'];
+  p.gold = 200;
+  addUnit(state, 'rifleman', 0, CITY_X, CITY_Y, { fortified: true, veteran: true });
+  addUnit(state, 'drone', 0, CITY_X, CITY_Y);
+  const seen = p.explored;
+  for (let y = 0; y < state.map.height; y++) for (let x = 10; x < state.map.width; x++) seen[tileIndex(state.map, x, y)] = 0;
+  return state;
+}
+
 export const SCENARIOS: Scenario[] = [
+  // ---- Round 19 Part C ----
+  {
+    id: 'spies',
+    title: 'Spies',
+    note: `Four Spies (one a ★ veteran) stand between London, England's capital, which is building the Global Exchange, and York, a small town. You have 900 gold. Tap the Spies: each has Investigate (sure), Steal a technology, Sabotage production and Incite a revolt, with the chance (and York's price); London can't revolt (a capital). Investigate London: its report shows the Global Exchange and its turns (tap London later to read it again). Sabotage London: if it works its production is wiped out. Steal a tech (pick one). Incite York: if it works York joins you. Each Spy is used up. England can't see them.`,
+    build: spiesScenario,
+  },
+  {
+    id: 'new-units',
+    title: 'Modern Infantry and the Drone',
+    note: `You know Mass Production and Computers. Open ${CAPITAL}: the Build list has Modern Infantry (attack 8, defense 12) and no Rifleman; the ★ Rifleman there has ⬆ Upgrade to Modern Infantry (40 gold) and stays a veteran. Tap the Drone (range 10): tap a dark tile to the east to scout it: everything within 4 tiles of it lights up until the turn ends. Check both in the Almanac.`,
+    build: newUnitsScenario,
+  },
   // ---- Round 19 Part B ----
   {
     id: 'upgrade-units',

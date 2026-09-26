@@ -255,6 +255,10 @@ const MIGRATIONS: Record<number, (s: Raw) => void> = {
     s.laterWins = [];
     s.logCount = Array.isArray(s.log) ? (s.log as unknown[]).length : 0;
   },
+  // Round 19 Part C: no spy reports yet.
+  13: (s) => {
+    for (const p of s.players as Raw[]) p.intel = [];
+  },
 };
 
 /** What each migration brought, for the "your game was updated" notice. Keyed like MIGRATIONS. */
@@ -270,6 +274,7 @@ export const MIGRATION_NOTES: Record<number, string> = {
   10: 'religion, Missionaries, and roads',
   11: 'difficulty levels and map sizes (yours is Normal on a Normal map)',
   12: 'bigger news: victory warnings, era and wonder cards, and the news log',
+  13: 'spies',
 };
 
 /** "the tech tree and combat and armies" for a save upgraded from version `from`. */
@@ -312,6 +317,7 @@ function shapeError(s: Record<string, unknown>): string | undefined {
   if (typeof s.difficulty !== 'string' || !Object.hasOwn(DIFFICULTIES, s.difficulty)) return 'missing difficulty';
   if (typeof s.mapSize !== 'string' || !Object.hasOwn(MAP_SIZES, s.mapSize)) return 'missing map size';
   if (!Array.isArray(s.laterWins) || typeof s.logCount !== 'number') return 'missing later wins';
+  if (!s.players.every((p) => isObject(p) && Array.isArray(p.intel))) return 'missing spy reports';
   return undefined;
 }
 

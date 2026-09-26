@@ -258,6 +258,9 @@ export const RULES = {
        * (percent): the same odds rule as land attacks.
        */
       strikeMinChancePct: 60,
+      /** Round 19: Drones each AI keeps once it can build them (for scouting, and strikes at war). */
+      dronesPerCiv: 1,
+      dronesPerCivWar: 2,
     },
 
     // ---- victory (Milestone 6; see src/game/aiGoals.ts) ----

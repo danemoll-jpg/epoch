@@ -84,6 +84,8 @@ export interface Player {
   challenge: TechId | null;
   /** Ship types this player has finished (Peter the Great's cheaper first ship of each type). */
   shipsBuilt: UnitTypeId[];
+  /** Round 19 (item 11): rival cities its spies investigated, readable until the turn given. */
+  intel: { cityId: number; until: number }[];
 }
 
 export interface SpaceProgram {
@@ -118,6 +120,8 @@ export interface Unit {
   /** A Missionary's religion (a Religion id) and spreads left (Round 12). Absent for everyone else. */
   religion?: number;
   charges?: number;
+  /** Round 19: where a Drone scouted this turn (it sees around there until the turn ends). */
+  recon?: { x: number; y: number; turn: number };
 }
 
 export type BuildItem =
@@ -169,6 +173,8 @@ export interface City {
   airliftTurn?: number;
   /** Round 12: the religion most of its people follow (a Religion id), or null. */
   religion: number | null;
+  /** Round 19 (item 7, Part E): unrest from a rival's culture pulling at it (0 = calm). */
+  unrest?: number;
 }
 
 /**
@@ -184,8 +190,9 @@ export interface City {
  * 11 = Round 12 (religions, each city's religion, Missionaries; roads and rails on tiles).
  * 12 = Round 13 (the game's difficulty level and map size).
  * 13 = Round 19 Part A (wins after "Keep playing", the log's running count).
+ * 14 = Round 19 Part C (spies: each civ's investigation reports).
  */
-export const STATE_VERSION = 13;
+export const STATE_VERSION = 14;
 
 export interface GameState {
   version: number;
@@ -386,7 +393,9 @@ export interface LogEntry {
     // Round 12: a religion founded, a city converted; a road bought.
     | 'religion' | 'road'
     // Round 19: something built (a building, a unit), a city taken, a wonder someone else finished first.
-    | 'built' | 'capture' | 'wonderLost';
+    | 'built' | 'capture' | 'wonderLost'
+    // Round 19 Part C: a spy acted (or was caught).
+    | 'spy';
   /** Round 19: what the entry is about, so the UI can build its card (all optional). */
   ref?: LogRef;
   /** Where it happened, so the UI can hide rival events the viewer can't see. */

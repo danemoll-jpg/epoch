@@ -18,6 +18,7 @@
 import { BUILDINGS } from '../data/buildings';
 import { UNITS } from '../data/units';
 import { distance } from './grid';
+import { updateExplored } from './fog';
 import { carrierWithRoom, cityAt, hovers, isAir, isShip } from './naval';
 import type { ActionResult, City, Coord, GameState, Unit } from './types';
 
@@ -33,6 +34,29 @@ export function tilesWithin(state: GameState, c: Coord, r: number): Coord[] {
     for (let x = Math.max(0, c.x - r); x <= Math.min(state.map.width - 1, c.x + r); x++) out.push({ x, y });
   }
   return out;
+}
+
+/** Round 19 (the Drone): why it can't scout `at`, or undefined if it can. */
+export function reconError(state: GameState, unit: Unit, at: Coord): string | undefined {
+  if (state.currentPlayer !== unit.owner) return 'Not your turn';
+  if (!UNITS[unit.type].recon) return 'Only a Drone scouts';
+  if (unit.movesLeft <= 0) return 'Already flew this turn';
+  const d = distance(unit, at);
+  if (d === 0) return 'Pick a tile away from its base';
+  if (d > airRange(unit)) return `Out of range (${airRange(unit)} tiles)`;
+  return undefined;
+}
+
+/** Round 19: the Drone flies over `at` and back: everything within its sight of there is seen this turn. */
+export function recon(state: GameState, unitId: number, at: Coord): ActionResult {
+  const unit = state.units.find((u) => u.id === unitId);
+  if (!unit) return { ok: false, reason: 'No such unit' };
+  const err = reconError(state, unit, at);
+  if (err) return { ok: false, reason: err };
+  unit.recon = { x: at.x, y: at.y, turn: state.turn };
+  unit.movesLeft = 0;
+  updateExplored(state, unit.owner);
+  return { ok: true, message: `scouted around ${at.x},${at.y}` };
 }
 
 /** Why this aircraft can't rebase to `to`, or undefined if it can. */

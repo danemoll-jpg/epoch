@@ -17,7 +17,7 @@
 
 import { RULES } from '../data/rules';
 import { UNITS, UNIT_IDS, type UnitTypeId } from '../data/units';
-import { airRange, rebase, rebaseError, tilesWithin } from './air';
+import { airRange, rebase, rebaseError, recon, reconError, tilesWithin } from './air';
 import { attack, attackError, overallChance } from './combat';
 import { distance, neighbors } from './grid';
 import { isAir, isCoastal } from './naval';
@@ -31,7 +31,11 @@ function isFighterType(id: UnitTypeId): boolean {
 }
 
 function isBomberType(id: UnitTypeId): boolean {
-  return UNITS[id].domain === 'air' && !isFighterType(id);
+  return UNITS[id].domain === 'air' && !isFighterType(id) && !UNITS[id].recon;
+}
+
+function isDroneType(id: UnitTypeId): boolean {
+  return UNITS[id].domain === 'air' && !!UNITS[id].recon;
 }
 
 /** The best aircraft of a kind this city can build (by `score`, cheaper on a tie), if any. */
@@ -61,9 +65,15 @@ function count(state: GameState, owner: number, kind: (id: UnitTypeId) => boolea
  * Aircraft this city should build now, if any: `fighter` (defense, any time) and `bomber`
  * (only at war with a plan). chooseBuild decides where they fit among its other choices.
  */
-export function airBuild(state: GameState, city: City, atWar: boolean): { fighter?: UnitTypeId; bomber?: UnitTypeId } {
+export function airBuild(state: GameState, city: City, atWar: boolean): { fighter?: UnitTypeId; bomber?: UnitTypeId; drone?: UnitTypeId } {
   const owner = city.owner;
-  const out: { fighter?: UnitTypeId; bomber?: UnitTypeId } = {};
+  const out: { fighter?: UnitTypeId; bomber?: UnitTypeId; drone?: UnitTypeId } = {};
+  // Round 19: a Drone or two (a scout in peacetime, cheap strikes at war).
+  const drone = bestAir(state, city, isDroneType, (id) => UNITS[id].range ?? 0);
+  if (drone) {
+    const building = city.build?.kind === 'unit' && isDroneType(city.build.id) ? 1 : 0;
+    if (count(state, owner, isDroneType) - building < (atWar ? A.dronesPerCivWar : A.dronesPerCiv)) out.drone = drone;
+  }
   const fighter = bestAir(state, city, isFighterType, (id) => UNITS[id].airAttack ?? 0);
   if (fighter && airDefenseCity(state, city)) {
     const mine = state.cities.filter((c) => c.owner === owner);
@@ -123,6 +133,21 @@ export function runAiAir(state: GameState, playerId: number, plan: AiPlan | null
       attack(state, unit.id, at);
       continue;
     }
+    // Round 19: a Drone with nothing to strike scouts (the war target, else the nearest dark area).
+    if (UNITS[unit.type].recon && droneScout(state, unit, targetCity)) continue;
     if (targetCity) rebaseTowardFront(state, unit, targetCity);
   }
+}
+
+/** Round 19: where an AI Drone scouts: the plan's target city if in range, else the closest unexplored tile in range. */
+function droneScout(state: GameState, unit: Unit, targetCity: City | undefined): boolean {
+  if (targetCity && !reconError(state, unit, targetCity)) return recon(state, unit.id, targetCity).ok;
+  const explored = state.players[unit.owner]!.explored;
+  let best: { at: Coord; d: number } | undefined;
+  for (const at of tilesWithin(state, unit, airRange(unit))) {
+    if (explored[at.y * state.map.width + at.x] === 1 || reconError(state, unit, at)) continue;
+    const d = distance(unit, at);
+    if (!best || d < best.d || (d === best.d && (at.y < best.at.y || (at.y === best.at.y && at.x < best.at.x)))) best = { at, d };
+  }
+  return !!best && recon(state, unit.id, best.at).ok;
 }
