@@ -1758,6 +1758,8 @@ forming an army from a distance works with "Move here".
 
 **Version 0.18.0.**
 
+**Pushed on Dan's say-so (this round only), 2026-09-26:** `main` `a2c40cd..007f91b` (`fa74bb6` docs from the planning session, `d0eb90c` Round 18 code, `007f91b` this report), plus this note. **Live:** https://epoch-fsts.netlify.app/ serves 0.18.0 (`index-DOMyYZrE.js`, the same build as the play server). The hub wasn't touched. Pushing is Dan's call again from here.
+
 **Readings I chose (say if you want them different):**
 - "Comfortably visible" = the whole tile plus half a tile around it is on screen and clear of every panel and button over the map.
 - A tile holding your units *and* being your city follows the city rule (opens the city), as in Round 17.
