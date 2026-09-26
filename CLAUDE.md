@@ -779,14 +779,12 @@ what was pushed.
   for that round only. Commit as usual, push only when told, and list the
   waiting commits in the report.
 
-- **Round 17 (version 0.17.0) and its follow-up (0.17.1): done, committed,
-  NOT pushed.** City arrows, the new city-tap rule with "Move … here", the
-  "Tap twice to move" setting, and the tech icons (Dan picked them on the
-  candidates page; they're wired in). Dan asked to hold the push until the tech
-  icons were in; they are, so the waiting commits go out when he says "push".
+- **Round 17 (version 0.17.0) and its follow-up (0.17.1): done, pushed
+  2026-09-25 on Dan's say-so, live.** City arrows, the new city-tap rule with
+  "Move … here", the "Tap twice to move" setting, and Dan's tech icons.
+  Pushing is Dan's call again.
 
-**Current objective:** waiting for Dan's "push" and the planning session (see
-TODO.md).
+**Current objective:** waiting for the planning session (see TODO.md).
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.

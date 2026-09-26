@@ -1638,7 +1638,7 @@ saves on the device, but signing in on the iPad and saving to the cloud fail.
 
 ## Current Objective (Focus Area)
 
-### Round 17 — City arrows, no accidental moves into cities, and technology icons (candidates) — done (0.17.0), committed, not pushed (Dan: wait for the tech icons); report at the end of this section
+### Round 17 — City arrows, no accidental moves into cities, and technology icons (candidates) — done (0.17.0, then 0.17.1 with the tech icons), pushed and live 2026-09-25; reports at the end of this section
 
 **Dan's requests (2026-09-25), from playing the live game:**
 1. In a city screen, arrows to cycle through his other cities.
@@ -1787,14 +1787,14 @@ icon sign-in, the keep-which question); compare the WebP portraits.
 
 **Dan then:** (a) the two scenarios aren't in the play build (scenarios are dev-only), so I also started the dev server for them: **http://10.0.0.224:5173/** → ☰ → Dev scenarios → "City arrows: go through your cities" and "Tapping your city with a unit selected" (its saved game is separate from the play server's). On the play server (http://10.0.0.224:4173/) the same features work in your real game: open a city for ◀ ▶ (or swipe across its top), and select a unit a few tiles from one of your cities, then tap the city; (b) pick the tech icons at http://10.0.0.224:4173/docs/tech-icon-candidates.html and give the planning session the "Dan's picks" line; (c) say "push" once the icons are in.
 
-#### Round 17 follow-up (coding agent, 2026-09-25): Dan's tech icon picks wired in (0.17.1); committed, NOT pushed
+#### Round 17 follow-up (coding agent, 2026-09-25): Dan's tech icon picks wired in (0.17.1); pushed and live
 
 Dan pasted his picks into the coding session: Alphabet: B; Bronze Working: A; Ceremonial Burial: A; Horseback Riding: C; Masonry: B; Pottery: B; Archery: C; Writing: A; Code of Laws: B; Currency: A; Iron Working: B; The Wheel: A; Mathematics: A; Mysticism: A; Map Making: A; Monarchy: B; Literacy: A; Construction: A; Astronomy: A; Seafaring: B; Navigation: A; Philosophy: B; Feudalism: A; Engineering: A; Trade: C; Chivalry: B; Monotheism: B; Banking: B; University: A; Invention: B; Magnetism: A; Theology: B; Gunpowder: C; Physics: B; Theory of Gravity: A; Metallurgy: C; Democracy: A; Economics: A; Chemistry: A; Steam Engine: A; Conscription: A; Railroad: A; Electricity: A; Industrialization: A; Corporation: A; Refining: C; Electronics: A; Machine Tools: A; Combustion: B; Automobile: B; Flight: A; Mass Production: B; Computers: B; Rocketry: A; Advanced Flight: A; Space Flight: A. All 56 are in the game, following the C2 plan:
 - **Data:** `TECH_ICONS: Record<TechId, string>` in `src/data/icons.ts`, the 56 SVGs in `src/assets/icons/` (copied from `docs/tech-icon-candidates/`, shapes unchanged), credits in `ICON_CREDITS`, a **Technology icons** table in `CREDITS.md`, and a "Technology icons" list on ☰ → About / Credits (`usedIcons` group `'Techs'`). Authors: Lorc, Delapouite, Caro Asercion, Skoll.
 - **Where they show:** the tech tree cards (22 px), the tech screen's detail heading (44 px, gold) and its "Requires" list, the top bar's research button (in place of 🔬 while researching; 🔬 stays for "Choose research"), the "You learned … Choose what to research next." line (gold), the "Researching …" toast, **every "learned …" news toast** (research, trade, tribute, hut, village, artifact, Great Person: `learnedTech` in `src/ui/text.ts` finds the tech from the wording, so no state change and no save-version bump), the Almanac's tech cards and every tech link in it, the New Game screen's civ cards and "Starting tech:", the leader panel's "started with" and National Challenge line, and the diplomacy screen's tech trades.
 - **Tests:** every tech has a bundled, credited icon, all different, none shared with a unit, building, wonder, resource, or map icon (`tests/icons.test.ts`); `learnedTech` reads every way the game words it (`tests/round17.test.ts`). **956 pass, 6 skipped** (the emulator tests); lint and build clean. The first load is 690 KB (235 KB gzipped), up from 592 / 198 KB, because the icons are bundled like the others.
 - **Verified:** preview in iPad-size emulation (landscape and portrait): the `tech` scenario's End Turn showed the gold Writing icon in "You learned Writing", all 56 tree cards with icons, the 44 px heading, the research button and toast, a "learned Currency" news toast with its icon, the Almanac card and links, 56 credits on About, and the 12 civ cards' starting techs. No console errors.
-- **Not pushed** (Dan's instruction was to push once the tech icons are in; the push itself is still his call). Waiting on `main`: `3b0715c`, `62ec120`, `b9df793`, and this follow-up's commit.
+- **Pushed on Dan's "push" (2026-09-25):** `main` `4689436..593168c` (`3b0715c`, `62ec120`, `b9df793`, `593168c`), plus this docs commit. **Live:** https://epoch-fsts.netlify.app/ serves 0.17.1 (`index-Dm2mraAx.js`, the same build as the play server). Pushing is Dan's call again from here.
 
 ## Next Steps (Do Not Start Yet)
 
@@ -1828,7 +1828,7 @@ milestone before it. None has been decided against.
   Preview-verified on desktop (`all-ships`: all 9 drawn, Carrier distinct
   from the Battleship). Only the aircraft icons remain (round 10).
 - **Rounds 16 and 16b — Cloud saves: done and pushed** (see Completed Tasks).
-- **Tech icons, step 2 — DONE** (Round 17 follow-up, 0.17.1, see Current Objective); **not pushed yet**: Dan wanted Round 17 to go out with the icons, so the waiting commits can go whenever he says "push".
+- **Tech icons, step 2 — DONE** (Round 17 follow-up, 0.17.1, see Current Objective); pushed with Round 17 and live (2026-09-25).
 - **A later balance round (after Round 16, whenever Dan wants):** from Round 15's leftovers: North Korea (1 win in 54), Russia, and the Franks under their share (conquerors struggle to finish); no domination on Huge or Epic; Huge 45% economic; Legendary 55% technology; Small games can run long (to t266). Use `npm run sim -- matrix` with more games per row (20 is noisy).
 - **Before any public release (only if Dan decides to go beyond family and
   friends, or to sell it):** review the leader list, the name, and all art
