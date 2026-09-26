@@ -1563,177 +1563,9 @@ dev-code leak check passing on `dist/` and `dist-play/`.
   (Q31); (d) when ready, follow **`docs/GO-LIVE.md`**, then tell the planning
   session the site is live (pushing becomes your call from then).
 
+* **Round 16 — Cloud saves with Firebase, and the portraits as WebP — done and pushed (2026-09-25, live as 0.16.0), NOT yet approved.** Dan did both console steps and tested: **the PC's game reached the iPad** once the iPad was actually signed in (at first he thought it was signed in when it wasn't). He asked for a manual save and a clearer sign-in; both are in Round 16b. The agent's report follows, moved from Current Objective.
 
-## Current Objective (Focus Area)
-
-### Round 16 — Cloud saves with Firebase (one game across the PC and the iPad)
-
-**The Netlify site is LIVE at https://epoch-fsts.netlify.app/** (Dan confirmed 2026-09-25).
-**Don't start until Dan's relay message includes the Firebase web config**
-(Dan pastes it). If it's missing, commit the docs and stop.
-
-**From the moment Dan says the site is live, pushing is Dan's call**
-(Round 15 D4; CLAUDE.md's pushing rules). This round: commit as usual, **do
-not push unless the relay says to**, and say in the report which commits
-are waiting.
-
-**Goal:** Dan signs in with Google on his PC and on his iPad and continues
-the same game on either one. Each family member gets their own saves. The
-game never waits on the network, never loses a save, and plays exactly as
-today for anyone who doesn't sign in.
-
-**Items for the coding agent. Report status on each one individually:**
-
-0. **Commit the updated docs first:** `CLAUDE.md` and `TODO.md` as their own
-   commit, then re-read them. Record the live URL in CLAUDE.md's "Where
-   things stand" and in `docs/GO-LIVE.md`.
-   Also tidy the repo root: the ~80 `sim-matrix-*.json` files and
-   `sim-report.txt` from Round 15 go to a gitignored folder (e.g. `sim-out/`),
-   and `npm run sim` writes there from now on.
-
-**Part A — Firebase setup**
-
-A1. **Config and loading:**
-    - the web config from Dan's relay in one file (e.g.
-      `src/data/firebase.ts`). It isn't secret; the rules are the security;
-    - the Firebase SDK (modular, the current major version from npm) is
-      **loaded only when needed** (a dynamic import on sign-in, or on start
-      when the player was signed in before), so the first load stays small
-      (report the before and after start sizes, as in Round 15 C2);
-    - the service worker must not cache or intercept Firebase or Google
-      requests;
-    - with no config, or when Firebase fails to load, the game is fully
-      local, as today, with no errors shown beyond a quiet "Cloud saves
-      unavailable".
-
-A2. **Google sign-in that works on the iPad, including from the Home Screen
-    icon:**
-    - use **redirect sign-in** where a popup can't work (the Home Screen app
-      on iPad), a popup elsewhere if that's more reliable; test both paths;
-    - Safari blocks the cross-site storage that Firebase's default redirect
-      relies on, so **serve the auth handler from our own domain:** a
-      Netlify rewrite from `/__/auth/*` to
-      `https://<project>.firebaseapp.com/__/auth/:splat` (status 200) in
-      `netlify.toml`, and `authDomain` set to the Netlify domain. Follow
-      Firebase's current "redirect best practices" guidance; if it
-      recommends differently, follow it and say so;
-    - write the one-time console steps into **`docs/FIREBASE-SETUP.md`**
-      for Dan (the authorized domain, and the redirect URI on the OAuth
-      client if one is needed), checked against Firebase's current docs;
-    - **"Play without signing in"** stays the default; sign-in lives on the
-      main menu and in ☰ → Settings, with sign-out, and shows who's signed
-      in (name only, no email on screen).
-
-**Part B — Sync**
-
-B1. **Local stays primary.** The autosave and backups on the device are
-    unchanged. When signed in and online, the cloud copy is written **in
-    the background** after End Turn (after the AI turns finish, never
-    during them), on `visibilitychange` to hidden, and on `pagehide`,
-    never blocking input. Writes are coalesced: at most one in flight, and
-    the newest save wins.
-
-B2. **Save slots:**
-    - each player has **up to 5 cloud slots**, each a game in progress;
-    - the current game is linked to its slot, so it keeps syncing there;
-    - the main menu shows the cloud games and the local one together:
-      leader portrait, civ, turn, map size, difficulty, last played (time
-      and which device, e.g. "iPad" or "PC", from the user agent), and
-      "on this device" or "in the cloud";
-    - Continue picks the newest; any slot can be opened, renamed, or
-      deleted (deleting asks first).
-
-B3. **Conflicts: never overwrite silently.**
-    - each save carries a revision counter and the device that wrote it;
-    - on opening a game, or when a background write finds the cloud copy
-      is newer than the one this device last saw, **ask which to keep**,
-      showing turn, date, and device for each;
-    - the one not kept goes into the **existing backup system**
-      (`epoch.autosave.backup.N`), so it can still be recovered;
-    - the rule is simple and tested: same game, the cloud is ahead and
-      local hasn't changed → take the cloud quietly; local is ahead and
-      the cloud hasn't changed → write it; both changed → ask.
-
-B4. **Size:**
-    - measure the save on an Epic map late in a game (turn 200+) and report
-      the raw and compressed sizes;
-    - compress with `CompressionStream` gzip (with a fallback where
-      unsupported, e.g. a small bundled library; check Safari's support);
-    - Firestore holds the index (one small document per slot); the save
-      itself goes in Firestore if it stays well under the 1 MB document
-      limit with a safe margin, otherwise in **Firebase Storage**. Pick one
-      path for all sizes, not both, and say why.
-    - **prefer Firestore:** new Cloud Storage buckets need Firebase's paid
-      (Blaze) plan, and Dan's project is on the free plan. If Firestore
-      can't fit an Epic save even compressed, split it across a few
-      documents rather than use Storage, or ask Dan first.
-
-B5. **Security rules in the repo:** `firestore.rules` (and `storage.rules`
-    if Storage is used): a player can read and write only their own saves
-    (`request.auth.uid` matches), with size limits and the slot limit.
-    Test them with the Firebase emulator if it runs here; otherwise say so
-    and give Dan the steps to publish them in `docs/FIREBASE-SETUP.md`.
-
-B6. **Status indicator:** a small, quiet mark in the top bar or ☰:
-    "Saved to cloud ✓", "Syncing…", "Offline: will sync", "Not signed in".
-    A failed write retries with backoff and never shows a pop-up.
-
-**Part C — Wrap-up**
-
-C1. **Portraits as WebP (Q33, default yes):** convert the 12 portraits
-    from PNG to WebP at a quality where they look the same (Round 15 said
-    the offline download drops from 7.7 MB to about 2.5 MB). Keep the
-    PNGs in `docs/` as the masters. Update `docs/PORTRAITS.md` and the
-    portrait test. Show the before and after side by side in
-    `docs/portraits.html` so Dan can check.
-
-C2. **Save format:** if the saved state changes, bump `STATE_VERSION` with
-    a migration, as always. The cloud copy uses the same format and the
-    same migrations.
-
-C3. **Dev scenarios, each with a note** (the dev server has no real
-    Firebase, so these use the mocked store):
-    - `cloud-conflict`: the keep-which prompt with two different turns;
-    - `cloud-offline`: the "Offline: will sync" indicator, then syncing
-      when back;
-    - `cloud-slots`: the main menu with a local game and three cloud games.
-
-C4. **Tests:**
-    - the sync rules against a mocked store (all three B3 cases, coalesced
-      writes, retries, failure, and a slow network never blocking End Turn);
-    - compression round trip, including an Epic save;
-    - the slot limit;
-    - no Firebase code in the first load (the build output check);
-    - the rules (with the emulator if it runs);
-    - the scenarios; `pace.test.ts`.
-
-**Done means:**
-- every item (0, A1–A2, B1–B6, C1–C4) is reported individually;
-- tests pass;
-- it's preview-verified on desktop and in iPad emulation (the scenarios),
-  and **signing in has been tried on the live site if Dan said to push**,
-  otherwise on localhost with the Firebase project;
-- commits are listed as **waiting for Dan to push** (unless the relay said
-  to push); the play server is restarted.
-
-**Dan then:**
-- (a) follows `docs/FIREBASE-SETUP.md` if it lists anything left to do;
-- (b) tells the agent to push (this deploys to the live site);
-- (c) on the live site: signs in on the PC, plays a few turns, then signs in
-  on the iPad (in Safari and from the Home Screen icon) and continues the
-  same game; then plays a turn on each without syncing to see the conflict
-  prompt;
-- (d) checks the WebP portraits.
-
-**Open questions (defaults in bold):**
-- **Q31 — Epic's label on the iPad:** **keep "best on a computer"** until
-  Dan times `huge-map` and `epic-map` on the iPad.
-- **Q32 — Cloud slots per player:** **5.**
-- **Q33 — Portraits to WebP:** **yes**, if they look the same to Dan.
-- **Q34 — Sign-in methods:** **Google only.** (Apple sign-in needs a paid
-  Apple developer account.)
-
-#### Round 16 report (coding agent, 2026-09-25): all items done; waiting for Dan to push
+#### Round 16 report (coding agent, 2026-09-25): all items done; pushed 2026-09-25
 
 **Before pushing, Dan does the two console steps in `docs/FIREBASE-SETUP.md`**
 (publish `firestore.rules`; add `https://epoch-fsts.netlify.app/__/auth/handler`
@@ -1765,9 +1597,114 @@ saves on the device, but signing in on the iPad and saving to the cloud fail.
 
 **Heads-up:** not yet tested with a real signed-in account (needs Dan) or against the real Firestore (the rules must be published first).
 
-**Waiting to be pushed (Dan's call):** `ab52178` (docs) and the Round 16 commit after it. Pushing deploys to https://epoch-fsts.netlify.app/.
+**Pushed on 2026-09-25 by Dan's say-so** (`ab52178` docs, then the Round 16 commit; `main` at `9734193`), live as 0.16.0. *(Planning session's note: this line originally said "waiting to be pushed".)* Pushing deploys to https://epoch-fsts.netlify.app/.
 
 **Dan, next:** (a) the two steps in `docs/FIREBASE-SETUP.md`; (b) say "push"; (c) on the live site, sign in on the PC and play a few turns, then on the iPad (Safari, then the Home Screen icon) continue the same game; play a turn on each without syncing to see the keep-which question; (d) compare the portraits on http://10.0.0.224:4173/docs/portraits.html.
+
+
+## Current Objective (Focus Area)
+
+### Round 16b — Cloud saves polish: a manual save, a clearer sign-in, and the hub card
+
+**Dan's first real test (2026-09-25, live site, both console steps done):**
+**cloud saves work.** The PC's game showed up on the iPad once he was
+actually signed in. At first he **thought the iPad had signed in when it
+hadn't**, looked for the game, and found "none". So: make signed-in vs not
+unmistakable, and add the **manual save** he asked for.
+
+**This round Dan asks for pushes:** push the `epoch` repo at the end (so he
+can test on the live site), and **add the Epoch card to the hub and push the
+hub** (item C1). Both are Dan's instruction for this round only; the
+standing rule stays "pushing is Dan's call".
+
+**Items for the coding agent. Report status on each one individually:**
+
+0. **Commit the updated docs first:** `CLAUDE.md` and `TODO.md` as their own
+   commit, then re-read them.
+
+**Part A — A clearer sign-in, and a manual save**
+
+A1. **Make it obvious whether you're signed in** (Dan thought he was when he
+    wasn't):
+    - find out what the iPad showed: did the sign-in fail or get cancelled
+      (redirect came back signed out, popup closed), or did it simply not
+      start? Report it;
+    - when sign-in doesn't complete, say so plainly in a toast ("Not signed
+      in: sign-in was cancelled or didn't finish. Try again") — never
+      leave it silent;
+    - the main menu shows the state at a glance: "Signed in as Dan ☁" with
+      the cloud games listed, or "Not signed in: sign in to see your cloud
+      games" next to the button;
+    - if the device has no game but the player isn't signed in, the main
+      menu and ☰ → Restore a backup say "Looking for a game from another
+      device? Sign in with Google";
+    - ☰ → Restore a backup notes that cloud games are on the main menu.
+
+A2. **Check these hold** (they may already; report, and fix only if not):
+    - signing in with a game already in progress uploads it (linked to a
+      slot), with a toast;
+    - after a redirect sign-in (Home Screen icon), the main menu's cloud
+      list refreshes without reopening the app;
+    - tapping the ☁ mark shows the last error in plain words and when it
+      last succeeded.
+
+A3. **Manual save (Dan asked):**
+    - **☰ → Save now**: saves on this device at once and, when signed in,
+      writes the cloud copy immediately (not waiting for End Turn), then
+      shows "Saved ✓ on this device and in the cloud" or exactly what
+      failed. It works mid-turn (between the player's own moves), and is
+      disabled while the rivals are moving (it saves right after);
+    - **☰ → Save to a new cloud slot…** (signed in): saves the current game
+      as another slot with a name, to keep a copy before a risky move. It
+      counts toward the 5;
+    - tapping the ☁ mark also offers **Sync now**.
+
+A4. **Tests and scenarios:**
+    - sign-in not completing shows the toast, and the signed-in/out states on
+      the main menu;
+    - sign-in uploads an existing unlinked game;
+    - Save now (device and cloud, mid-turn, while rivals move, offline);
+    - Save to a new slot, including when full;
+    - the error shown on the ☁ tap;
+    - **run the rules tests against the emulator if at all possible**
+      (install Java 21 if Dan's PC allows it without admin changes;
+      otherwise say so);
+    - a new scenario `cloud-signin-existing-game` (sign in with a game in
+      progress: it uploads), and `cloud-slots` updated for Save now.
+
+**Part B — Try it for real**
+
+B1. After pushing, **check on the live site with the real project as far as
+    you can without Dan's Google account** (the SDK loads, the rules answer,
+    no console errors). Then write a short checklist at the end of the
+    report for Dan (PC then iPad, Safari and the Home Screen icon).
+
+**Part C — The hub**
+
+C1. **Add the Epoch card to the hub and push the hub (Dan says so, this
+    round):**
+    - in `danemoll-jpg/game-hub`, add the card from `docs/GO-LIVE.md` step 5
+      (URL https://epoch-fsts.netlify.app/) to `games.js`, matching the
+      other cards' format exactly;
+    - check the hub page locally first (the card shows, the link opens the
+      game, nothing else changed);
+    - commit and **push the hub**, then check the live hub shows the card;
+    - report the hub commit.
+
+**Done means:**
+- every item (0, A1–A4, B1, C1) is reported individually;
+- tests pass;
+- the epoch repo is **pushed** (this round only, on Dan's say-so) and the
+  live site shows the new version; the hub is pushed and shows the card;
+- the play server is restarted.
+
+**Dan then:**
+- (a) on the PC (live site): signed in, uses ☰ → Save now, and sees it
+  saved to the cloud;
+- (b) on the iPad from the Home Screen icon: signs in (and sees clearly
+  that it worked), and the PC's game is on the main menu;
+- (c) checks the hub card;
+- (d) compares the portraits (still open from Round 16).
 
 ## Next Steps (Do Not Start Yet)
 
@@ -1800,7 +1737,7 @@ milestone before it. None has been decided against.
   a credit). Tests: every unit has a bundled, credited icon (366 pass).
   Preview-verified on desktop (`all-ships`: all 9 drawn, Carrier distinct
   from the Battleship). Only the aircraft icons remain (round 10).
-- **Round 16 — Cloud saves with Firebase: now the Current Objective** (DECIDED by Dan, 2026-09-25).
+- **Round 16 — Cloud saves with Firebase: done and pushed; Round 16b fixes it** (see Current Objective).
 - **A later balance round (after Round 16, whenever Dan wants):** from Round 15's leftovers: North Korea (1 win in 54), Russia, and the Franks under their share (conquerors struggle to finish); no domination on Huge or Epic; Huge 45% economic; Legendary 55% technology; Small games can run long (to t266). Use `npm run sim -- matrix` with more games per row (20 is noisy).
 - **Before any public release (only if Dan decides to go beyond family and
   friends, or to sell it):** review the leader list, the name, and all art

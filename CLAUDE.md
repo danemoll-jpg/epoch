@@ -713,16 +713,20 @@ what was pushed.
 - **Live since 2026-09-25 at https://epoch-fsts.netlify.app/** (Netlify, from
   `main`). Every push to `main` deploys there.
 - **Round 16 (version 0.16.0): cloud saves with Firebase** (project
-  `epoch-ca127`, Google sign-in, Firestore) and the portraits as WebP; done,
-  committed, **waiting for Dan to push**. Before pushing, Dan does the two console
-  steps in `docs/FIREBASE-SETUP.md` (publish `firestore.rules`; add the Netlify
-  redirect URI to the OAuth client).
+  `epoch-ca127`, Google sign-in, Firestore) and the portraits as WebP: done,
+  **pushed 2026-09-25**, live. Dan did both console steps. Dan's first test: the PC
+  game reached the iPad once he was really signed in (sync works). Round 16b
+  polishes it.
 - **The play server:** http://10.0.0.224:4173/.
-- **Pushing: once Dan says the site is live, pushing is Dan's call** (see
-  Pushing rules). Commit as usual, push only when told, and list the
-  waiting commits in the report.
+- **Pushing is Dan's call** (see Pushing rules). Commit as usual, push only
+  when told, and list the waiting commits in the report. **Round 16b: Dan
+  says push the epoch repo, and add the Epoch card to the hub and push the
+  hub** (TODO.md C1). That's for Round 16b only.
 
-**Next objective: see TODO.md** (the planning session sets it after Round 16).
+**Current objective: Round 16b** (see TODO.md): an unmistakable signed-in
+state (Dan thought he was signed in when he wasn't), a manual "Save now"
+and "Save to a new cloud slot", Sync now, visible sync errors, and the hub
+card.
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.
