@@ -125,6 +125,8 @@ export function createGame(opts: NewGameOptions): GameState {
     log: [],
     victory: null,
     keepPlaying: false,
+    laterWins: [],
+    logCount: 0,
     warned: [],
     villages: [],
     greatPeople: [],

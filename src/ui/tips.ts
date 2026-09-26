@@ -10,7 +10,7 @@ import { metCivs } from '../game/diplomacy';
 import type { GameState } from '../game/types';
 import { atWar } from '../game/war';
 
-export type TipId = 'first-turn' | 'first-city' | 'first-tech' | 'first-contact' | 'first-war' | 'first-village' | 'first-great-person';
+export type TipId = 'first-turn' | 'first-city' | 'first-tech' | 'first-contact' | 'first-war' | 'first-village' | 'first-great-person' | 'first-news';
 
 export interface Tip {
   id: TipId;
@@ -66,6 +66,12 @@ export const TIPS: Tip[] = [
     title: 'A Great Person',
     text: 'Great People come from culture. Settle one in a city for a lasting bonus, or use them once for a big boost.',
     when: (s, h) => s.greatPeople.some((g) => g.owner === h) || s.cities.some((c) => c.owner === h && c.greatPeople.length > 0),
+  },
+  {
+    id: 'first-news',
+    title: 'The news',
+    text: 'Missed a message? Tap 📰 at the top (or ☰ → News) for everything that happened in the last few turns. The count on it shows what’s new.',
+    when: (s, h) => s.turn >= 3 && s.cities.some((c) => c.owner === h),
   },
 ];
 

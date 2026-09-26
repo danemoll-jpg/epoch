@@ -50,13 +50,15 @@ export function guidePages(): GuidePage[] {
         <li><b>Trade</b> becomes science and gold (set the split with − and + at the top).</li></ul>
         <p>The <b>Focus</b> buttons tell the city what to favor: food to grow, production to build, trade for science and gold. Balanced is a fine start.</p>
         <p>Short of time? <b>Buy</b> finishes the current build next turn for gold.</p>
+        <p>When something is finished you're told: a <b>wonder</b> gets a full-screen card with what it does; buildings and units come as one list at the start of your turn (a new unit's panel says which city trained it).</p>
+        <p><b>📰 News</b> (at the top, or ☰ → News) lists everything that happened in the last few turns: builds, growth, techs, wars and peace, wonders, eras, Great People. Its count shows what's new; tap a line to see where it happened. Messages at the top stay a few seconds; tap one to dismiss it.</p>
         <p class="sub">Tap ⓘ beside anything in the Build list to read its card in the Almanac.</p>`,
     },
     {
       id: 'research',
       title: 'Research and eras',
       html: `<p>Science from your cities goes into research. Tap <b>🔬</b> at the top to open the tech tree and pick what to learn next. Each tech unlocks new units, buildings, or wonders, and leads to more techs.</p>
-        <p>The tree has four eras: Ancient, Medieval, Industrial, and Modern. Your leader gets a new bonus in each era (tap your leader's name at the top to see them).</p>
+        <p>The tree has four eras: Ancient, Medieval, Industrial, and Modern. Your first tech of a new era opens it with a full-screen card: your new era bonus and the units, buildings, and wonders the era brings. The colored chip at the top always shows your era, and you're told when a rival gets to a new era before you. Your leader gets a new bonus in each era (tap your leader's name at the top to see them).</p>
         <p>You can also trade techs with other civs in Diplomacy.</p>`,
     },
     {
@@ -107,7 +109,9 @@ export function guidePages(): GuidePage[] {
         <li><b>Culture</b>: reach ${goals.culture} culture, then build the ${card('wonder:world_council', WONDERS.world_council.name)}.</li>
         <li><b>Economic</b>: have ${goals.gold} gold in the treasury, then build the ${card('wonder:global_exchange', WONDERS.global_exchange.name)}.</li>
         <li><b>Technology</b>: learn Space Flight, build ${VICTORY.spaceship.parts} ${card('project:spaceship', 'spaceship parts')} in your capital, launch, and keep your capital for ${VICTORY.spaceship.travelTurns} turns until it lands.</li></ul>
-        <p class="sub">The goals above are for a Normal map; a Large map needs more (the 🏆 screen shows yours). You'll be warned when a rival gets close.</p>`,
+        <p><b>Warnings:</b> a full-screen card warns you when a rival passes ${VICTORY.warnPct}% of a goal, reaches it, starts its victory wonder (with the city and about how many turns), and again at ${VICTORY.warnSoonTurns} turns or less, then every turn from ${VICTORY.warnEveryTurnFrom}; the same for a spaceship in flight and a civ one capital from domination. Each card says what you can do: capture that city, declare war, or race them. Even a civ you haven't met is announced. While a rival is within 10 turns of winning, 🏆 has a red dot.</p>
+        <p><b>Keep playing:</b> after someone wins you can play on. A win after that (your spaceship landing, say) goes on the record, but the result stands.</p>
+        <p class="sub">The goals above are for a Normal map; a Large map needs more (the 🏆 screen shows yours).</p>`,
     },
   ];
 }

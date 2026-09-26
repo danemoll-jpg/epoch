@@ -10,14 +10,18 @@ export type EraId = 'ancient' | 'medieval' | 'industrial' | 'modern';
 export interface EraDef {
   id: EraId;
   name: string;
+  /** Round 19 (item 1): a line for the new-era card (our own words). */
+  flavor: string;
+  /** Round 19: the era's color (the card's background tint and the top bar's era chip). */
+  tint: string;
 }
 
 /** In order. A player's era is the latest era among the techs they know. */
 export const ERAS: EraDef[] = [
-  { id: 'ancient', name: 'Ancient' },
-  { id: 'medieval', name: 'Medieval' },
-  { id: 'industrial', name: 'Industrial' },
-  { id: 'modern', name: 'Modern' },
+  { id: 'ancient', name: 'Ancient', flavor: 'Fire, stone, and the first villages. Everything is still ahead.', tint: '#7a5a2e' },
+  { id: 'medieval', name: 'Medieval', flavor: 'Castles rise, scholars copy old books by candlelight, and kingdoms grow bold.', tint: '#5a3a7a' },
+  { id: 'industrial', name: 'Industrial', flavor: 'Steam and iron change everything: factories, railways, and armies on the march.', tint: '#7a3f22' },
+  { id: 'modern', name: 'Modern', flavor: 'Flight, electricity, and computers. The stars are within reach.', tint: '#1f5a8a' },
 ];
 
 export type TechId =

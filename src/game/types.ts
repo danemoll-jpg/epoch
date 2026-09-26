@@ -9,7 +9,7 @@ import type { GreatPersonKind } from '../data/greatPeople';
 import type { ResourceId } from '../data/resources';
 import type { UniqueId } from '../data/leaders';
 import type { CityFocus } from '../data/rules';
-import type { TechId } from '../data/techs';
+import type { EraId, TechId } from '../data/techs';
 import type { TerrainId } from '../data/terrain';
 import type { UnitTypeId } from '../data/units';
 import type { ProjectId, VictoryKind } from '../data/victory';
@@ -183,8 +183,9 @@ export interface City {
  * 10 = Round 11 (leaders: who founded each city, once-per-game actions, the National Challenge).
  * 11 = Round 12 (religions, each city's religion, Missionaries; roads and rails on tiles).
  * 12 = Round 13 (the game's difficulty level and map size).
+ * 13 = Round 19 Part A (wins after "Keep playing", the log's running count).
  */
-export const STATE_VERSION = 12;
+export const STATE_VERSION = 13;
 
 export interface GameState {
   version: number;
@@ -213,6 +214,16 @@ export interface GameState {
   victory: Victory | null;
   /** The human chose "Keep playing" after the game was won: nobody else can win now. */
   keepPlaying: boolean;
+  /**
+   * Round 19 (item 10): victories reached after the game was already decided (in "Keep playing"),
+   * in order. They never change the result; they're kept for the record.
+   */
+  laterWins: Victory[];
+  /**
+   * Round 19: how many log entries were ever added (the log itself keeps only the latest), so the
+   * UI can tell which entries are new even after old ones were dropped.
+   */
+  logCount: number;
   /** Near-win warnings already given (keys from victory.ts), so each is shown once. */
   warned: string[];
   /** Barbarian villages still standing (Round 9). */
@@ -373,11 +384,31 @@ export interface LogEntry {
     // Round 11: a leader bonus paying out or switching on, and a leader's unique action.
     | 'leader'
     // Round 12: a religion founded, a city converted; a road bought.
-    | 'religion' | 'road';
+    | 'religion' | 'road'
+    // Round 19: something built (a building, a unit), a city taken, a wonder someone else finished first.
+    | 'built' | 'capture' | 'wonderLost';
+  /** Round 19: what the entry is about, so the UI can build its card (all optional). */
+  ref?: LogRef;
   /** Where it happened, so the UI can hide rival events the viewer can't see. */
   x?: number;
   y?: number;
 }
+
+/** Round 19: structured details of a log entry. */
+export interface LogRef {
+  cityId?: number;
+  unitId?: number;
+  item?: BuildItem;
+  era?: EraId;
+  victory?: VictoryKind;
+  /** A victory warning's step (victory.ts), or 'later' for a win after the game was decided. */
+  step?: WarningStep | 'later';
+  /** Turns left (a victory wonder or a spaceship). */
+  turns?: number;
+}
+
+/** Round 19 (item 9): the steps of a near-win warning. */
+export type WarningStep = 'near' | 'goal' | 'building' | 'soon' | 'countdown' | 'launched' | 'capitals';
 
 export interface ActionResult {
   ok: boolean;

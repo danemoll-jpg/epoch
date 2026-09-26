@@ -43,6 +43,7 @@ export function completeWonder(state: GameState, city: City, id: WonderId): void
   addLog(state, city.owner, `${city.name} completed the ${def.name}!${extra}`, city, undefined, {
     publicText: `${CivName(state, city.owner)} completed the ${def.name} in ${city.name}`,
     kind: 'wonder',
+    ref: { cityId: city.id, item: { kind: 'wonder', id } },
   });
   for (const other of citiesBuildingWonder(state, id, city)) {
     other.build = null;
@@ -52,6 +53,8 @@ export function completeWonder(state: GameState, city: City, id: WonderId): void
       other.owner,
       `${who} finished the ${def.name} first. ${other.name} keeps its ${other.production} production; choose something new.`,
       other,
+      undefined,
+      { kind: 'wonderLost', ref: { cityId: other.id, item: { kind: 'wonder', id } } },
     );
   }
 }

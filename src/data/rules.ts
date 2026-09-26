@@ -22,8 +22,11 @@ export const RULES = {
   citySight: 2,
   /** Start positions must be at least this far apart (Chebyshev) when possible. */
   minStartDistance: 7,
-  /** Oldest event-log entries are dropped past this many, so saves stay small. */
-  maxLogEntries: 200,
+  /**
+   * Oldest event-log entries are dropped past this many, so saves stay small. Round 19: 400
+   * (was 200), so the news log (☰ → News) reaches back a few turns.
+   */
+  maxLogEntries: 400,
 
   // ---- map shape (Round 8: several landmasses, so ships matter) ----
   map: {

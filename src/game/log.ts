@@ -8,7 +8,7 @@ import { visibleTiles } from './fog';
 import { tileIndex } from './grid';
 import type { Coord, GameState, LogEntry } from './types';
 
-export type LogExtra = Pick<LogEntry, 'otherText' | 'publicText' | 'kind'>;
+export type LogExtra = Pick<LogEntry, 'otherText' | 'publicText' | 'kind' | 'ref'>;
 
 export function addLog(state: GameState, player: number, text: string, at?: Coord, other?: number, extra?: LogExtra): void {
   const entry: LogEntry = { turn: state.turn, player, text };
@@ -20,8 +20,16 @@ export function addLog(state: GameState, player: number, text: string, at?: Coor
   if (extra?.otherText !== undefined) entry.otherText = extra.otherText;
   if (extra?.publicText !== undefined) entry.publicText = extra.publicText;
   if (extra?.kind !== undefined) entry.kind = extra.kind;
+  if (extra?.ref !== undefined) entry.ref = extra.ref;
   state.log.push(entry);
+  state.logCount = (state.logCount ?? 0) + 1;
   if (state.log.length > RULES.maxLogEntries) state.log.splice(0, state.log.length - RULES.maxLogEntries);
+}
+
+/** Round 19: the entries added since the log's running count was `countBefore` (still kept). */
+export function entriesSince(state: GameState, countBefore: number): LogEntry[] {
+  const n = Math.max(0, state.logCount - countBefore);
+  return n === 0 ? [] : state.log.slice(-Math.min(n, state.log.length));
 }
 
 function hasMet(state: GameState, a: number, b: number): boolean {

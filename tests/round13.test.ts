@@ -456,13 +456,16 @@ function v11Save(): string {
   const s = createGame({ seed: 12 }) as unknown as Record<string, unknown>;
   delete s.difficulty;
   delete s.mapSize;
+  // Round 19's fields came later.
+  delete s.laterWins;
+  delete s.logCount;
   s.version = 11;
   return JSON.stringify({ saveVersion: 11, savedAt: 5, state: s });
 }
 
 describe('save migration v11 → v12 (E1)', () => {
   it('an old game becomes Normal on a Normal map, and plays on', () => {
-    expect(STATE_VERSION).toBe(12);
+    expect(STATE_VERSION).toBeGreaterThanOrEqual(12);
     const res = deserializeGame(v11Save());
     expect(res.kind).toBe('ok');
     if (res.kind !== 'ok') return;
@@ -480,13 +483,13 @@ describe('save migration v11 → v12 (E1)', () => {
     expect(start.placeholder).toBeUndefined();
     const backup = JSON.parse(store.getItem('epoch.autosave.backup.1')!);
     expect(JSON.parse(backup.text).saveVersion).toBe(11);
-    expect(JSON.parse(store.getItem(SAVE_KEY)!).saveVersion).toBe(12);
+    expect(JSON.parse(store.getItem(SAVE_KEY)!).saveVersion).toBe(STATE_VERSION);
   });
 
   it('a save without a level (damaged) is refused, not guessed', () => {
     const s = createGame({ seed: 12 }) as unknown as Record<string, unknown>;
     delete s.difficulty;
-    expect(deserializeGame(JSON.stringify({ saveVersion: 12, savedAt: 0, state: s })).kind).toBe('corrupt');
+    expect(deserializeGame(JSON.stringify({ saveVersion: STATE_VERSION, savedAt: 0, state: s })).kind).toBe('corrupt');
   });
 });
 

@@ -1943,6 +1943,49 @@ the leader-scene crops if not already done, and says "push".
       building the Global Exchange, with gold); tests for each action and the chances; the sim
       matrix reports spy actions per game and checks the victory mix still holds.
 
+#### Round 19 progress notes (coding agent)
+
+**Part A — Messages and warnings (items 9, 1, 2, 3, 4, 10): done, 2026-09-26.** Save version 13
+(migration: no later wins; the log's running count starts at what the log holds).
+- **The root cause behind "no clear warning" (item 9) and probably "no wars" (item 5):** the page
+  found each turn's news by slicing the log from its old length, but the log is capped (200
+  entries), so **once a game's log filled up (mid-game) nothing new was ever found**: no warning
+  panel, no "War!" panel, no toasts. Fixed with a running count (`state.logCount`,
+  `entriesSince`); the cap is now 400 so the news log reaches back a few turns. Unit-tested.
+- **Item 9:** full-screen warning cards (the rival leader's portrait, or "?" for a civ you haven't
+  met) at each step: 75% of a goal; the goal reached; the victory wonder started (city and about
+  how many turns; a switch to another city warns again); 5 turns or less; then every turn from 3;
+  a spaceship launched and its countdown (every turn from 5); one capital from domination. Each
+  card says what you can do (capture that city / declare war / "you're at 62% of the gold goal").
+  Several steps about one rival in one turn show one card (the most urgent); all are in 📰 News.
+  🏆 has a red dot while a rival is within 10 turns of winning, and Victory progress shows each
+  rival's victory wonder in progress with city and turns (even for a civ you haven't met).
+- **Item 1:** "The Medieval Era Begins" card (tinted per era, our own flavor line, your era bonus,
+  the units/buildings/wonders the era brings), with the existing era sound and music; the era is
+  now a colored chip in the top bar; a panel when a rival enters an era before you.
+- **Item 2:** a wonder card (its icon big, the city, what it does); your buildings and units come
+  as one list toast with each building's effect; a rival's wonder gets a panel (and says when
+  yours can no longer be built).
+- **Item 3:** toasts are bigger, solid, high-contrast, stay 4–12 s depending on length, and a tap
+  dismisses one; while a card is up they wait until it's dismissed. **📰 News** in the top bar
+  (count of new items) and ☰ → News (key L on a PC): the last 6 turns, newest first, tap a line to
+  go to the place. First-game tip for it. War on you, a city lost, a wonder, an era: cards.
+- **Item 4:** a new unit's panel says "Legion · just trained in Kish" (the city comes from the
+  build's log entry); the map already brings it into view (Round 18).
+- **Item 10:** after "Keep playing", later wins are still checked: your ship arriving gives a card
+  ("Your spaceship reached Alpha Centauri! England won on turn 190; this doesn't change the
+  result."), kept in `laterWins` and listed on 🏆 ("For the record") and the end screen. The
+  🏆 screen and the launch buttons say up front that a win now won't count. Rivals' later wins
+  are news. Also fixed "won a economic victory" → "an economic victory".
+- **Scenarios:** `rival-victory-wonder`, `keep-playing-spaceship`, `rival-era`, `built-this-turn`;
+  the notes of `era`, `wonder`, `wonder-race`, `near-win-warning` updated.
+- **Verified:** `tests/round19.test.ts` (18) + scenario outcomes; 1010 pass. Lint and build clean.
+  Preview-verified in iPad landscape (1180×820: the warning card, the red dot, Victory progress,
+  News, the era card, the keep-playing card) and portrait (820×1180: the wonder card, the build
+  list, "just trained in Kish"). No console errors.
+- **Dan, try:** on the play server, play on; or the dev server's scenarios above. Nothing needed
+  from you for Part A.
+
 ## Next Steps (Do Not Start Yet)
 
 All of these are deferred for **sequencing only**. Each depends on the

@@ -14,13 +14,14 @@
 // Near-win warnings (issueWarnings) tell the human when a civ they've met gets close.
 
 import { victoryGoals } from '../data/mapSizes';
-import { VICTORY, VICTORY_KINDS, VICTORY_NAMES, type VictoryKind } from '../data/victory';
+import { VICTORY, VICTORY_KINDS, aVictory, type VictoryKind } from '../data/victory';
 import { WONDERS, type WonderId } from '../data/wonders';
 import { CivName, civPossessive, civVerb } from './conquest';
 import { hasMet } from './diplomacy';
 import { addLog } from './log';
 import { hasTech } from './tech';
-import type { ActionResult, City, GameState, SpaceProgram } from './types';
+import { turnsToFinish } from './production';
+import type { ActionResult, City, GameState, LogRef, SpaceProgram, WarningStep } from './types';
 import { empireCulture } from './yields';
 
 export function newSpaceProgram(): SpaceProgram {
@@ -165,19 +166,68 @@ export function victoryFor(state: GameState, p: number): VictoryKind | undefined
 
 /**
  * Records the first win: the player whose turn it is is checked first, then everyone else in
- * order. Does nothing once someone has won or after "Keep playing".
+ * order. Once someone has won, the game is decided; after "Keep playing" (Round 19, item 10)
+ * later wins are still noticed and kept in `laterWins` for the record, but change nothing.
  */
 export function checkVictory(state: GameState): void {
-  if (state.victory || state.keepPlaying) return;
+  if (state.victory || state.keepPlaying) {
+    if (state.victory && state.keepPlaying) checkLaterWins(state);
+    return;
+  }
   const n = state.players.length;
   for (let i = 0; i < n; i++) {
     const p = (state.currentPlayer + i) % n;
     const kind = victoryFor(state, p);
     if (!kind) continue;
     state.victory = { winner: p, kind, turn: state.turn };
-    const text = `${CivName(state, p)} won a ${VICTORY_NAMES[kind].toLowerCase()} victory on turn ${state.turn}`;
-    addLog(state, p, `You won a ${VICTORY_NAMES[kind].toLowerCase()} victory!`, undefined, undefined, { publicText: text, kind: 'victory' });
+    const text = `${CivName(state, p)} won ${aVictory(kind)} on turn ${state.turn}`;
+    addLog(state, p, `You won ${aVictory(kind)}!`, undefined, undefined, { publicText: text, kind: 'victory', ref: { victory: kind } });
     return;
+  }
+}
+
+/** What reaching each victory looks like, for the record kept after the game was decided. */
+const LATER_TEXT: Record<VictoryKind, string> = {
+  technology: 'Your spaceship reached Alpha Centauri!',
+  culture: `You completed the ${WONDERS.world_council.name}: a culture victory!`,
+  economic: `You completed the ${WONDERS.global_exchange.name}: an economic victory!`,
+  domination: 'You hold every rival capital: a domination victory!',
+};
+
+/** The same, as news for everyone else. */
+function laterPublicText(state: GameState, p: number, kind: VictoryKind): string {
+  switch (kind) {
+    case 'technology': {
+      const s = `${civPossessive(state, p)} spaceship reached Alpha Centauri`;
+      return s.charAt(0).toUpperCase() + s.slice(1);
+    }
+    case 'culture':
+      return `${CivName(state, p)} completed the ${WONDERS.world_council.name}`;
+    case 'economic':
+      return `${CivName(state, p)} completed the ${WONDERS.global_exchange.name}`;
+    case 'domination':
+      return `${CivName(state, p)} ${civVerb(state, p, 'holds', 'hold')} every rival capital`;
+  }
+}
+
+/** Round 19 (item 10): wins reached after the game was decided (in "Keep playing"), once each. */
+function checkLaterWins(state: GameState): void {
+  const v = state.victory!;
+  for (const player of state.players) {
+    const p = player.id;
+    if (!player.alive || player.kind === 'barbarian') continue;
+    for (const kind of VICTORY_KINDS) {
+      if (p === v.winner && kind === v.kind) continue;
+      if (state.laterWins.some((w) => w.winner === p && w.kind === kind)) continue;
+      if (!WON[kind](state, p)) continue;
+      state.laterWins.push({ winner: p, kind, turn: state.turn });
+      const decided = `${v.winner === p ? 'You' : CivName(state, v.winner)} won on turn ${v.turn}; this doesn't change the result.`;
+      addLog(state, p, `${LATER_TEXT[kind]} ${decided}`, undefined, undefined, {
+        publicText: `${laterPublicText(state, p, kind)} (the game was already decided)`,
+        kind: 'victory',
+        ref: { victory: kind, step: 'later' },
+      });
+    }
   }
 }
 
@@ -221,42 +271,143 @@ export interface VictoryWarning {
   key: string;
   civ: number;
   kind: VictoryKind;
+  step: WarningStep;
   text: string;
+  /** Round 19: the same warning for a civ the viewer hasn't met, or undefined if they aren't told. */
+  unknownText?: string;
+  cityId?: number;
+  turns?: number;
 }
 
-/** Ways `p` is close to winning right now (a launched ship, culture or gold past warnPct, all capitals but one). */
+/** The city (of `p`'s) building this victory wonder that will finish first, and in how many turns. */
+export function victoryWonderBuild(state: GameState, p: number, kind: 'culture' | 'economic'): { city: City; turns: number | undefined } | undefined {
+  const id = victoryWonder(kind);
+  let best: { city: City; turns: number | undefined } | undefined;
+  for (const city of state.cities) {
+    if (city.owner !== p || city.build?.kind !== 'wonder' || city.build.id !== id) continue;
+    const turns = turnsToFinish(state, city);
+    if (!best || (turns !== undefined && (best.turns === undefined || turns < best.turns))) best = { city, turns };
+  }
+  return best;
+}
+
+/**
+ * Round 19 (item 9): about how many turns until `p` wins, if a win is on its way (a victory
+ * wonder being built with the goal reached, or a spaceship in flight); undefined otherwise.
+ */
+export function turnsToVictory(state: GameState, p: number): number | undefined {
+  const player = state.players[p]!;
+  if (!player.alive) return undefined;
+  const out: number[] = [];
+  if (player.space.arrivesTurn !== null) out.push(Math.max(0, player.space.arrivesTurn - state.turn));
+  for (const kind of ['culture', 'economic'] as const) {
+    if (victoryWonderError(state, p, victoryWonder(kind))) continue;
+    const b = victoryWonderBuild(state, p, kind);
+    if (b?.turns !== undefined) out.push(b.turns);
+  }
+  return out.length ? Math.min(...out) : undefined;
+}
+
+function turnsWord(n: number): string {
+  return `${n} turn${n === 1 ? '' : 's'}`;
+}
+
+/**
+ * Ways `p` is close to winning right now, one per step (Round 19, item 9): 75% of a goal; the goal
+ * reached; the victory wonder started (per city, so switching cities warns again); 5 turns or
+ * less to go, then every turn from 3; a spaceship launched and its countdown; one rival capital
+ * left. Steps with `unknownText` are also told to civs that haven't met `p`.
+ */
 export function victoryWarnings(state: GameState, p: number): VictoryWarning[] {
   const player = state.players[p]!;
-  if (!player.alive) return [];
+  if (!player.alive || player.kind === 'barbarian') return [];
   const out: VictoryWarning[] = [];
   const Who = CivName(state, p);
   const has = civVerb(state, p, 'has', 'have');
+  const is = civVerb(state, p, 'is', 'are');
+  const unknown = 'An unknown civilization';
+  const goals = victoryGoals(state.mapSize, state.difficulty);
   const space = player.space;
   if (space.launchedTurn !== null && space.arrivesTurn !== null) {
     const capital = capitalOf(state, p);
+    const left = space.arrivesTurn - state.turn;
+    const at = capital ? { cityId: capital.id } : {};
     out.push({
       key: `space:${p}:${space.launchedTurn}`,
       civ: p,
       kind: 'technology',
+      step: 'launched',
+      turns: left,
+      ...at,
       text: `${Who} launched a spaceship! It arrives on turn ${space.arrivesTurn}${capital ? `. Capture ${capital.name}, their capital, before then to stop it` : ''}.`,
+      unknownText: `${unknown} launched a spaceship! It arrives on turn ${space.arrivesTurn}.`,
     });
+    if (left > 0 && left <= VICTORY.warnSoonTurns && state.turn > space.launchedTurn) {
+      const whose = civPossessive(state, p);
+      out.push({
+        key: `space:${p}:${space.launchedTurn}:t${state.turn}`,
+        civ: p,
+        kind: 'technology',
+        step: 'countdown',
+        turns: left,
+        ...at,
+        text: `${whose.charAt(0).toUpperCase()}${whose.slice(1)} spaceship arrives in ${turnsWord(left)}${capital ? `. Only taking ${capital.name} stops it` : ''}.`,
+        unknownText: `The spaceship of an unknown civilization arrives in ${turnsWord(left)}.`,
+      });
+    }
   }
   const pct = (v: number, goal: number) => Math.floor((v / goal) * 100);
-  if (pct(player.culture, victoryGoals(state.mapSize, state.difficulty).culture) >= VICTORY.warnPct) {
+  for (const kind of ['culture', 'economic'] as const) {
+    const value = kind === 'culture' ? player.culture : player.gold;
+    const goal = kind === 'culture' ? goals.culture : goals.gold;
+    const unit = kind === 'culture' ? 'culture' : 'gold';
+    const wonder = WONDERS[victoryWonder(kind)].name;
+    if (pct(value, goal) >= VICTORY.warnPct) {
+      out.push({
+        key: `${kind}:${p}`,
+        civ: p,
+        kind,
+        step: 'near',
+        text: `${Who} ${has} ${value} ${unit}, ${Math.min(100, pct(value, goal))}% of the ${goal} needed. Past that, building the ${wonder} wins the game.`,
+      });
+    }
+    if (value >= goal) {
+      out.push({
+        key: `${kind}-goal:${p}`,
+        civ: p,
+        kind,
+        step: 'goal',
+        text: `${Who} ${has} reached the ${unit} goal and can now build the ${wonder}. Finishing it wins the game.`,
+        unknownText: `${unknown} has reached the ${unit} goal and can now build the ${wonder}. Finishing it wins the game.`,
+      });
+    }
+    const b = victoryWonderBuild(state, p, kind);
+    if (!b) continue;
+    const about = b.turns !== undefined ? `: about ${turnsWord(b.turns)}` : '';
+    const turns = b.turns !== undefined ? { turns: b.turns } : {};
     out.push({
-      key: `culture:${p}`,
+      key: `${kind}-build:${p}:${b.city.id}`,
       civ: p,
-      kind: 'culture',
-      text: `${Who} ${has} ${player.culture} culture, ${Math.min(100, pct(player.culture, victoryGoals(state.mapSize, state.difficulty).culture))}% of the ${victoryGoals(state.mapSize, state.difficulty).culture} needed. Past that, building the ${WONDERS[victoryWonder('culture')].name} wins the game.`,
+      kind,
+      step: 'building',
+      cityId: b.city.id,
+      ...turns,
+      text: `${Who} ${is} building the ${wonder} in ${b.city.name}${about}.`,
+      unknownText: `${unknown} is building the ${wonder}${about}.`,
     });
-  }
-  if (pct(player.gold, victoryGoals(state.mapSize, state.difficulty).gold) >= VICTORY.warnPct) {
-    out.push({
-      key: `economic:${p}`,
-      civ: p,
-      kind: 'economic',
-      text: `${Who} ${has} ${player.gold} gold, ${Math.min(100, pct(player.gold, victoryGoals(state.mapSize, state.difficulty).gold))}% of the ${victoryGoals(state.mapSize, state.difficulty).gold} needed. Past that, building the ${WONDERS[victoryWonder('economic')].name} wins the game.`,
-    });
+    if (b.turns !== undefined && b.turns <= VICTORY.warnSoonTurns) {
+      const every = b.turns <= VICTORY.warnEveryTurnFrom;
+      out.push({
+        key: every ? `${kind}-soon:${p}:${b.city.id}:t${state.turn}` : `${kind}-soon:${p}:${b.city.id}`,
+        civ: p,
+        kind,
+        step: every ? 'countdown' : 'soon',
+        cityId: b.city.id,
+        turns: b.turns,
+        text: `${b.city.name} finishes the ${wonder} in about ${turnsWord(b.turns)}. Then ${Who} ${civVerb(state, p, 'wins', 'win')} the game.`,
+        unknownText: `${unknown} finishes the ${wonder} in about ${turnsWord(b.turns)}, and then wins the game.`,
+      });
+    }
   }
   const { held, of } = capitalsHeld(state, p);
   if (of >= 2 && held === of - 1) {
@@ -264,6 +415,7 @@ export function victoryWarnings(state: GameState, p: number): VictoryWarning[] {
       key: `domination:${p}`,
       civ: p,
       kind: 'domination',
+      step: 'capitals',
       text: `${Who} ${civVerb(state, p, 'holds', 'hold')} ${held} of ${of} rival capitals. One more and ${civVerb(state, p, 'it wins', 'they win')} by domination.`,
     });
   }
@@ -271,21 +423,53 @@ export function victoryWarnings(state: GameState, p: number): VictoryWarning[] {
 }
 
 /**
- * Tells each human about civs they've met that just got close to winning, once per event:
- * a log entry of kind 'warning' aimed at them (the UI gives it a panel).
+ * Tells each human about civs that just got close to winning, once per event: a log entry of
+ * kind 'warning' aimed at them (the UI gives it a full-screen card). Round 19: civs they haven't
+ * met are told of too for the steps that would otherwise come from nowhere (a goal reached, a
+ * victory wonder started or nearly done, a spaceship launched), without their name.
  */
 export function issueWarnings(state: GameState): void {
   if (state.victory || state.keepPlaying) return;
   for (const viewer of state.players) {
     if (viewer.kind !== 'human' || !viewer.alive) continue;
     for (const rival of state.players) {
-      if (rival.id === viewer.id || !hasMet(state, viewer.id, rival.id)) continue;
+      if (rival.id === viewer.id) continue;
+      const met = hasMet(state, viewer.id, rival.id);
       for (const w of victoryWarnings(state, rival.id)) {
+        const text = met ? w.text : w.unknownText;
+        if (text === undefined) continue;
         const key = `${viewer.id}>${w.key}`;
         if (state.warned.includes(key)) continue;
         state.warned.push(key);
-        addLog(state, rival.id, w.text, undefined, viewer.id, { otherText: w.text, kind: 'warning' });
+        const ref: LogRef = { victory: w.kind, step: w.step };
+        if (w.cityId !== undefined && met) ref.cityId = w.cityId;
+        if (w.turns !== undefined) ref.turns = w.turns;
+        addLog(state, rival.id, w.text, undefined, viewer.id, { otherText: text, kind: 'warning', ref });
       }
     }
   }
+}
+
+/**
+ * Round 19 (item 9): what `viewer` can do about a rival's near win, in a line or two: take the
+ * city (or the capital), declare war, or race them.
+ */
+export function warningAdvice(state: GameState, viewer: number, rival: number, kind: VictoryKind, cityId?: number): string {
+  const me = state.players[viewer]!;
+  const goals = victoryGoals(state.mapSize, state.difficulty);
+  const met = hasMet(state, viewer, rival);
+  const city = cityId !== undefined ? state.cities.find((c) => c.id === cityId) : undefined;
+  const war = met && state.atWar[viewer]?.[rival] === true;
+  let stop: string;
+  if (!met) stop = 'Explore to find them: you can only fight or bargain with a civ you have met.';
+  else if (kind === 'domination') stop = `Hold on to your capital${war ? '' : ' and keep the peace with them'}, and help anyone they are fighting.`;
+  else if (city) stop = `${war ? 'You are at war with them: capture' : 'Declare war and capture'} ${city.name} to stop it.`;
+  else stop = war ? 'You are at war with them: take their cities.' : 'Declare war and take their cities.';
+  let race = '';
+  if (kind === 'culture') race = `Or race them: you're at ${Math.floor((me.culture / goals.culture) * 100)}% of the culture goal.`;
+  else if (kind === 'economic') race = `Or race them: you're at ${Math.floor((me.gold / goals.gold) * 100)}% of the gold goal.`;
+  else if (kind === 'technology') {
+    race = me.space.arrivesTurn !== null ? `Your own ship arrives on turn ${me.space.arrivesTurn}.` : `Or race them: you have ${me.space.parts} of ${VICTORY.spaceship.parts} spaceship parts.`;
+  }
+  return race ? `${stop} ${race}` : stop;
 }

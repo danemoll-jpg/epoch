@@ -99,7 +99,7 @@ export function captureCity(state: GameState, city: City, newOwner: number): voi
     city.capitalOf === oldOwner
       ? `${who} captured ${city.name}, the ${civAdjective(state, oldOwner)} capital!`
       : `${who} captured ${city.name} from ${civName(state, oldOwner)}`;
-  addLog(state, newOwner, text, city, oldOwner);
+  addLog(state, newOwner, text, city, oldOwner, { kind: 'capture', ref: { cityId: city.id } });
   if (sunk > 0) {
     const ships = lost.length === 1 ? 'a ship' : `${lost.length} ships`;
     const aboard = sunk > lost.length ? ` and ${sunk - lost.length} unit${sunk - lost.length === 1 ? '' : 's'} aboard` : '';

@@ -34,6 +34,8 @@
           <span id="eraLabel"></span>
           <button id="diploBtn" type="button" aria-label="Diplomacy: the civs you have met">🤝 Diplomacy</button>
           <button id="victoryBtn" type="button" aria-label="Victory progress: who is close to winning">🏆</button>
+          <!-- Round 19 (item 3): the news log, with a count of what's new. -->
+          <button id="newsBtn" type="button" aria-label="News: what happened lately">📰<span id="newsCount" hidden></span></button>
         </div>
         <div class="line">
           <span id="goldLabel"></span>
@@ -197,9 +199,23 @@
         </section>
       </div>
 
+      <!-- Round 19 (item 3): the news log (☰ → News, or 📰 in the top bar). -->
+      <div id="newsOverlay" class="overlay" hidden>
+        <section id="newsPanel" class="dialog" role="dialog" aria-modal="true" aria-labelledby="newsTitle">
+          <div class="newsHead">
+            <h2 id="newsTitle">News</h2>
+            <button id="newsCloseBtn" type="button" aria-label="Close the news">✕</button>
+          </div>
+          <div id="newsBody" class="scroll"></div>
+        </section>
+      </div>
+
       <!-- News that needs an answer or a moment: first contact, war declared on you, AI offers. -->
       <div id="noticeOverlay" class="overlay" hidden>
         <section id="noticePanel" class="dialog" role="dialog" aria-modal="true">
+          <!-- Round 19: a full-screen card's big picture and the small line above its title. -->
+          <div id="noticeHero" hidden></div>
+          <div id="noticeKicker" hidden></div>
           <h2 id="noticeTitle"></h2>
           <p id="noticeText"></p>
           <div id="noticeButtons" class="row"></div>
@@ -304,6 +320,7 @@
             <div class="row">
               <button id="saveNowBtn" type="button" class="primary">Save now</button>
               <button id="saveSlotBtn" type="button">Save to a new cloud slot…</button>
+              <button id="newsMenuBtn" type="button">News</button>
               <button id="victoryMenuBtn" type="button">Victory progress</button>
               <button id="unitsMenuBtn" type="button">Units</button>
               <button id="religionMenuBtn" type="button">Religions</button>

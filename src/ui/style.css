@@ -2732,3 +2732,283 @@ button.alink {
 #researchBtn .ticon.chip {
   vertical-align: -3px;
 }
+
+/* ---- Round 19 Part A: cards, clearer toasts, the news log, the era chip ---- */
+
+/* A full-screen card (a new era, a wonder, war, a victory warning): it waits for a tap. */
+#noticeOverlay.card {
+  background: radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--card-tint) 70%, #000) 0%, #05080c 85%);
+  z-index: 13;
+}
+#noticeOverlay.card #noticePanel {
+  width: min(640px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px - var(--safe-top) - var(--safe-bottom));
+  overflow-y: auto;
+  background: transparent;
+  border: none;
+  text-align: center;
+  padding: 12px 16px;
+}
+#noticeOverlay.card #noticeTitle {
+  font-size: calc(30px * var(--ts));
+  line-height: 1.15;
+  margin: 4px 0 10px;
+  color: #fff;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+#noticeOverlay.card #noticeText {
+  font-size: calc(18px * var(--ts));
+  color: #eef2f6;
+}
+#noticeOverlay.card #noticeText .sub {
+  margin-top: 10px;
+  font-size: calc(15px * var(--ts));
+  color: #d7e0ea;
+}
+#noticeOverlay.card #noticeButtons {
+  justify-content: center;
+}
+#noticeOverlay.card #noticeButtons button {
+  min-width: 140px;
+  min-height: 52px;
+  font-size: calc(17px * var(--ts));
+}
+#noticeKicker {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: calc(13px * var(--ts));
+  color: var(--accent);
+  font-weight: 700;
+}
+#noticeHero {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+#noticeHero .portrait {
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.25), 0 6px 24px rgba(0, 0, 0, 0.6);
+}
+#noticeHero .heroIcon {
+  display: inline-flex;
+  width: 128px;
+  height: 128px;
+  color: #f4dd8f;
+  filter: drop-shadow(0 4px 16px rgba(230, 183, 63, 0.45));
+}
+#noticeHero .heroIcon svg {
+  width: 100%;
+  height: 100%;
+}
+.eraHero {
+  font-size: calc(64px * var(--ts));
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #fff;
+  opacity: 0.9;
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
+}
+.unknownHero {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 72px;
+  font-weight: 800;
+  background: #2a2f36;
+  color: #9fb0c0;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.2);
+}
+.cardList {
+  text-align: left;
+  list-style: none;
+  padding: 0;
+  margin: 14px auto 0;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: calc(15px * var(--ts));
+}
+.cardList li {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 8px 12px;
+}
+.cardItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin: 2px 8px 2px 0;
+  white-space: nowrap;
+}
+.cardItem .uicon {
+  width: 20px;
+  height: 20px;
+  margin-right: 4px;
+  color: #fff;
+}
+#noticeTitle .micon.wonder {
+  color: #f0e2b6;
+}
+
+/* Toasts (item 3): bigger, solid, high contrast; a tap dismisses one. */
+.toast {
+  pointer-events: auto;
+  cursor: pointer;
+  background: #0d1621;
+  border: 2px solid #5b7da0;
+  color: #fff;
+  font-size: calc(16px * var(--ts));
+  line-height: 1.35;
+  padding: 10px 16px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55);
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.toast.error {
+  border-color: #d06060;
+}
+.toast.list {
+  text-align: left;
+  border-color: #b99b45;
+}
+.toast .toastTitle {
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+.toast ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.toast .uicon {
+  width: 20px;
+  height: 20px;
+  vertical-align: -4px;
+  margin-right: 4px;
+}
+
+/* The era chip in the top bar (item 1). */
+#eraLabel {
+  color: #fff;
+  background: var(--era-tint, #444);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-weight: 600;
+  font-size: calc(13px * var(--ts));
+}
+
+/* 📰 with its count (item 3), and a red dot on 🏆 while a rival is close (item 9). */
+#newsBtn {
+  position: relative;
+  padding: 0 10px;
+  font-size: calc(18px * var(--ts));
+}
+#newsCount,
+#victoryBtn.danger::after {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border-radius: 9px;
+  background: #d23c3c;
+  color: #fff;
+  font-size: 11px;
+  line-height: 18px;
+  font-weight: 700;
+  text-align: center;
+}
+#newsCount[hidden] {
+  display: none;
+}
+#victoryBtn {
+  position: relative;
+}
+#victoryBtn.danger::after {
+  content: '';
+  min-width: 14px;
+  height: 14px;
+  box-shadow: 0 0 0 2px #0b1016;
+}
+.vwarn {
+  margin-top: 6px;
+  color: #ff9d8a;
+  font-weight: 600;
+}
+
+/* A unit your city just finished (item 4). */
+#unitInfo .fresh {
+  color: #9fe0a0;
+  font-weight: 600;
+}
+
+/* The news log (item 3). */
+#newsPanel {
+  width: min(560px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px - var(--safe-top) - var(--safe-bottom));
+  display: flex;
+  flex-direction: column;
+}
+.newsHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.newsHead h2 {
+  margin: 0;
+}
+#newsBody {
+  overflow-y: auto;
+  margin-top: 8px;
+  -webkit-overflow-scrolling: touch;
+}
+.newsList {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px;
+}
+.newsItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  font-weight: 400;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 0;
+  padding: 6px 4px;
+  min-height: 44px;
+}
+.newsItem:disabled {
+  opacity: 1;
+}
+.newsList li.new .newsItem {
+  background: rgba(230, 183, 63, 0.1);
+}
+.newsList li.hot .newsItem {
+  color: #ffb3a6;
+  font-weight: 600;
+}
+.newsItem .nemoji {
+  width: 22px;
+  text-align: center;
+  flex: none;
+}
+.newsItem .uicon,
+.newsItem .bicon,
+.newsItem .ticon {
+  flex: none;
+}

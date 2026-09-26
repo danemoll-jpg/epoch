@@ -312,8 +312,8 @@ describe('era music (C1)', () => {
 // ---- D1: the save format ---------------------------------------------------------------------
 
 describe('saves (D1)', () => {
-  it('no migration this round: the format is still 12, and a Huge or Epic game saves and loads', () => {
-    expect(STATE_VERSION).toBe(12);
+  it('no migration in Round 14: the format was still 12, and a Huge or Epic game saves and loads', () => {
+    expect(STATE_VERSION).toBeGreaterThanOrEqual(12);
     for (const size of ['huge', 'epic'] as const) {
       const s = createGame({ seed: 9, mapSize: size, playerCount: 3 });
       const back = deserializeGame(serializeGame(s, 1));

@@ -96,6 +96,22 @@ export function techUnlocks(tech: TechId): TechUnlocks {
   };
 }
 
+/**
+ * Round 19 (item 1): everything that comes with an era's techs (for the new-era card): units,
+ * buildings, and wonders, leaving out another civ's unique wonder.
+ */
+export function eraUnlocks(era: EraId, civId?: string): TechUnlocks {
+  const out: TechUnlocks = { units: [], buildings: [], wonders: [] };
+  for (const t of TECH_LIST) {
+    if (t.era !== era) continue;
+    const u = techUnlocks(t.id);
+    for (const x of u.units) if (!out.units.includes(x)) out.units.push(x);
+    for (const x of u.buildings) if (!out.buildings.includes(x)) out.buildings.push(x);
+    for (const w of u.wonders) if (!out.wonders.includes(w) && (!w.civ || w.civ === civId)) out.wonders.push(w);
+  }
+  return out;
+}
+
 /** Techs that list this one as a prerequisite. */
 export function techLeadsTo(tech: TechId): TechId[] {
   return TECH_LIST.filter((t) => t.prereqs.includes(tech)).map((t) => t.id);
@@ -151,6 +167,7 @@ export function learnTech(state: GameState, playerId: number, tech: TechId, text
     addLog(state, playerId, `Entered the ${era} era`, undefined, undefined, {
       publicText: `${CivName(state, playerId)} entered the ${era} era`,
       kind: 'era',
+      ref: { era: eraAfter },
     });
     enterEra(state, playerId, eraAfter);
   }

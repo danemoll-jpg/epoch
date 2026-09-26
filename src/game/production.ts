@@ -300,16 +300,16 @@ function produce(state: GameState, city: City, production: number): void {
   city.production -= cost;
   state.players[city.owner]!.gold -= itemGold(state, city, item);
   if (item.kind === 'unit') {
-    spawnUnit(state, city, item.id);
+    const unit = spawnUnit(state, city, item.id);
     city.size -= UNITS[item.id].popCost;
     const built = state.players[city.owner]!.shipsBuilt;
     if (UNITS[item.id].domain === 'sea' && built && !built.includes(item.id)) built.push(item.id);
     // Units repeat: the same item stays selected.
-    addLog(state, city.owner, `${city.name} built ${itemName(item)}`, city);
+    addLog(state, city.owner, `${city.name} built ${itemName(item)}`, city, undefined, { kind: 'built', ref: { cityId: city.id, unitId: unit.id, item } });
   } else if (item.kind === 'building') {
     city.buildings.push(item.id);
     city.build = null;
-    addLog(state, city.owner, `${city.name} built ${itemName(item)}`, city);
+    addLog(state, city.owner, `${city.name} built ${itemName(item)}`, city, undefined, { kind: 'built', ref: { cityId: city.id, item } });
   } else if (item.kind === 'wonder') {
     city.build = null;
     completeWonder(state, city, item.id);

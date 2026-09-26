@@ -36,7 +36,7 @@ import { RELIGION, RELIGION_SYMBOLS } from '../src/data/religion';
 import { ROADS } from '../src/data/roads';
 import { faithOpinion, holyReligion, religionCityCulture, religionCityGold, spreadTargets } from '../src/game/religion';
 import { roadAt, roadConnected } from '../src/game/roads';
-import { CYCLE_CITIES, FORTIFIED, LARGE_MAP_TURNS, MINIMAP_SEED, NEXT_UNIT, TAP_CITY_LEGION, TAP_CITY_WARRIOR, TAP_OWN } from '../src/dev/scenarios';
+import { BUILT_CITIES, RIVAL_WONDER, CYCLE_CITIES, FORTIFIED, LARGE_MAP_TURNS, MINIMAP_SEED, NEXT_UNIT, TAP_CITY_LEGION, TAP_CITY_WARRIOR, TAP_OWN } from '../src/dev/scenarios';
 import { listUnits } from '../src/ui/unitsList';
 import { cityOrder, cycleCity, otherIdleCities } from '../src/ui/cityCycle';
 import { resolveTap } from '../src/ui/tap';
@@ -81,6 +81,53 @@ function endTurn(s: GameState): void {
 
 /** What each scenario's note promises. A new scenario without an entry here fails the suite. */
 const OUTCOMES: Record<string, (s: GameState) => void> = {
+  // ---- Round 19 Part A ----
+  'rival-victory-wonder': (s) => {
+    const warnings = () => s.log.filter((e) => e.kind === 'warning' && e.other === 0);
+    endTurn(s);
+    const steps = warnings().map((e) => e.ref?.step);
+    expect(steps).toContain('goal');
+    expect(steps).toContain('building');
+    const building = warnings().find((e) => e.ref?.step === 'building')!;
+    expect(building.otherText).toContain(`building the Global Exchange in ${RIVAL_WONDER.city}`);
+    expect(building.ref?.turns).toBe(RIVAL_WONDER.turns);
+    expect(noteOf('rival-victory-wonder')).toContain(`about ${RIVAL_WONDER.turns} turns`);
+    // A few more turns: the "5 or less" card, then one every turn from 3.
+    const london = s.cities.find((c) => c.name === RIVAL_WONDER.city)!;
+    for (let i = 0; i < 6 && !s.victory; i++) endTurn(s);
+    const later = warnings().map((e) => e.ref?.step);
+    expect(later).toContain('soon');
+    expect(later.filter((x) => x === 'countdown').length).toBeGreaterThanOrEqual(2);
+    expect(london.build).toEqual({ kind: 'wonder', id: 'global_exchange' });
+  },
+  'keep-playing-spaceship': (s) => {
+    expect(s.keepPlaying).toBe(true);
+    endTurn(s);
+    expect(s.victory).toMatchObject({ winner: 1, kind: 'economic', turn: 190 });
+    expect(s.laterWins).toEqual([{ winner: 0, kind: 'technology', turn: s.turn }]);
+    const card = s.log.find((e) => e.kind === 'victory' && e.ref?.step === 'later')!;
+    expect(card.text).toContain('Alpha Centauri');
+    expect(card.text).toContain('won on turn 190');
+    // Only once.
+    endTurn(s);
+    expect(s.laterWins).toHaveLength(1);
+  },
+  'rival-era': (s) => {
+    endTurn(s);
+    const era = eventsVisibleTo(s, 0, s.log).find((e) => e.kind === 'era' && e.player === 1);
+    expect(era?.ref?.era).toBe('medieval');
+    expect(playerEra(s.players[0]!)).toBe('ancient');
+  },
+  'built-this-turn': (s) => {
+    endTurn(s);
+    const built = s.log.filter((e) => e.kind === 'built' && e.player === 0);
+    expect(built.map((e) => e.ref?.item?.id).sort()).toEqual(['legion', 'library']);
+    const legion = s.units.find((u) => u.owner === 0 && u.type === 'legion')!;
+    const kish = s.cities.find((c) => c.name === BUILT_CITIES.legion)!;
+    expect(built.find((e) => e.ref?.item?.id === 'legion')!.ref).toMatchObject({ unitId: legion.id, cityId: kish.id });
+    expect(s.log.some((e) => e.kind === 'wonder' && e.player === 0 && e.ref?.item?.id === 'pyramids')).toBe(true);
+  },
+
   theology: (s) => {
     const c = capital(s);
     const gc = { kind: 'wonder', id: 'grand_cathedral' } as const;

@@ -9,7 +9,7 @@ import { ERAS, TECHS, TECH_LIST, type TechId } from '../data/techs';
 import { TERRAIN } from '../data/terrain';
 import { BUILDING_ICONS, ICON_CREDITS, ICON_LICENSE, ICON_SITE, MAP_ICONS, TECH_ICONS, usedIcons, wonderIcon, type IconGroup } from '../data/icons';
 import { UNITS, type UnitTypeId } from '../data/units';
-import { PROJECTS, VICTORY, VICTORY_NAMES, type VictoryKind } from '../data/victory';
+import { PROJECTS, VICTORY, VICTORY_NAMES, aVictory, type VictoryKind } from '../data/victory';
 import { WONDERS, WONDER_LIST } from '../data/wonders';
 import { applyAction, type Action } from '../game/actions';
 import { BARBARIANS } from '../data/barbarians';
@@ -40,7 +40,7 @@ import {
 import { distance, neighbors, tileAt, tileIndex } from '../game/grid';
 import { unitVisibleTo } from '../game/fog';
 import { aircraftOf, airCapacity, armyWord, cargoCapacity, cargoOf, hovers, isAir, isShip, isWaterAt } from '../game/naval';
-import { entryText, eventsVisibleTo } from '../game/log';
+import { entriesSince, entryText, eventsVisibleTo } from '../game/log';
 import { findPath, findUnit, pathTurns, reachableThisTurn, stepError } from '../game/movement';
 import { migrationSummary } from '../game/save';
 import {
@@ -62,6 +62,7 @@ import {
   knows,
   playerEra,
   eraIndex,
+  eraUnlocks,
   researchError,
   techCost,
   techLeadsTo,
@@ -84,7 +85,7 @@ import {
 } from '../game/types';
 import { atWar } from '../game/war';
 import { cityCulture, cityScienceGold, cityYields, empireCulture, empireIncome, foodSurplus } from '../game/yields';
-import { capitalOf, launchError, victoryProgress, type VictoryProgress } from '../game/victory';
+import { capitalOf, launchError, turnsToVictory, victoryProgress, victoryWonderBuild, warningAdvice, type VictoryProgress } from '../game/victory';
 import { wonderCity } from '../game/wonders';
 import { centerInRect, clampCamera, defaultTileSize, minTileSize, panBy, screenToWorld, tileComfortablyVisible, zoomAt, type Camera, type ScreenRect } from '../render/camera';
 import { UNIT_FILTERS, filterCounts, listUnits, unitStatus, unitWhere, type UnitFilter } from './unitsList';
@@ -119,7 +120,7 @@ import { MAP_SIZES } from '../data/mapSizes';
 import { SOUND_EVENTS } from '../data/sounds';
 import { SetupScreen, bonusListHtml, type SetupChoice } from './setup';
 import { UNIQUE_RULES } from '../data/leaders';
-import { hasUnique } from '../game/leaders';
+import { eraBonus, hasUnique } from '../game/leaders';
 import { challengeError, dissolutionError, dissolutionGold, pilgrimageError, returnCityError } from '../game/uniques';
 import { FOUNDING_TECHS, RELIGION } from '../data/religion';
 import { ROADS } from '../data/roads';
@@ -250,6 +251,13 @@ export class App {
   private diploPage: 'main' | 'trade' | 'confirmWar' = 'main';
   private tradeGet: TechId | undefined;
   private diploAnswer: { civ: number; accepted: boolean; reason: string } | undefined;
+  /** Round 19: the log entries the last action (or End Turn) added. */
+  private lastNews: LogEntry[] = [];
+  /** Round 19 (item 3): the log's running count when the news log was last opened, and the unread count's cache. */
+  private newsSeen = 0;
+  private unreadCache: { key: string; n: number } | undefined;
+  /** Round 19: toasts waiting while a full-screen card is up. */
+  private heldToasts: { html: string; chars: number; cls: string }[] = [];
   /** Panels waiting to be shown one at a time (first contact, war declared on you, AI offers). */
   private notices: Notice[] = [];
   /** Great People the human put off this turn ("Decide later"). */
@@ -365,6 +373,13 @@ export class App {
       }
     });
     $('victoryBtn').addEventListener('click', () => this.openVictory());
+    // Round 19 (item 3): the news log.
+    $('newsBtn').addEventListener('click', () => this.openNews());
+    $('newsMenuBtn').addEventListener('click', () => {
+      this.closeMenu();
+      this.openNews();
+    });
+    $('newsOverlay').addEventListener('click', (e) => this.handleNewsClick(e));
     $('victoryMenuBtn').addEventListener('click', () => {
       this.closeMenu();
       this.openVictory();
@@ -437,6 +452,7 @@ export class App {
     // Round 14: load the turn worker's code now, not on the first End Turn.
     window.setTimeout(() => this.turnRunner.warm(), 800);
 
+    this.newsSeen = state.logCount;
     this.startHumanTurn();
     if (opts.notice) this.toast(opts.notice);
     if (opts.fakeUpdate) {
@@ -482,16 +498,22 @@ export class App {
       return { ok: false, reason: 'Rivals are moving' };
     }
     const metBefore = new Set(metCivs(this.state, this.human));
+    const mark = this.state.logCount;
     const res = applyAction(this.state, action);
-    this.afterAction(res, metBefore);
+    this.lastNews = entriesSince(this.state, mark);
+    this.afterAction(res, metBefore, this.lastNews);
     return res;
   }
 
-  /** After any action: its message, first contacts, the autosave, and the screen. */
-  private afterAction(res: ActionResult, metBefore: Set<number>): void {
+  /**
+   * After any action: its message, first contacts, the full-screen cards for what just happened
+   * (Round 19), the autosave, and the screen.
+   */
+  private afterAction(res: ActionResult, metBefore: Set<number>, news: LogEntry[] = []): void {
     if (!res.ok && res.reason) this.toast(res.reason, true);
     // First contact (on our move, or on theirs during End Turn) gets its own panel.
     for (const civ of metCivs(this.state, this.human)) if (!metBefore.has(civ)) this.queueContact(civ);
+    this.presentCards(news);
     // Cheap (a few tens of KB), and means a reload never loses more than one tap.
     if (res.ok) {
       this.cloud.markChanged();
@@ -617,12 +639,53 @@ export class App {
     };
   }
 
-  /** Toasts the entries the player should hear about (first contact has its own panel). */
+  /**
+   * Round 19 (items 1, 2, 9, 10): entries that get a card or panel of their own rather than a
+   * toast (the rest are toasts; everything is in the news log).
+   */
+  private carded(e: LogEntry, batch: LogEntry[]): boolean {
+    const me = this.human;
+    const aimed = e.other === me && e.player !== me;
+    switch (e.kind) {
+      case 'contact':
+        return true;
+      case 'war':
+      case 'demand':
+      case 'warning':
+      case 'capture':
+        return aimed;
+      case 'era':
+        return e.player === me || this.eraAhead(e);
+      case 'wonder':
+        return true;
+      case 'wonderLost':
+        // Said on the rival's wonder panel when that's shown.
+        return batch.some((w) => w.kind === 'wonder' && w.player !== me && sameRefItem(w.ref?.item, e.ref?.item));
+      case 'victory':
+        return e.ref?.step === 'later' && e.player === me;
+      case 'leader':
+        // The era bonus is on the new-era card.
+        return e.player === me && batch.some((x) => x.kind === 'era' && x.player === me && x.ref?.era && e.text.startsWith(`${eraName(x.ref.era)} bonus:`));
+      default:
+        return false;
+    }
+  }
+
+  /** A rival's new era that's ahead of yours (Round 19, item 1). */
+  private eraAhead(e: LogEntry): boolean {
+    return e.kind === 'era' && e.player !== this.human && !!e.ref?.era && eraIndex(e.ref.era) > eraIndex(playerEra(this.state.players[this.human]!));
+  }
+
+  /**
+   * Toasts the entries the player should hear about. Round 19: what gets a card is left out
+   * (presentCards), and your cities' finished buildings and units come as one list.
+   */
   private announce(entries: LogEntry[]): void {
-    for (const e of eventsVisibleTo(this.state, this.human, entries)) {
-      // These have their own panels.
-      const aimedAtMe = e.other === this.human && e.player !== this.human;
-      if (e.kind === 'contact' || (aimedAtMe && (e.kind === 'war' || e.kind === 'demand' || e.kind === 'warning'))) continue;
+    const seen = eventsVisibleTo(this.state, this.human, entries);
+    const built = seen.filter((e) => e.kind === 'built' && e.player === this.human);
+    if (built.length) this.toastList(built.length === 1 ? 'Built' : `Built this turn (${built.length})`, built.map((e) => this.builtLine(e)));
+    for (const e of seen) {
+      if (this.carded(e, seen) || (e.kind === 'built' && e.player === this.human)) continue;
       // Round 10: Dan's icons beside the Round 9 news (a hut's result, a village, an artifact).
       const text = entryText(e, this.human);
       // Round 17: a tech learned (by research, trade, a hut, a village, a Great Person) shows its icon.
@@ -630,6 +693,292 @@ export class App {
       const icon = learned ? TECH_ICONS[learned] : e.kind === 'hut' ? MAP_ICONS.hut : e.kind === 'village' ? MAP_ICONS.village : e.kind === 'artifact' ? MAP_ICONS.artifact : undefined;
       this.toast(text, false, icon);
     }
+  }
+
+  /** One finished building or unit, with its icon and what it does (Round 19, item 2). */
+  private builtLine(e: LogEntry): string {
+    const item = e.ref?.item;
+    const city = e.ref?.cityId !== undefined ? findCity(this.state, e.ref.cityId) : undefined;
+    const where = city ? ` in ${esc(city.name)}` : '';
+    if (item?.kind === 'building') return `${buildIconHtml(item)}<b>${esc(BUILDINGS[item.id].name)}</b> built${where}: <span class="sub">${esc(BUILDINGS[item.id].summary)}</span>`;
+    if (item?.kind === 'unit') return `${this.badge(item.id, this.human)}<b>${esc(UNITS[item.id].name)}</b> trained${where}`;
+    return esc(entryText(e, this.human));
+  }
+
+  /** Round 19 (items 1, 2, 9, 10): the full-screen cards (and a few panels) for what just happened. */
+  private presentCards(entries: LogEntry[]): void {
+    const me = this.human;
+    const seen = eventsVisibleTo(this.state, me, entries);
+    // Several warning steps about one rival's one victory at once (75%, goal reached, building):
+    // one card, the most urgent; the others are in the news log.
+    const rank = { near: 0, capitals: 0, goal: 1, launched: 2, building: 2, soon: 3, countdown: 4 } as const;
+    const topWarning = new Map<string, LogEntry>();
+    for (const e of seen) {
+      if (e.kind !== 'warning' || e.other !== me) continue;
+      const key = `${e.player}:${e.ref?.victory}`;
+      const had = topWarning.get(key);
+      const r = (x: LogEntry) => rank[(x.ref?.step ?? 'near') as keyof typeof rank] ?? 0;
+      if (!had || r(e) >= r(had)) topWarning.set(key, e);
+    }
+    for (const e of seen) {
+      if (e.kind === 'warning' && e.other === me && topWarning.get(`${e.player}:${e.ref?.victory}`) !== e) continue;
+      const aimed = e.other === me && e.player !== me;
+      if (e.kind === 'era' && e.player === me) this.queueEraCard(e);
+      else if (e.kind === 'era' && this.eraAhead(e)) this.queueRivalEra(e);
+      else if (e.kind === 'wonder' && e.player === me) this.queueWonderCard(e);
+      else if (e.kind === 'wonder') this.queueRivalWonder(e, seen);
+      else if (e.kind === 'war' && aimed) this.queueWarCard(e);
+      else if (e.kind === 'warning' && aimed) this.queueWarningCard(e);
+      else if (e.kind === 'capture' && aimed) this.queueCityLostCard(e);
+      else if (e.kind === 'victory' && e.ref?.step === 'later' && e.player === me) this.queueLaterWinCard(e);
+    }
+  }
+
+  private queueEraCard(e: LogEntry): void {
+    const me = this.state.players[this.human]!;
+    const era = e.ref?.era ?? playerEra(me);
+    const def = ERAS.find((x) => x.id === era)!;
+    const bonus = eraBonus(me.civId, era);
+    const u = eraUnlocks(era, me.civId);
+    const list: string[] = [];
+    if (bonus) list.push(`<b>Your era bonus: ${esc(bonus.name)}.</b> ${esc(bonus.text)}`);
+    if (u.units.length) list.push(`<b>New units:</b> ${u.units.map((id) => `<span class="cardItem">${unitIconHtml(id, 'uicon')}${esc(UNITS[id].name)}</span>`).join(' ')}`);
+    if (u.buildings.length) list.push(`<b>New buildings:</b> ${u.buildings.map((id) => `<span class="cardItem">${iconHtml(BUILDING_ICONS[id], '', 'bicon')}${esc(BUILDINGS[id].name)}</span>`).join(' ')}`);
+    if (u.wonders.length) list.push(`<b>New wonders:</b> ${u.wonders.map((w) => `<span class="cardItem">${iconHtml(wonderIcon(w.id), '★', 'bicon')}${esc(w.name)}</span>`).join(' ')}`);
+    list.push('<span class="sub">They unlock as you learn this era’s techs.</span>');
+    this.queueNotice({
+      title: `The ${def.name} Era Begins`,
+      text: def.flavor,
+      card: { kicker: 'A new age', tint: def.tint, hero: `<div class="eraHero">${esc(def.name)}</div>`, list },
+      buttons: [
+        { label: 'Tech tree', run: () => this.openTech() },
+        { label: 'Onward', cls: 'bigBtn primary' },
+      ],
+    });
+  }
+
+  private queueRivalEra(e: LogEntry): void {
+    this.queueNotice({
+      title: 'A rival moves ahead',
+      portrait: e.player,
+      text: `${CivName(this.state, e.player)} ${civVerb(this.state, e.player, 'has', 'have')} entered the ${eraName(e.ref!.era!)} era, ahead of you.`,
+      sub: `You are in the ${eraName(playerEra(this.state.players[this.human]!))} era. Research, trade techs, or put more of your trade into science to catch up.`,
+      buttons: [
+        { label: 'Tech tree', run: () => this.openTech() },
+        { label: 'OK', cls: 'bigBtn' },
+      ],
+    });
+  }
+
+  private queueWonderCard(e: LogEntry): void {
+    const item = e.ref?.item;
+    if (item?.kind !== 'wonder') return;
+    const def = WONDERS[item.id];
+    const city = e.ref?.cityId !== undefined ? findCity(this.state, e.ref.cityId) : undefined;
+    const free = def.effects.freeBuilding;
+    const list = def.summary.split(' · ').map((s) => esc(s));
+    if (free) list.push(`Every city of yours now has ${esc(BUILDINGS[free].name)} (${esc(BUILDINGS[free].summary)})`);
+    this.queueNotice({
+      title: def.name,
+      text: `${city ? city.name : 'Your city'} completed the ${def.name}, a wonder of the world. Nobody else can build it now.`,
+      card: { kicker: 'Wonder completed', tint: '#7a6320', hero: iconHtml(wonderIcon(item.id), '★', 'heroIcon'), list },
+      buttons: [{ label: 'Wonderful', cls: 'bigBtn primary' }],
+    });
+  }
+
+  private queueRivalWonder(e: LogEntry, batch: LogEntry[]): void {
+    const item = e.ref?.item;
+    if (item?.kind !== 'wonder') {
+      this.toast(entryText(e, this.human));
+      return;
+    }
+    const def = WONDERS[item.id];
+    const lost = batch.find((x) => x.kind === 'wonderLost' && x.player === this.human && sameRefItem(x.ref?.item, item));
+    this.queueNotice({
+      title: `${def.name} completed`,
+      icon: wonderIcon(item.id),
+      iconCls: 'wonder',
+      text: `${entryText(e, this.human)}.`,
+      sub: lost ? `${entryText(lost, this.human)}` : `What it does: ${def.summary}.`,
+      buttons: [
+        ...(lost?.ref?.cityId !== undefined ? [{ label: `Open ${findCity(this.state, lost.ref.cityId)?.name ?? 'the city'}`, run: () => this.openCity(lost.ref!.cityId!) }] : []),
+        { label: 'OK', cls: 'bigBtn' },
+      ],
+    });
+  }
+
+  private queueWarCard(e: LogEntry): void {
+    const civ = e.player;
+    const ratio = strengthRatio(this.state, civ, this.human);
+    this.queueNotice({
+      title: `${CivName(this.state, civ)} declared war on you!`,
+      text: entryText(e, this.human),
+      sub: `Their military is ${strengthWords(ratio)}. Guard your border cities; you can offer peace from Diplomacy.`,
+      card: { kicker: 'War', tint: '#6b1f1f', hero: portraitHtml(this.state.players[civ]!.civId, 160) },
+      buttons: [
+        { label: 'Diplomacy', run: () => this.openDiplo(civ) },
+        { label: 'To arms', cls: 'bigBtn primary' },
+      ],
+    });
+  }
+
+  private queueWarningCard(e: LogEntry): void {
+    const civ = e.player;
+    const kind = e.ref?.victory ?? 'domination';
+    const step = e.ref?.step;
+    const met = hasMet(this.state, this.human, civ);
+    const turns = e.ref?.turns;
+    const soon = turns !== undefined ? `${plural(turns, 'turn')} from winning` : 'Close to winning';
+    const titles: Record<string, string> = {
+      near: 'Close to winning',
+      goal: 'A victory goal reached',
+      building: 'A victory wonder is being built',
+      soon,
+      countdown: `${soon}!`,
+      launched: 'A spaceship has launched',
+      capitals: 'One capital from winning',
+    };
+    this.queueNotice({
+      title: titles[step ?? 'near'] ?? 'Close to winning',
+      text: entryText(e, this.human),
+      sub: warningAdvice(this.state, this.human, civ, kind, e.ref?.cityId),
+      card: {
+        kicker: `${VICTORY_NAMES[kind]} victory · warning`,
+        tint: '#5a1a1a',
+        hero: met ? portraitHtml(this.state.players[civ]!.civId, 160) : '<div class="unknownHero">?</div>',
+      },
+      buttons: [
+        { label: 'Victory progress', run: () => this.openVictory() },
+        ...(met ? [{ label: 'Diplomacy', run: () => this.openDiplo(civ) }] : []),
+        { label: 'OK', cls: 'bigBtn primary' },
+      ],
+    });
+  }
+
+  private queueCityLostCard(e: LogEntry): void {
+    const city = e.ref?.cityId !== undefined ? findCity(this.state, e.ref.cityId) : undefined;
+    this.queueNotice({
+      title: `${city?.name ?? 'A city'} has fallen`,
+      text: entryText(e, this.human),
+      sub: 'Its buildings are theirs now. Take it back, or make peace before you lose more.',
+      card: { kicker: 'City lost', tint: '#5a1a1a', hero: portraitHtml(this.state.players[e.player]!.civId, 160) },
+      buttons: [
+        ...(city ? [{ label: 'Show me', run: () => this.centerOn(city.x, city.y) }] : []),
+        { label: 'Diplomacy', run: () => this.openDiplo(e.player) },
+        { label: 'OK', cls: 'bigBtn primary' },
+      ],
+    });
+  }
+
+  private queueLaterWinCard(e: LogEntry): void {
+    const kind = e.ref?.victory ?? 'technology';
+    const hero = { technology: '🚀', culture: '🏛️', economic: '💰', domination: '⚔️' }[kind];
+    this.queueNotice({
+      title: `${VICTORY_NAMES[kind]} victory, for the record`,
+      text: entryText(e, this.human),
+      sub: 'It goes on the record with the game’s result (🏆 Victory progress).',
+      card: { kicker: 'A later achievement', tint: '#1f4a6b', hero: `<div class="eraHero">${hero}</div>` },
+      buttons: [{ label: 'OK', cls: 'bigBtn primary' }],
+    });
+  }
+
+  // ---- Round 19 (item 3): the news log ------------------------------------------------------
+
+  /** How many turns back the news log reaches. */
+  private static readonly NEWS_TURNS = 6;
+
+  private openNews(): void {
+    $('newsOverlay').hidden = false;
+    this.renderNews();
+    this.newsSeen = this.state.logCount;
+    this.updateHud();
+  }
+
+  private closeNews(): void {
+    $('newsOverlay').hidden = true;
+  }
+
+  /** News icons by kind (emoji keep it light; techs, huts, villages use Dan's icons). */
+  private newsIcon(e: LogEntry, text: string): string {
+    const learned = learnedTech(text);
+    if (learned) return techIconHtml(learned, 'ticon');
+    const item = e.ref?.item;
+    if (e.kind === 'built' && item) return item.kind === 'unit' ? this.badge(item.id, e.player) : buildIconHtml(item);
+    if ((e.kind === 'wonder' || e.kind === 'wonderLost') && item?.kind === 'wonder') return iconHtml(wonderIcon(item.id), '★', 'bicon');
+    if (e.kind === 'hut') return iconHtml(MAP_ICONS.hut, '');
+    if (e.kind === 'village') return iconHtml(MAP_ICONS.village, '');
+    const emoji: Partial<Record<NonNullable<LogEntry['kind']>, string>> = {
+      contact: '👋', war: '⚔️', peace: '🕊️', trade: '🤝', demand: '💰', gift: '🎁', era: '⏳', space: '🚀', victory: '🏆', warning: '⚠️',
+      landing: '⚓', raid: '🔥', greatPerson: '⭐', barbarians: '💀', strike: '✈️', intercept: '✈️', leader: '👑', religion: '✦', road: '🛤️', capture: '🏳️', artifact: '🏺',
+    };
+    return `<span class="nemoji">${(e.kind && emoji[e.kind]) ?? (/ grew to size /.test(text) ? '🌱' : '•')}</span>`;
+  }
+
+  private renderNews(): void {
+    const from = this.state.turn - App.NEWS_TURNS;
+    const log = this.state.log;
+    const firstNew = log.length - Math.max(0, this.state.logCount - this.newsSeen);
+    const rows = new Map<number, string[]>();
+    const visible = new Set(eventsVisibleTo(this.state, this.human, log.filter((e) => e.turn >= from)));
+    log.forEach((e, i) => {
+      if (!visible.has(e)) return;
+      const text = entryText(e, this.human);
+      const at = e.ref?.cityId !== undefined ? findCity(this.state, e.ref.cityId) : e.x !== undefined && e.y !== undefined ? { x: e.x, y: e.y } : undefined;
+      const go = at ? ` data-x="${at.x}" data-y="${at.y}"` : '';
+      const row = `<li class="${i >= firstNew ? 'new' : ''}${e.kind === 'warning' || (e.kind === 'war' && e.other === this.human) ? ' hot' : ''}"><button type="button" class="newsItem"${go} ${at ? '' : 'disabled'}>${this.newsIcon(e, text)}<span>${esc(text)}</span></button></li>`;
+      const list = rows.get(e.turn) ?? [];
+      list.push(row);
+      rows.set(e.turn, list);
+    });
+    const turns = [...rows.keys()].sort((a, b) => b - a);
+    $('newsBody').innerHTML = turns.length
+      ? turns.map((t) => `<div class="label">Turn ${t}${t === this.state.turn ? ' (now)' : ''}</div><ul class="newsList">${rows.get(t)!.reverse().join('')}</ul>`).join('')
+      : '<p class="sub">Nothing has happened yet. News of your cities, research, wars, wonders and eras will gather here.</p>';
+    $('newsBody').scrollTop = 0;
+  }
+
+  private handleNewsClick(e: MouseEvent): void {
+    const target = e.target as HTMLElement;
+    if (target === $('newsOverlay') || target.closest('#newsCloseBtn')) {
+      this.closeNews();
+      return;
+    }
+    const btn = target.closest<HTMLButtonElement>('button.newsItem');
+    if (!btn || btn.disabled || btn.dataset.x === undefined) return;
+    this.closeNews();
+    this.centerOn(Number(btn.dataset.x), Number(btn.dataset.y));
+  }
+
+  /** Round 19 (item 4): the city that finished this unit last turn (or this turn), if any. */
+  private trainedIn(u: Unit): City | undefined {
+    const log = this.state.log;
+    for (let i = log.length - 1; i >= 0; i--) {
+      const e = log[i]!;
+      if (e.turn < this.state.turn - 1) break;
+      if (e.kind === 'built' && e.ref?.unitId === u.id && e.ref.cityId !== undefined) return findCity(this.state, e.ref.cityId);
+    }
+    return undefined;
+  }
+
+  /** Round 19 (item 9): the fewest turns any rival is from winning, if 10 or less. */
+  private rivalNearWin(): number | undefined {
+    if (this.state.victory) return undefined;
+    let best: number | undefined;
+    for (const p of this.state.players) {
+      if (p.id === this.human || p.kind === 'barbarian' || !p.alive) continue;
+      const t = turnsToVictory(this.state, p.id);
+      if (t !== undefined && t <= 10 && (best === undefined || t < best)) best = t;
+    }
+    return best;
+  }
+
+  /** News since the log was last opened (a count on 📰), cached per log count. */
+  private unreadNews(): number {
+    const key = `${this.state.logCount}:${this.newsSeen}:${this.state.turn}`;
+    if (this.unreadCache?.key === key) return this.unreadCache.n;
+    const n = eventsVisibleTo(this.state, this.human, entriesSince(this.state, this.newsSeen)).length;
+    this.unreadCache = { key, n };
+    return n;
   }
 
   private endTurn(confirmed = false): void {
@@ -657,7 +1006,9 @@ export class App {
    * else can change the game until the new state comes back.
    */
   private async runEndTurn(): Promise<void> {
-    const logStart = this.state.log.length;
+    // Round 19: new entries are found by the log's running count (the log itself is capped, so
+    // once it's full its length no longer grows; slicing by length found nothing late in a game).
+    const mark = this.state.logCount;
     const techsBefore = this.state.players[this.human]!.techs.length;
     const before = snapshot(this.state, this.human);
     const metBefore = new Set(metCivs(this.state, this.human));
@@ -674,7 +1025,9 @@ export class App {
       return;
     }
     this.state = out.state;
-    this.afterAction(out.result, metBefore);
+    const news = entriesSince(this.state, mark);
+    this.lastNews = news;
+    this.afterAction(out.result, metBefore, news);
     // Round 16: the cloud copy goes up now that the rivals have moved (in the background).
     this.cloud.request();
     const me = this.state.players[this.human]!;
@@ -683,35 +1036,11 @@ export class App {
     console.info(`Epoch: End Turn took ${ms} ms (${Math.round(out.ms)} ms of rules, in the ${this.turnRunner.lastWhere}; turn ${this.state.turn}, ${this.state.map.width}×${this.state.map.height})`);
     if (this.opts.scenario && TIMED_SCENARIOS.includes(this.opts.scenario.id)) this.toast(`The computer turns took ${ms} ms (${this.turnRunner.lastWhere === 'worker' ? 'in the background' : 'on the page'})`);
     // Round 13: a sound or two for what happened (war on you, a tech, a new era, a city grew...).
-    const warOnYou = this.state.log.slice(logStart).some((e) => e.kind === 'war' && e.other === this.human && e.player !== this.human);
+    const warOnYou = news.some((e) => e.kind === 'war' && e.other === this.human && e.player !== this.human);
     this.sound.playSequence(turnSounds(before, snapshot(this.state, this.human), { warOnYou }));
-    // Report what happened this round: our own events, and rival events we could see or civ
-    // news from civs we've met. A declaration of war on us gets a panel.
-    for (const entry of this.state.log.slice(logStart)) {
-      if (entry.kind === 'war' && entry.other === this.human && entry.player !== this.human) {
-        this.queueNotice({
-          title: 'War!',
-          text: entryText(entry, this.human),
-          buttons: [
-            { label: 'Diplomacy', run: () => this.openDiplo(entry.player) },
-            { label: 'OK', cls: 'bigBtn' },
-          ],
-        });
-      }
-      // Someone we've met is close to winning (Milestone 6).
-      if (entry.kind === 'warning' && entry.other === this.human) {
-        this.queueNotice({
-          title: 'Close to winning!',
-          text: entryText(entry, this.human),
-          sub: 'Open Victory progress to see where everyone stands.',
-          buttons: [
-            { label: 'Victory progress', run: () => this.openVictory() },
-            { label: 'OK', cls: 'bigBtn' },
-          ],
-        });
-      }
-    }
-    this.announce(this.state.log.slice(logStart));
+    // Report what happened this round (Round 19: the cards were queued by afterAction; the rest
+    // are toasts, and everything is in the news log).
+    this.announce(news);
     this.startHumanTurn();
     // Just learned a tech: ask what to research next (on top of any city that needs a build).
     if (me.techs.length > techsBefore && !me.researching && availableTechs(me).length > 0) {
@@ -723,11 +1052,10 @@ export class App {
   private foundCity(): void {
     const id = this.selectedUnitId;
     if (id === undefined) return;
-    const logStart = this.state.log.length;
     const cityCountBefore = this.state.cities.length;
     if (this.dispatch({ type: 'foundCity', unitId: id })) {
       this.sound.play('found-city');
-      this.announce(this.state.log.slice(logStart));
+      this.announce(this.lastNews);
       this.selectNext(false);
       // A new city needs its first build choice.
       const city = this.state.cities[cityCountBefore];
@@ -872,6 +1200,10 @@ export class App {
     this.pendingAttack = undefined;
     this.endDismissed = false;
     this.notices = [];
+    this.newsSeen = state.logCount;
+    this.lastNews = [];
+    this.heldToasts = [];
+    $('newsOverlay').hidden = true;
     this.diploCiv = undefined;
     this.diploAnswer = undefined;
     this.endSound = undefined;
@@ -1051,11 +1383,10 @@ export class App {
     const offer = this.unitOfferNow();
     if (!offer || offer.unit.id !== unitId) return;
     this.unitOffer = undefined;
-    const logStart = this.state.log.length;
     const res = this.dispatchResult({ type: 'move', unitId, to: { x: offer.x, y: offer.y } });
     if (!res.ok) return;
     this.sound.play('unit-move');
-    this.announce(this.state.log.slice(logStart));
+    this.announce(this.lastNews);
     this.select(unitId);
     const after = this.selected();
     if (after && (after.x !== offer.x || after.y !== offer.y) && offer.turns > 1) {
@@ -1087,7 +1418,6 @@ export class App {
     if (pending) this.requestDraw();
     switch (result.kind) {
       case 'move': {
-        const logStart = this.state.log.length;
         const enemyCity = this.state.cities.find((c) => c.x === tx && c.y === ty && c.owner !== this.human);
         const mover = findUnit(this.state, result.unitId);
         const res = this.dispatchResult({ type: 'move', unitId: result.unitId, to: { x: tx, y: ty } });
@@ -1096,7 +1426,7 @@ export class App {
         if (res.ok) {
           this.sound.play('unit-move');
           // Captures and eliminations are worth announcing.
-          this.announce(this.state.log.slice(logStart));
+          this.announce(this.lastNews);
           const after = this.selected();
           // Round 18 (item 1): stopped short with moves left (the way on is blocked, or the next
           // tile costs more than it has left): it stays selected, and says why.
@@ -1199,6 +1529,10 @@ export class App {
       if (e.key === 'Escape') this.closeVictory();
       return;
     }
+    if (!$('newsOverlay').hidden) {
+      if (e.key === 'Escape') this.closeNews();
+      return;
+    }
     if (!$('religionOverlay').hidden) {
       if (e.key === 'Escape') $('religionOverlay').hidden = true;
       return;
@@ -1220,6 +1554,7 @@ export class App {
     else if ((k === ',' || k === '[') && this.openCityId !== undefined) this.cycleCity(-1);
     else if ((k === '.' || k === ']') && this.openCityId !== undefined) this.cycleCity(1);
     else if (k === 'u') this.openUnitsList();
+    else if (k === 'l') this.openNews();
     else if (k === 'escape') {
       if (this.openCityId !== undefined) this.closeCityAndReveal();
       else this.select(undefined);
@@ -1298,11 +1633,10 @@ export class App {
       const offer = this.moveHereOffer(city);
       if (!offer) return;
       this.closeCity();
-      const logStart = this.state.log.length;
       const res = this.dispatchResult({ type: 'move', unitId: offer.unit.id, to: { x: city.x, y: city.y } });
       if (res.ok) {
         this.sound.play('unit-move');
-        this.announce(this.state.log.slice(logStart));
+        this.announce(this.lastNews);
         this.select(offer.unit.id);
         if (this.selectedDone()) this.selectNext(false);
         if (offer.turns > 1) this.toast(`${UNITS[offer.unit.type].name} is on its way: tap ${city.name} again next turn to carry on`);
@@ -1313,8 +1647,7 @@ export class App {
       const item = JSON.parse(btn.dataset.item!) as BuildItem;
       this.dispatch({ type: 'setBuild', cityId: city.id, item });
     } else if (act === 'launch') {
-      const logStart = this.state.log.length;
-      if (this.dispatch({ type: 'launchSpaceship' })) this.announce(this.state.log.slice(logStart));
+      if (this.dispatch({ type: 'launchSpaceship' })) this.announce(this.lastNews);
     } else if (act === 'buy') {
       const name = city.build ? itemName(city.build) : '';
       if (this.dispatch({ type: 'rushBuy', cityId: city.id })) this.toast(`Bought ${name}; it's ready next turn`);
@@ -1445,12 +1778,17 @@ export class App {
     let spaceHtml = '';
     if (city.capitalOf === this.human && (me.space.parts > 0 || me.space.launchedTurn !== null || hasTech(me, VICTORY.spaceship.requires))) {
       const launchErr = launchError(this.state, this.human);
+      const v = this.state.victory;
+      // Round 19 (item 10): after Keep playing, a launch (or an arrival) is for the record only.
+      const record = this.state.keepPlaying && v ? ` The game is already won by ${v.winner === this.human ? 'you' : esc(civName(this.state, v.winner))}; ${me.space.launchedTurn === null ? 'you can still launch for the record' : 'its arrival goes on the record'}.` : '';
       const status =
-        me.space.arrivesTurn !== null
-          ? `Launched on turn ${me.space.launchedTurn}: arrives on turn ${me.space.arrivesTurn}. Keep ${esc(city.name)} safe until then.`
-          : `${me.space.parts} of ${VICTORY.spaceship.parts} parts built.`;
+        me.space.arrivesTurn !== null && this.state.turn >= me.space.arrivesTurn
+          ? `Arrived at Alpha Centauri on turn ${me.space.arrivesTurn}.`
+          : me.space.arrivesTurn !== null
+            ? `Launched on turn ${me.space.launchedTurn}: arrives on turn ${me.space.arrivesTurn}. Keep ${esc(city.name)} safe until then.${record}`
+            : `${me.space.parts} of ${VICTORY.spaceship.parts} parts built.${record}`;
       spaceHtml = `<div class="section"><div class="label">Spaceship</div><div class="stat">${status}</div>
-        ${me.space.launchedTurn === null && !launchErr ? '<button type="button" data-act="launch" class="bigBtn launchBtn">🚀 Launch spaceship</button>' : ''}</div>`;
+        ${me.space.launchedTurn === null && !launchErr ? `<button type="button" data-act="launch" class="bigBtn launchBtn">🚀 Launch spaceship${record ? ' (for the record)' : ''}</button>` : ''}</div>`;
     }
     const culture = cityCulture(this.state, city);
     // Round 9: resources on the tiles it works (and its own), and Great People settled here.
@@ -1839,12 +2177,11 @@ export class App {
     const p = this.pendingAttack;
     this.closeAttack();
     if (!p) return;
-    const logStart = this.state.log.length;
     const res = this.dispatchResult({ type: 'attack', unitId: p.unitId, at: p.at });
     if (!res.ok || !res.combat) return;
     this.reportCombat(res.combat);
     // Anything after the fight itself (a city taken, a civ eliminated).
-    this.announce(this.state.log.slice(logStart + 1));
+    this.announce(this.lastNews.slice(1));
     this.selectNext(false);
     // The last defender fell and the winner moved in: the city is ours, so pick its build.
     if (res.combat.capturedCityId !== undefined) this.openCity(res.combat.capturedCityId);
@@ -1933,7 +2270,7 @@ export class App {
       banner = '🏳️';
       title = 'Defeat';
       const civ = v!.winner;
-      text = `${CivName(this.state, civ)} won a ${VICTORY_NAMES[v!.kind].toLowerCase()} victory on turn ${v!.turn}: ${victoryHow(v!.kind, false, victoryGoals(this.state.mapSize, this.state.difficulty))}. The game is theirs.`;
+      text = `${CivName(this.state, civ)} won ${aVictory(v!.kind)} on turn ${v!.turn}: ${victoryHow(v!.kind, false, victoryGoals(this.state.mapSize, this.state.difficulty))}. The game is theirs.`;
     }
     const face = eliminated || mine ? this.human : v!.winner;
     $('endBanner').innerHTML = `${portraitHtml(this.state.players[face]!.civId, 96)} <span>${banner}</span>`;
@@ -1943,7 +2280,11 @@ export class App {
     const rows = [this.human];
     if (v && v.winner !== this.human) rows.unshift(v.winner);
     $('endStats').innerHTML = `<p class="sub endLevel">${esc(DIFFICULTIES[this.state.difficulty].name)} · ${esc(MAP_SIZES[this.state.mapSize].name)} map · turn ${this.state.turn}</p><table class="stats"><thead><tr><th></th><th>Cities</th><th>Techs</th><th>Wonders</th><th>Culture</th><th>Gold</th></tr></thead>
-      <tbody>${rows.map((p) => this.statsRow(p)).join('')}</tbody></table>`;
+      <tbody>${rows.map((p) => this.statsRow(p)).join('')}</tbody></table>${
+        this.state.laterWins.length
+          ? `<p class="sub">Later achievements: ${this.state.laterWins.map((w) => `${w.winner === this.human ? 'you' : esc(civName(this.state, w.winner))}, ${VICTORY_NAMES[w.kind].toLowerCase()} (turn ${w.turn})`).join('; ')}.</p>`
+          : ''
+      }`;
     $('endCloseBtn').textContent = eliminated ? 'Look at the map' : 'Keep playing';
     // In a dev scenario, "New Game" means going back to the real game.
     $('endNewBtn').textContent = this.opts.scenario ? 'Back to my game' : 'New Game';
@@ -2072,15 +2413,17 @@ export class App {
     if (!btn || btn.disabled) return;
     if (btn.id === 'victoryCloseBtn') this.closeVictory();
     else if (btn.dataset.act === 'launch') {
-      const logStart = this.state.log.length;
-      if (this.dispatch({ type: 'launchSpaceship' })) this.announce(this.state.log.slice(logStart));
+      if (this.dispatch({ type: 'launchSpaceship' })) this.announce(this.lastNews);
     }
   }
 
   private renderVictory(): void {
     const v = this.state.victory;
+    // Round 19 (item 10): after Keep playing, say up front that a win now won't count.
     $('victoryStatus').textContent = v
-      ? `${v.winner === this.human ? 'You' : CivName(this.state, v.winner)} won a ${VICTORY_NAMES[v.kind].toLowerCase()} victory on turn ${v.turn}${this.state.keepPlaying ? '; you kept playing' : ''}.`
+      ? `${v.winner === this.human ? 'You' : CivName(this.state, v.winner)} won ${aVictory(v.kind)} on turn ${v.turn}${
+          this.state.keepPlaying ? '. You kept playing: a win now won’t change the result, but it goes on the record' : ''
+        }.`
       : `Turn ${this.state.turn}. The first civ to reach any one of these wins.`;
     // Round 13: the level and map this game is played at.
     $('victoryStatus').textContent += ` · ${DIFFICULTIES[this.state.difficulty].name} · ${MAP_SIZES[this.state.mapSize].name} map`;
@@ -2105,7 +2448,13 @@ export class App {
           : '<span class="sub">A civ you haven’t met</span>';
       return `<li><b>${w.name}</b> <span class="sub">${TECHS[w.requires].name}${w.victory ? ' · wins the game' : ''}</span><span class="wwhere">${where}</span></li>`;
     }).join('');
-    body.innerHTML = `${rules}<div class="vcards">${cards}</div>
+    // Round 19 (item 10): wins reached after the game was decided.
+    const later = this.state.laterWins.length
+      ? `<div class="label">For the record (after the game was decided)</div><ul class="wonderList">${this.state.laterWins
+          .map((w) => `<li><b>${w.winner === this.human ? 'You' : hasMet(this.state, this.human, w.winner) ? esc(civDef(this.state, w.winner).name) : 'A civ you haven’t met'}</b> <span class="sub">${VICTORY_NAMES[w.kind]} victory · turn ${w.turn}</span></li>`)
+          .join('')}</ul>`
+      : '';
+    body.innerHTML = `${rules}${later}<div class="vcards">${cards}</div>
       <div class="label">Wonders of the world</div><ul class="wonderList">${wonders}</ul>`;
     body.scrollTop = scroll;
   }
@@ -2117,20 +2466,36 @@ export class App {
     const def = civDef(this.state, p);
     const head = `<div class="vhead">${portraitHtml(pl.civId, 36)}<span class="swatch" style="background:${playerColor(this.state, p)}"></span>
       <b>${me ? `You (${esc(def.name)})` : esc(def.name)}</b>`;
+    // Round 19 (item 9): a victory wonder in progress (city and turns), even for a civ you haven't met.
+    const inProgress = (['culture', 'economic'] as const)
+      .map((k) => ({ k, b: victoryWonderBuild(this.state, p, k) }))
+      .filter((x) => x.b)
+      .map(({ k, b }) => {
+        const w = WONDERS[k === 'culture' ? 'world_council' : 'global_exchange'].name;
+        const where = me || hasMet(this.state, this.human, p) ? ` in ${esc(b!.city.name)}` : '';
+        return `<div class="vwarn">🏗 Building the ${w}${where}${b!.turns !== undefined ? `: about ${plural(b!.turns, 'turn')}` : ''}</div>`;
+      })
+      .join('');
     if (!me && !hasMet(this.state, this.human, p)) {
       return `<div class="vcard unknown"><div class="vhead"><span class="swatch unknownSwatch"></span><b>Unknown civ</b></div>
-        <div class="sub">You haven’t met them yet.</div></div>`;
+        <div class="sub">You haven’t met them yet.</div>${inProgress}</div>`;
     }
     if (!pl.alive) return `<div class="vcard out">${head}<span class="sub">Eliminated</span></div></div>`;
     const g: VictoryProgress = victoryProgress(this.state, p);
     const capital = capitalOf(this.state, p);
     const S = VICTORY.spaceship;
     let space: string;
-    if (g.space.arrivesTurn !== null) space = `<b class="hot">Launched: arrives on turn ${g.space.arrivesTurn}</b>`;
+    if (g.space.arrivesTurn !== null && this.state.turn >= g.space.arrivesTurn) space = `<b>Arrived on turn ${g.space.arrivesTurn}</b>`;
+    else if (g.space.arrivesTurn !== null) space = `<b class="hot">Launched: arrives on turn ${g.space.arrivesTurn}</b>`;
     else if (g.space.parts > 0) space = `Building: ${g.space.parts}/${S.parts} parts`;
     else if (hasTech(pl, S.requires)) space = 'Space Flight known · not started';
     else space = `Not started · ${g.techs}/${TECH_LIST.length} techs`;
-    const launch = me && !launchError(this.state, p) ? '<button type="button" data-act="launch" class="launchBtn">🚀 Launch spaceship</button>' : '';
+    const launch =
+      me && !launchError(this.state, p)
+        ? `<button type="button" data-act="launch" class="launchBtn">🚀 Launch spaceship${this.state.keepPlaying ? ' (for the record)' : ''}</button>${
+            this.state.keepPlaying && this.state.victory ? `<div class="sub">The game is already won by ${this.state.victory.winner === this.human ? 'you' : esc(civName(this.state, this.state.victory.winner))}; you can still launch for the record.</div>` : ''
+          }`
+        : '';
     const building = (on: boolean, what: string) => (on ? ` · <b class="hot">building the ${what}</b>` : '');
     const row = (label: string, value: string, pct: number) => `<div class="vrow"><span class="vlabel">${label}</span>
       <span class="vval">${value}</span>${bar(pct, 100, 'vbar')}</div>`;
@@ -2139,7 +2504,7 @@ export class App {
       ${row('Culture', `${g.culture}/${victoryGoals(this.state.mapSize, this.state.difficulty).culture} <span class="sub">(+${g.culturePerTurn}/turn)</span>${building(g.buildingWonder.culture, WONDERS.world_council.name)}${me ? ` <span class="sub">· next Great Person in ${cultureToNextGreatPerson(this.state, p)} culture</span>` : ''}`, (g.culture / victoryGoals(this.state.mapSize, this.state.difficulty).culture) * 100)}
       ${row('Economic', `${g.gold}/${victoryGoals(this.state.mapSize, this.state.difficulty).gold} gold${building(g.buildingWonder.economic, WONDERS.global_exchange.name)}`, (g.gold / victoryGoals(this.state.mapSize, this.state.difficulty).gold) * 100)}
       ${row('Technology', space, g.space.arrivesTurn !== null ? 100 : (g.space.parts / S.parts) * 100)}
-      ${launch}</div>`;
+      ${inProgress}${launch}</div>`;
   }
 
   // ---- tech screen ---------------------------------------------------------------------
@@ -2532,10 +2897,26 @@ export class App {
     const n = this.notices[0];
     // Round 13: they wait while the main menu is up.
     $('noticeOverlay').hidden = !n || !$('mainMenu').hidden;
+    // Round 19: toasts held back while a card was up come now.
+    if (!n?.card && this.heldToasts.length) {
+      $('noticeOverlay').classList.remove('card');
+      const held = this.heldToasts.splice(0);
+      for (const t of held) this.pushToast(t.html, t.chars, t.cls);
+    }
     if (!n) return;
-    const portrait = n.portrait !== undefined ? portraitHtml(this.state.players[n.portrait]?.civId ?? '', 64) : '';
-    $('noticeTitle').innerHTML = `${portrait}${n.icon ? `<span class="micon ${n.iconCls ?? ''}">${iconHtml(n.icon, '')}</span>` : ''}${esc(n.title)}`;
-    $('noticeText').innerHTML = `${esc(n.text)}${n.sub ? `<span class="sub">${esc(n.sub)}</span>` : ''}${
+    // Round 19: a card fills the screen, with its picture big above the title.
+    const card = n.card;
+    $('noticeOverlay').classList.toggle('card', !!card);
+    $('noticeOverlay').style.setProperty('--card-tint', card?.tint ?? '#23405a');
+    $('noticeHero').hidden = !card?.hero;
+    $('noticeHero').innerHTML = card?.hero ?? '';
+    $('noticeKicker').hidden = !card?.kicker;
+    $('noticeKicker').textContent = card?.kicker ?? '';
+    const portrait = n.portrait !== undefined && !card ? portraitHtml(this.state.players[n.portrait]?.civId ?? '', 64) : '';
+    const icon = n.icon && !card ? `<span class="micon ${n.iconCls ?? ''}">${iconHtml(n.icon, '')}</span>` : '';
+    $('noticeTitle').innerHTML = `${portrait}${icon}${esc(n.title)}`;
+    const list = card?.list?.length ? `<ul class="cardList">${card.list.map((li) => `<li>${li}</li>`).join('')}</ul>` : '';
+    $('noticeText').innerHTML = `${esc(n.text)}${n.sub ? `<span class="sub">${esc(n.sub)}</span>` : ''}${list}${
       n.input ? `<input id="noticeInput" type="text" maxlength="${n.input.max}" value="${esc(n.input.value)}" aria-label="${esc(n.input.label)}" autocomplete="off" autocapitalize="words" spellcheck="false">` : ''
     }`;
     // A long list of choices (cities, tiles) stacks up and scrolls.
@@ -3444,7 +3825,19 @@ export class App {
     const civ = CIVS.find((c) => c.id === player.civId);
     $('civLabel').innerHTML = `${portraitHtml(player.civId, 28)}${esc(civ?.name ?? '')} · ${esc(civ?.leader ?? '')}${this.uniqueReady() ? ' <span class="dot">●</span>' : ''}`;
     $('turnLabel').textContent = `Turn ${this.state.turn}`;
-    $('eraLabel').textContent = `${eraName(playerEra(player))} era`;
+    // Round 19 (item 1): the era as a chip in the era's color.
+    const era = ERAS.find((e) => e.id === playerEra(player))!;
+    $('eraLabel').textContent = `${era.name} era`;
+    $('eraLabel').style.setProperty('--era-tint', era.tint);
+    // Round 19 (item 3): what's new in the news log; (item 9) a red dot on 🏆 while a rival is
+    // within 10 turns of winning.
+    const unread = this.unreadNews();
+    $('newsCount').hidden = unread === 0;
+    $('newsCount').textContent = unread > 99 ? '99+' : String(unread);
+    $('newsBtn').setAttribute('aria-label', `News: ${unread ? `${unread} new` : 'what happened lately'}`);
+    const danger = this.rivalNearWin();
+    $('victoryBtn').classList.toggle('danger', danger !== undefined);
+    $('victoryBtn').title = danger !== undefined ? `A rival could win in about ${plural(danger, 'turn')}` : 'Victory progress';
     const income = empireIncome(this.state, this.human);
     $('goldLabel').innerHTML = `Gold <b>${player.gold}</b> <span class="sub">(+${income.gold})</span>`;
     const rb = $<HTMLButtonElement>('researchBtn');
@@ -3493,7 +3886,10 @@ export class App {
       // Round 12: a Missionary's faith and spreads left.
       const faith = def.spreadsReligion ? religionById(this.state, sel.religion) : undefined;
       const mission = faith ? ` · ${esc(faith.name)} · ${plural(sel.charges ?? 0, 'spread')} left` : '';
-      $('unitInfo').innerHTML = `${this.badge(sel.type, sel.owner)}${def.name}${army}${vet}${fort} <span class="sub">· attack ${def.attack * mult} · defense ${
+      // Round 19 (item 4): a unit your city just finished says where it came from.
+      const trained = sel.owner === this.human ? this.trainedIn(sel) : undefined;
+      const fresh = trained ? ` <span class="fresh">· just ${isShip(sel) || isAir(sel) ? 'built' : 'trained'} in ${esc(trained.name)}</span>` : '';
+      $('unitInfo').innerHTML = `${this.badge(sel.type, sel.owner)}${def.name}${army}${vet}${fort}${fresh} <span class="sub">· attack ${def.attack * mult} · defense ${
         def.defense * mult
       }${isAir(sel) ? '' : ` · moves ${movesText(sel.movesLeft)}/${def.moves}`}${mission}${naval}${carrierAir}${air}${isAir(sel) ? '' : ` · ${terrain}`}</span>`;
       foundBtn.hidden = !def.canFoundCity;
@@ -3625,19 +4021,45 @@ export class App {
     box.hidden = html === '';
   }
 
-  /** A short message; `icon` (Round 10) puts one of the map icons in front of it. */
+  /**
+   * A short message; `icon` (Round 10) puts one of the map icons in front of it. Round 19 (item
+   * 3): bigger and clearer, it stays longer the more it says, and a tap dismisses it.
+   */
   private toast(text: string, error = false, icon?: string): void {
+    const html = icon ? `<span class="micon">${iconHtml(icon, '')}</span>${esc(text)}` : esc(text);
+    this.pushToast(html, text.length, error ? 'toast error' : 'toast');
+  }
+
+  /** Round 19 (item 2): a list in one toast (the buildings and units finished this turn). */
+  private toastList(title: string, lines: string[]): void {
+    const html = `<div class="toastTitle">${esc(title)}</div><ul>${lines.map((l) => `<li>${l}</li>`).join('')}</ul>`;
+    this.pushToast(html, 40 + lines.length * 60, 'toast list');
+  }
+
+  private pushToast(html: string, chars: number, cls: string): void {
+    // A full-screen card is up: the toast waits until it's dismissed, so it's neither hidden
+    // behind the card nor covering its buttons.
+    if (!$('noticeOverlay').hidden && $('noticeOverlay').classList.contains('card')) {
+      this.heldToasts.push({ html, chars, cls });
+      return;
+    }
     const box = $('toasts');
     const el = document.createElement('div');
-    el.className = error ? 'toast error' : 'toast';
-    if (icon) el.innerHTML = `<span class="micon">${iconHtml(icon, '')}</span>${esc(text)}`;
-    else el.textContent = text;
+    el.className = cls;
+    el.innerHTML = html;
+    el.title = 'Tap to dismiss';
+    el.addEventListener('click', () => el.remove());
     box.appendChild(el);
     while (box.children.length > 4) box.firstElementChild?.remove();
-    const ms = toastMs(this.settings);
+    const ms = toastMs(this.settings, chars);
     setTimeout(() => el.classList.add('fade'), ms);
     setTimeout(() => el.remove(), ms + 500);
   }
+}
+
+/** Round 19: the same build item (both given). */
+function sameRefItem(a: BuildItem | undefined, b: BuildItem | undefined): boolean {
+  return !!a && !!b && a.kind === b.kind && a.id === b.id;
 }
 
 /** One side of the odds panel: base strength, each bonus, and the total. */
@@ -3677,6 +4099,11 @@ interface Notice {
   portrait?: number;
   /** Round 11: a city Bolívar may give back, so its panel is queued once. */
   returnCityId?: number;
+  /**
+   * Round 19 (items 1, 2, 9): a full-screen card instead of the small panel: a big picture (a
+   * portrait or an icon), a small line above the title, a tinted background, and a list.
+   */
+  card?: { hero?: string; kicker?: string; tint?: string; list?: string[] };
 }
 
 const ATTITUDE_LABEL = { friendly: 'Friendly', neutral: 'Neutral', hostile: 'Hostile' } as const;

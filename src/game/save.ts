@@ -249,6 +249,12 @@ const MIGRATIONS: Record<number, (s: Raw) => void> = {
     s.difficulty = 'normal';
     s.mapSize = 'normal';
   },
+  // Round 19 Part A: no wins after the game was decided yet; the log's running count starts at
+  // what it holds.
+  12: (s) => {
+    s.laterWins = [];
+    s.logCount = Array.isArray(s.log) ? (s.log as unknown[]).length : 0;
+  },
 };
 
 /** What each migration brought, for the "your game was updated" notice. Keyed like MIGRATIONS. */
@@ -263,6 +269,7 @@ export const MIGRATION_NOTES: Record<number, string> = {
   9: 'leader bonuses and new buildings',
   10: 'religion, Missionaries, and roads',
   11: 'difficulty levels and map sizes (yours is Normal on a Normal map)',
+  12: 'bigger news: victory warnings, era and wonder cards, and the news log',
 };
 
 /** "the tech tree and combat and armies" for a save upgraded from version `from`. */
@@ -304,6 +311,7 @@ function shapeError(s: Record<string, unknown>): string | undefined {
   if (!s.cities.every((c) => isObject(c) && (c.religion === null || typeof c.religion === 'number'))) return 'missing city religions';
   if (typeof s.difficulty !== 'string' || !Object.hasOwn(DIFFICULTIES, s.difficulty)) return 'missing difficulty';
   if (typeof s.mapSize !== 'string' || !Object.hasOwn(MAP_SIZES, s.mapSize)) return 'missing map size';
+  if (!Array.isArray(s.laterWins) || typeof s.logCount !== 'number') return 'missing later wins';
   return undefined;
 }
 

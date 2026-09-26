@@ -69,6 +69,8 @@ export function makeState(
     log: [],
     victory: null,
     keepPlaying: false,
+    laterWins: [],
+    logCount: 0,
     warned: [],
     villages: [],
     greatPeople: [],

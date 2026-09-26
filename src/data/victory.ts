@@ -15,6 +15,12 @@ export const VICTORY_NAMES: Record<VictoryKind, string> = {
   technology: 'Technology',
 };
 
+/** "a culture victory", "an economic victory" (Round 19: the article follows the word). */
+export function aVictory(kind: VictoryKind): string {
+  const w = VICTORY_NAMES[kind].toLowerCase();
+  return `${/^[aeiou]/.test(w) ? 'an' : 'a'} ${w} victory`;
+}
+
 export const VICTORY = {
   /**
    * Culture: this much culture in total, then build the World Council. Round 12: 6000 → 7000,
@@ -38,6 +44,10 @@ export const VICTORY = {
   },
   /** A warning shows when a rival's culture or gold passes this share of its goal. */
   warnPct: 75,
+  /** Round 19 (item 9): warn when a victory wonder or a spaceship is this many turns away or less… */
+  warnSoonTurns: 5,
+  /** …and again every turn from this many. */
+  warnEveryTurnFrom: 3,
 };
 
 export type ProjectId = 'spaceship' | 'moonshot';

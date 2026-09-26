@@ -115,7 +115,11 @@ export function flashMs(s: Settings): number {
   return s.animationSpeed === 'fast' ? 450 : 900;
 }
 
-/** How long a toast stays before it fades, in ms. */
-export function toastMs(s: Settings): number {
-  return s.animationSpeed === 'fast' ? 1800 : 2600;
+/**
+ * How long a toast stays before it fades, in ms. Round 19 (item 3): longer, and scaled to the
+ * length of the text (about 20 characters a second), up to 12 seconds. A tap dismisses it sooner.
+ */
+export function toastMs(s: Settings, chars = 0): number {
+  const base = s.animationSpeed === 'fast' ? 3000 : 4000;
+  return Math.min(12000, base + chars * 50);
 }

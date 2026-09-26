@@ -32,7 +32,7 @@ import { CivName, civName, civVerb } from '../game/conquest';
 import { civDef, peaceDesire } from '../game/diplomacy';
 import { findOverseasSite } from '../game/aiNaval';
 import { tileIndex } from '../game/grid';
-import { empireCulture, empireIncome, foodSurplus } from '../game/yields';
+import { cityYields, empireCulture, empireIncome, foodSurplus } from '../game/yields';
 import { techCost } from '../game/tech';
 import type { City, GameState } from '../game/types';
 import { addBarbarians, addCity, addUnit, addVillage, makeState } from './build';
@@ -1990,7 +1990,106 @@ const ROUND14_SCENARIOS: Scenario[] = [
   },
 ];
 
+// ---- Round 19 Part A: cards, warnings, the news log --------------------------------------------
+
+/** England's capital in the rival victory-wonder scenario, and how many turns its Global Exchange needs. */
+export const RIVAL_WONDER = { city: 'London', turns: 7 };
+
+/**
+ * England (the rival) has the gold goal and London starts the Global Exchange: End Turn warns
+ * that the goal is reached and it's being built (about 7 turns); a few more End Turns count down.
+ */
+export function rivalVictoryWonderScenario(): GameState {
+  const state = diplomacyBase({ civ: 'england' });
+  const london = state.cities.find((c) => c.owner === RIVAL)!;
+  london.name = RIVAL_WONDER.city;
+  const p = state.players[RIVAL]!;
+  p.techs = ['economics', 'currency', 'bronze_working'];
+  p.gold = VICTORY.goldGoal + 400;
+  london.build = { kind: 'wonder', id: 'global_exchange' };
+  const perTurn = cityYields(state, london).production;
+  // One turn passes before the warning, which then says about RIVAL_WONDER.turns.
+  london.production = Math.max(0, WONDERS.global_exchange.cost - perTurn * (RIVAL_WONDER.turns + 1));
+  // An extra defender, so England doesn't switch to guarding its capital, and it has only seen
+  // the tiles around London, so it isn't looking to expand (as in the wonder race).
+  addUnit(state, 'spearman', RIVAL, london.x, london.y, { fortified: true });
+  const seen = state.players[RIVAL]!.explored;
+  seen.fill(0);
+  for (let y = london.y - 1; y <= london.y + 1; y++) for (let x = london.x - 1; x <= london.x + 1; x++) seen[tileIndex(state.map, x, y)] = 1;
+  return state;
+}
+
+/**
+ * Round 19 (item 10): England won by economy on turn 190 and you kept playing; your spaceship
+ * arrives at the start of next turn.
+ */
+export function keepPlayingSpaceScenario(): GameState {
+  const state = diplomacyBase({ civ: 'england' });
+  state.turn = 207;
+  state.victory = { winner: RIVAL, kind: 'economic', turn: 190 };
+  state.keepPlaying = true;
+  launched(state, 0, state.turn + 1);
+  state.cities.find((c) => c.owner === RIVAL)!.name = 'London';
+  return state;
+}
+
+/** Round 19 (item 1): a rival one tech from the Medieval era, ahead of you. */
+function rivalEraScenario(): GameState {
+  const state = diplomacyBase();
+  const ancient = TECH_LIST.filter((t) => t.era === 'ancient').map((t) => t.id);
+  const p = state.players[RIVAL]!;
+  p.techs = [...ancient];
+  p.researching = 'monarchy';
+  p.science = techCost(state, RIVAL, 'monarchy') - 1;
+  state.players[0]!.techs = ['alphabet'];
+  return state;
+}
+
+/** Round 19 (items 2, 3, 4): three cities each one turn from finishing something. */
+export const BUILT_CITIES = { library: 'Ur', legion: 'Kish' };
+function builtThisTurnScenario(): GameState {
+  const { state, city } = withCapital(undefined, { size: 4, build: { kind: 'wonder', id: 'pyramids' } });
+  const p = state.players[0]!;
+  p.techs = ['masonry', 'writing', 'iron_working', 'bronze_working', 'alphabet'];
+  city.production = WONDERS.pyramids.cost - 1;
+  const ur = addCity(state, 0, 3, 3, { name: BUILT_CITIES.library, size: 3, build: { kind: 'building', id: 'library' } });
+  ur.production = BUILDINGS.library.cost - 1;
+  const kish = addCity(state, 0, 11, 8, { name: BUILT_CITIES.legion, size: 3, build: { kind: 'unit', id: 'legion' } });
+  kish.production = UNITS.legion.cost - 1;
+  p.citiesFounded = 3;
+  addUnit(state, 'warrior', 0, CITY_X, CITY_Y, { fortified: true });
+  addUnit(state, 'warrior', 0, ur.x, ur.y, { fortified: true });
+  addUnit(state, 'warrior', 0, kish.x, kish.y, { fortified: true });
+  return state;
+}
+
 export const SCENARIOS: Scenario[] = [
+  // ---- Round 19 Part A ----
+  {
+    id: 'rival-victory-wonder',
+    title: 'Rival victory wonder (warnings)',
+    note: `England has the gold goal, and ${RIVAL_WONDER.city} starts the Global Exchange. Tap End Turn: full-screen cards with their leader warn that England reached the gold goal and is building the Global Exchange in ${RIVAL_WONDER.city} (about ${RIVAL_WONDER.turns} turns), and say what you can do (capture ${RIVAL_WONDER.city}, or race them). 🏆 gets a red dot, and Victory progress shows the wonder, its city and turns. Keep tapping End Turn: at 5 turns or less another card, then one every turn from 3. Every warning is in 📰 News.`,
+    build: rivalVictoryWonderScenario,
+  },
+  {
+    id: 'keep-playing-spaceship',
+    title: 'Keep playing: spaceship arrives',
+    note: `England won by economy on turn 190 and you kept playing. Your spaceship arrives next turn (🏆 says a win now won't count). Tap End Turn: a card says it reached Alpha Centauri, that England won on turn 190 and this doesn't change the result. 🏆 lists it under "For the record".`,
+    build: keepPlayingSpaceScenario,
+  },
+  {
+    id: 'rival-era',
+    title: 'A rival enters a new era first',
+    note: `${CivName(rivalEraScenario(), RIVAL)} ${civVerb(rivalEraScenario(), RIVAL, 'is', 'are')} one tech from the Medieval era; you're in the Ancient era. Tap End Turn: a panel with their portrait says they have entered the Medieval era, ahead of you.`,
+    build: rivalEraScenario,
+  },
+  {
+    id: 'built-this-turn',
+    title: 'Wonder, building and unit finished',
+    note: `Three cities finish something this turn. Tap End Turn: a full-screen card for the ${WONDERS.pyramids.name} (its icon, ${CAPITAL}, what it does); one list for the rest ("${BUILDINGS.library.name} built in ${BUILT_CITIES.library}: ${BUILDINGS.library.summary}", "Legion trained in ${BUILT_CITIES.legion}"). The new Legion is selected, and its panel says "just trained in ${BUILT_CITIES.legion}". Tap 📰 (its count shows what's new): everything is listed under this turn. Toasts stay longer now, and a tap dismisses one.`,
+    build: builtThisTurnScenario,
+  },
+
   {
     id: 'grow',
     title: 'City grows',
@@ -2048,7 +2147,7 @@ export const SCENARIOS: Scenario[] = [
   {
     id: 'era',
     title: 'New era one turn away',
-    note: `Tap End Turn. You should learn ${TECHS.monarchy.name} and enter the Medieval era; the top bar changes from Ancient to Medieval.`,
+    note: `Tap End Turn. You should learn ${TECHS.monarchy.name} and enter the Medieval era: a full-screen “The Medieval Era Begins” card (tinted, a line of flavor, your era bonus, and the new units, buildings and wonders) waits for a tap, and the era chip in the top bar changes from Ancient to Medieval.`,
     build: () => {
       const { state } = withCapital(undefined, { size: 2 });
       const ancient = TECH_LIST.filter((t) => t.era === 'ancient').map((t) => t.id);
@@ -2119,13 +2218,13 @@ export const SCENARIOS: Scenario[] = [
   {
     id: 'wonder',
     title: 'Wonder finishes',
-    note: `Tap End Turn. ${CAPITAL} should finish the ${WONDERS.pyramids.name} (a message says so). Tap ${CAPITAL}: it's listed under Wonders, production is up 25%, and Culture shows ${WONDERS.pyramids.effects.culture}. The ${WONDERS.pyramids.name} is gone from every build list, and 🏆 lists it under Wonders of the world.`,
+    note: `Tap End Turn. ${CAPITAL} should finish the ${WONDERS.pyramids.name}: a full-screen card with its icon and what it does. Tap ${CAPITAL}: it's listed under Wonders, production is up 25%, and Culture shows ${WONDERS.pyramids.effects.culture}. The ${WONDERS.pyramids.name} is gone from every build list, and 🏆 lists it under Wonders of the world.`,
     build: wonderScenario,
   },
   {
     id: 'wonder-race',
     title: 'Wonder race lost',
-    note: `You and ${rivalName(wonderRaceScenario())} are both building the ${WONDERS.colossus.name}; theirs is one turn from done. Tap End Turn: they finish it first. ${CAPITAL} keeps its 40+ production and its panel opens asking for a new choice; the ${WONDERS.colossus.name} isn't in the list any more.`,
+    note: `You and ${rivalName(wonderRaceScenario())} are both building the ${WONDERS.colossus.name}; theirs is one turn from done. Tap End Turn: they finish it first, and a panel says so and that yours can no longer be built. ${CAPITAL} keeps its 40+ production and its panel opens asking for a new choice; the ${WONDERS.colossus.name} isn't in the list any more.`,
     build: wonderRaceScenario,
   },
   {
@@ -2167,7 +2266,7 @@ export const SCENARIOS: Scenario[] = [
   {
     id: 'near-win-warning',
     title: 'Near-win warning',
-    note: `${CivName(nearWinScenario(), RIVAL)} ${civVerb(nearWinScenario(), RIVAL, 'has', 'have')} ${nearWinScenario().players[RIVAL]!.culture} culture, past ${VICTORY.warnPct}% of the ${VICTORY.cultureGoal} goal. Tap End Turn: a “Close to winning!” panel warns you, with a Victory progress button. It only warns once: End Turn again and it stays quiet.`,
+    note: `${CivName(nearWinScenario(), RIVAL)} ${civVerb(nearWinScenario(), RIVAL, 'has', 'have')} ${nearWinScenario().players[RIVAL]!.culture} culture, past ${VICTORY.warnPct}% of the ${VICTORY.cultureGoal} goal. Tap End Turn: a full-screen “Close to winning” card with their leader warns you, says what you can do, and has a Victory progress button. It only warns once: End Turn again and it stays quiet.`,
     build: nearWinScenario,
   },
   {
