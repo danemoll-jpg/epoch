@@ -852,12 +852,9 @@ what was pushed.
 - **Round 19 (version 0.19.0): done, pushed 2026-09-26 on Dan's say-so, live.** See the
   Round 19 report in TODO.md (balance leftovers listed there). Pushing is Dan's call again.
 
-**Current objective: Round 19** (see TODO.md): one bundled update from Dan's
-playtest, built in Parts A–F plus balance: victory warnings, the era card,
-wonder and build pop-ups, the news log, obsolete units and upgrades, spies,
-more wars, culture borders and referendums, full-screen leader scenes.
-Commit and restart the play server after each part, with a progress note in
-TODO.md. **Don't push until Dan says, once everything is in.**
+**Current objective: Round 20** (see TODO.md): the balance follow-up to Round 19
+(Legendary, Huge, Novice, strong and weak leaders, domination on big maps),
+measured with the sim matrix at 40+ games per row. **Don't push.**
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.

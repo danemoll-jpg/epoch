@@ -1698,250 +1698,7 @@ Dan pasted his picks into the coding session: Alphabet: B; Bronze Working: A; Ce
 
 **Dan then:** play a real game on the live site (or the play server) and check: the map follows the next unit; a fortified unit or Galley can be found (☰ → Units) and woken; tapping another of your units from a distance selects it; forming an army from a distance works with "Move … here". The three scenarios are on the dev server only (☰ → Dev scenarios).
 
-
-## Current Objective (Focus Area)
-
-### Round 19 — The big update from Dan's playtest (items 1–11 below, plus balance)
-
-**Dan (2026-09-26): one bundled update.** Build it **in stages (Parts A–F below)**, but **push only
-when Dan says, once everything is in.** Commit after each part and restart the play server, so Dan can
-try each part on the LAN (http://10.0.0.224:4173/) while the next is built. Never touch the hub.
-
-**How to report:** after **each part**, add a short progress note for that part at the end of this
-section (items done, how verified, anything Dan must decide or provide) and commit it with the code.
-At the end, the full report: **every item 0, 1–11, and B (balance) individually.**
-
-0. **Commit the updated docs first:** `CLAUDE.md` and `TODO.md` as their own commit, then re-read
-   them.
-
-**Things Dan provides or approves along the way (don't block on them; build with a stand-in, then
-swap in):**
-- **Spy icon (item 11):** make `docs/spy-icon-candidates.html` (3 game-icons.net choices, at real
-  sizes, like the other pickers) **first thing in Part C**, and tell Dan in the progress note. Use
-  candidate A until he picks.
-- **Leader scenes (item 6):** Dan puts his original portraits in `docs/portraits-full-incoming/`. Until
-  they're there, build the scene with the existing portraits as stand-ins. Then make
-  `docs/leader-scenes.html` for Dan to approve the crops.
-
-**The parts, in order:**
-- **Part A — Messages and warnings** (items **9** first, then **1, 2, 3, 4, 10**): one shared
-  full-screen **card** (waits for a tap; icon or portrait, title, text, and buttons), used by the
-  victory warnings, the era change, wonders, and war; the longer-lasting toasts; the **news log**
-  (☰ → News and 📰 in the top bar); the city name on new units; keep-playing arrivals.
-- **Part B — Obsolete units and upgrades** (item **8**).
-- **Part C — Spies** (item **11**; the icon picker first).
-- **Part D — Wars** (item **5**): measure first, then tune; AI-vs-AI wars announced.
-- **Part E — Culture borders and referendums** (item **7**), including the save migration.
-- **Part F — Leader scenes** (item **6**), using the card from Part A.
-- **B — Balance, last**, since D, E, and C change it: the full `npm run sim -- matrix` (more games per
-  row than 20; say how many), **before vs after the whole update**, reporting the victory mix, wins
-  per leader, **wars, flips, and spy actions per game**, and the era turns. Targets: no game won
-  before turn 150; no victory kind over 40% on any size; every leader under 2× its fair share;
-  **2–4 wars per Normal game, including AI vs AI, one by the Medieval era**; flips and spy actions
-  happen but don't decide games. Also the Round 15 leftovers: North Korea, Russia, and the Franks
-  weak; no domination on Huge/Epic; Huge leans economic; Legendary leans technology.
-
-**Throughout:** every new rule in data (`rules.ts` and friends); How to Play, the Almanac, and the
-first-game tips updated; a scenario for each item (named in the items), each with a note; tests;
-`pace.test.ts` passing; lint and build clean; preview-verified on desktop and in iPad emulation
-(portrait and landscape); a `STATE_VERSION` bump with migrations wherever state changes (old saves,
-including cloud saves, keep working); the AI uses every new feature (upgrades, spies, borders).
-
-**Done means:** every item (0, 1–11, B) reported individually; tests pass; committed; the play
-server restarted; **the commits listed as waiting for Dan's "push"**.
-
-**Dan then:** plays a full game on the play server (or the dev scenarios), approves the spy icon and
-the leader-scene crops if not already done, and says "push".
-
-**Still open for Dan (no agent work needed):**
-- check Round 18 in real games; the iPad **Home Screen icon** sign-in, and the **keep-which
-  question**;
-- **Q31:** time `huge-map` and `epic-map` on the iPad (Epic's "best on a computer" label);
-- optional: the title picture (`docs/TITLE-ART.md`).
-
-**The items** (from Dan's playtest, 2026-09-25/26, with his decisions):
-
-1. **Reaching a new era needs a much more obvious moment** (Dan, 2026-09-26: "there needs to be
-   more obvious transition to the new eras"). Today it's the `era-reached` sound, the music
-   switching to the era's track, and the era bonus toast (Round 11), which are easy to miss.
-   **Scope (Dan, 2026-09-26: all of it, in the next batch, no rush):** a full-screen **"The
-   Medieval Era Begins"** card that waits for a tap: the era's name big, a background tinted for
-   the era, a short line of flavor text (our own), **the era bonus you just got**, and **what's
-   new** (the units, buildings and wonders now within reach); the `era-reached` sound, then the
-   new era's music fading in; **the current era in the top bar**; and a smaller notice when a
-   **rival** enters an era before you ("The Romans have entered the Industrial Era").
-
-2. **A pop-up when something is built, especially a wonder** (Dan, 2026-09-26): "there needs to
-   be a pop-up message that says it is complete and its bonuses". A **wonder** gets a card that
-   waits for a tap: the wonder's icon big, its name, the city, and **what it does** (its effect
-   in plain words), with a fanfare. A **building** gets a lighter but still clear notice with its
-   effect ("Library built in Ur: +50% science here"). When several finish in one turn, group them
-   (one card per wonder; one list for buildings and units) rather than a stack of pop-ups. Also
-   announce **a rival finishing a wonder** (and that yours can no longer be built, if you were
-   building it).
-
-3. **The quick message at the top is easy to miss** (Dan, 2026-09-26: "when something is
-   complete, in general, the little message at top that quickly disappears is very easy to
-   miss"). Make toasts **stay longer and read better** (bigger, higher contrast, a tap to dismiss;
-   the time scaled to the length of the text), and add a **turn summary / news log** you can open
-   any time (e.g. ☰ → News, or tapping a small 📰 in the top bar with a count of unread items)
-   listing everything that happened this turn and the last few turns: builds, growth, techs,
-   wars and peace, wonders (yours and rivals'), eras, Great People. Important events (war on you,
-   a wonder, an era, a city lost) use the card from items 1–2, not a toast.
-
-4. **The new-unit prompt doesn't say which city** (Dan, 2026-09-26: when a new unit appears and
-   the game asks what to do with it, it doesn't say which city). Name the city in that prompt and
-   in the unit panel ("Legion, just trained in Ur"), and center the map on it if it's out of
-   view (Round 18's rule).
-
-5. **No wars anywhere in Dan's game, all the way into the Modern era** (Dan, 2026-09-26): "I
-   would think that wars would be more common. And I would want AI fighting wars amongst
-   themselves sometimes." The code already lets AIs declare war on each other (`diplomacy.ts`:
-   a met civ at peace, strength ratio ≥ 1.3, a city within 12 tiles, one war at a time), and the
-   Round 15 sims had domination wins, so either wars are rare in real games or **Dan isn't told
-   about wars between others**. First **find out which** (a sim that counts wars declared per
-   game, AI vs AI and AI vs player, by era; and check whether the player hears of AI-vs-AI wars
-   and peace). Then: announce every war and peace between civs you've met (news log, plus a
-   card for wars on you); make wars **more common**, targeting e.g. **at least 2–4 wars per
-   game on Normal, including AI vs AI, and at least one by the Medieval era**, through the AI
-   tuning in `rules.ts` (lower `warMinStrengthRatio`, larger `warMaxDistance` on big maps,
-   opportunistic wars on a civ already at war, rivalry over land or a shared border, and
-   aggressive leaders more willing), while keeping the Round 15 balance targets (no game won
-   before turn 150, the victory mix). Report wars per game before and after in the sim matrix.
-
-6. **Full-screen leader scenes** (Dan, 2026-09-26: "when you interacted with other civs … see their
-   leader in full screen"). **Dan has the original, uncropped portraits** and will put them in
-   **`docs/portraits-full-incoming/`**, named by civ id like the others (`egypt.png`, `rome.png`,
-   `franks.png`, `mali.png`, `england.png`, `france.png`, `russia.png`, `gran_colombia.png`,
-   `usa.png`, `ukraine.png`, `germany.png`, `north_korea.png`). **Check they're all there before
-   starting this item; if any are missing, do the rest and list the missing ones.**
-   - **The scene:** the leader's picture fills the screen (a dark gradient over the lower part), with
-     their name, civ, and attitude (friendly / neutral / hostile), and **what they're saying** in a
-     speech box, with the choices as big buttons below;
-   - **used for:** first contact, opening a civ from 🤝 Diplomacy, their demands and offers, a
-     declaration of war (on you, or by you), and peace. The existing small portraits stay
-     everywhere else;
-   - **fits every screen:** iPad portrait and landscape, and the PC. Crop with a per-leader focus
-     point (like `portraitFocus`) so the face is never cut off; the text never covers the face;
-   - **size:** WebP, about 1200 px on the long side (report the total; the offline download
-     grows by it). Keep Dan's originals as masters in `docs/portraits-full-master/`, not shipped;
-   - **a check page** `docs/leader-scenes.html` showing all 12 scenes at iPad portrait, landscape,
-     and PC sizes, so **Dan approves the crops before they're final** (Dan approves art first).
-
-7. **Culture borders and cities joining you by referendum** (Dan, 2026-09-26). The game has **no
-   borders or territory** today (a city works the 8 tiles around it; nothing is drawn). Proposed
-   (defaults in bold; Dan may change them):
-   - **Borders:** each city has an influence area that **grows with its culture** (e.g. radius 1 at
-     founding, 2 and 3 at culture thresholds, all data in `rules.ts`), drawn on the map as a
-     **colored border in the civ's color** (a soft tinted edge, readable at every zoom, with the
-     minimap showing it too). Where two areas overlap, a tile belongs to the city with more
-     influence there (culture weighted by distance);
-   - **Influence pressure:** each turn, a city whose tiles are mostly under a foreign city's
-     influence, and whose own culture is far below that neighbor's, builds up **unrest**. First a
-     warning ("Unrest in Kyiv: its people are drawn to Egyptian culture"), then, if it keeps up,
-     a **referendum**: the city **joins the other civ** (keeps its buildings; units inside move out
-     to the nearest own city);
-   - **Limits:** **capitals never flip**; **not within 20 turns of founding or capture**; a city
-     with more defenders or a courthouse-type building resists (use an existing culture building
-     if there's no fit); the chance is small and visible (the city panel shows its unrest and who
-     pulls it);
-   - **Both ways:** **your own cities can join a rival too**, with the same warnings, so you can
-     react (build culture, garrison). **DECIDED by Dan (2026-09-26): yes.**
-   - **Settling:** **you can't found a city inside another civ's borders** (AI too). **DECIDED by
-     Dan (2026-09-26): yes.**
-   - **The AI** values culture near rivals, reacts to unrest in its cities, and may complain (or go
-     to war) when you take a city this way;
-   - **Balance:** check in the sim matrix that flips happen sometimes (report flips per game) but
-     don't decide games; culture victory numbers may need retuning;
-   - a **save migration** (borders and unrest are new state), a scenario (`culture-flip`: a small
-     rival city deep in your influence, one turn from the vote), and tests.
-
-8. **Obsolete units and upgrades** (Dan, 2026-09-26: "why would I build a Spearman in the current
-   era? … shouldn't you be able to upgrade older units"). Today no unit ever leaves the build list
-   and there are no upgrades. Proposed (the planning session's draft; the agent checks it against
-   the unit stats and reports changes):
-   - **Obsolete:** each unit gets an `upgradesTo` in `units.ts`. Once you can build that unit, the
-     old one **leaves your build list** (units you have stay). Draft lines:
-     - Warrior → Spearman → Pikeman → Musketman → Rifleman; Archer → Musketman; Legion → Musketman;
-     - Horseman → Chariot → Knight → Tank; Catapult → Cannon → Artillery;
-     - Galley → Caravel → Frigate → Ironclad → Destroyer (Transport stays the cargo ship of the
-       modern era); Fighter → Jet Fighter; Bomber → Stealth Bomber;
-     - a unit whose replacement needs a **resource** you don't have stays buildable until you do;
-   - **Upgrade:** select a unit **in one of your cities** (inside your borders once Round 21 adds
-     them) and tap **Upgrade to Musketman (N gold)**. Cost from the cost difference (data, e.g.
-     2 gold per production point, a minimum, and Legendary dearer); it uses the unit's turn and
-     **keeps veteran status**; an **army** upgrades as a whole (its units' cost combined). **"Upgrade
-     all"** in ☰ → Units lists every unit that can upgrade with the total cost. The city panel's
-     unit list shows the upgrade button too;
-   - **The AI** upgrades too, when it has the gold (after its reserve), defenders first;
-   - the Almanac shows each unit's "Upgrades to" / "Replaces"; How to Play gets a line;
-   - a save migration only if state changes; a scenario (`upgrade-units`: gold, a city with a
-     Spearman, a veteran Archer, and an army, just after Gunpowder), and tests.
-
-9. **Dan lost to an economic win with no clear warning** (2026-09-26: England built the Global
-   Exchange; "I was either never notified they were building it or there was no obvious message
-   so I didn't know they were close"). **Top priority of the batch.** Today (`victory.ts`
-   `issueWarnings`) the human gets **one** warning per rival when its gold (or culture) passes
-   **75%** of the goal, **only for civs he has met**, as a log panel; nothing when the rival
-   **reaches** the goal, **starts building** the victory wonder, or is a few turns from finishing
-   it. **Fix:**
-   - **full-screen warnings that wait for a tap** (the card from items 1–2, with the rival leader's
-     portrait, and the full-screen leader scene once item 6 lands) at each step: **75%** of a goal;
-     **goal reached** ("England can now build the Global Exchange"); **started building it**
-     ("England is building the Global Exchange in London: about 12 turns"); and **5 turns or less**
-     left, repeated each turn from 3; the same for the World Council, a launched spaceship (already
-     warned, make it a card and repeat the countdown), and domination (one capital left);
-   - each card says **what you can do**: capture that city (or their capital for the spaceship),
-     declare war, or race them ("you're at 62% of the gold goal");
-   - **civs you haven't met** still trigger the goal-reached and started-building warnings
-     ("An unknown civilization is building the Global Exchange"), so no win comes from nowhere;
-   - the **🏆 Victory progress** screen shows, for each rival, any victory wonder in progress with
-     its city and estimated turns, and the top bar's 🏆 gets a red dot while a rival is within 10
-     turns of winning;
-   - the news log (item 3) keeps every warning;
-   - tests (each step fires once, the countdown repeats, unmet civs, an AI switching cities), and a
-     scenario (`rival-victory-wonder`: England at the gold goal, starting the Global Exchange; End
-     Turn shows the card, and a few more show the countdown).
-
-10. **After "Keep playing", a launched spaceship never arrives and nothing says so** (Dan,
-    2026-09-26: after losing to England's Global Exchange he kept playing, launched a spaceship; the
-    screen said "arrives on turn 208"; at turn 210 nothing had happened). Cause: `checkVictory` and
-    `issueWarnings` return early when `state.victory || state.keepPlaying` (`victory.ts`), so
-    arrivals and later wins are skipped silently, while the UI still shows the countdown. **Fix:**
-    - in keep-playing mode, **the ship still arrives**: a card "Your spaceship reached Alpha
-      Centauri!" that says plainly the game was already decided ("England won on turn N; this
-      doesn't change the result"), recorded in the end-of-game summary as a later achievement; the
-      same for other victories reached after the game was decided (culture, economic, domination);
-    - the 🏆 screen and the launch button say up front, in keep-playing mode, that a win now won't
-      count ("The game is already won by England; you can still launch for the record");
-    - a rival's later arrivals and wins are news too (no second game-over screen);
-    - tests (arrival in keep-playing mode, each victory kind, the texts), and a scenario
-      (`keep-playing-spaceship`: after a loss, a ship one turn from arriving).
-
-11. **Spies** (Dan, 2026-09-26; in this bundle; all four actions chosen by Dan). A **Spy** unit,
-    unlocked mid-game (e.g. by a Medieval tech; the agent picks and reports), cheap-ish, with a
-    game-icons.net icon (**Dan picks from 3 candidates** first, as usual):
-    - **invisible** to rivals except next to a city with a spy defense (see below); it can enter
-      rival territory and cities of civs you're at peace with; **used up when it acts** (win or lose);
-    - actions, from inside or next to a rival city:
-      - **Investigate:** always succeeds; shows the city's buildings, what it's building and how long
-        (e.g. a victory wonder), its defenders, and yields, for a few turns;
-      - **Steal a technology:** a chance to take a tech they know and you don't (you pick, or random if
-        they know several);
-      - **Sabotage production:** a chance to wipe out the city's production so far (e.g. to delay a
-        Global Exchange or a spaceship part);
-      - **Incite a revolt:** pay gold (scaled by the city's size, culture, distance to its capital) for a
-        chance to make the city **join you**; **never a capital**; ties in with item 7's referendum
-        (a city already in unrest is cheaper);
-    - the success chance (shown before you confirm) drops with the city's defenders and a **spy
-      defense** (an existing building like a Courthouse/Police-type if one fits, otherwise a new small
-      one) and rises for veteran spies; **getting caught** is announced to the victim, hurts their
-      opinion of you, and can be a reason for war (the AI reacts);
-    - **the AI uses spies too** (steal from the tech leader, sabotage a rival's victory wonder, incite
-      small unhappy cities), and **you get told** when a spy acts against you (success or caught);
-    - all numbers in data; How to Play and the Almanac; a scenario (`spies`: a Spy next to a rival city
-      building the Global Exchange, with gold); tests for each action and the chances; the sim
-      matrix reports spy actions per game and checks the victory mix still holds.
+* **Round 19 — The big playtest update: victory warnings, era and wonder cards, the news log, obsolete units and upgrades, spies (plus Modern Infantry and the Drone), more wars, culture borders and referendums, full-screen leader scenes, and a balance pass — done, pushed and live as 0.19.0 (2026-09-26).** Dan picked the Spy icon (A) and approved the leader-scene crops. Balance only partly on target: the leftovers are Round 20. The agent's progress notes and report follow, moved from Current Objective.
 
 #### Round 19 progress notes (coding agent)
 
@@ -2141,6 +1898,59 @@ the leader-scene crops if not already done, and says "push".
 **Pushed on Dan's say-so, 2026-09-26:** `main` up to `0ff3a82` plus this report. Every push deploys to https://epoch-fsts.netlify.app/. The hub was not touched.
 **Dan then:** play a full game; the balance leftovers above (Huge economic, Legendary technology, Novice culture, some leaders too strong) are for the planning session.
 
+
+## Current Objective (Focus Area)
+
+### Round 20 — Balance follow-up to Round 19
+
+**Order and pushing (Dan, 2026-09-26): do item 8 (the Metz bug) FIRST.** When it's fixed and tested, commit
+it and **push it** (Dan says so, for item 8 only), and restart the play server, so he can use it in his current
+game. **Then** do the balance items 1–7: commit them, but **don't push**; Dan decides when they go out.
+Dan takes the planning session's word on balance: report the numbers, but keep the summary short and plain.
+
+0. **Commit the updated docs first:** `CLAUDE.md` and `TODO.md` as their own commit, then re-read them.
+
+**Items. Report each individually, with numbers before → after** (the full `npm run sim -- matrix`,
+**40+ games per row**, same seeds before and after; say how many):
+
+1. **Legendary (technology 58%):** apply the change you proposed (Legendary's culture and gold goals
+   back to 100%; the AI's science bonus +20% → +10%). **Dan said yes (2026-09-26)**, provided it tests
+   well at 40+ games. Keep the first Legendary win at turn 150 or later and the stand-in rarely winning.
+2. **Huge (economic 52%):** finish the gold-goal test you started and apply the best version.
+3. **Novice (culture 48%):** bring culture to 40% or under.
+4. **Leaders over 2× their fair share:** Ukraine (Normal and Legendary), the USA (Epic), Germany (Huge).
+   Trim their bonuses (as data), without making them weak.
+5. **Leaders under their share:** North Korea, Russia, and the Franks. Round 15 found the conquerors
+   struggle to finish wars; look at why (the AI's war follow-through, armies, siege) as well as
+   their bonuses.
+6. **No domination on Huge or Epic:** some chance of it, e.g. through item 5's war follow-through and
+   transports, without shortening games (none won before turn 150).
+7. **Wars** came in slightly above the 2–4 target (about 4.7 a human would see per Normal game): fine
+   as is unless Dan says otherwise; just keep it from rising.
+
+8. **Bug from Dan's game (2026-09-26, turn 218): a city held only by ships can't be taken.** Metz's only
+   unit was a ship in port. Ships in port don't defend (`defendsTile`), so tanks and bombers get "Nothing
+   to attack there"; but `tap.ts` sees an enemy unit on the tile and treats the tap as an attack, so a
+   land unit can't move in and capture it either. Only his destroyers could do anything. **Fix:** a land
+   unit moving into an enemy city (at war) with **no land defenders** captures it, and any ships in port
+   are **sunk (with their cargo) or moved to the nearest free sea tile**: pick one and say which. The tap
+   and the panel say **"Capture Metz"** there, not "Nothing to attack". **Bombers can strike ships in
+   port.** Check the AI handles the same case (it should capture such cities too). A scenario
+   (`city-only-ships`) and tests.
+
+**Targets (unchanged):** no game won before turn 150; no victory kind over 40% on any row; every leader
+under 2× its fair share; flips and spy actions happen but don't decide games. If a target can't be met
+without hurting another, say which and why rather than forcing it.
+
+**Done means:** every item reported (1–7 with numbers, 8 with its fix); tests pass (`pace.test.ts` and `balance.test.ts`
+included); committed; **not pushed**; the play server restarted.
+
+**Still open for Dan (no agent work needed):**
+- play a full game on the live site with Round 19;
+- the iPad **Home Screen icon** sign-in, and the **keep-which question**;
+- **Q31:** time `huge-map` and `epic-map` on the iPad (Epic's "best on a computer" label);
+- optional: the title picture (`docs/TITLE-ART.md`).
+
 ## Next Steps (Do Not Start Yet)
 
 All of these are deferred for **sequencing only**. Each depends on the
@@ -2174,7 +1984,7 @@ milestone before it. None has been decided against.
   from the Battleship). Only the aircraft icons remain (round 10).
 - **Rounds 16 and 16b — Cloud saves: done and pushed** (see Completed Tasks).
 - **Tech icons, step 2 — DONE** (Round 17 follow-up, 0.17.1, see Current Objective); pushed with Round 17 and live (2026-09-25).
-- **The later balance round — now part B of Round 19:** from Round 15's leftovers: North Korea (1 win in 54), Russia, and the Franks under their share (conquerors struggle to finish); no domination on Huge or Epic; Huge 45% economic; Legendary 55% technology; Small games can run long (to t266). Use `npm run sim -- matrix` with more games per row (20 is noisy).
+- **The later balance round — part B of Round 19, then Round 20:** from Round 15's leftovers: North Korea (1 win in 54), Russia, and the Franks under their share (conquerors struggle to finish); no domination on Huge or Epic; Huge 45% economic; Legendary 55% technology; Small games can run long (to t266). Use `npm run sim -- matrix` with more games per row (20 is noisy).
 - **Before any public release (only if Dan decides to go beyond family and
   friends, or to sell it):** review the leader list, the name, and all art
   and text against the IP rules.
