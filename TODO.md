@@ -2093,6 +2093,30 @@ the leader-scene crops if not already done, and says "push".
 - Flips per game and the victory mix are in the balance pass (B).
 - (Part D's rival-war panel reaches the play server with this restart.)
 
+**Part F — Full-screen leader scenes (item 6): done, 2026-09-26.**
+- **All 12 of Dan's originals were there** (1254×1254 PNGs). They're now the masters in
+  `docs/portraits-full-master/` (not shipped; `docs/portraits-full-incoming/` is emptied). The game
+  uses 1200 px WebP copies, `src/assets/portraits-full/scene-<civ>.webp`
+  (`python scripts/make-scene-webp.py`): **1,702 KB for all 12** (from 25 MB of PNGs). They are
+  **not** in the up-front offline download: like the music, each is kept the first time its scene
+  shows (`isSceneFile` in `src/pwa/files.ts`); a scene whose picture can't load (offline, never
+  seen) shows the small portrait instead.
+- **The scene:** the leader's picture fills the top 60% of a tall screen (the words below) or the
+  left 58% of a wide one (the words on the right), cropped around each leader's `sceneFocus`
+  (`civs.ts`) with a dark fade toward the words; their name, civ and attitude, **what they say** in
+  a speech box (our own lines, `src/data/leaderLines.ts`, by moment and attitude), and the choices
+  as big buttons. Tests check the face stays inside the picture and clear of the words at five
+  screen shapes (iPad both ways, 768×1024, 1366×768, 1920×1080).
+- **Used for:** first contact, picking a civ in 🤝 Diplomacy (Talk / Goodbye), their demands and
+  peace offers, war declared on you, war you declare, peace you make, and (item 9) a met rival's
+  victory warnings. Small portraits stay everywhere else.
+- **Check page: `docs/leader-scenes.html`** (http://10.0.0.224:4173/docs/leader-scenes.html): all 12
+  at iPad portrait, landscape and PC, with a switch to show each face point. **Dan: please approve
+  the crops (or say e.g. "Mali: higher").**
+- **Scenario** `leader-scenes` (Hatshepsut's demand at once; then Diplomacy → Egypt, war, peace).
+- **Verified:** tests (1055 pass), build clean; preview-verified in iPad portrait and landscape
+  (the demand scene).
+
 ## Next Steps (Do Not Start Yet)
 
 All of these are deferred for **sequencing only**. Each depends on the

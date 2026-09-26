@@ -9,7 +9,8 @@ import { copyFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const OUT = process.argv[2] ?? 'dist-play';
-const pages = readdirSync('docs').filter((f) => f.endsWith('-candidates.html') || f === 'portraits.html' || f === 'sounds.html');
+// Round 19: also the leader scenes' check page (self-contained).
+const pages = readdirSync('docs').filter((f) => f.endsWith('-candidates.html') || f === 'portraits.html' || f === 'sounds.html' || f === 'leader-scenes.html');
 mkdirSync(join(OUT, 'docs', 'portraits'), { recursive: true });
 for (const page of pages) copyFileSync(join('docs', page), join(OUT, 'docs', page));
 const portraits = readdirSync('src/assets/portraits').filter((f) => /\.(png|webp)$/.test(f));

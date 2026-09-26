@@ -53,3 +53,43 @@ export function portraitHtml(civId: string, size: number, extraClass = ''): stri
   const font = Math.max(10, Math.round(size / (initials.length > 2 ? 3.2 : 2.4)));
   return `<span class="portrait placeholder ${extraClass}" role="img" aria-label="${title}" style="${style};background:${color};font-size:${font}px">${initials}</span>`;
 }
+
+// ---- Round 19 (item 6): the full-screen leader scenes ----------------------------------------
+
+const sceneFiles = import.meta.glob('../assets/portraits-full/scene-*.webp', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
+const SCENE_URLS: Record<string, string> = {};
+for (const [path, url] of Object.entries(sceneFiles)) SCENE_URLS[path.split('/').pop()!.replace(/^scene-/, '').replace(/\.webp$/, '')] = url;
+
+/** The leader's full picture (Dan's uncropped original), if there is one. */
+export function sceneUrl(civId: string): string | undefined {
+  return SCENE_URLS[civId];
+}
+
+export interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * The scene's layout for a screen `w`×`h` (style.css draws the same boxes): wide screens put the
+ * picture on the left and the words on the right; tall ones the picture on top and the words
+ * below. The words never cover the picture's upper part, where the face is.
+ */
+export function sceneLayout(w: number, h: number): { wide: boolean; picture: Box; text: Box } {
+  const wide = w > h;
+  return wide
+    ? { wide, picture: { x: 0, y: 0, w: w * 0.58, h }, text: { x: w * 0.56, y: 0, w: w * 0.44, h } }
+    : { wide, picture: { x: 0, y: 0, w, h: h * 0.6 }, text: { x: 0, y: h * 0.52, w, h: h * 0.48 } };
+}
+
+/**
+ * Where the face lands on screen: a square picture fills the picture box (object-fit: cover)
+ * with object-position at the leader's focus point, as the CSS does.
+ */
+export function faceOnScreen(focus: { x: number; y: number }, w: number, h: number): { x: number; y: number } {
+  const { picture: b } = sceneLayout(w, h);
+  const side = Math.max(b.w, b.h);
+  return { x: b.x + (b.w - side) * focus.x + side * focus.x, y: b.y + (b.h - side) * focus.y + side * focus.y };
+}

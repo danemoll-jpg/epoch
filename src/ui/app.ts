@@ -109,7 +109,7 @@ import { confirmMove, resolveTap, type PendingMove } from './tap';
 import { cityPlace, cycleCity, otherIdleCities } from './cityCycle';
 import { armyCandidates, isMixedStack, stackLabel, unitsOnTile } from '../game/stack';
 
-import { portraitHtml } from './portraits';
+import { portraitHtml, sceneUrl } from './portraits';
 import { esc, learnedTech, plural, techIconHtml, unitSummary } from './text';
 import { DEFAULT_SETTINGS, flashMs, loadSettings, loadTipsSeen, saveSettings, saveTipsSeen, toastMs, type Settings } from './settings';
 import { GAME } from '../data/game';
@@ -124,6 +124,7 @@ import { MAP_SIZES } from '../data/mapSizes';
 import { SOUND_EVENTS } from '../data/sounds';
 import { SetupScreen, bonusListHtml, type SetupChoice } from './setup';
 import { UNIQUE_RULES } from '../data/leaders';
+import { LEADER_LINES, type SceneMoment } from '../data/leaderLines';
 import { eraBonus, hasUnique } from '../game/leaders';
 import { challengeError, dissolutionError, dissolutionGold, pilgrimageError, returnCityError } from '../game/uniques';
 import { FOUNDING_TECHS, RELIGION } from '../data/religion';
@@ -828,13 +829,38 @@ export class App {
     const civ = e.player;
     const ratio = strengthRatio(this.state, civ, this.human);
     this.queueNotice({
-      title: `${CivName(this.state, civ)} declared war on you!`,
-      text: entryText(e, this.human),
+      title: civDef(this.state, civ).leader,
+      scene: { civ, speech: this.leaderLine(civ, 'warOnYou') },
+      text: `War! ${entryText(e, this.human)}`,
       sub: `Their military is ${strengthWords(ratio)}. Guard your border cities; you can offer peace from Diplomacy.`,
-      card: { kicker: 'War', tint: '#6b1f1f', hero: portraitHtml(this.state.players[civ]!.civId, 160) },
       buttons: [
         { label: 'Diplomacy', run: () => this.openDiplo(civ) },
         { label: 'To arms', cls: 'bigBtn primary' },
+      ],
+    });
+  }
+
+  /** Round 19 (item 6): "Egypt · Friendly" above a leader's name in a scene. */
+  private sceneKicker(civ: number): string {
+    const att = attitude(this.state, civ, this.human);
+    return `${civDef(this.state, civ).name} · ${ATTITUDE_LABEL[att]}${atWar(this.state, this.human, civ) ? ' · at war' : ''}`;
+  }
+
+  /** Round 19 (item 6): their line for this moment, by how they feel about you. */
+  private leaderLine(civ: number, moment: SceneMoment): string {
+    return LEADER_LINES[moment][attitude(this.state, civ, this.human)];
+  }
+
+  /** Round 19 (item 6): a leader scene when you pick a civ in Diplomacy. */
+  private greetScene(civ: number): void {
+    const def = civDef(this.state, civ);
+    this.showNow({
+      title: def.leader,
+      text: '',
+      scene: { civ, speech: this.leaderLine(civ, 'greet') },
+      buttons: [
+        { label: 'Goodbye', cls: 'bigBtn', run: () => this.closeDiplo() },
+        { label: 'Talk', cls: 'bigBtn primary' },
       ],
     });
   }
@@ -874,6 +900,8 @@ export class App {
       title: titles[step ?? 'near'] ?? 'Close to winning',
       text: entryText(e, this.human),
       sub: warningAdvice(this.state, this.human, civ, kind, e.ref?.cityId),
+      // Round 19 (item 6): a civ you've met warns in its leader's scene.
+      ...(met ? { scene: { civ, speech: this.leaderLine(civ, 'nearWin') } } : {}),
       card: {
         kicker: `${VICTORY_NAMES[kind]} victory · warning`,
         tint: '#5a1a1a',
@@ -2933,9 +2961,9 @@ export class App {
   private queueContact(civ: number): void {
     const def = civDef(this.state, civ);
     this.queueNotice({
-      title: 'First contact',
-      portrait: civ,
-      text: `You have met ${civName(this.state, civ)}, led by ${def.leader}.`,
+      title: def.leader,
+      scene: { civ, speech: this.leaderLine(civ, 'meet') },
+      text: `First contact: you have met ${civName(this.state, civ)}, led by ${def.leader}.`,
       sub: 'You are at peace. Open Diplomacy to see them, trade techs, or declare war.',
       buttons: [
         { label: 'Diplomacy', run: () => this.openDiplo(civ) },
@@ -2949,9 +2977,9 @@ export class App {
     const acceptErr = offerAcceptError(this.state, o);
     const peace = o.kind === 'peace';
     this.queueNotice({
-      title: peace ? 'Peace offer' : 'Tribute demanded',
-      portrait: o.from,
-      text: offerText(this.state, o),
+      title: civDef(this.state, o.from).leader,
+      scene: { civ: o.from, speech: this.leaderLine(o.from, peace ? 'peaceOffer' : 'demand') },
+      text: `${peace ? 'Peace offer' : 'Tribute demanded'}: ${offerText(this.state, o)}`,
       sub: peace
         ? 'Accept to end the war now; your treaty then holds for a while.'
         : `Give it, or refuse${acceptErr ? ` (${acceptErr})` : ''}. Refusing makes ${civDef(this.state, o.from).leader} angrier, and war more likely.`,
@@ -3175,8 +3203,25 @@ export class App {
       for (const t of held) this.pushToast(t.html, t.chars, t.cls);
     }
     if (!n) return;
+    // Round 19 (item 6): a leader scene (the leader's picture fills the screen).
+    const scene = n.scene;
+    const sceneUrlFor = scene ? sceneUrl(this.state.players[scene.civ]?.civId ?? '') : undefined;
+    $('noticeOverlay').classList.toggle('scene', !!scene);
+    $('sceneBack').hidden = !scene;
+    if (scene) {
+      const civ = civDef(this.state, scene.civ);
+      const img = $<HTMLImageElement>('sceneImg');
+      $('sceneBack').style.setProperty('--civ', civ.color);
+      if (sceneUrlFor) {
+        img.hidden = false;
+        if (img.getAttribute('src') !== sceneUrlFor) img.src = sceneUrlFor;
+        const f = civ.sceneFocus ?? { x: 0.5, y: 0.3 };
+        img.style.objectPosition = `${Math.round(f.x * 100)}% ${Math.round(f.y * 100)}%`;
+        img.onerror = () => (img.hidden = true);
+      } else img.hidden = true;
+    }
     // Round 19: a card fills the screen, with its picture big above the title.
-    const card = n.card;
+    const card = scene ? { hero: sceneUrlFor ? undefined : portraitHtml(this.state.players[scene.civ]!.civId, 160), kicker: this.sceneKicker(scene.civ), tint: civDef(this.state, scene.civ).color } : n.card;
     $('noticeOverlay').classList.toggle('card', !!card);
     $('noticeOverlay').style.setProperty('--card-tint', card?.tint ?? '#23405a');
     $('noticeHero').hidden = !card?.hero;
@@ -3188,7 +3233,8 @@ export class App {
     $('noticeTitle').innerHTML = `${portrait}${icon}${esc(n.title)}`;
     const items = card?.list ?? n.lines;
     const list = items?.length ? `<ul class="cardList">${items.map((li) => `<li>${li}</li>`).join('')}</ul>` : '';
-    $('noticeText').innerHTML = `${esc(n.text)}${n.sub ? `<span class="sub">${esc(n.sub)}</span>` : ''}${list}${
+    const speech = scene ? `<span class="speech">“${esc(scene.speech)}”</span>` : '';
+    $('noticeText').innerHTML = `${speech}${esc(n.text)}${n.sub ? `<span class="sub">${esc(n.sub)}</span>` : ''}${list}${
       n.input ? `<input id="noticeInput" type="text" maxlength="${n.input.max}" value="${esc(n.input.value)}" aria-label="${esc(n.input.label)}" autocomplete="off" autocapitalize="words" spellcheck="false">` : ''
     }`;
     // A long list of choices (cities, tiles) stacks up and scrolls.
@@ -3351,6 +3397,8 @@ export class App {
       this.diploPage = 'main';
       this.tradeGet = undefined;
       this.diploAnswer = undefined;
+      // Round 19 (item 6): their leader greets you, full screen.
+      this.greetScene(this.diploCiv);
     } else if (civ === undefined) {
       return;
     } else if (d.act === 'war') {
@@ -3359,6 +3407,12 @@ export class App {
       this.diploPage = 'main';
       if (this.dispatch({ type: 'declareWar', target: civ })) {
         this.diploAnswer = { civ, accepted: true, reason: `You are at war with ${civName(this.state, civ)}.` };
+        this.showNow({
+          title: civDef(this.state, civ).leader,
+          scene: { civ, speech: this.leaderLine(civ, 'warByYou') },
+          text: `You declared war on ${civName(this.state, civ)}.`,
+          buttons: [{ label: 'To arms', cls: 'bigBtn primary' }],
+        });
       }
     } else if (d.act === 'religions') {
       this.closeDiplo();
@@ -3368,7 +3422,16 @@ export class App {
       this.diploPage = 'main';
       this.tradeGet = undefined;
     } else if (d.act === 'peace') {
-      this.showAnswer(civ, this.dispatchResult({ type: 'proposePeace', target: civ }));
+      const res = this.dispatchResult({ type: 'proposePeace', target: civ });
+      this.showAnswer(civ, res);
+      if (res.answer?.accepted) {
+        this.showNow({
+          title: civDef(this.state, civ).leader,
+          scene: { civ, speech: this.leaderLine(civ, 'peace') },
+          text: `Peace with ${civName(this.state, civ)}. ${res.answer.reason}`,
+          buttons: [{ label: 'OK', cls: 'bigBtn primary' }],
+        });
+      }
     } else if (d.act === 'trade') {
       this.diploPage = 'trade';
       this.tradeGet = undefined;
@@ -4382,6 +4445,11 @@ interface Notice {
   card?: { hero?: string; kicker?: string; tint?: string; list?: string[] };
   /** Round 19: rows (HTML) under the text, in a small panel too (a spy's report). */
   lines?: string[];
+  /**
+   * Round 19 (item 6): a full-screen leader scene: the civ's leader fills the screen, with their
+   * name, civ and attitude, and what they say (`speech`) in a speech box above the choices.
+   */
+  scene?: { civ: number; speech: string };
 }
 
 const ATTITUDE_LABEL = { friendly: 'Friendly', neutral: 'Neutral', hostile: 'Hostile' } as const;

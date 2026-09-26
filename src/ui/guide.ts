@@ -82,7 +82,7 @@ export function guidePages(): GuidePage[] {
     {
       id: 'diplomacy',
       title: 'Diplomacy',
-      html: `<p>You meet another civ when your units or cities see each other. Open <b>🤝 Diplomacy</b> to see everyone you've met: their leader, attitude toward you, and strength.</p>
+      html: `<p>You meet another civ when your units or cities see each other. When you meet, open a civ in Diplomacy, get a demand or an offer, or go to war or make peace, <b>their leader appears full screen</b> and says what they think; your choices are the big buttons below. Open <b>🤝 Diplomacy</b> to see everyone you've met: their leader, attitude toward you, and strength.</p>
         <p>From there you can <b>declare war</b>, <b>propose peace</b>, <b>trade techs</b> (for gold or a tech of yours), and give gifts of gold to make friends.</p>
         <p><b>Spies</b> (${card('unit:spy', 'Spy')}, from Literacy) can't be seen by rivals, and can walk into the cities of civs you're at peace with. Inside or next to a rival city a Spy can <b>investigate</b> it (always works: its buildings, what it's building, its defenders), <b>steal a technology</b>, <b>sabotage</b> its production, or pay to <b>incite a revolt</b> so it joins you (never a capital). The chance shows before you act; the Spy is used up either way, and a caught spy makes its victim angry. A <b>Courthouse</b> guards a city against spies and shows them next to it. You're told when a spy acts against you.</p>
         <p>Computer players remember how you treat them. They may demand tribute; refusing makes them angrier. A peace treaty holds for ${RULES.diplomacy.minPeaceTurns} turns.</p>`,

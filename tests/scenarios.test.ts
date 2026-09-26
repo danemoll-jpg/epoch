@@ -148,6 +148,11 @@ const OUTCOMES: Record<string, (s: GameState) => void> = {
     const home = s.cities.find((c) => c.capitalOf === 1)!;
     expect(s.units.filter((u) => u.owner === 1 && u.x === home.x && u.y === home.y).length).toBeGreaterThanOrEqual(2);
   },
+  'leader-scenes': (s) => {
+    expect(s.players[1]!.civId).toBe('egypt');
+    expect(s.diplomacy.offers).toHaveLength(1);
+    expect(hasMet(s, 0, 1)).toBe(true);
+  },
   // ---- Round 19 Part A ----
   'rival-victory-wonder': (s) => {
     const warnings = () => s.log.filter((e) => e.kind === 'warning' && e.other === 0);

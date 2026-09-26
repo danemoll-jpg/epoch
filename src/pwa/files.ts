@@ -15,9 +15,17 @@ export function isCloudChunk(path: string): boolean {
   return /^\/assets\/(firebase|gzipFallback)-[^/]*\.js$/.test(path);
 }
 
-/** Kept the first time it's used, not downloaded up front: the music and the cloud code. */
+/**
+ * Round 19 (item 6): the full-screen leader pictures (1.7 MB for all 12): each is kept the
+ * first time its scene shows, so the first download doesn't grow by all of them.
+ */
+export function isSceneFile(path: string): boolean {
+  return /^\/assets\/scene-[^/]*\.webp$/.test(path);
+}
+
+/** Kept the first time it's used, not downloaded up front: the music, the cloud code, and the leader scenes. */
 export function isOnDemandFile(path: string): boolean {
-  return isMusicFile(path) || isCloudChunk(path);
+  return isMusicFile(path) || isCloudChunk(path) || isSceneFile(path);
 }
 
 /** Everything the game needs offline: code, styles, icons, portraits, sound effects, the page. */

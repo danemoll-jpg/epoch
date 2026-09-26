@@ -49,6 +49,12 @@ export interface CivDef {
    * of body still reads as a face in a tiny circle. See docs/portraits.html.
    */
   portraitFocus?: PortraitFocus;
+  /**
+   * Round 19 (item 6): where the face is in the full, uncropped picture (fractions of its width
+   * and height), so the full-screen leader scene crops around it on every screen shape.
+   * See docs/leader-scenes.html.
+   */
+  sceneFocus?: { x: number; y: number };
   cityNames: string[];
 }
 
@@ -56,72 +62,84 @@ export const CIVS: CivDef[] = [
   // ---- Dan's 12 (Round 11) ----
   {
     id: 'egypt', name: 'Egypt', adjective: 'Egyptian', leader: 'Hatshepsut', color: '#e8c547',
+    sceneFocus: { x: 0.55, y: 0.35 },
     aggression: 2, tradeWillingness: 4, lean: { primary: 'economic', secondary: 'culture' }, startTech: 'masonry',
     portraitFocus: { x: 0.52, y: 0.36, zoom: 1.8 },
     cityNames: ['Thebes', 'Memphis', 'Heliopolis', 'Alexandria', 'Abydos', 'Elephantine', 'Giza', 'Edfu', 'Hermopolis', 'Avaris', 'Bubastis', 'Sais', 'Tanis', 'Dendera'],
   },
   {
     id: 'rome', name: 'Rome', adjective: 'Roman', leader: 'Caligula', color: '#9acd32',
+    sceneFocus: { x: 0.5, y: 0.3 },
     aggression: 5, tradeWillingness: 2, lean: { primary: 'domination', secondary: 'culture' }, startTech: 'bronze_working',
     portraitFocus: { x: 0.57, y: 0.29, zoom: 1.9 },
     cityNames: ['Rome', 'Antium', 'Capua', 'Ravenna', 'Neapolis', 'Ostia', 'Pompeii', 'Verona', 'Mediolanum', 'Brundisium', 'Aquileia', 'Florentia', 'Tarentum'],
   },
   {
     id: 'franks', name: 'Franks', article: 'the', plural: true, adjective: 'Frankish', leader: 'Charlemagne', color: '#a060d0',
+    sceneFocus: { x: 0.55, y: 0.33 },
     aggression: 5, tradeWillingness: 2, lean: { primary: 'domination', secondary: 'culture' }, startTech: 'horseback_riding',
     portraitFocus: { x: 0.52, y: 0.37, zoom: 1.8 },
     cityNames: ['Aachen', 'Reims', 'Tours', 'Orléans', 'Metz', 'Soissons', 'Lyon', 'Rouen', 'Worms', 'Mainz', 'Trier', 'Paderborn', 'Verdun'],
   },
   {
     id: 'mali', name: 'Mali', adjective: 'Malian', leader: 'Mansa Musa', color: '#d04a4a',
+    sceneFocus: { x: 0.48, y: 0.36 },
     aggression: 2, tradeWillingness: 5, lean: { primary: 'economic', secondary: 'culture' }, startTech: 'currency',
     portraitFocus: { x: 0.5, y: 0.32, zoom: 1.8 },
     cityNames: ['Niani', 'Timbuktu', 'Djenné', 'Gao', 'Walata', 'Kangaba', 'Koumbi Saleh', 'Tadmekka', 'Kaba', 'Mema', 'Kukiya', 'Dia', 'Takedda'],
   },
   {
     id: 'england', name: 'England', adjective: 'English', leader: 'Henry VIII', color: '#2f5fb3',
+    sceneFocus: { x: 0.55, y: 0.38 },
     aggression: 3, tradeWillingness: 4, lean: { primary: 'culture', secondary: 'economic' }, startTech: 'ceremonial_burial',
     portraitFocus: { x: 0.52, y: 0.35, zoom: 1.8 },
     cityNames: ['London', 'York', 'Winchester', 'Canterbury', 'Oxford', 'Bristol', 'Norwich', 'Lincoln', 'Exeter', 'Durham', 'Nottingham', 'Coventry', 'Dover'],
   },
   {
     id: 'france', name: 'France', adjective: 'French', leader: 'Louis XIV', color: '#58c4e8',
+    sceneFocus: { x: 0.55, y: 0.3 },
     aggression: 2, tradeWillingness: 3, lean: { primary: 'culture', secondary: 'economic' }, startTech: 'mysticism',
     portraitFocus: { x: 0.52, y: 0.27, zoom: 2 },
     cityNames: ['Paris', 'Versailles', 'Marseille', 'Bordeaux', 'Toulouse', 'Nantes', 'Strasbourg', 'Lille', 'Nice', 'Rennes', 'Dijon', 'Grenoble', 'Avignon'],
   },
   {
     id: 'russia', name: 'Russia', adjective: 'Russian', leader: 'Peter the Great', color: '#1f8a4c',
+    sceneFocus: { x: 0.48, y: 0.28 },
     aggression: 4, tradeWillingness: 3, lean: { primary: 'technology', secondary: 'domination' }, startTech: 'map_making',
     portraitFocus: { x: 0.52, y: 0.23, zoom: 2 },
     cityNames: ['St. Petersburg', 'Moscow', 'Novgorod', 'Kazan', 'Arkhangelsk', 'Smolensk', 'Tver', 'Yaroslavl', 'Voronezh', 'Astrakhan', 'Tula', 'Pskov', 'Vladimir'],
   },
   {
     id: 'gran_colombia', name: 'Gran Colombia', adjective: 'Gran Colombian', leader: 'Simón Bolívar', color: '#e060b0',
+    sceneFocus: { x: 0.5, y: 0.29 },
     aggression: 4, tradeWillingness: 3, lean: { primary: 'culture', secondary: 'domination' }, startTech: 'code_of_laws',
     portraitFocus: { x: 0.48, y: 0.23, zoom: 2 },
     cityNames: ['Bogotá', 'Caracas', 'Quito', 'Cartagena', 'Medellín', 'Guayaquil', 'Maracaibo', 'Cali', 'Popayán', 'Valencia', 'Panamá', 'Cúcuta', 'Mérida'],
   },
   {
     id: 'usa', name: 'United States', article: 'the', adjective: 'American', leader: 'John F. Kennedy', color: '#3b3b8f',
+    sceneFocus: { x: 0.55, y: 0.3 },
     aggression: 3, tradeWillingness: 4, lean: { primary: 'technology', secondary: 'culture' }, startTech: 'writing',
     portraitFocus: { x: 0.46, y: 0.23, zoom: 2.2 },
     cityNames: ['Washington', 'New York', 'Boston', 'Philadelphia', 'Chicago', 'San Francisco', 'Los Angeles', 'Houston', 'New Orleans', 'Seattle', 'Atlanta', 'Denver', 'Detroit'],
   },
   {
     id: 'ukraine', name: 'Ukraine', adjective: 'Ukrainian', leader: 'Viktor Yushchenko', color: '#e07b39',
+    sceneFocus: { x: 0.5, y: 0.3 },
     aggression: 1, tradeWillingness: 5, lean: { primary: 'technology', secondary: 'culture' }, startTech: 'pottery',
     portraitFocus: { x: 0.45, y: 0.27, zoom: 2.2 },
     cityNames: ['Kyiv', 'Kharkiv', 'Lviv', 'Odesa', 'Dnipro', 'Zaporizhzhia', 'Poltava', 'Chernihiv', 'Vinnytsia', 'Chernivtsi', 'Mykolaiv', 'Uzhhorod', 'Sumy'],
   },
   {
     id: 'germany', name: 'Germany', adjective: 'German', leader: 'Angela Merkel', color: '#8a929a',
+    sceneFocus: { x: 0.45, y: 0.35 },
     aggression: 2, tradeWillingness: 4, lean: { primary: 'economic', secondary: 'technology' }, startTech: 'the_wheel',
     portraitFocus: { x: 0.48, y: 0.27, zoom: 2.2 },
     cityNames: ['Berlin', 'Hamburg', 'Munich', 'Cologne', 'Frankfurt', 'Leipzig', 'Dresden', 'Stuttgart', 'Bremen', 'Hanover', 'Nuremberg', 'Düsseldorf', 'Bonn'],
   },
   {
     id: 'north_korea', name: 'North Korea', adjective: 'North Korean', leader: 'Kim Jong Un', color: '#8a5a2b',
+    sceneFocus: { x: 0.52, y: 0.3 },
     aggression: 5, tradeWillingness: 1, lean: { primary: 'domination', secondary: 'technology' }, startTech: 'archery',
     portraitFocus: { x: 0.47, y: 0.25, zoom: 2.2 },
     cityNames: ['Pyongyang', 'Hamhung', 'Chongjin', 'Wonsan', 'Sinuiju', 'Kaesong', 'Nampo', 'Kanggye', 'Haeju', 'Hyesan', 'Sariwon', 'Rason', 'Kimchaek'],

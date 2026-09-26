@@ -707,3 +707,57 @@ describe('Round 19 item 7: culture borders and referendums', () => {
     if (res.kind === 'ok') expect(res.state.cities.every((c) => c.unrest === 0 && typeof c.culture === 'number')).toBe(true);
   });
 });
+
+// ---- Part F: full-screen leader scenes (item 6) -------------------------------------------
+
+import { existsSync } from 'node:fs';
+import { PLAYABLE_CIVS } from '../src/data/civs';
+import { LEADER_LINES } from '../src/data/leaderLines';
+import { faceOnScreen, sceneLayout } from '../src/ui/portraits';
+import { isOnDemandFile, precacheEntries } from '../src/pwa/files';
+
+describe('Round 19 item 6: leader scenes', () => {
+  const SCREENS = [
+    [820, 1180],
+    [1180, 820],
+    [1920, 1080],
+    [1366, 768],
+    [768, 1024],
+  ] as const;
+
+  it('every leader has a full picture and a focus point', () => {
+    for (const c of PLAYABLE_CIVS) {
+      expect(existsSync(`src/assets/portraits-full/scene-${c.id}.webp`), c.id).toBe(true);
+      expect(c.sceneFocus, c.id).toBeDefined();
+    }
+  });
+
+  it('on every screen the face is in the picture, away from its edges, and never under the words', () => {
+    for (const c of PLAYABLE_CIVS) {
+      for (const [w, h] of SCREENS) {
+        const { picture, text, wide } = sceneLayout(w, h);
+        const face = faceOnScreen(c.sceneFocus!, w, h);
+        const margin = Math.min(picture.w, picture.h) * 0.12;
+        const where = `${c.id} at ${w}×${h}`;
+        expect(face.x, where).toBeGreaterThan(picture.x + margin);
+        expect(face.x, where).toBeLessThan(picture.x + picture.w - margin);
+        expect(face.y, where).toBeGreaterThan(picture.y + margin);
+        expect(face.y, where).toBeLessThan(picture.y + picture.h - margin);
+        // The face (about a fifth of the picture's size around its center) stays clear of the words.
+        const r = Math.max(picture.w, picture.h) * 0.1;
+        if (wide) expect(face.x + r, where).toBeLessThan(text.x);
+        else expect(face.y + r, where).toBeLessThan(text.y);
+      }
+    }
+  });
+
+  it('every moment has a line for every attitude', () => {
+    for (const moment of Object.values(LEADER_LINES)) for (const mood of ['friendly', 'neutral', 'hostile'] as const) expect(moment[mood].length).toBeGreaterThan(10);
+  });
+
+  it('the pictures are downloaded when first shown, not up front', () => {
+    expect(isOnDemandFile('/assets/scene-egypt-AbC123.webp')).toBe(true);
+    expect(isOnDemandFile('/assets/egypt-AbC123.webp')).toBe(false);
+    expect(precacheEntries(['/assets/scene-mali-x.webp', '/index.html'])).toEqual(['/index.html']);
+  });
+});

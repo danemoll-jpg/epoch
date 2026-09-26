@@ -3054,3 +3054,106 @@ button.alink {
   color: #ffb07a;
   margin-top: 4px;
 }
+
+/* ---- Round 19 Part F: full-screen leader scenes (layout = sceneLayout in portraits.ts) ---- */
+#sceneBack {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 60%;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--civ, #345) 60%, #000), #05080c);
+}
+#sceneBack[hidden] {
+  display: none;
+}
+#sceneImg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+#sceneImg[hidden] {
+  display: none;
+}
+/* The picture fades into the dark below it (the words sit there, never on the face). */
+#sceneBack::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent 55%, rgba(5, 8, 12, 0.85) 88%, #05080c 100%);
+}
+#noticeOverlay.scene {
+  background: #05080c;
+}
+#noticeOverlay.scene #noticePanel {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 52%;
+  bottom: 0;
+  max-height: none;
+  width: min(640px, 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding: 8px 20px calc(16px + var(--safe-bottom));
+  overflow-y: auto;
+}
+#noticeOverlay.scene #noticeHero {
+  margin-bottom: 0;
+}
+#noticeOverlay.scene #noticeTitle {
+  font-size: calc(32px * var(--ts));
+  margin: 2px 0 8px;
+}
+.speech {
+  display: block;
+  position: relative;
+  margin: 0 auto 12px;
+  padding: 12px 16px;
+  max-width: 520px;
+  border-radius: 14px;
+  background: #f4efe2;
+  color: #1d1f22;
+  font-size: calc(18px * var(--ts));
+  font-style: italic;
+  line-height: 1.35;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+.speech::before {
+  content: '';
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  margin-left: -9px;
+  border: 9px solid transparent;
+  border-top: 0;
+  border-bottom-color: #f4efe2;
+}
+@media (orientation: landscape) {
+  #sceneBack {
+    width: 58%;
+    height: 100%;
+  }
+  #sceneBack::after {
+    background: linear-gradient(to right, transparent 60%, rgba(5, 8, 12, 0.8) 92%, #05080c 100%);
+  }
+  #noticeOverlay.scene #noticePanel {
+    left: 56%;
+    transform: none;
+    top: 0;
+    width: 44%;
+    justify-content: center;
+    padding: calc(16px + var(--safe-top)) calc(20px + var(--safe-right)) calc(16px + var(--safe-bottom)) 20px;
+  }
+  .speech::before {
+    top: 50%;
+    left: -9px;
+    margin: -9px 0 0;
+    border: 9px solid transparent;
+    border-left: 0;
+    border-right-color: #f4efe2;
+  }
+}

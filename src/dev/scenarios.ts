@@ -2137,7 +2137,25 @@ export function cultureFlipScenario(): GameState {
   return withDice(cultureFlipBase, (s) => s.cities.find((c) => c.name === FLIP_TOWN.name)?.owner === 0);
 }
 
+// ---- Round 19 Part F: leader scenes ------------------------------------------------------
+
+/** You have met Egypt (Hatshepsut), at peace; she's demanding tribute this turn. */
+export function leaderScenesScenario(): GameState {
+  const state = diplomacyBase({ civ: 'egypt' });
+  state.cities.find((c) => c.owner === RIVAL)!.name = 'Thebes';
+  state.players[0]!.gold = 120;
+  state.diplomacy.offers.push({ id: state.nextId++, from: RIVAL, to: 0, kind: 'demand', gold: 40, turn: state.turn });
+  return state;
+}
+
 export const SCENARIOS: Scenario[] = [
+  // ---- Round 19 Part F ----
+  {
+    id: 'leader-scenes',
+    title: 'Leader scenes (full screen)',
+    note: 'Hatshepsut of Egypt fills the screen at once, demanding 40 gold, with her attitude and a speech box (Give / Refuse). Then open 🤝 Diplomacy and tap Egypt: she greets you full screen (Talk / Goodbye). Declare war: her reaction, full screen. Propose peace later: her answer. Turn the iPad: the picture moves to the left and the words to the right; the face is never covered.',
+    build: leaderScenesScenario,
+  },
   // ---- Round 19 Part E ----
   {
     id: 'culture-flip',
