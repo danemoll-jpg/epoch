@@ -1796,6 +1796,8 @@ Dan pasted his picks into the coding session: Alphabet: B; Bronze Working: A; Ce
 - **Verified:** preview in iPad-size emulation (landscape and portrait): the `tech` scenario's End Turn showed the gold Writing icon in "You learned Writing", all 56 tree cards with icons, the 44 px heading, the research button and toast, a "learned Currency" news toast with its icon, the Almanac card and links, 56 credits on About, and the 12 civ cards' starting techs. No console errors.
 - **Pushed on Dan's "push" (2026-09-25):** `main` `4689436..593168c` (`3b0715c`, `62ec120`, `b9df793`, `593168c`), plus this docs commit. **Live:** https://epoch-fsts.netlify.app/ serves 0.17.1 (`index-Dm2mraAx.js`, the same build as the play server). Pushing is Dan's call again from here.
 
+**Hub card icon (2026-09-25, Dan asked why the hub card used 🏛️):** the hub only supported emoji. On Dan's yes, hub commit `1b649f8` (pushed, live) adds an optional `image` field to hub cards (`app.js`, `styles.css`, documented in `games.js`) and gives the Epoch card `icons/epoch.png`, a copy of Epoch's 192 px app icon, shown at the emoji's size (40 px, rounded); 🏛️ stays as the fallback. Checked locally at desktop, iPad (820) and phone (375) widths: the other 12 cards unchanged, no console errors, the card still opens the live game. The live hub serves the icon.
+
 ## Next Steps (Do Not Start Yet)
 
 All of these are deferred for **sequencing only**. Each depends on the

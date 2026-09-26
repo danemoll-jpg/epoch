@@ -773,7 +773,10 @@ what was pushed.
   Save now, Save to a new cloud slot, Sync now and errors on the ☁ mark, the
   rules tightened after the first emulator run (**Dan: republish
   `firestore.rules`**, see `docs/FIREBASE-SETUP.md`). **The Epoch card is live
-  in the hub** (https://dansgamehub.netlify.app/, hub commit `0a18c16`).
+  in the hub** (https://dansgamehub.netlify.app/, hub commit `0a18c16`); since
+  2026-09-25 it shows Epoch's own app icon instead of 🏛️ (hub `1b649f8`: an optional
+  `image` on a hub card, `icons/epoch.png` = a copy of `public/icons/icon-192.png`;
+  if the app icon changes, copy it there too).
 - **The play server:** http://10.0.0.224:4173/.
 - **Pushing is Dan's call again** (see Pushing rules). Round 16b's pushes were
   for that round only. Commit as usual, push only when told, and list the
