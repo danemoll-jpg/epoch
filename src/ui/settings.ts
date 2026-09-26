@@ -28,6 +28,8 @@ export interface Settings {
   scenarioSound: boolean;
   /** Round 14: the minimap in the corner is open (it folds down to a button). */
   minimap: boolean;
+  /** Round 17 (B2): the first tap on a destination shows the path; a second tap moves. */
+  tapTwice: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -41,6 +43,7 @@ export const DEFAULT_SETTINGS: Settings = {
   tips: true,
   scenarioSound: false,
   minimap: true,
+  tapTwice: false,
 };
 
 const browserStore = (): KeyValueStore => ({
@@ -68,6 +71,7 @@ export function normalizeSettings(raw: unknown): Settings {
     tips: bool('tips'),
     scenarioSound: bool('scenarioSound'),
     minimap: bool('minimap'),
+    tapTwice: bool('tapTwice'),
   };
 }
 

@@ -5,11 +5,18 @@
 // 1. A unit is selected and has moves, and you tap a different tile:
 //    - an adjacent tile with enemy units → attack (the UI shows the odds first and only
 //      attacks on confirm; a unit that can't attack gets told why);
-//    - if it's your own city and the unit can't get there at all → open the city;
-//    - otherwise → move the unit there (even onto a tile holding your own units or city, or
-//      into an adjacent enemy city with nobody in it, which captures it).
+//    - your own city (Round 17): a unit on a tile next to it moves in with one tap (that's
+//      almost always meant); from farther away, or if it can't get there at all, the tap
+//      opens the city instead, and when the unit can get there the panel offers
+//      "Move <unit> here" (`moveUnitId`), so tapping a city to look at it never moves anyone;
+//    - otherwise → move the unit there (even onto a tile holding your own units, or into an
+//      adjacent enemy city with nobody in it, which captures it).
 //    An aircraft (Round 10) instead: a visible enemy in range → attack (a strike); a city or
-//    Carrier of yours it could rebase to → move (a rebase); anything else → as in 2.
+//    Carrier of yours it could rebase to → move (a rebase, as before Round 17); anything
+//    else → as in 2.
+//
+// "Tap twice to move" (Round 17, B2, a setting, off by default) sits on top of this: a 'move'
+// first only shows the path (`pendingMove`), and a second tap on the same tile moves.
 // 2. You tap the selected unit's own tile, or nothing movable is selected:
 //    - your own city → open the city (its panel lists the units inside to pick from);
 //    - your own units → select one (a ship before its cargo); tapping the same stack again
@@ -26,7 +33,8 @@ import type { GameState } from '../game/types';
 export type TapResult =
   | { kind: 'move'; unitId: number }
   | { kind: 'attack'; unitId: number }
-  | { kind: 'openCity'; cityId: number }
+  /** `moveUnitId`: the selected unit could go there; the city panel offers "Move … here". */
+  | { kind: 'openCity'; cityId: number; moveUnitId?: number }
   | { kind: 'select'; unitId: number }
   | { kind: 'inspect' }
   | { kind: 'none' };
@@ -53,7 +61,11 @@ export function resolveTap(
   } else if (sel && sel.owner === viewer && sel.movesLeft > 0 && !onSelectedTile) {
     const enemyThere = state.units.some((u) => u.x === tx && u.y === ty && u.owner !== viewer);
     if (enemyThere && distance(sel, { x: tx, y: ty }) === 1) return { kind: 'attack', unitId: sel.id };
-    if (myCity && !findPath(state, sel, { x: tx, y: ty })) return { kind: 'openCity', cityId: myCity.id };
+    if (myCity) {
+      const path = findPath(state, sel, { x: tx, y: ty });
+      if (path && distance(sel, myCity) === 1) return { kind: 'move', unitId: sel.id };
+      return path ? { kind: 'openCity', cityId: myCity.id, moveUnitId: sel.id } : { kind: 'openCity', cityId: myCity.id };
+    }
     return { kind: 'move', unitId: sel.id };
   }
 
@@ -69,4 +81,20 @@ export function resolveTap(
     return { kind: 'select', unitId: mine[(i + 1) % mine.length]!.id };
   }
   return { kind: 'inspect' };
+}
+
+/** Round 17 (B2): a destination shown but not yet moved to ("Tap twice to move"). */
+export interface PendingMove {
+  unitId: number;
+  x: number;
+  y: number;
+}
+
+/**
+ * With "Tap twice to move" on: does this 'move' tap go ahead (the second tap on the tile already
+ * shown for the same unit), or only show the path? Without the setting every move goes ahead.
+ */
+export function confirmMove(tapTwice: boolean, pending: PendingMove | undefined, unitId: number, tx: number, ty: number): boolean {
+  if (!tapTwice) return true;
+  return !!pending && pending.unitId === unitId && pending.x === tx && pending.y === ty;
 }

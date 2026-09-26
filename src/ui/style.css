@@ -374,6 +374,63 @@ button:not(:disabled):active {
   font-size: calc(22px * var(--ts));
 }
 
+/* Round 17 (A1): the arrows either side of the city's name, and its place in the list. */
+.cityNav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.cityTitle {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.cityNav.withArrows .cityTitle {
+  flex: 1;
+  text-align: center;
+}
+
+.cityTitle h2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cityArrow {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  font-size: calc(18px * var(--ts));
+  flex: none;
+}
+
+.cityCount {
+  white-space: nowrap;
+}
+
+.idleDot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-left: 5px;
+  border-radius: 50%;
+  background: #ff9f43;
+  vertical-align: middle;
+}
+
+/* Round 17 (B1): "Move Legion here (2 turns)". */
+.moveHereBtn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-color: #ffe066;
+}
+
 .closeBtn {
   min-width: 52px;
   min-height: 52px;

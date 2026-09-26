@@ -289,6 +289,48 @@ export function findPath(state: GameState, unit: Unit, to: Coord): Coord[] | und
   return path;
 }
 
+/**
+ * Round 17: how many turns walking `path` (from findPath) takes, counting this one, spending
+ * moves as moveUnit does (a unit with full moves may always make one step). Unexplored tiles
+ * cost 1, as findPath assumes, so the count never leaks hidden terrain. Boarding or going
+ * ashore uses whatever moves are left. A unit with no moves left starts next turn.
+ */
+export function pathTurns(state: GameState, unit: Unit, path: Coord[]): number {
+  const full = UNITS[unit.type].moves;
+  const explored = state.players[unit.owner]?.explored;
+  let left = unit.movesLeft;
+  let turns = 1;
+  if (left <= EPS) {
+    turns++;
+    left = full;
+  }
+  let from: Coord = unit;
+  let aboard = unit.carriedBy !== null && !isAir(unit);
+  for (const step of path) {
+    if (left <= EPS) {
+      turns++;
+      left = full;
+    }
+    const known = !explored || explored[step.y * state.map.width + step.x] === 1;
+    const water = known && isWaterAt(state, step.x, step.y);
+    const ends = !isShip(unit) && !hovers(unit) && (aboard ? !water : water);
+    if (ends) {
+      // Boarding or going ashore takes the rest of the turn's moves.
+      left = 0;
+      aboard = !aboard;
+    } else {
+      const cost = known ? stepCost(state, unit, from, step) : 1;
+      if (cost > left + EPS && left < full) {
+        turns++;
+        left = full;
+      }
+      left = spend(left, cost);
+    }
+    from = step;
+  }
+  return turns;
+}
+
 /** For one path search: each tile's city, tiles holding other owners' units or cities, who knows Railroad. */
 function pathLookups(state: GameState, owner: number): { city: (City | undefined)[]; others: Uint8Array; rail: boolean[] } {
   const n = state.map.width * state.map.height;

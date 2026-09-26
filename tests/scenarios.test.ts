@@ -36,7 +36,10 @@ import { RELIGION, RELIGION_SYMBOLS } from '../src/data/religion';
 import { ROADS } from '../src/data/roads';
 import { faithOpinion, holyReligion, religionCityCulture, religionCityGold, spreadTargets } from '../src/game/religion';
 import { roadAt, roadConnected } from '../src/game/roads';
-import { LARGE_MAP_TURNS, MINIMAP_SEED } from '../src/dev/scenarios';
+import { CYCLE_CITIES, LARGE_MAP_TURNS, MINIMAP_SEED, TAP_CITY_LEGION, TAP_CITY_WARRIOR } from '../src/dev/scenarios';
+import { cityOrder, cycleCity, otherIdleCities } from '../src/ui/cityCycle';
+import { resolveTap } from '../src/ui/tap';
+import { findPath, pathTurns } from '../src/game/movement';
 import { FIXTURE_TURN } from '../src/dev/fixtures/fixtures';
 import { LOOK_SIZES } from '../src/dev/artDemo';
 import { cityLook } from '../src/data/cityLooks';
@@ -121,6 +124,34 @@ const OUTCOMES: Record<string, (s: GameState) => void> = {
     const sc = SCENARIOS.find((x) => x.id === 'cloud-signin-fails')!;
     expect(sc.note).toContain('Sign-in failed. Please try again.');
     expect(s.turn).toBe(12);
+  },
+  // ---- Round 17 ----
+  'city-cycle': (s) => {
+    const order = cityOrder(s, 0);
+    expect(order.map((c) => c.name)).toEqual(CYCLE_CITIES);
+    // Lagash is the idle one; from any other city the dot shows it.
+    expect(order.filter((c) => c.build === null).map((c) => c.name)).toEqual(['Lagash']);
+    expect(otherIdleCities(s, 0, order[0]!.id)).toBe(1);
+    expect(otherIdleCities(s, 0, order[4]!.id)).toBe(0);
+    // ▶ from Lagash wraps to the capital, ◀ from the capital back to Lagash.
+    expect(cycleCity(s, 0, order[4]!.id, 1)).toBe(order[0]!.id);
+    expect(cycleCity(s, 0, order[0]!.id, -1)).toBe(order[4]!.id);
+  },
+  'tap-city-with-unit': (s) => {
+    const city = s.cities.find((c) => c.owner === 0)!;
+    const legion = s.units.find((u) => u.type === 'legion')!;
+    const warrior = s.units.find((u) => u.type === 'warrior')!;
+    expect([legion.x, legion.y]).toEqual([TAP_CITY_LEGION.x, TAP_CITY_LEGION.y]);
+    expect([warrior.x, warrior.y]).toEqual([TAP_CITY_WARRIOR.x, TAP_CITY_WARRIOR.y]);
+    // The Legion comes first, so it's the one selected at the start.
+    expect(s.units.findIndex((u) => u.id === legion.id)).toBeLessThan(s.units.findIndex((u) => u.id === warrior.id));
+    expect(resolveTap(s, 0, legion.id, city.x, city.y)).toEqual({ kind: 'openCity', cityId: city.id, moveUnitId: legion.id });
+    const turns = pathTurns(s, legion, findPath(s, legion, city)!);
+    expect(turns).toBe(4);
+    expect(SCENARIOS.find((x) => x.id === 'tap-city-with-unit')!.note).toContain(`Move Legion here (${turns} turns)`);
+    expect(applyAction(s, { type: 'move', unitId: legion.id, to: { x: city.x, y: city.y } }).ok).toBe(true);
+    expect(legion.x).toBe(TAP_CITY_LEGION.x + 1);
+    expect(resolveTap(s, 0, warrior.id, city.x, city.y)).toEqual({ kind: 'move', unitId: warrior.id });
   },
   'update-available': (s) => {
     expect(SCENARIOS.find((x) => x.id === 'update-available')!.fakeUpdate).toBe(true);

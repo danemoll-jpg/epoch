@@ -41,7 +41,7 @@ import { distance, neighbors, tileAt, tileIndex } from '../game/grid';
 import { unitVisibleTo } from '../game/fog';
 import { aircraftOf, airCapacity, armyWord, cargoCapacity, cargoOf, hovers, isAir, isShip, isWaterAt } from '../game/naval';
 import { entryText, eventsVisibleTo } from '../game/log';
-import { findUnit, reachableThisTurn } from '../game/movement';
+import { findPath, findUnit, pathTurns, reachableThisTurn } from '../game/movement';
 import { migrationSummary } from '../game/save';
 import {
   buildOptions,
@@ -99,7 +99,8 @@ import type { CloudBackend } from '../cloud/backend';
 import { deviceLabel } from '../cloud/device';
 import type { CloudLink } from '../game/save';
 import { titleBackground } from './titleArt';
-import { resolveTap } from './tap';
+import { confirmMove, resolveTap, type PendingMove } from './tap';
+import { cityPlace, cycleCity, otherIdleCities } from './cityCycle';
 import { armyCandidates, isMixedStack, stackLabel, unitsOnTile } from '../game/stack';
 
 import { portraitHtml } from './portraits';
@@ -219,6 +220,12 @@ export class App {
   private camera: Camera = { cx: 0, cy: 0, tileSize: 52 };
   private selectedUnitId: number | undefined;
   private openCityId: number | undefined;
+  /** Round 17 (B1): the city was opened by tapping it with this unit selected: offer "Move … here". */
+  private moveHere: { unitId: number; cityId: number } | undefined;
+  /** Round 17 (B2): "Tap twice to move": the destination shown, waiting for the second tap. */
+  private pendingMove: (PendingMove & { path: Coord[]; turns: number }) | undefined;
+  /** Round 17 (A1): where a swipe on the city panel's header started. */
+  private headSwipe: { id: number; x: number; y: number } | undefined;
   /** The tech highlighted on the tech screen, and its prompt line (view state only). */
   private techSelected: TechId | undefined;
   private techPrompt: string | undefined;
@@ -363,6 +370,22 @@ export class App {
     $('rateDown').addEventListener('click', () => this.changeRate(-RULES.scienceRateStep));
     $('rateUp').addEventListener('click', () => this.changeRate(RULES.scienceRateStep));
     $('cityPanel').addEventListener('click', (e) => this.handleCityPanelClick(e));
+    // Round 17 (A1): a swipe left or right on the city panel's header goes to the next or
+    // previous city. The panel scrolls up and down only (touch-action: pan-y), so a sideways
+    // swipe never fights its scrolling.
+    $('cityPanel').addEventListener('pointerdown', (e) => {
+      const head = (e.target as HTMLElement).closest('.cityHead');
+      this.headSwipe = head && e.isPrimary ? { id: e.pointerId, x: e.clientX, y: e.clientY } : undefined;
+    });
+    $('cityPanel').addEventListener('pointerup', (e) => {
+      const start = this.headSwipe;
+      this.headSwipe = undefined;
+      if (!start || start.id !== e.pointerId) return;
+      const dx = e.clientX - start.x;
+      const dy = e.clientY - start.y;
+      if (Math.abs(dx) >= 60 && Math.abs(dx) > 2 * Math.abs(dy)) this.cycleCity(dx < 0 ? 1 : -1);
+    });
+    $('cityPanel').addEventListener('pointercancel', () => (this.headSwipe = undefined));
     $('researchBtn').addEventListener('click', () => this.openTech());
     $('diploBtn').addEventListener('click', () => this.openDiplo());
     $('diploOverlay').addEventListener('click', (e) => this.handleDiploClick(e));
@@ -869,6 +892,7 @@ export class App {
 
   private select(unitId: number | undefined): void {
     if (unitId !== undefined && unitId !== this.selectedUnitId) this.sound.play('tap');
+    if (unitId !== this.selectedUnitId) this.pendingMove = undefined;
     this.selectedUnitId = unitId;
     this.refresh();
   }
@@ -894,6 +918,19 @@ export class App {
     const tile = tileAt(this.state.map, tx, ty);
     if (!tile) return;
     const result = resolveTap(this.state, this.human, this.selectedUnitId, tx, ty);
+    // Round 17 (B2): with "Tap twice to move" on, the first tap only shows the path and turns.
+    const pending = this.pendingMove;
+    this.pendingMove = undefined;
+    if (result.kind === 'move' && !confirmMove(this.settings.tapTwice, pending, result.unitId, tx, ty)) {
+      const mover = findUnit(this.state, result.unitId)!;
+      const path = isAir(mover) ? [{ x: tx, y: ty }] : findPath(this.state, mover, { x: tx, y: ty }) ?? [];
+      const turns = isAir(mover) || !path.length ? 1 : pathTurns(this.state, mover, path);
+      this.pendingMove = { unitId: mover.id, x: tx, y: ty, path: path.length ? path : [{ x: tx, y: ty }], turns };
+      this.sound.play('tap');
+      this.requestDraw();
+      return;
+    }
+    if (pending) this.requestDraw();
     switch (result.kind) {
       case 'move': {
         const logStart = this.state.log.length;
@@ -920,6 +957,11 @@ export class App {
         return;
       case 'openCity':
         this.openCity(result.cityId);
+        // Round 17 (B1): opened with a unit selected that could go there: offer to move it.
+        if (result.moveUnitId !== undefined) {
+          this.moveHere = { unitId: result.moveUnitId, cityId: result.cityId };
+          this.refresh();
+        }
         return;
       case 'select':
         this.select(result.unitId);
@@ -1008,6 +1050,9 @@ export class App {
     if (k === 'enter') this.endTurn();
     else if (k === 'b' || k === 'f') this.foundCity();
     else if (k === 'n' || k === 'tab') this.selectNext(true);
+    // Round 17 (A1): the city panel's arrows.
+    else if ((k === ',' || k === '[') && this.openCityId !== undefined) this.cycleCity(-1);
+    else if ((k === '.' || k === ']') && this.openCityId !== undefined) this.cycleCity(1);
     else if (k === 'escape') {
       if (this.openCityId !== undefined) this.closeCity();
       else this.select(undefined);
@@ -1022,6 +1067,7 @@ export class App {
   private openCity(cityId: number): void {
     if (cityId !== this.openCityId) this.sound.play('tap');
     this.openCityId = cityId;
+    if (this.moveHere?.cityId !== cityId) this.moveHere = undefined;
     this.refresh();
     // Center the city in the part of the map the panel leaves uncovered (above the bottom
     // sheet in portrait, left of the side panel in landscape).
@@ -1041,7 +1087,25 @@ export class App {
 
   private closeCity(): void {
     this.openCityId = undefined;
+    this.moveHere = undefined;
     this.refresh();
+  }
+
+  /** Round 17 (A1): the next (1) or previous (-1) of your cities, wrapping around. */
+  private cycleCity(dir: 1 | -1): void {
+    if (this.openCityId === undefined) return;
+    const next = cycleCity(this.state, this.human, this.openCityId, dir);
+    if (next !== undefined) this.openCity(next);
+  }
+
+  /** Round 17 (B1): the "Move … here" offer, if the unit can still go to the open city. */
+  private moveHereOffer(city: City): { unit: Unit; turns: number } | undefined {
+    if (!this.moveHere || this.moveHere.cityId !== city.id) return undefined;
+    const unit = findUnit(this.state, this.moveHere.unitId);
+    if (!unit || unit.owner !== this.human || unit.movesLeft <= 0 || isAir(unit)) return undefined;
+    if (unit.x === city.x && unit.y === city.y) return undefined;
+    const path = findPath(this.state, unit, city);
+    return path ? { unit, turns: pathTurns(this.state, unit, path) } : undefined;
   }
 
   private handleCityPanelClick(e: MouseEvent): void {
@@ -1054,6 +1118,22 @@ export class App {
       this.openAlmanac(btn.dataset.card);
     } else if (act === 'close') {
       this.closeCity();
+    } else if (act === 'prevCity' || act === 'nextCity') {
+      this.cycleCity(act === 'nextCity' ? 1 : -1);
+    } else if (act === 'moveHere') {
+      const offer = this.moveHereOffer(city);
+      if (!offer) return;
+      this.closeCity();
+      const logStart = this.state.log.length;
+      const res = this.dispatchResult({ type: 'move', unitId: offer.unit.id, to: { x: city.x, y: city.y } });
+      if (res.ok) {
+        this.sound.play('unit-move');
+        this.announce(this.state.log.slice(logStart));
+        this.select(offer.unit.id);
+        const after = this.selected();
+        if (after && after.movesLeft <= 0) this.selectNext(false);
+        if (offer.turns > 1) this.toast(`${UNITS[offer.unit.type].name} is on its way: tap ${city.name} again next turn to carry on`);
+      }
     } else if (act === 'focus') {
       this.dispatch({ type: 'setFocus', cityId: city.id, focus: btn.dataset.focus as CityFocus });
     } else if (act === 'build') {
@@ -1215,11 +1295,30 @@ export class App {
           .join('<br>')}</div></div>`
       : '';
 
+    // Round 17 (A1): arrows either side of the name, with "3 / 12" and a dot when another city
+    // has nothing to build. Hidden with one city.
+    const place = cityPlace(this.state, this.human, city.id);
+    const idleElsewhere = otherIdleCities(this.state, this.human, city.id);
+    const idleDot = idleElsewhere
+      ? `<span class="idleDot" title="${idleElsewhere === 1 ? 'Another city needs' : `${idleElsewhere} other cities need`} something to build" aria-label="${idleElsewhere} other ${idleElsewhere === 1 ? 'city needs' : 'cities need'} something to build"></span>`
+      : '';
+    const count = place.count > 1 ? ` · <span class="cityCount">${place.index} / ${place.count}${idleDot}</span>` : '';
+    const title = `<div class="cityTitle"><h2>${city.name}</h2><div class="sub">Size ${city.size}${count}</div></div>`;
+    const navHtml =
+      place.count > 1
+        ? `<div class="cityNav withArrows"><button type="button" data-act="prevCity" class="cityArrow" aria-label="Previous city" title="Previous city ( , or [ )">◀</button>${title}<button type="button" data-act="nextCity" class="cityArrow" aria-label="Next city" title="Next city ( . or ] )">▶</button></div>`
+        : `<div class="cityNav">${title}</div>`;
+    // Round 17 (B1): opened by tapping it with a unit selected that can get here.
+    const offer = this.moveHereOffer(city);
+    const moveHereHtml = offer
+      ? `<div class="section moveHere"><button type="button" data-act="moveHere" class="bigBtn moveHereBtn">${this.badge(offer.unit.type, offer.unit.owner)}Move ${UNITS[offer.unit.type].name} here <span class="sub">(${plural(offer.turns, 'turn')})</span></button></div>`
+      : '';
     panel.innerHTML = `
       <div class="cityHead">
-        <div><h2>${city.name}</h2><div class="sub">Size ${city.size}</div></div>
+        ${navHtml}
         <button type="button" data-act="close" class="closeBtn" aria-label="Close city">✕</button>
       </div>
+      ${moveHereHtml}
       ${units.length ? `<div class="section"><div class="label">Units here</div><div class="unitList">${unitBtns}</div></div>` : ''}
       ${hasAirlift(city) ? `<div class="section sub">✈ Airport: ${city.airliftTurn === this.state.turn ? 'airlift used this turn' : 'one airlift this turn (select a land unit here, then Airlift)'}</div>` : ''}
       <div class="section">
@@ -2703,6 +2802,7 @@ export class App {
       ${row('Music', music ? `${plural(music, 'track')}` : 'No music yet', `${toggle('musicOn', s.musicOn)}${volume('musicVolume', s.musicVolume, s.musicOn)}`)}
       ${row('Animation speed', 'How long combat flashes and news stay on screen (computer turns are always instant)', choice('animationSpeed', s.animationSpeed, [['normal', 'Normal'], ['fast', 'Fast']]))}
       ${row('Confirm End Turn', 'Ask before ending the turn while a unit can still move', toggle('confirmEndTurn', s.confirmEndTurn))}
+      ${row('Tap twice to move', 'The first tap on a tile shows the path and how many turns; tap it again to go', toggle('tapTwice', s.tapTwice))}
       ${row('Text size', 'Bigger text in menus and panels', choice('textSize', s.textSize, [['normal', 'Normal'], ['large', 'Large']]))}
       ${(() => {
         const c = this.cloud.settingsRow();
@@ -2999,6 +3099,7 @@ export class App {
       targets: this.attackTargets(sel),
       openCityId: this.openCityId,
       flash: this.flash,
+      plannedMove: this.pendingMove && this.pendingMove.unitId === sel?.id ? { path: this.pendingMove.path, turns: this.pendingMove.turns } : undefined,
       onIconReady: () => this.requestDraw(),
       art: this.art,
       time: performance.now(),

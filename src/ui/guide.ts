@@ -34,7 +34,7 @@ export function guidePages(): GuidePage[] {
       id: 'moving',
       title: 'Moving and founding cities',
       html: `${pics(unit('settler'), unit('warrior'))}
-        <p>In <b>${GAME.name}</b> you lead a people from its first village to the space age, against up to five rivals. You start with a ${card('unit:settler', 'Settler')} and a ${card('unit:warrior', 'Warrior')}. <b>Tap a unit</b> to select it: the tiles it can reach this turn light up. <b>Tap a lit tile</b> to move there.</p>
+        <p>In <b>${GAME.name}</b> you lead a people from its first village to the space age, against up to five rivals. You start with a ${card('unit:settler', 'Settler')} and a ${card('unit:warrior', 'Warrior')}. <b>Tap a unit</b> to select it: the tiles it can reach this turn light up. <b>Tap a lit tile</b> to move there. Tapping one of your own cities opens it instead (unless the unit is right next to it); the city then offers <b>Move … here</b>. Want a second chance on every move? Turn on <b>Tap twice to move</b> in Settings.</p>
         <p>Hills, forests, and mountains cost more moves. Units see a little way around them; the rest of the world stays dark until you explore it.</p>
         <p>With the Settler selected, tap <b>Found City</b> to build a city where it stands. Good spots have grassland and plains for food, with hills or forest nearby for production. Cities must be at least ${RULES.minCityDistance} tiles apart.</p>
         <p>When every unit has moved, tap <b>End Turn</b>. The computer players then take their turns. <b>Next Unit</b> jumps to a unit that still has orders to give.</p>
@@ -43,7 +43,7 @@ export function guidePages(): GuidePage[] {
     {
       id: 'cities',
       title: 'Cities: growth, focus, and building',
-      html: `<p><b>Tap a city</b> to open it. A city works the tiles around it for <b>food</b>, <b>production</b>, and <b>trade</b>.</p>
+      html: `<p><b>Tap a city</b> to open it; the ◀ ▶ arrows by its name (or a swipe across the top, or , and . on a keyboard) go through your other cities. A city works the tiles around it for <b>food</b>, <b>production</b>, and <b>trade</b>.</p>
         <ul><li><b>Food</b> fills the food box; when it's full, the city grows by one and works one more tile.</li>
         <li><b>Production</b> builds what you pick in the <b>Build</b> list: units, buildings, and wonders.</li>
         <li><b>Trade</b> becomes science and gold (set the split with − and + at the top).</li></ul>

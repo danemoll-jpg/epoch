@@ -50,6 +50,8 @@ export interface ViewState {
   openCityId?: number;
   /** A short flash on a tile after a fight or capture: green if we won, red if we lost. */
   flash?: { x: number; y: number; won: boolean };
+  /** Round 17 (B2): "Tap twice to move": the path shown after the first tap, and its turns. */
+  plannedMove?: { path: Coord[]; turns: number };
   /** Called when a unit icon finishes loading, so the map can be drawn again with it. */
   onIconReady?: () => void;
   /** Round 14: the terrain and city styles (today's look unless a dev build switched). */
@@ -767,6 +769,8 @@ export function render(
     }
   }
 
+  if (view.plannedMove) drawPlannedMove(ctx, view.plannedMove, pos, s);
+
   // City name labels on top of everything so they stay readable.
   ctx.font = `600 ${Math.max(11, Math.round(s * 0.26))}px system-ui, sans-serif`;
   ctx.textAlign = 'center';
@@ -785,4 +789,41 @@ export function render(
     ctx.fillStyle = '#fff';
     ctx.fillText(city.name, lx + 1, ly + 1);
   }
+}
+
+/** Round 17 (B2): the path of a move waiting for its second tap: dots, and the turns on the goal. */
+function drawPlannedMove(
+  ctx: CanvasRenderingContext2D,
+  plan: { path: Coord[]; turns: number },
+  pos: (x: number, y: number) => { x: number; y: number },
+  s: number,
+): void {
+  const goal = plan.path[plan.path.length - 1];
+  if (!goal) return;
+  ctx.fillStyle = 'rgba(255,224,102,0.95)';
+  ctx.strokeStyle = 'rgba(20,20,20,0.7)';
+  ctx.lineWidth = 1.5;
+  for (const c of plan.path.slice(0, -1)) {
+    const p = pos(c.x, c.y);
+    ctx.beginPath();
+    ctx.arc(p.x + s / 2, p.y + s / 2, Math.max(3, s * 0.09), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+  const g = pos(goal.x, goal.y);
+  ctx.strokeStyle = '#ffe066';
+  ctx.lineWidth = Math.max(2.5, s * 0.07);
+  ctx.strokeRect(g.x + 2, g.y + 2, s - 4, s - 4);
+  const label = plan.turns === 1 ? '1 turn' : `${plan.turns} turns`;
+  const fs = Math.max(11, Math.min(16, s * 0.24));
+  ctx.font = `bold ${fs}px system-ui, sans-serif`;
+  const w = ctx.measureText(label).width + fs;
+  const lx = g.x + s / 2 - w / 2;
+  const ly = g.y - fs * 1.6;
+  ctx.fillStyle = 'rgba(16,24,34,0.92)';
+  ctx.fillRect(lx, ly, w, fs * 1.5);
+  ctx.fillStyle = '#ffe066';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, g.x + s / 2, ly + fs * 0.75);
 }

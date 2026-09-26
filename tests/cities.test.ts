@@ -449,11 +449,11 @@ describe('tap rule', () => {
     expect(resolveTap(s, 0, undefined, 1, 0)).toEqual({ kind: 'openCity', cityId: c.id });
   });
 
-  it('a selected unit elsewhere moves into your city when it can get there', () => {
+  it('a selected unit two tiles away opens your city (offering the move) instead of moving (Round 17)', () => {
     const s = makeState(['ggg']);
-    addCity(s, 0, 2, 0);
+    const c = addCity(s, 0, 2, 0);
     const w = addUnit(s, 'warrior', 0, 0, 0);
-    expect(resolveTap(s, 0, w.id, 2, 0)).toEqual({ kind: 'move', unitId: w.id });
+    expect(resolveTap(s, 0, w.id, 2, 0)).toEqual({ kind: 'openCity', cityId: c.id, moveUnitId: w.id });
   });
 
   it("opens your city instead when the selected unit can't reach it", () => {

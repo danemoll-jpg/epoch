@@ -1812,6 +1812,50 @@ const ROUND16_SCENARIOS: Scenario[] = [
   },
 ];
 
+// ---- Round 17: city arrows, and tapping a city with a unit selected -----------------------
+
+/** The five cities of `city-cycle`, in the order the arrows go through them (the capital first). */
+export const CYCLE_CITIES = [CAPITAL, 'Ur', 'Uruk', 'Nippur', 'Lagash'];
+
+function cityCycleScenario(): GameState {
+  const { state } = withCapital(undefined, { size: 5 });
+  const spots: [number, number][] = [[3, 3], [11, 3], [3, 8], [11, 8]];
+  spots.forEach(([x, y], i) => {
+    const name = CYCLE_CITIES[i + 1]!;
+    // Lagash, the last, has nothing to build.
+    addCity(state, 0, x, y, { name, size: 2 + i, build: name === 'Lagash' ? null : { kind: 'unit', id: 'warrior' } });
+  });
+  state.players[0]!.citiesFounded = 5;
+  return state;
+}
+
+/** Legion 4 tiles west of the capital (selected first), a Warrior right next to it (east). */
+export const TAP_CITY_LEGION = { x: CITY_X - 4, y: CITY_Y };
+export const TAP_CITY_WARRIOR = { x: CITY_X + 1, y: CITY_Y };
+
+function tapCityWithUnitScenario(): GameState {
+  const { state } = withCapital(undefined, { size: 3 });
+  state.players[0]!.techs = ['bronze_working', 'iron_working'];
+  addUnit(state, 'legion', 0, TAP_CITY_LEGION.x, TAP_CITY_LEGION.y);
+  addUnit(state, 'warrior', 0, TAP_CITY_WARRIOR.x, TAP_CITY_WARRIOR.y);
+  return state;
+}
+
+const ROUND17_SCENARIOS: Scenario[] = [
+  {
+    id: 'city-cycle',
+    title: 'City arrows: go through your cities',
+    note: `Five cities; Lagash has nothing to build, so its panel opens first (5 / 5 under its name). Tap ▶: ${CYCLE_CITIES.join(' → ')} and round again (◀ goes back), the map recentering on each and the panel staying where you'd scrolled. On the other four an orange dot by the count says another city needs a build. On a computer , and . (or [ and ]) do the same; on the iPad a swipe left or right across the top of the panel does too.`,
+    build: cityCycleScenario,
+  },
+  {
+    id: 'tap-city-with-unit',
+    title: 'Tapping your city with a unit selected',
+    note: `The Legion (4 tiles west of ${CAPITAL}) is selected. Tap ${CAPITAL}: it opens instead of moving the Legion, with a “Move Legion here (4 turns)” button at the top; tap it and the Legion takes its first step and the panel closes. Then the Warrior (right next to ${CAPITAL}, east) is selected: tap ${CAPITAL} and it moves straight in, no panel. Settings → Tap twice to move: the first tap on a tile shows the path and the turns, the second moves.`,
+    build: tapCityWithUnitScenario,
+  },
+];
+
 const ROUND15_SCENARIOS: Scenario[] = [
   {
     id: 'theology',
@@ -2269,6 +2313,7 @@ export const SCENARIOS: Scenario[] = [
   ...ROUND14_SCENARIOS,
   ...ROUND15_SCENARIOS,
   ...ROUND16_SCENARIOS,
+  ...ROUND17_SCENARIOS,
 ];
 
 export function findScenario(id: string): Scenario | undefined {
