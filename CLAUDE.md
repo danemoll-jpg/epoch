@@ -130,7 +130,7 @@ npm run sim -- perf        # Round 14: End Turn time per map size, by stretch of
 npm run sim -- map-fixtures  # Round 14: remake the late Huge/Epic saves the huge-map/epic-map scenarios load
 npm run sim -- matrix        # Round 15: the full matrix (every size at Normal + Novice/Legendary on Normal, 20 games each); CONFIGS=normal,large to pick, TUNE="VICTORY.goldGoal=12000" to try numbers without editing, TAG= to keep runs apart; JSON in sim-out/sim-matrix-*.json
 npm run sim -- save-size     # Round 16: the Epic save's size raw and gzipped, turn 151 → 220 (TURNS=)
-npm run test:rules           # Round 16: firestore.rules against the Firestore emulator (needs Java 21+; this PC has Java 8, so not run yet)
+npm run test:rules           # Round 16: firestore.rules against the Firestore emulator (scripts/test-rules.mjs: firebase-tools 15 via npx, and the portable Java 21 in %LOCALAPPDATA%\epoch-tools\, since the system Java is 8; 6 pass since Round 16b)
 python scripts/make-portrait-webp.py      # Round 16: remake src/assets/portraits/*.webp from docs/portraits-master/*.png
 node scripts/make-art-page.mjs            # Round 14: rebuild docs/terrain-style-candidates.html after changing src/render/art.ts
 node scripts/make-building-icons-page.mjs # Round 14: rebuild docs/building-icon-candidates.html (fetches missing SVGs)
@@ -277,7 +277,10 @@ note: `sound`/`musicSwitch` on a scenario); (round 15) `update-available`
 (the update banner, `fakeUpdate` on a scenario), `theology` (Theology unlocks
 the Grand Cathedral), `ai-roads` (an AI links its cities); (round 16)
 `cloud-conflict`, `cloud-offline`, `cloud-slots` (a stand-in cloud:
-`cloud: () => CloudScenario` on a scenario). A scenario can open a screen at load
+`cloud: () => CloudScenario` on a scenario); (round 16b) `cloud-signin-existing-game`
+(signed out with a game going: sign in and it uploads), `cloud-signin-fails` (the
+first sign-in doesn't finish: the toast; `mockBackend(store, user, { signedIn: false,
+failFirst: 1 })`). A scenario can open a screen at load
 (`opens: 'mainMenu' | 'settings' | 'almanac' | 'howToPlay' | 'setup'`) and
 show every tip afresh (`freshTips`, without touching the device's list);
 scenarios are silent unless Settings → Sound in dev scenarios. The religion ones use
@@ -355,6 +358,22 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   prints the first-load size. Dev: `src/dev/memoryCloud.ts` (`MemoryCloudStore`
   with offline/slow/fail switches, `mockBackend`, `putSlot`); a scenario's
   `cloud()` gives the App a stand-in cloud whose backups stay in memory.
+- **Round 16b: signing in and saving by hand.** A sign-in that doesn't finish
+  always says "Sign-in failed. Please try again." (`SIGN_IN_FAILED` in
+  `src/cloud/backend.ts`; `signInMessage` in `src/ui/cloud.ts`): a closed popup,
+  a redirect that comes back without an account (`redirectResult()` → `none`), or
+  an error. Each try is kept on the device (`lastSignIn` in `epoch.cloud`) and
+  shown in Settings → Cloud saves while signed out, with Firebase's code: that's
+  the instrumentation for iPad sign-in trouble. `accountHtml` is the main menu's
+  account box (green "☁ Signed in as …" or orange-edged "Not signed in"), and
+  `backupsHtml` the line on ☰ → Restore a backup. `CloudSync` gained `syncNow()`
+  (Save now / Sync now: waits out a write in flight, skips a retry's wait, returns
+  a `SyncOutcome`), `saveCopy(name, gameId)` (☰ → Save to a new cloud slot: a copy
+  as a game of its own; the game here keeps its slot), `lastOkAt`/`lastError`
+  (plain words via `cloudErrorText`, shown by the ☁ mark's panel, which has Sync
+  now), and the host's `uploaded(meta)` (the toast when a game first gets a slot,
+  e.g. signing in with a game going). ☰ has **Save now** (disabled while the
+  rivals move) and **Save to a new cloud slot…** (signed in only).
 - **Round 16: portraits are WebP** (`src/assets/portraits/<civ>.webp`, quality
   90, 851 KB for 12); Dan's PNG masters are in `docs/portraits-master/`.
 - Round 14: `src/data/mapSizes.ts` has Huge (64×44) and Epic (80×56; its
@@ -619,8 +638,8 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   removed so it doesn't look like the Battleship; compare in
   `docs/carrier-trim-candidates.html`).
 - The version shown on the About screen comes from `package.json`
-  (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.16.0 for
-  round 16.
+  (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.16.1 for
+  round 16b.
 - **Meeting a civ reveals where its capital is** (Round 11: the tile is
   marked explored), so conquerors can find the capitals domination needs.
 - **Victory goals (Round 15):** culture 8000, gold 13000 on Normal. Each
@@ -715,18 +734,19 @@ what was pushed.
 - **Round 16 (version 0.16.0): cloud saves with Firebase** (project
   `epoch-ca127`, Google sign-in, Firestore) and the portraits as WebP: done,
   **pushed 2026-09-25**, live. Dan did both console steps. Dan's first test: the PC
-  game reached the iPad once he was really signed in (sync works). Round 16b
-  polishes it.
+  game reached the iPad once he was really signed in (sync works).
+- **Round 16b (version 0.16.1): done and pushed 2026-09-25** (Dan's say-so
+  for this round): the clear signed-in state and the sign-in failure toast,
+  Save now, Save to a new cloud slot, Sync now and errors on the ☁ mark, the
+  rules tightened after the first emulator run (**Dan: republish
+  `firestore.rules`**, see `docs/FIREBASE-SETUP.md`). **The Epoch card is live
+  in the hub** (https://dansgamehub.netlify.app/, hub commit `0a18c16`).
 - **The play server:** http://10.0.0.224:4173/.
-- **Pushing is Dan's call** (see Pushing rules). Commit as usual, push only
-  when told, and list the waiting commits in the report. **Round 16b: Dan
-  says push the epoch repo, and add the Epoch card to the hub and push the
-  hub** (TODO.md C1). That's for Round 16b only.
+- **Pushing is Dan's call again** (see Pushing rules). Round 16b's pushes were
+  for that round only. Commit as usual, push only when told, and list the
+  waiting commits in the report.
 
-**Current objective: Round 16b** (see TODO.md): an unmistakable signed-in
-state (Dan thought he was signed in when he wasn't), a manual "Save now"
-and "Save to a new cloud slot", Sync now, visible sync errors, and the hub
-card.
+**Current objective:** waiting for the planning session (see TODO.md).
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.
