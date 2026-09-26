@@ -2049,6 +2049,23 @@ the leader-scene crops if not already done, and says "push".
   pass), build clean; preview-verified in iPad landscape (the spy buttons with odds and prices,
   London "can't revolt", the Investigate report; the Drone scouting by a real tap).
 
+**Part D — Wars (item 5): measured, announced; tuning moved into the balance pass. 2026-09-26.**
+- **Measured first** (new sim counters: wars per game AI vs AI, with and declared on the
+  stand-in player, by the declarer's era, first war turn, peace). **Before Round 19** (40 games,
+  Normal): **4.8 wars per game** (2.9 AI vs AI, 1.9 with player 0), a war by the Medieval era in
+  **90%** of games, first war around turn 22, 1.1 peace treaties. Novice 5.1, Legendary 5.7, Small
+  3.5. **So wars were not rare in the rules.** Why Dan saw none: (1) the bug fixed in Part A (once
+  the log filled, no new news reached the screen at all, war included); (2) AI-vs-AI wars were only
+  a brief toast, and only between civs he had met. Both fixed: every war between civs you've met
+  now gets a **panel** (a card when it's on you), peace a toast, and both are in 📰 News.
+- **With Parts A–C in** (20 games, Normal): 6.0 wars per game (3.7 AI vs AI, 1.4 declared on the
+  stand-in), 90% by Medieval. Caught spies (−4 opinion) add wars. A trial with a shared-border
+  bonus (+0.5) and piling onto a civ already at war (+1): 7.0 per game, so **those knobs stay at 0**
+  for now (`warBorderBonus`, `warOpportunistBonus` in `rules.ts`). The AI's war reach now grows with
+  the map's width (Huge/Epic: farther), for domination on big maps. The final war numbers are
+  set in the balance pass (B), with borders and spies in.
+- **Verified:** tests pass; sim numbers above (`sim-out/`, git-ignored).
+
 ## Next Steps (Do Not Start Yet)
 
 All of these are deferred for **sequencing only**. Each depends on the
