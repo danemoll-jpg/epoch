@@ -63,6 +63,7 @@ import { capturableCity } from './conquest';
 import { runAiDiplomacy, runawayProgress, strengthRatio } from './diplomacy';
 import { canEnter, findUnit, isEnterable, moveUnit, moveUnitToward } from './movement';
 import { buildChoiceError, buyCost, buyError, clearBuild, rushBuy, sameItem, setBuild, setFocus, setScienceRate } from './production';
+import { aiUpgrade } from './upgrades';
 import { capitalsHeld, launchError, launchSpaceship, victoryWonder } from './victory';
 import { cityYields } from './yields';
 import { nextFloat } from './rng';
@@ -176,14 +177,15 @@ export function bestAttacker(state: GameState, city: City): UnitTypeId {
 }
 
 function bestUnit(state: GameState, city: City, score: (d: (typeof UNITS)[UnitTypeId]) => number): UnitTypeId {
-  let best: UnitTypeId = 'warrior';
+  // Round 19: only what the city can build (an obsolete Warrior isn't), else the Warrior.
+  let best: UnitTypeId | undefined;
   for (const id of UNIT_IDS) {
     const def = UNITS[id];
     if (def.canFoundCity || def.domain !== 'land' || buildChoiceError(state, city, { kind: 'unit', id })) continue;
-    const cur = UNITS[best];
-    if (score(def) > score(cur) || (score(def) === score(cur) && def.cost < cur.cost)) best = id;
+    const cur = best ? UNITS[best] : undefined;
+    if (!cur || score(def) > score(cur) || (score(def) === score(cur) && def.cost < cur.cost)) best = id;
   }
-  return best;
+  return best ?? 'warrior';
 }
 
 /** How many cities this AI aims for: the map's land per living civ, in data-set bounds. */
@@ -409,6 +411,8 @@ function manageCities(state: GameState, playerId: number): void {
   const reserve = ctx.goal === 'economic' ? victoryGoals(state.mapSize, state.difficulty).gold + AI.goldReserve : AI.goldReserve;
   // Round 15 (B4): from mid-game, a cheap road between two of its cities comes first.
   if (state.turn >= ROADS.ai.priorityFromTurn) aiBuyRoads(state, playerId, AI.goldReserve, { maxCost: ROADS.ai.priorityMaxCost });
+  // Round 19 (item 8): out-of-date units in its cities, defenders first.
+  aiUpgrade(state, playerId, reserve);
   const buys = citiesOf(state, playerId)
     .filter((c) => {
       if (!c.build || buyError(state, c)) return false;

@@ -274,3 +274,117 @@ describe('Round 19 Part A: the save', () => {
     expect(migrationSummary(12)).toContain('victory warnings');
   });
 });
+
+// ---- Part B: obsolete units and upgrades (item 8) ---------------------------------------------
+
+import { UNITS, UNIT_IDS } from '../src/data/units';
+import { DIFFICULTIES } from '../src/data/difficulty';
+import { buildOptions } from '../src/game/production';
+import { learnTech } from '../src/game/tech';
+import { aiUpgrade, isObsolete, replacementOf, upgradableUnits, upgradeCost, upgradeError } from '../src/game/upgrades';
+
+describe('Round 19 item 8: obsolete units and upgrades', () => {
+  it('every line stays in its domain and never gets weaker', () => {
+    for (const id of UNIT_IDS) {
+      const to = UNITS[id].upgradesTo;
+      if (!to) continue;
+      expect(UNITS[to].domain).toBe(UNITS[id].domain);
+      // The Transport is the cargo line's end: it carries more but doesn't fight.
+      if (to === 'transport') expect(UNITS[to].cargo).toBeGreaterThan(UNITS[id].cargo);
+      else expect(UNITS[to].attack).toBeGreaterThanOrEqual(UNITS[id].attack);
+      expect(UNITS[to].defense).toBeGreaterThanOrEqual(UNITS[id].defense);
+      expect(UNITS[to].cost).toBeGreaterThanOrEqual(UNITS[id].cost);
+    }
+    // A cargo ship is always there: the Galley's line ends in the Transport.
+    expect(UNITS.caravel.upgradesTo).toBe('transport');
+    expect(UNITS.transport.upgradesTo).toBeUndefined();
+  });
+
+  it('a unit leaves the build list once its replacement is known; the best of the line is the target', () => {
+    const s = makeState(MAP);
+    const c = addCity(s, 0, 3, 3, { name: 'Ur', size: 3 });
+    const p = s.players[0]!;
+    p.techs = ['bronze_working'];
+    const ids = () => buildOptions(s, c).map((i) => i.id);
+    expect(ids()).toContain('spearman');
+    expect(ids()).not.toContain('warrior');
+    expect(isObsolete(p, 'warrior')).toBe(true);
+    p.techs.push('gunpowder'); // no Feudalism: the Pikeman is skipped
+    expect(replacementOf(p, 'warrior')).toBe('musketman');
+    expect(ids()).not.toContain('spearman');
+    expect(ids()).toContain('musketman');
+  });
+
+  it('the Stealth Bomber needs both its techs before the Bomber is out of date', () => {
+    const s = makeState(MAP);
+    const p = s.players[0]!;
+    p.techs = ['flight', 'advanced_flight'];
+    expect(isObsolete(p, 'bomber')).toBe(false);
+    p.techs.push('computers');
+    expect(isObsolete(p, 'bomber')).toBe(true);
+  });
+
+  it('learning the tech switches a city building the old unit to the new one, keeping production', () => {
+    const s = makeState(MAP);
+    const c = addCity(s, 0, 3, 3, { name: 'Ur', build: { kind: 'unit', id: 'spearman' }, production: 12 });
+    s.players[0]!.techs = ['bronze_working'];
+    learnTech(s, 0, 'feudalism', 'Learned Feudalism');
+    expect(c.build).toEqual({ kind: 'unit', id: 'pikeman' });
+    expect(c.production).toBe(12);
+  });
+
+  it('cost: the production difference × 2, at least 10, an army ×3, Legendary dearer', () => {
+    const s = makeState(MAP);
+    addCity(s, 0, 3, 3, { name: 'Ur' });
+    s.players[0]!.techs = ['bronze_working', 'feudalism'];
+    const w = addUnit(s, 'warrior', 0, 3, 3);
+    expect(upgradeCost(s, w)).toBe((30 - 10) * 2); // → Pikeman
+    const sp = addUnit(s, 'spearman', 0, 3, 3);
+    expect(upgradeCost(s, sp)).toBe(20);
+    const army = addUnit(s, 'warrior', 0, 3, 3, { army: true });
+    expect(upgradeCost(s, army)).toBe(120);
+    s.difficulty = 'legendary';
+    expect(upgradeCost(s, w)).toBe(Math.ceil((40 * DIFFICULTIES.legendary.upgradePct) / 100));
+  });
+
+  it('only in your own city, with moves left, gold, and cargo that still fits', () => {
+    const s = makeState(MAP);
+    addCity(s, 0, 3, 3, { name: 'Ur' });
+    addCity(s, 1, 10, 3, { name: 'Taxila' });
+    const p = s.players[0]!;
+    p.techs = ['bronze_working', 'map_making', 'navigation', 'magnetism', 'steam_engine'];
+    const w = addUnit(s, 'warrior', 0, 3, 3);
+    expect(upgradeError(s, w)).toBe('Needs 20 gold');
+    p.gold = 500;
+    expect(upgradeError(s, w)).toBeUndefined();
+    const out = addUnit(s, 'warrior', 0, 5, 5);
+    expect(upgradeError(s, out)).toBe('Only in one of your cities');
+    const theirs = addUnit(s, 'warrior', 0, 10, 3);
+    expect(upgradeError(s, theirs)).toBe('Only in one of your cities');
+    const frigate = addUnit(s, 'frigate', 0, 3, 3);
+    addUnit(s, 'warrior', 0, 3, 3, { carriedBy: frigate.id });
+    expect(upgradeError(s, frigate)).toBe('Unload its cargo first');
+    const res = applyAction(s, { type: 'upgrade', unitId: w.id });
+    expect(res.ok).toBe(true);
+    expect(w.type).toBe('spearman');
+    expect(upgradeError(s, w)).toBe('Nothing newer to upgrade to');
+    const again = addUnit(s, 'warrior', 0, 3, 3, { movesLeft: 0 });
+    expect(upgradeError(s, again)).toBe('It has already used its turn');
+  });
+
+  it('the AI upgrades from gold above its reserve, defenders first, a few a turn', () => {
+    const s = makeState(MAP);
+    s.currentPlayer = 1;
+    addCity(s, 1, 10, 3, { name: 'Taxila' });
+    const p = s.players[1]!;
+    p.techs = ['bronze_working'];
+    const roamer = addUnit(s, 'warrior', 1, 10, 3);
+    const guard = addUnit(s, 'warrior', 1, 10, 3, { fortified: true });
+    p.gold = 100 + 20; // one upgrade over a reserve of 100
+    expect(aiUpgrade(s, 1, 100)).toBe(1);
+    expect(guard.type).toBe('spearman');
+    expect(roamer.type).toBe('warrior');
+    expect(p.gold).toBe(100);
+    expect(upgradableUnits(s, 1).map((x) => x.unit.id)).toEqual([roamer.id]);
+  });
+});

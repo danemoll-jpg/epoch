@@ -3012,3 +3012,25 @@ button.alink {
 .newsItem .ticon {
   flex: none;
 }
+
+/* ---- Round 19 Part B: upgrades ---- */
+.upgradeBtn {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  text-align: left;
+  background: #2e4a2a;
+  border-color: #6fa060;
+}
+.upgradeBtn .uicon {
+  width: 18px;
+  height: 18px;
+  vertical-align: -3px;
+}
+#unitsUpgrade {
+  margin-bottom: 8px;
+}
+#unitsUpgrade .sub {
+  display: block;
+  margin-top: 4px;
+}

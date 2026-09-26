@@ -26,6 +26,7 @@ import { effectsOf, eraBonus, techCostPct } from './leaders';
 import { addLog } from './log';
 import { checkFoundings } from './religion';
 import { upgradeRails } from './roads';
+import { switchObsoleteBuilds } from './upgrades';
 import { ROADS } from '../data/roads';
 import type { ActionResult, GameState, Player } from './types';
 import { empireIncome } from './yields';
@@ -157,6 +158,8 @@ export function learnTech(state: GameState, playerId: number, tech: TechId, text
   addLog(state, playerId, text);
   // Round 12: the first to a founding tech founds a religion; Railroad turns roads into rails.
   checkFoundings(state, playerId);
+  // Round 19 (item 8): a city building a unit that just went out of date builds its replacement.
+  switchObsoleteBuilds(state, playerId);
   if (tech === ROADS.railTech) {
     const n = upgradeRails(state, playerId);
     if (n) addLog(state, playerId, `Railroad: ${n} road tile${n === 1 ? '' : 's'} near your cities became rail`, undefined, undefined, { kind: 'road' });

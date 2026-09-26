@@ -2063,7 +2063,33 @@ function builtThisTurnScenario(): GameState {
   return state;
 }
 
+// ---- Round 19 Part B: obsolete units and upgrades --------------------------------------------
+
+/** Round 19 (item 8): just after Gunpowder, with gold; a Spearman, a veteran Archer and a Warrior army in the capital. */
+export const UPGRADE_GOLD = 300;
+export function upgradeUnitsScenario(): GameState {
+  const { state } = withCapital(undefined, { size: 4, build: { kind: 'unit', id: 'pikeman' } });
+  const p = state.players[0]!;
+  p.techs = ['bronze_working', 'archery', 'feudalism', 'gunpowder', 'alphabet', 'writing'];
+  p.gold = UPGRADE_GOLD;
+  addUnit(state, 'spearman', 0, CITY_X, CITY_Y, { fortified: true });
+  addUnit(state, 'archer', 0, CITY_X, CITY_Y, { veteran: true });
+  addUnit(state, 'warrior', 0, CITY_X, CITY_Y, { army: true });
+  // One outside the city: it can't upgrade until it comes home.
+  addUnit(state, 'archer', 0, CITY_X + 2, CITY_Y);
+  // The Pikeman build went out of date with Gunpowder (as learning it does in a game).
+  state.cities[0]!.build = { kind: 'unit', id: 'musketman' };
+  return state;
+}
+
 export const SCENARIOS: Scenario[] = [
+  // ---- Round 19 Part B ----
+  {
+    id: 'upgrade-units',
+    title: 'Upgrade old units',
+    note: `You just learned Gunpowder and have ${UPGRADE_GOLD} gold. Open ${CAPITAL}: the Build list has the Musketman but no Warrior, Spearman, Pikeman or Archer (tap ⓘ on the Musketman: the Almanac says what it replaces). Each unit in the city has ⬆ Upgrade to Musketman: the Spearman and the Archer 40 gold each, the Warrior army 180 (three units). Upgrade the ★ Archer: it stays a veteran and its turn is used. ☰ → Units → Upgrade all does the rest (the Archer outside the city has to come home first).`,
+    build: upgradeUnitsScenario,
+  },
   // ---- Round 19 Part A ----
   {
     id: 'rival-victory-wonder',

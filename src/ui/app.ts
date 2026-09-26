@@ -17,6 +17,7 @@ import { GREAT_PEOPLE, GREAT_PEOPLE_RULES } from '../data/greatPeople';
 import { RESOURCES } from '../data/resources';
 import { villageAt } from '../game/barbarians';
 import { cityNameFor, foundCityError } from '../game/city';
+import { upgradableUnits, upgradeCost, upgradeError, upgradeTarget } from '../game/upgrades';
 import { cultureToNextGreatPerson, engineerCities, generalTiles, greatPersonError, merchantGold } from '../game/greatPeople';
 import { bonusText, visibleResource } from '../game/resources';
 import { pendingVillage, settleVillageError } from '../game/villages';
@@ -348,6 +349,7 @@ export class App {
       else if (btn.dataset.act === 'airlift') this.pickAirlift(id);
       else if (btn.dataset.act === 'spread') this.spreadReligion(id, Number(btn.dataset.city));
       else if (btn.dataset.act === 'moveHere') this.moveUnitHere(id);
+      else if (btn.dataset.act === 'upgrade') this.upgradeUnit(id);
       else this.select(id);
     });
     $('attackGoBtn').addEventListener('click', () => this.confirmAttack());
@@ -947,6 +949,56 @@ export class App {
     if (!btn || btn.disabled || btn.dataset.x === undefined) return;
     this.closeNews();
     this.centerOn(Number(btn.dataset.x), Number(btn.dataset.y));
+  }
+
+  /**
+   * Round 19 (item 8): "⬆ Upgrade to Musketman (40 gold)" for an out-of-date unit in one of your
+   * cities (disabled, with the reason, when it can't right now); nothing otherwise.
+   */
+  private upgradeButton(u: Unit, compact = false): string {
+    if (u.owner !== this.human) return '';
+    const to = upgradeTarget(this.state, u);
+    const cost = upgradeCost(this.state, u);
+    if (!to || cost === undefined) return '';
+    const inCity = this.state.cities.some((c) => c.x === u.x && c.y === u.y && c.owner === this.human) && u.carriedBy === null;
+    if (!inCity) return compact ? '' : `<div class="label">⬆ Can be upgraded to the ${UNITS[to].name} in one of your cities.</div>`;
+    const err = upgradeError(this.state, u);
+    return `<button type="button" data-act="upgrade" data-unit="${u.id}" class="upgradeBtn" ${err ? 'disabled' : ''} title="${esc(err ?? 'Uses its turn; it stays a veteran if it is one')}">${
+      compact ? '' : this.badge(to, u.owner)
+    }⬆ Upgrade to ${UNITS[to].name} <span class="sub">(${cost} gold${err ? ` · ${esc(err)}` : ''})</span></button>`;
+  }
+
+  private upgradeUnit(unitId: number): void {
+    const res = this.dispatchResult({ type: 'upgrade', unitId });
+    if (res.ok) {
+      this.sound.play('building-done');
+      if (res.message) this.toast(res.message);
+      if (this.selectedDone()) this.selectNext(false);
+    }
+  }
+
+  /** Round 19 (item 8): ☰ → Units → Upgrade all: every unit that can upgrade now, cheapest first, while the gold lasts. */
+  private upgradeAll(): void {
+    if (this.turnBusy) return;
+    const list = upgradableUnits(this.state, this.human)
+      .filter((x) => !upgradeError(this.state, x.unit))
+      .sort((a, b) => a.cost - b.cost);
+    let n = 0;
+    let gold = 0;
+    for (const x of list) {
+      if (upgradeError(this.state, x.unit)) continue;
+      const cost = x.cost;
+      if (applyAction(this.state, { type: 'upgrade', unitId: x.unit.id }).ok) {
+        n++;
+        gold += cost;
+      }
+    }
+    this.afterAction({ ok: n > 0 }, new Set(metCivs(this.state, this.human)));
+    if (n) {
+      this.sound.play('building-done');
+      this.toast(`Upgraded ${plural(n, 'unit')} for ${gold} gold${n < list.length ? ` (${list.length - n} left: not enough gold)` : ''}`);
+    }
+    this.renderUnitsList();
   }
 
   /** Round 19 (item 4): the city that finished this unit last turn (or this turn), if any. */
@@ -1656,6 +1708,8 @@ export class App {
       if (res.ok && res.message) this.toast(res.message);
     } else if (act === 'religions') {
       this.openReligion();
+    } else if (act === 'upgrade') {
+      this.upgradeUnit(Number(btn.dataset.unit));
     } else if (act === 'unit') {
       // Selecting a unit closes the city so the unit's own buttons (Fortify, Form Army) show.
       this.closeCity();
@@ -1759,7 +1813,7 @@ export class App {
           .map(
             (u) => `<button type="button" data-act="unit" data-unit="${u.id}" class="unitItem">
             ${this.badge(u.type, u.owner)}${UNITS[u.type].name}${u.army ? ` ${armyWord(u.type)} ×${RULES.combat.armyMultiplier}` : ''}${u.veteran ? ' ★' : ''}${u.fortified && !isShip(u) ? ' 🛡' : ''}${u.carriedBy !== null ? ' ⚓ aboard' : ''}
-            <span class="sub">${isAir(u) ? (u.movesLeft > 0 ? `ready · range ${airRange(u)}` : 'flown this turn') : `moves ${movesText(u.movesLeft)}/${UNITS[u.type].moves}`}${isShip(u) && UNITS[u.type].cargo ? ` · cargo ${cargoOf(this.state, u).length}/${cargoCapacity(u)}` : ''}${isShip(u) && UNITS[u.type].airCargo ? ` · aircraft ${aircraftOf(this.state, u).length}/${airCapacity(u)}` : ''} · tap to select</span></button>`,
+            <span class="sub">${isAir(u) ? (u.movesLeft > 0 ? `ready · range ${airRange(u)}` : 'flown this turn') : `moves ${movesText(u.movesLeft)}/${UNITS[u.type].moves}`}${isShip(u) && UNITS[u.type].cargo ? ` · cargo ${cargoOf(this.state, u).length}/${cargoCapacity(u)}` : ''}${isShip(u) && UNITS[u.type].airCargo ? ` · aircraft ${aircraftOf(this.state, u).length}/${airCapacity(u)}` : ''} · tap to select</span></button>${this.upgradeButton(u, true)}`,
           )
           .join('') + armyBtns
       : '<span class="sub">None</span>';
@@ -1938,8 +1992,12 @@ export class App {
     $('unitsMenuBtn').addEventListener('click', () => this.openUnitsList());
     $('unitsBackBtn').addEventListener('click', () => this.showMenuPage('menuMain'));
     $('menuUnits').addEventListener('click', (e) => {
-      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-filter], button[data-unit]');
-      if (!btn) return;
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-filter], button[data-unit], button[data-upgrade-all]');
+      if (!btn || btn.disabled) return;
+      if (btn.dataset.upgradeAll !== undefined) {
+        this.upgradeAll();
+        return;
+      }
       if (btn.dataset.filter) {
         this.unitsFilter = btn.dataset.filter as UnitFilter;
         this.renderUnitsList();
@@ -2004,6 +2062,15 @@ export class App {
   }
 
   private renderUnitsList(): void {
+    // Round 19 (item 8): Upgrade all, with the count and the total.
+    const ups = upgradableUnits(this.state, this.human);
+    const can = ups.filter((x) => !upgradeError(this.state, x.unit));
+    const total = can.reduce((n, x) => n + x.cost, 0);
+    const gold = this.state.players[this.human]!.gold;
+    $('unitsUpgrade').innerHTML = ups.length
+      ? `<button type="button" data-upgrade-all class="upgradeBtn" ${can.length ? '' : 'disabled'}>⬆ Upgrade all <span class="sub">(${plural(can.length, 'unit')}, ${total} gold${total > gold ? `; you have ${gold}` : ''})</span></button>
+         <div class="sub">${ups.map((x) => `${esc(UNITS[x.unit.type].name)} → ${esc(UNITS[x.to].name)} ${x.cost}`).join(' · ')}${can.length < ups.length ? ` · ${ups.length - can.length} can't this turn (moved already, or cargo aboard)` : ''}</div>`
+      : '';
     const counts = filterCounts(this.state, this.human);
     $('unitsFilters').innerHTML = UNIT_FILTERS.map(
       (f) => `<button type="button" data-filter="${f.id}" class="${this.unitsFilter === f.id ? 'on' : ''}" aria-pressed="${this.unitsFilter === f.id}">${f.label} <span class="sub">${counts[f.id]}</span></button>`,
@@ -3981,6 +4048,8 @@ export class App {
       }
       if (!targets.length) navalBtns += `<div class="label">Walk into or next to a city that doesn’t follow ${esc(faith?.name ?? 'your faith')} (yours, or a civ at peace with you), then spread it.</div>`;
     }
+    // Round 19 (item 8): an out-of-date unit in one of your cities can be upgraded.
+    if (mine) navalBtns += this.upgradeButton(sel);
     // Round 18 (item 3): another unit was selected when this tile was tapped from afar.
     const offer = mine ? this.unitOfferNow() : undefined;
     if (offer && offer.x === sel.x && offer.y === sel.y) {

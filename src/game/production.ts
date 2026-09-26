@@ -15,6 +15,7 @@ import { CITY_FOCUSES, RULES, growthThreshold, rushBuyCost, type CityFocus } fro
 import { TECHS, type TechId } from '../data/techs';
 import { UNITS, UNIT_IDS } from '../data/units';
 import { addLog } from './log';
+import { isObsolete, replacementOf } from './upgrades';
 import { CivName } from './conquest';
 import { hasTech } from './tech';
 import { addSpaceshipPart, spaceshipError, victoryWonderBlocker } from './victory';
@@ -86,6 +87,8 @@ export function buildChoiceError(state: GameState, city: City, item: BuildItem):
   if (item.kind === 'unit' && UNITS[item.id].spreadsReligion) return missionaryBuildError(state, city);
   const requires = itemRequires(item);
   if (!hasTech(state.players[city.owner]!, requires)) return `Needs ${TECHS[requires!].name}`;
+  // Round 19 (item 8): a unit whose replacement this civ can build is out of date.
+  if (item.kind === 'unit' && isObsolete(state.players[city.owner]!, item.id)) return `Replaced by the ${UNITS[replacementOf(state.players[city.owner]!, item.id)!].name}`;
   // A second tech (the Stealth Bomber, Round 10).
   const also = item.kind === 'unit' ? UNITS[item.id].alsoRequires : undefined;
   if (!hasTech(state.players[city.owner]!, also)) return `Needs ${TECHS[also!].name}`;

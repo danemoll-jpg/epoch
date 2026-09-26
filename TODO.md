@@ -1986,6 +1986,32 @@ the leader-scene crops if not already done, and says "push".
 - **Dan, try:** on the play server, play on; or the dev server's scenarios above. Nothing needed
   from you for Part A.
 
+**Part B — Obsolete units and upgrades (item 8): done, 2026-09-26.** No state change (no save bump:
+`upgradesTo` is data, and a unit's type just changes).
+- **Lines** (`upgradesTo` in `units.ts`): Warrior → Spearman → Pikeman → Musketman → Rifleman;
+  Archer → Musketman; Horseman → Chariot → Knight → Tank; Catapult → Cannon → Artillery; Fighter →
+  Jet Fighter; Bomber → Stealth Bomber (needs both its techs). **Two changes from the draft:** the
+  **Legion goes to the Rifleman** (the Musketman's attack 3 is below the Legion's 4), and the ships
+  split into a **cargo line, Galley → Caravel → Transport**, and a **warship line, Frigate →
+  Ironclad → Destroyer** (the draft's single line would have made the Frigate's replacement, the
+  Ironclad, which carries nothing, leave everyone without a troop ship until Industrialization).
+  No unit needs a resource in this game, so the resource clause doesn't apply.
+- **Obsolete:** once you can build anything later along a unit's line, it leaves the Build list
+  (units you have stay); a city set to build it switches to the replacement, keeping its
+  production. The AI's unit picks follow the same list.
+- **Upgrade:** a unit in one of your cities (not aboard) shows **⬆ Upgrade to Musketman (40
+  gold)** in its panel and in the city panel's unit list: (new cost − old cost) × 2 gold, at least
+  10; an army ×3; Legendary 125% (Novice 90%, Veteran 110%; `upgradePct` in `difficulty.ts`). It
+  uses the unit's turn and keeps ★ and the army. A ship with more cargo than its replacement
+  carries must unload first. **☰ → Units → Upgrade all** (count and total, cheapest first while
+  the gold lasts). The **AI** upgrades up to 2 units a turn from gold above its reserve,
+  fortified defenders first. Almanac: "Upgrades to" / "Replaces"; How to Play (combat page).
+- **Scenario** `upgrade-units`. **Verified:** tests (8 new; 1019 pass), lint and build clean;
+  preview-verified in iPad portrait (the city panel's three upgrade buttons at 40/40/180 gold;
+  Upgrade all upgraded the rest; the Archer outside the city waits).
+- **Dan, try:** a game past Gunpowder: old units gone from the Build list; bring one home and
+  upgrade it. Nothing needed from you.
+
 ## Next Steps (Do Not Start Yet)
 
 All of these are deferred for **sequencing only**. Each depends on the

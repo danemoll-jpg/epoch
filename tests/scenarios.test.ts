@@ -36,7 +36,7 @@ import { RELIGION, RELIGION_SYMBOLS } from '../src/data/religion';
 import { ROADS } from '../src/data/roads';
 import { faithOpinion, holyReligion, religionCityCulture, religionCityGold, spreadTargets } from '../src/game/religion';
 import { roadAt, roadConnected } from '../src/game/roads';
-import { BUILT_CITIES, RIVAL_WONDER, CYCLE_CITIES, FORTIFIED, LARGE_MAP_TURNS, MINIMAP_SEED, NEXT_UNIT, TAP_CITY_LEGION, TAP_CITY_WARRIOR, TAP_OWN } from '../src/dev/scenarios';
+import { BUILT_CITIES, RIVAL_WONDER, UPGRADE_GOLD, CYCLE_CITIES, FORTIFIED, LARGE_MAP_TURNS, MINIMAP_SEED, NEXT_UNIT, TAP_CITY_LEGION, TAP_CITY_WARRIOR, TAP_OWN } from '../src/dev/scenarios';
 import { listUnits } from '../src/ui/unitsList';
 import { cityOrder, cycleCity, otherIdleCities } from '../src/ui/cityCycle';
 import { resolveTap } from '../src/ui/tap';
@@ -53,6 +53,7 @@ import { musicTrackFor } from '../src/ui/soundLogic';
 import { findCard, searchAlmanac } from '../src/ui/almanac';
 import { guidePages } from '../src/ui/guide';
 import { dueTips } from '../src/ui/tips';
+import { upgradeCost, upgradeError } from '../src/game/upgrades';
 
 const AIR_TARGET = { x: 10, y: 5 };
 const mine = (s: GameState, type: string) => s.units.find((u) => u.owner === 0 && u.type === type)!;
@@ -81,6 +82,22 @@ function endTurn(s: GameState): void {
 
 /** What each scenario's note promises. A new scenario without an entry here fails the suite. */
 const OUTCOMES: Record<string, (s: GameState) => void> = {
+  'upgrade-units': (s) => {
+    const opts = builds(s);
+    expect(opts).toContain('musketman');
+    for (const old of ['warrior', 'spearman', 'pikeman', 'archer']) expect(opts).not.toContain(old);
+    const inCity = s.units.filter((u) => u.owner === 0 && u.x === capital(s).x && u.y === capital(s).y);
+    expect(inCity.map((u) => upgradeCost(s, u))).toEqual([40, 40, 180]);
+    expect(noteOf('upgrade-units')).toContain('40 gold each, the Warrior army 180');
+    const archer = inCity.find((u) => u.type === 'archer')!;
+    expect(applyAction(s, { type: 'upgrade', unitId: archer.id }).ok).toBe(true);
+    expect(archer).toMatchObject({ type: 'musketman', veteran: true, movesLeft: 0 });
+    for (const u of inCity) if (u !== archer) expect(applyAction(s, { type: 'upgrade', unitId: u.id }).ok).toBe(true);
+    expect(s.players[0]!.gold).toBe(UPGRADE_GOLD - 260);
+    expect(inCity.find((u) => u.army)!.type).toBe('musketman');
+    const outside = s.units.find((u) => u.owner === 0 && u.type === 'archer')!;
+    expect(upgradeError(s, outside)).toBe('Only in one of your cities');
+  },
   // ---- Round 19 Part A ----
   'rival-victory-wonder': (s) => {
     const warnings = () => s.log.filter((e) => e.kind === 'warning' && e.other === 0);

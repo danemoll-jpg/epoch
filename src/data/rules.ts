@@ -26,6 +26,13 @@ export const RULES = {
    * Oldest event-log entries are dropped past this many, so saves stay small. Round 19: 400
    * (was 200), so the news log (☰ → News) reaches back a few turns.
    */
+  /**
+   * Round 19 (item 8): upgrading a unit in one of your cities to the newest unit along its line
+   * costs the production difference times this in gold, at least `minGold` (an army counts each
+   * of its units; the difficulty level's `upgradePct` applies to the player). The AI upgrades at
+   * most `aiMaxPerTurn` units a turn, from gold above its reserve.
+   */
+  upgrade: { goldPerProduction: 2, minGold: 10, aiMaxPerTurn: 2 },
   maxLogEntries: 400,
 
   // ---- map shape (Round 8: several landmasses, so ships matter) ----

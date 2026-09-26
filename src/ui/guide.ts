@@ -68,7 +68,8 @@ export function guidePages(): GuidePage[] {
         <p>To attack, select a unit and tap an enemy next to it (outlined in red). A panel shows your <b>chance to win</b> and every bonus on each side before you decide. The loser is destroyed.</p>
         <p>Defenders do better on hills and forests, in cities, behind Walls, and when <b>fortified</b> (+${C.fortifiedPct}%). A unit that wins may become a <b>veteran</b> ★ (+${C.veteranPct}%).</p>
         <p>Beat a city's last defender and you take the city.</p>
-        <p><b>Armies:</b> put ${C.armySize} units of the same kind on one tile and tap <b>Form Army</b>: they become one unit ${C.armyMultiplier} times as strong. Three ships make a <b>fleet</b> the same way.</p>`,
+        <p><b>Armies:</b> put ${C.armySize} units of the same kind on one tile and tap <b>Form Army</b>: they become one unit ${C.armyMultiplier} times as strong. Three ships make a <b>fleet</b> the same way.</p>
+        <p><b>Old units:</b> once you can build a unit's replacement (a Pikeman replaces the Spearman), the old one leaves the Build list. Bring an old unit into one of your cities and tap <b>⬆ Upgrade</b>: for gold it becomes the newest unit of its line, keeping its ★ and its army. It uses its turn. ☰ → Units has <b>Upgrade all</b>.</p>`,
     },
     {
       id: 'ships',

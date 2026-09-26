@@ -13,7 +13,7 @@ import { FOUNDING_TECHS } from '../data/religion';
 import { RESOURCES, RESOURCE_IDS } from '../data/resources';
 import { ERAS, TECHS, TECH_LIST, type TechId } from '../data/techs';
 import { TERRAIN } from '../data/terrain';
-import { UNITS, UNIT_IDS } from '../data/units';
+import { UNITS, UNIT_IDS, type UnitTypeId } from '../data/units';
 import { PROJECTS, PROJECT_IDS, VICTORY_NAMES } from '../data/victory';
 import { WONDER_LIST } from '../data/wonders';
 import { bonusText } from '../game/resources';
@@ -73,6 +73,11 @@ function card(id: string, category: AlmanacCategory, name: string, line: string,
 const disc = (inner: string, cls = '') => `<span class="udisc acardIcon ${cls}">${inner}</span>`;
 
 function unitCards(): AlmanacCard[] {
+  const replaces = new Map<UnitTypeId, UnitTypeId[]>();
+  for (const id of UNIT_IDS) {
+    const to = UNITS[id].upgradesTo;
+    if (to) replaces.set(to, [...(replaces.get(to) ?? []), id]);
+  }
   return UNIT_IDS.map((id) => {
     const u = UNITS[id];
     const kind = u.domain === 'sea' ? 'Ship' : u.domain === 'air' ? 'Aircraft' : u.hover ? 'Helicopter' : 'Land unit';
@@ -80,7 +85,10 @@ function unitCards(): AlmanacCard[] {
       row('Stats', esc(unitSummary(id))) +
       row('Cost', `${u.cost} production`) +
       row('Needs', needs(u.requires, u.alsoRequires)) +
-      row('Sight', String(u.sight));
+      row('Sight', String(u.sight)) +
+      // Round 19 (item 8): its upgrade line.
+      (u.upgradesTo ? row('Upgrades to', cardLink(`unit:${u.upgradesTo}`, UNITS[u.upgradesTo].name)) : '') +
+      (replaces.get(id)?.length ? row('Replaces', replaces.get(id)!.map((r) => cardLink(`unit:${r}`, UNITS[r].name)).join(', ')) : '');
     return card(`unit:${id}`, 'unit', u.name, kind, disc(unitIconHtml(id)), facts);
   });
 }

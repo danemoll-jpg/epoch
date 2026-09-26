@@ -18,6 +18,7 @@ import { useGreatPerson, type GreatPersonUse } from './greatPeople';
 import { dissolution, pilgrimage, returnCity, setChallenge } from './uniques';
 import { nameReligion, nationalChurch, spreadReligion } from './religion';
 import { buyRoad } from './roads';
+import { upgradeUnit } from './upgrades';
 
 export type Action =
   | { type: 'move'; unitId: number; to: Coord }
@@ -26,6 +27,8 @@ export type Action =
   | { type: 'fortify'; unitId: number }
   /** Round 18: un-fortify a unit (or a ship told to stay put). */
   | { type: 'wake'; unitId: number }
+  /** Round 19 (item 8): upgrade a unit in one of your cities to the newest of its line. */
+  | { type: 'upgrade'; unitId: number }
   | { type: 'formArmy'; unitId: number }
   /** Board a ship docked on the unit's own tile (in a city). At sea, boarding is a move onto the ship. */
   | { type: 'board'; unitId: number; shipId: number }
@@ -84,6 +87,8 @@ function runAction(state: GameState, action: Action): ActionResult {
       return fortify(state, action.unitId);
     case 'wake':
       return wake(state, action.unitId);
+    case 'upgrade':
+      return upgradeUnit(state, action.unitId);
     case 'formArmy':
       return formArmy(state, action.unitId);
     case 'board':

@@ -83,6 +83,11 @@ export interface UnitDef {
    * `requires` tech (Monotheism) or by a civ that knows its city's religion's founding tech.
    */
   spreadsReligion?: boolean;
+  /**
+   * Round 19 (item 8): the unit that replaces this one. Once its owner can build that, this one
+   * leaves the build list, and units of this kind in a city can be upgraded (src/game/upgrades.ts).
+   */
+  upgradesTo?: UnitTypeId;
 }
 
 function unit(
@@ -158,5 +163,22 @@ export const UNITS: Record<UnitTypeId, UnitDef> = {
     spreadsReligion: true,
   },
 };
+
+/**
+ * Round 19 (item 8): the upgrade lines. From the planning draft, with two changes: the Legion
+ * goes to the Rifleman (the Musketman's attack 3 is below the Legion's 4), and the ships split
+ * into a cargo line (Galley, Caravel, Transport) and a warship line (Frigate, Ironclad,
+ * Destroyer), so no civ is ever left without a ship that carries troops.
+ */
+const UPGRADE_LINES: [UnitTypeId, UnitTypeId][] = [
+  ['warrior', 'spearman'], ['spearman', 'pikeman'], ['pikeman', 'musketman'], ['musketman', 'rifleman'],
+  ['archer', 'musketman'], ['legion', 'rifleman'],
+  ['horseman', 'chariot'], ['chariot', 'knight'], ['knight', 'tank'],
+  ['catapult', 'cannon'], ['cannon', 'artillery'],
+  ['galley', 'caravel'], ['caravel', 'transport'],
+  ['frigate', 'ironclad'], ['ironclad', 'destroyer'],
+  ['fighter', 'jet_fighter'], ['bomber', 'stealth_bomber'],
+];
+for (const [from, to] of UPGRADE_LINES) UNITS[from].upgradesTo = to;
 
 export const UNIT_IDS = Object.keys(UNITS) as UnitTypeId[];

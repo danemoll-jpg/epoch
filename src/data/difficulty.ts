@@ -44,6 +44,8 @@ export interface DifficultyDef {
    * Legendary's boosted AIs reached them before turn 160; this keeps the pressure but not the rush.
    */
   goalPct: number;
+  /** Round 19 (item 8): the player's unit upgrade prices, as a percent (100 = the rules' price). */
+  upgradePct: number;
 }
 
 const NONE: YieldPcts = { production: 0, science: 0, gold: 0 };
@@ -61,6 +63,7 @@ export const DIFFICULTIES: Record<DifficultyId, DifficultyDef> = {
     warGraceTurns: 30,
     extraAiUnits: [],
     goalPct: 100,
+    upgradePct: 90,
   },
   normal: {
     id: 'normal',
@@ -74,6 +77,7 @@ export const DIFFICULTIES: Record<DifficultyId, DifficultyDef> = {
     warGraceTurns: GRACE,
     extraAiUnits: [],
     goalPct: 100,
+    upgradePct: 100,
   },
   veteran: {
     id: 'veteran',
@@ -87,6 +91,7 @@ export const DIFFICULTIES: Record<DifficultyId, DifficultyDef> = {
     warGraceTurns: GRACE,
     extraAiUnits: [],
     goalPct: 100,
+    upgradePct: 110,
   },
   legendary: {
     id: 'legendary',
@@ -101,6 +106,7 @@ export const DIFFICULTIES: Record<DifficultyId, DifficultyDef> = {
     warGraceTurns: 12,
     extraAiUnits: ['warrior', 'settler'],
     goalPct: 115,
+    upgradePct: 125,
   },
 };
 
