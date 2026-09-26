@@ -4,7 +4,7 @@
 import type { CityFocus } from '../data/rules';
 import type { TechId } from '../data/techs';
 import { foundCity } from './city';
-import { attack, formArmy, fortify } from './combat';
+import { attack, formArmy, fortify, wake } from './combat';
 import { airlift, rebase } from './air';
 import { answerOffer, declareWar, giveGold, proposePeace, tradeTech } from './diplomacy';
 import { boardShip, moveUnitToward, unloadHere } from './movement';
@@ -24,6 +24,8 @@ export type Action =
   | { type: 'foundCity'; unitId: number }
   | { type: 'attack'; unitId: number; at: Coord }
   | { type: 'fortify'; unitId: number }
+  /** Round 18: un-fortify a unit (or a ship told to stay put). */
+  | { type: 'wake'; unitId: number }
   | { type: 'formArmy'; unitId: number }
   /** Board a ship docked on the unit's own tile (in a city). At sea, boarding is a move onto the ship. */
   | { type: 'board'; unitId: number; shipId: number }
@@ -80,6 +82,8 @@ function runAction(state: GameState, action: Action): ActionResult {
       return attack(state, action.unitId, action.at);
     case 'fortify':
       return fortify(state, action.unitId);
+    case 'wake':
+      return wake(state, action.unitId);
     case 'formArmy':
       return formArmy(state, action.unitId);
     case 'board':

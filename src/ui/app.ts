@@ -20,7 +20,7 @@ import { cityNameFor, foundCityError } from '../game/city';
 import { cultureToNextGreatPerson, engineerCities, generalTiles, greatPersonError, merchantGold } from '../game/greatPeople';
 import { bonusText, visibleResource } from '../game/resources';
 import { pendingVillage, settleVillageError } from '../game/villages';
-import { attackError, combatOdds, fortifyError, interception, overallChance, type Strength } from '../game/combat';
+import { attackError, combatOdds, fortifyError, interception, overallChance, wakeError, type Strength } from '../game/combat';
 import { airliftSourceError, airliftTargets, airRange, hasAirlift, tilesWithin } from '../game/air';
 import { CivName, civAdjective, civName, civVerb } from '../game/conquest';
 import {
@@ -41,7 +41,7 @@ import { distance, neighbors, tileAt, tileIndex } from '../game/grid';
 import { unitVisibleTo } from '../game/fog';
 import { aircraftOf, airCapacity, armyWord, cargoCapacity, cargoOf, hovers, isAir, isShip, isWaterAt } from '../game/naval';
 import { entryText, eventsVisibleTo } from '../game/log';
-import { findPath, findUnit, pathTurns, reachableThisTurn } from '../game/movement';
+import { findPath, findUnit, pathTurns, reachableThisTurn, stepError } from '../game/movement';
 import { migrationSummary } from '../game/save';
 import {
   buildOptions,
@@ -86,7 +86,8 @@ import { atWar } from '../game/war';
 import { cityCulture, cityScienceGold, cityYields, empireCulture, empireIncome, foodSurplus } from '../game/yields';
 import { capitalOf, launchError, victoryProgress, type VictoryProgress } from '../game/victory';
 import { wonderCity } from '../game/wonders';
-import { clampCamera, defaultTileSize, minTileSize, panBy, screenToWorld, zoomAt, type Camera } from '../render/camera';
+import { centerInRect, clampCamera, defaultTileSize, minTileSize, panBy, screenToWorld, tileComfortablyVisible, zoomAt, type Camera, type ScreenRect } from '../render/camera';
+import { UNIT_FILTERS, filterCounts, listUnits, unitStatus, unitWhere, type UnitFilter } from './unitsList';
 import { drawMinimap, minimapScale, minimapToWorld, MinimapTerrain } from '../render/minimap';
 import { CITY_STYLES, DEFAULT_ART, TERRAIN_STYLES, type ArtChoice } from '../render/art';
 import { iconHtml, unitIconHtml } from '../render/icons';
@@ -224,6 +225,12 @@ export class App {
   private moveHere: { unitId: number; cityId: number } | undefined;
   /** Round 17 (B2): "Tap twice to move": the destination shown, waiting for the second tap. */
   private pendingMove: (PendingMove & { path: Coord[]; turns: number }) | undefined;
+  /** Round 18 (item 3): a unit of yours was tapped from afar with this unit selected: the unit panel offers "Move … here". */
+  private unitOffer: { unitId: number; x: number; y: number } | undefined;
+  /** Round 18 (item 1): the smooth pan bringing a unit into view (its animation frame). */
+  private panFrame: number | undefined;
+  /** Round 18 (item 2): ☰ → Units, the filter shown. */
+  private unitsFilter: UnitFilter = 'all';
   /** Round 17 (A1): where a swipe on the city panel's header started. */
   private headSwipe: { id: number; x: number; y: number } | undefined;
   /** The tech highlighted on the tech screen, and its prompt line (view state only). */
@@ -305,11 +312,13 @@ export class App {
     attachMapInput(this.canvas, {
       onTap: (sx, sy) => this.handleTap(sx, sy),
       onPan: (dx, dy) => {
+        this.stopPan();
         panBy(this.camera, dx, dy);
         this.clamp();
         this.requestDraw();
       },
       onZoom: (f, sx, sy) => {
+        this.stopPan();
         zoomAt(this.camera, this.cssW, this.cssH, f, sx, sy, minTileSize(this.cssW, this.cssH));
         this.clamp();
         this.requestDraw();
@@ -330,6 +339,7 @@ export class App {
       else if (btn.dataset.act === 'unload') this.unloadHere(id);
       else if (btn.dataset.act === 'airlift') this.pickAirlift(id);
       else if (btn.dataset.act === 'spread') this.spreadReligion(id, Number(btn.dataset.city));
+      else if (btn.dataset.act === 'moveHere') this.moveUnitHere(id);
       else this.select(id);
     });
     $('attackGoBtn').addEventListener('click', () => this.confirmAttack());
@@ -728,6 +738,14 @@ export class App {
   private fortifySelected(): void {
     const u = this.selected();
     if (!u) return;
+    // Round 18 (item 2): the button reads "Wake" on a fortified unit.
+    if (u.fortified) {
+      if (this.dispatch({ type: 'wake', unitId: u.id })) {
+        const name = UNITS[u.type].name;
+        this.toast(u.movesLeft > 0 ? `${name} is awake and ready to move` : `${name} is awake: it can move next turn`);
+      }
+      return;
+    }
     if (this.dispatch({ type: 'fortify', unitId: u.id })) {
       this.toast(
         isShip(u) || isAir(u) || hovers(u)
@@ -897,23 +915,154 @@ export class App {
 
   private select(unitId: number | undefined): void {
     if (unitId !== undefined && unitId !== this.selectedUnitId) this.sound.play('tap');
-    if (unitId !== this.selectedUnitId) this.pendingMove = undefined;
+    if (unitId !== this.selectedUnitId) {
+      this.pendingMove = undefined;
+      this.unitOffer = undefined;
+    }
     this.selectedUnitId = unitId;
     this.refresh();
   }
 
-  /** Select the next unit that can still move (cycling after the current one). */
+  /**
+   * Select the next unit that can still move (cycling after the current one). `center` (Next
+   * Unit) centers the map on it; otherwise (the game picking the next unit on its own, Round 18)
+   * the map pans to it only if it's off screen or under the top bar, the minimap, or a panel.
+   */
   private selectNext(center: boolean): void {
     const ready = this.readyUnits();
+    this.unitOffer = undefined;
+    this.pendingMove = undefined;
     if (ready.length === 0) {
       this.selectedUnitId = undefined;
     } else {
       const i = ready.findIndex((u) => u.id === this.selectedUnitId);
       this.selectedUnitId = ready[(i + 1) % ready.length]!.id;
-      const u = this.selected();
-      if (center && u) this.centerOn(u.x, u.y);
     }
     this.refresh();
+    const u = this.selected();
+    if (center && u) {
+      this.centerOn(u.x, u.y);
+      this.requestDraw();
+    } else if (u) this.revealTile(u.x, u.y);
+  }
+
+  /** Round 18 (item 1): after a move, has the selected unit finished (no moves, fortified, or now riding a ship)? */
+  private selectedDone(): boolean {
+    const u = this.selected();
+    return !!u && !this.readyUnits().some((r) => r.id === u.id);
+  }
+
+  /** Round 18 (item 1): the map's covered parts (top bar, minimap, panels, End Turn), relative to the map. */
+  private coveredRects(): { blockers: ScreenRect[]; safe: ScreenRect } {
+    const map = this.canvas.getBoundingClientRect();
+    const rectOf = (id: string): ScreenRect | undefined => {
+      const el = document.getElementById(id);
+      if (!el || el.hidden) return undefined;
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) return undefined;
+      return { left: r.left - map.left, top: r.top - map.top, right: r.right - map.left, bottom: r.bottom - map.top };
+    };
+    const ids = ['topbar', 'menuBtn', 'minimap', 'unitPanel', 'cityPanel', 'endTurnBtn', 'devBanner', 'rivalsMoving', 'tipCard'];
+    const blockers = ids.map(rectOf).filter((r): r is ScreenRect => !!r);
+    const w = this.cssW;
+    const h = this.cssH;
+    const safe: ScreenRect = { left: 0, top: 0, right: w, bottom: h };
+    for (const id of ['topbar', 'menuBtn']) {
+      const r = rectOf(id);
+      if (r) safe.top = Math.max(safe.top, r.bottom);
+    }
+    for (const id of ['unitPanel', 'endTurnBtn']) {
+      const r = rectOf(id);
+      if (r && r.top > h / 2) safe.bottom = Math.min(safe.bottom, r.top);
+    }
+    const city = rectOf('cityPanel');
+    if (city) {
+      if (city.left < w / 4) safe.bottom = Math.min(safe.bottom, city.top);
+      else safe.right = Math.min(safe.right, city.left);
+    }
+    const tile = this.camera.tileSize;
+    if (safe.bottom - safe.top < tile * 2 || safe.right - safe.left < tile * 2) return { blockers, safe: { left: 0, top: 0, right: w, bottom: h } };
+    return { blockers, safe };
+  }
+
+  /**
+   * Round 18 (item 1): bring tile (x, y) into view. Left alone if it's already comfortably
+   * visible (half a tile clear of the edges and of anything covering the map); otherwise the map
+   * pans smoothly so it sits in the middle of the uncovered part.
+   */
+  private revealTile(x: number, y: number): void {
+    if (this.cssW === 0) return;
+    const { blockers, safe } = this.coveredRects();
+    const cam = this.camera;
+    if (tileComfortablyVisible(cam, this.cssW, this.cssH, x, y, blockers, cam.tileSize / 2)) return;
+    const target = centerInRect(cam, this.cssW, this.cssH, x, y, safe);
+    const end = { ...cam, cx: target.cx, cy: target.cy };
+    clampCamera(end, this.state.map.width, this.state.map.height);
+    this.panTo(end.cx, end.cy);
+  }
+
+  /** A smooth pan (about a quarter second, eased; instant when the device asks for less motion). */
+  private panTo(cx: number, cy: number): void {
+    this.stopPan();
+    const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) {
+      this.camera.cx = cx;
+      this.camera.cy = cy;
+      this.requestDraw();
+      return;
+    }
+    const from = { cx: this.camera.cx, cy: this.camera.cy };
+    const ms = this.settings.animationSpeed === 'fast' ? 160 : 280;
+    const start = performance.now();
+    const step = (now: number) => {
+      const t = Math.min(1, Math.max(0, (now - start) / ms));
+      const e = 1 - (1 - t) * (1 - t) * (1 - t);
+      this.camera.cx = from.cx + (cx - from.cx) * e;
+      this.camera.cy = from.cy + (cy - from.cy) * e;
+      this.draw();
+      this.panFrame = t < 1 ? requestAnimationFrame(step) : undefined;
+    };
+    this.panFrame = requestAnimationFrame(step);
+  }
+
+  private stopPan(): void {
+    if (this.panFrame !== undefined) cancelAnimationFrame(this.panFrame);
+    this.panFrame = undefined;
+  }
+
+  /** Round 18 (item 3): the "Move … here" / "Board the …" offer, if the unit can still go there. */
+  private unitOfferNow(): { unit: Unit; x: number; y: number; turns: number; ship?: Unit } | undefined {
+    const o = this.unitOffer;
+    if (!o) return undefined;
+    const unit = findUnit(this.state, o.unitId);
+    if (!unit || unit.owner !== this.human || unit.movesLeft <= 0 || isAir(unit)) return undefined;
+    if (unit.x === o.x && unit.y === o.y) return undefined;
+    const path = findPath(this.state, unit, o);
+    if (!path) return undefined;
+    const ship =
+      !isShip(unit) && !hovers(unit) && isWaterAt(this.state, o.x, o.y)
+        ? this.state.units.find((u) => u.x === o.x && u.y === o.y && u.owner === this.human && isShip(u))
+        : undefined;
+    return { unit, x: o.x, y: o.y, turns: pathTurns(this.state, unit, path), ship };
+  }
+
+  /** Round 18 (item 3): the offer's button: moves the unit (as far as it gets this turn). */
+  private moveUnitHere(unitId: number): void {
+    const offer = this.unitOfferNow();
+    if (!offer || offer.unit.id !== unitId) return;
+    this.unitOffer = undefined;
+    const logStart = this.state.log.length;
+    const res = this.dispatchResult({ type: 'move', unitId, to: { x: offer.x, y: offer.y } });
+    if (!res.ok) return;
+    this.sound.play('unit-move');
+    this.announce(this.state.log.slice(logStart));
+    this.select(unitId);
+    const after = this.selected();
+    if (after && (after.x !== offer.x || after.y !== offer.y) && offer.turns > 1) {
+      this.toast(`${UNITS[offer.unit.type].name} is on its way: next turn, select it and tap the same spot again to carry on`);
+    }
+    if (this.selectedDone()) this.selectNext(false);
+    else if (after) this.revealTile(after.x, after.y);
   }
 
   private handleTap(sx: number, sy: number): void {
@@ -949,7 +1098,14 @@ export class App {
           // Captures and eliminations are worth announcing.
           this.announce(this.state.log.slice(logStart));
           const after = this.selected();
-          if (after && after.movesLeft <= 0) this.selectNext(false);
+          // Round 18 (item 1): stopped short with moves left (the way on is blocked, or the next
+          // tile costs more than it has left): it stays selected, and says why.
+          if (after && !isAir(after) && after.movesLeft > 0 && (after.x !== tx || after.y !== ty) && after.id === result.unitId) {
+            const next = findPath(this.state, after, { x: tx, y: ty })?.[0];
+            const why = next ? stepError(this.state, after, next) : undefined;
+            this.toast(`${UNITS[after.type].name} stopped short: ${why === 'Not enough moves left' ? 'not enough moves left for the next tile' : 'the way on is blocked'}`);
+          }
+          if (this.selectedDone()) this.selectNext(false);
           if (enemyCity && enemyCity.owner === this.human) {
             this.showFlash(tx, ty, true);
             this.openCity(enemyCity.id);
@@ -970,6 +1126,11 @@ export class App {
         return;
       case 'select':
         this.select(result.unitId);
+        // Round 18 (item 3): tapped from afar with another unit selected: offer to move it here.
+        if (result.moveUnitId !== undefined) {
+          this.unitOffer = { unitId: result.moveUnitId, x: tx, y: ty };
+          this.refresh();
+        }
         return;
       case 'inspect': {
         const explored = this.state.players[this.human]!.explored[ty * this.state.map.width + tx] === 1;
@@ -1058,8 +1219,9 @@ export class App {
     // Round 17 (A1): the city panel's arrows.
     else if ((k === ',' || k === '[') && this.openCityId !== undefined) this.cycleCity(-1);
     else if ((k === '.' || k === ']') && this.openCityId !== undefined) this.cycleCity(1);
+    else if (k === 'u') this.openUnitsList();
     else if (k === 'escape') {
-      if (this.openCityId !== undefined) this.closeCity();
+      if (this.openCityId !== undefined) this.closeCityAndReveal();
       else this.select(undefined);
     } else if (k === '=' || k === '+') this.zoomCenter(1.2);
     else if (k === '-') this.zoomCenter(1 / 1.2);
@@ -1096,6 +1258,13 @@ export class App {
     this.refresh();
   }
 
+  /** Round 18 (item 1): the city panel closed by hand: the selected unit comes back into view. */
+  private closeCityAndReveal(): void {
+    this.closeCity();
+    const u = this.selected();
+    if (u) this.revealTile(u.x, u.y);
+  }
+
   /** Round 17 (A1): the next (1) or previous (-1) of your cities, wrapping around. */
   private cycleCity(dir: 1 | -1): void {
     if (this.openCityId === undefined) return;
@@ -1122,7 +1291,7 @@ export class App {
     if (btn.dataset.card) {
       this.openAlmanac(btn.dataset.card);
     } else if (act === 'close') {
-      this.closeCity();
+      this.closeCityAndReveal();
     } else if (act === 'prevCity' || act === 'nextCity') {
       this.cycleCity(act === 'nextCity' ? 1 : -1);
     } else if (act === 'moveHere') {
@@ -1135,8 +1304,7 @@ export class App {
         this.sound.play('unit-move');
         this.announce(this.state.log.slice(logStart));
         this.select(offer.unit.id);
-        const after = this.selected();
-        if (after && after.movesLeft <= 0) this.selectNext(false);
+        if (this.selectedDone()) this.selectNext(false);
         if (offer.turns > 1) this.toast(`${UNITS[offer.unit.type].name} is on its way: tap ${city.name} again next turn to carry on`);
       }
     } else if (act === 'focus') {
@@ -1428,6 +1596,25 @@ export class App {
       this.showMenuPage('menuAbout');
     });
     $('aboutBackBtn').addEventListener('click', () => this.showMenuPage('menuMain'));
+    // Round 18 (item 2): ☰ → Units.
+    $('unitsMenuBtn').addEventListener('click', () => this.openUnitsList());
+    $('unitsBackBtn').addEventListener('click', () => this.showMenuPage('menuMain'));
+    $('menuUnits').addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-filter], button[data-unit]');
+      if (!btn) return;
+      if (btn.dataset.filter) {
+        this.unitsFilter = btn.dataset.filter as UnitFilter;
+        this.renderUnitsList();
+        return;
+      }
+      const u = findUnit(this.state, Number(btn.dataset.unit));
+      if (!u) return;
+      this.closeMenu();
+      this.closeCity();
+      this.select(u.id);
+      this.centerOn(u.x, u.y);
+      this.requestDraw();
+    });
     $('backupList').addEventListener('click', (e) => this.handleBackupClick(e));
     $('menuCloseBtn').addEventListener('click', () => this.closeMenu());
     // Round 13.
@@ -1466,8 +1653,36 @@ export class App {
     $('menuOverlay').hidden = true;
   }
 
-  private showMenuPage(id: 'menuMain' | 'menuBackups' | 'menuConfirm' | 'menuAbout'): void {
-    for (const page of ['menuMain', 'menuBackups', 'menuConfirm', 'menuAbout']) $(page).hidden = page !== id;
+  private showMenuPage(id: 'menuMain' | 'menuBackups' | 'menuConfirm' | 'menuAbout' | 'menuUnits'): void {
+    for (const page of ['menuMain', 'menuBackups', 'menuConfirm', 'menuAbout', 'menuUnits']) $(page).hidden = page !== id;
+  }
+
+  /** Round 18 (item 2): ☰ → Units, opened on the filter used last (fortified units are the reason it exists). */
+  openUnitsList(filter?: UnitFilter): void {
+    if (filter) this.unitsFilter = filter;
+    this.renderUnitsList();
+    this.showMenuPage('menuUnits');
+    $('menuOverlay').hidden = false;
+  }
+
+  private renderUnitsList(): void {
+    const counts = filterCounts(this.state, this.human);
+    $('unitsFilters').innerHTML = UNIT_FILTERS.map(
+      (f) => `<button type="button" data-filter="${f.id}" class="${this.unitsFilter === f.id ? 'on' : ''}" aria-pressed="${this.unitsFilter === f.id}">${f.label} <span class="sub">${counts[f.id]}</span></button>`,
+    ).join('');
+    const words: Record<ReturnType<typeof unitStatus>, string> = { ready: 'ready', fortified: '🛡 fortified', aboard: '⚓ aboard', done: 'done this turn' };
+    const units = listUnits(this.state, this.human, this.unitsFilter);
+    $('unitsList').innerHTML = units.length
+      ? units
+          .map((u) => {
+            const st = unitStatus(u);
+            const word = st === 'fortified' && (isShip(u) || isAir(u) || hovers(u) || UNITS[u.type].spreadsReligion) ? 'staying put' : words[st];
+            return `<button type="button" data-unit="${u.id}" class="unitRow ${st}">${this.badge(u.type, u.owner)}<span class="uname">${UNITS[u.type].name}${
+              u.army ? ` ${armyWord(u.type)}` : ''
+            }${u.veteran ? ' ★' : ''}</span><span class="sub">${word} · ${esc(unitWhere(this.state, this.human, u))}</span></button>`;
+          })
+          .join('')
+      : `<p class="sub">${this.unitsFilter === 'all' ? 'You have no units.' : 'None right now.'}</p>`;
   }
 
   /** ☰ → About / Credits (every build): the game's name and version, and the icon credits the license asks for. */
@@ -3041,6 +3256,7 @@ export class App {
   }
 
   private centerOn(x: number, y: number): void {
+    this.stopPan();
     this.camera.cx = x + 0.5;
     this.camera.cy = y + 0.5;
     this.clamp();
@@ -3286,10 +3502,15 @@ export class App {
       foundBtn.title = err ?? 'Found a city here';
       const fortifyBtn = $<HTMLButtonElement>('fortifyBtn');
       fortifyBtn.hidden = def.canFoundCity || sel.owner !== this.human;
-      fortifyBtn.disabled = fortifyError(this.state, sel) !== undefined;
       // Ships don't dig in; "Stay" just leaves them out of Next Unit until they move.
       const stays = isShip(sel) || isAir(sel) || hovers(sel) || !!def.spreadsReligion;
-      fortifyBtn.textContent = stays ? (sel.fortified ? 'Staying' : 'Stay') : sel.fortified ? 'Fortified' : 'Fortify';
+      // Round 18 (item 2): a fortified unit (or one staying put) gets "Wake" instead.
+      fortifyBtn.disabled = (sel.fortified ? wakeError(this.state, sel) : fortifyError(this.state, sel)) !== undefined;
+      fortifyBtn.textContent = sel.fortified ? 'Wake' : stays ? 'Stay' : 'Fortify';
+      fortifyBtn.classList.toggle('wake', sel.fortified);
+      fortifyBtn.title = sel.fortified
+        ? stays ? 'Stop staying put: Next Unit offers it again' : 'Stop fortifying: it loses the defense bonus, and Next Unit offers it again'
+        : stays ? 'Stay put: Next Unit skips it until it moves' : `Fortify: +${RULES.combat.fortifiedPct}% defense until it moves; Next Unit skips it`;
       fortifyBtn.hidden = fortifyBtn.hidden || (sel.carriedBy !== null && !isAir(sel));
       this.renderStackList(sel);
       // The city panel covers this spot; the unit comes back when the city closes.
@@ -3363,6 +3584,14 @@ export class App {
         navalBtns += `<button type="button" data-act="spread" data-unit="${sel.id}" data-city="${c.id}" class="navalBtn spreadBtn">✦ Spread ${esc(faith?.name ?? 'the faith')} to ${esc(c.name)}${c.owner !== this.human ? ` (${esc(civDef(this.state, c.owner).name)})` : ''}</button>`;
       }
       if (!targets.length) navalBtns += `<div class="label">Walk into or next to a city that doesn’t follow ${esc(faith?.name ?? 'your faith')} (yours, or a civ at peace with you), then spread it.</div>`;
+    }
+    // Round 18 (item 3): another unit was selected when this tile was tapped from afar.
+    const offer = mine ? this.unitOfferNow() : undefined;
+    if (offer && offer.x === sel.x && offer.y === sel.y) {
+      const what = offer.ship ? `⚓ Board the ${UNITS[offer.ship.type].name}` : `Move ${UNITS[offer.unit.type].name} here`;
+      navalBtns = `<button type="button" data-act="moveHere" data-unit="${offer.unit.id}" class="moveHereBtn">${this.badge(offer.unit.type, offer.unit.owner)}${what} <span class="sub">(${
+        offer.ship ? `${UNITS[offer.unit.type].name}, ` : ''
+      }${plural(offer.turns, 'turn')})</span></button>${navalBtns}`;
     }
     let html = '';
     if (units.length > 1) {

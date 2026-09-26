@@ -984,6 +984,59 @@ button.bigBtn {
   justify-content: flex-start;
 }
 
+/* ---- Round 18: ☰ → Units ---- */
+
+#unitsFilters {
+  justify-content: flex-start;
+  margin-bottom: 8px;
+}
+
+#unitsFilters button.on {
+  border-color: #ffe066;
+  box-shadow: inset 0 0 0 1px #ffe066;
+}
+
+#unitsList {
+  max-height: min(60vh, 440px);
+  overflow-y: auto;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.unitRow {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  text-align: left;
+}
+
+.unitRow .uname {
+  font-weight: 600;
+}
+
+.unitRow .sub {
+  color: var(--muted);
+  font-size: calc(13px * var(--ts));
+}
+
+.unitRow.fortified {
+  border-color: #6b8fb3;
+}
+
+#fortifyBtn.wake {
+  background: #6b5320;
+  border-color: #e6b73f;
+}
+
+#stackList .moveHereBtn {
+  min-height: 44px;
+  justify-content: flex-start;
+}
+
 /* ---- diplomacy screen (Milestone 5): civ list beside the details, stacked in portrait ---- */
 
 #diploBtn {

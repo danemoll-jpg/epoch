@@ -34,10 +34,11 @@ export function guidePages(): GuidePage[] {
       id: 'moving',
       title: 'Moving and founding cities',
       html: `${pics(unit('settler'), unit('warrior'))}
-        <p>In <b>${GAME.name}</b> you lead a people from its first village to the space age, against up to five rivals. You start with a ${card('unit:settler', 'Settler')} and a ${card('unit:warrior', 'Warrior')}. <b>Tap a unit</b> to select it: the tiles it can reach this turn light up. <b>Tap a lit tile</b> to move there. Tapping one of your own cities opens it instead (unless the unit is right next to it); the city then offers <b>Move … here</b>. Want a second chance on every move? Turn on <b>Tap twice to move</b> in Settings.</p>
+        <p>In <b>${GAME.name}</b> you lead a people from its first village to the space age, against up to five rivals. You start with a ${card('unit:settler', 'Settler')} and a ${card('unit:warrior', 'Warrior')}. <b>Tap a unit</b> to select it: the tiles it can reach this turn light up. <b>Tap a lit tile</b> to move there. Tapping one of your own cities opens it instead, and tapping another of your units selects that unit, unless the selected unit is right next to it (then it moves in, or boards the ship). From farther away you get a <b>Move … here</b> (or <b>Board the …</b>) button, so you can still send it there, for example to stack up an army. Want a second chance on every move? Turn on <b>Tap twice to move</b> in Settings.</p>
         <p>Hills, forests, and mountains cost more moves. Units see a little way around them; the rest of the world stays dark until you explore it.</p>
         <p>With the Settler selected, tap <b>Found City</b> to build a city where it stands. Good spots have grassland and plains for food, with hills or forest nearby for production. Cities must be at least ${RULES.minCityDistance} tiles apart.</p>
-        <p>When every unit has moved, tap <b>End Turn</b>. The computer players then take their turns. <b>Next Unit</b> jumps to a unit that still has orders to give.</p>
+        <p>When every unit has moved, tap <b>End Turn</b>. The computer players then take their turns. <b>Next Unit</b> jumps to a unit that still has orders to give; once a unit has used its moves, the game selects the next one for you and brings it into view.</p>
+        <p><b>Fortify</b> digs a unit in (Next Unit skips it from then on). To use it again, select it (tap it, pick it from its city's unit list, or find it in ☰ → <b>Units</b>) and tap <b>Wake</b>. Ships and aircraft have <b>Stay</b> and <b>Wake</b> the same way.</p>
         <p class="sub">Drag to move the map, pinch (or use the mouse wheel) to zoom.</p>`,
     },
     {

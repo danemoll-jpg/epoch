@@ -1856,6 +1856,71 @@ const ROUND17_SCENARIOS: Scenario[] = [
   },
 ];
 
+// ---- Round 18: the next unit in view, Wake and the Units list, tapping your own units -------
+
+/** `next-unit-in-view`: a Warrior next to a Galley in the channel, and a Horseman far to the east. */
+export const NEXT_UNIT = { warrior: { x: 5, y: 6 }, galley: { x: 6, y: 5 }, galleyTo: { x: 7, y: 8 }, horseman: { x: 14, y: 9 } };
+
+function nextUnitInViewScenario(): GameState {
+  const state = seaState(8);
+  addUnit(state, 'warrior', 0, NEXT_UNIT.warrior.x, NEXT_UNIT.warrior.y);
+  addUnit(state, 'galley', 0, NEXT_UNIT.galley.x, NEXT_UNIT.galley.y);
+  addUnit(state, 'horseman', 0, NEXT_UNIT.horseman.x, NEXT_UNIT.horseman.y);
+  // You've seen the far shore (the Horseman got there on an earlier turn).
+  state.players[0]!.explored.fill(1);
+  return state;
+}
+
+/** `fortified-units`: two land units fortified, a Galley staying put, and one Warrior ready. */
+export const FORTIFIED = { archer: { x: 4, y: 6 }, galley: { x: 13, y: 1 }, warrior: { x: 9, y: 4 } };
+
+function fortifiedUnitsScenario(): GameState {
+  const { state } = withCapital(undefined, { size: 3 });
+  state.players[0]!.techs = ['bronze_working', 'archery', 'map_making'];
+  addUnit(state, 'warrior', 0, FORTIFIED.warrior.x, FORTIFIED.warrior.y);
+  addUnit(state, 'warrior', 0, CITY_X, CITY_Y, { fortified: true });
+  addUnit(state, 'archer', 0, FORTIFIED.archer.x, FORTIFIED.archer.y, { fortified: true });
+  addUnit(state, 'galley', 0, FORTIFIED.galley.x, FORTIFIED.galley.y, { fortified: true });
+  state.players[0]!.explored.fill(1);
+  return state;
+}
+
+/** `tap-own-unit`: a Legion to the west, two Legions to the south-west, a Warrior next to them, and a Galley on the west coast. */
+export const TAP_OWN = { legion: { x: 3, y: 5 }, stack: { x: 4, y: 8 }, warrior: { x: 5, y: 9 }, galley: { x: 1, y: 3 } };
+
+function tapOwnUnitScenario(): GameState {
+  const { state } = withCapital(undefined, { size: 3 });
+  state.players[0]!.techs = ['bronze_working', 'iron_working', 'map_making'];
+  addUnit(state, 'legion', 0, TAP_OWN.legion.x, TAP_OWN.legion.y);
+  addUnit(state, 'legion', 0, TAP_OWN.stack.x, TAP_OWN.stack.y, { movesLeft: 0 });
+  addUnit(state, 'legion', 0, TAP_OWN.stack.x, TAP_OWN.stack.y, { movesLeft: 0 });
+  addUnit(state, 'warrior', 0, TAP_OWN.warrior.x, TAP_OWN.warrior.y);
+  addUnit(state, 'galley', 0, TAP_OWN.galley.x, TAP_OWN.galley.y, { movesLeft: 0 });
+  state.players[0]!.explored.fill(1);
+  return state;
+}
+
+const ROUND18_SCENARIOS: Scenario[] = [
+  {
+    id: 'next-unit-in-view',
+    title: 'Next unit: the map brings it into view',
+    note: `The Warrior (on the shore, south-west of the Galley) is selected. Tap the Galley: it boards with one tap (it's right next to it), and the game selects the Galley. Tap the channel 3 tiles south (south-east of the Galley's start): the Galley sails there with the Warrior aboard and uses its moves, and the game selects the Horseman, far off on the eastern shore: the map pans smoothly until it's in view. (If a unit is already comfortably on screen, the map doesn't move.)`,
+    build: nextUnitInViewScenario,
+  },
+  {
+    id: 'fortified-units',
+    title: 'Fortified units: Wake and the Units list',
+    note: `A Warrior in ${CAPITAL} and an Archer on the hill to the west are fortified, and a Galley on the north coast is staying put; only the Warrior east of ${CAPITAL} is ready, so Next Unit never offers the others. ☰ → Units → Fortified lists all three: tap the Archer and the map centers on it, selected. Its button reads Wake: tap it (“Archer is awake and ready to move”), and Next Unit offers it again. The Galley's button reads Wake too. Also: tap ${CAPITAL} and pick the Warrior from its unit list; it has Wake.`,
+    build: fortifiedUnitsScenario,
+  },
+  {
+    id: 'tap-own-unit',
+    title: 'Tapping your own units from a distance',
+    note: `The Legion west of ${CAPITAL} is selected. Tap the Galley on the west coast: the Galley is selected instead (the Legion doesn't move), with “⚓ Board the Galley (Legion, 2 turns)”. Tap the Legion to select it again, then tap the two Legions to the south: they're selected, with “Move Legion here (3 turns)”; tap it and the Legion sets off to stack up (three Legions make an army), and the game selects the Warrior, right next to the two Legions: tap them and it moves straight in with one tap.`,
+    build: tapOwnUnitScenario,
+  },
+];
+
 const ROUND15_SCENARIOS: Scenario[] = [
   {
     id: 'theology',
@@ -2314,6 +2379,7 @@ export const SCENARIOS: Scenario[] = [
   ...ROUND15_SCENARIOS,
   ...ROUND16_SCENARIOS,
   ...ROUND17_SCENARIOS,
+  ...ROUND18_SCENARIOS,
 ];
 
 export function findScenario(id: string): Scenario | undefined {

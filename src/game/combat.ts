@@ -407,6 +407,27 @@ export function fortify(state: GameState, unitId: number): ActionResult {
   return { ok: true };
 }
 
+/** Round 18 (item 2): why a unit can't be woken, or undefined if it can. */
+export function wakeError(state: GameState, unit: Unit): string | undefined {
+  if (state.currentPlayer !== unit.owner) return 'Not your turn';
+  if (!unit.fortified) return 'Not fortified';
+  return undefined;
+}
+
+/**
+ * Round 18 (item 2): wakes a fortified unit (or a ship told to stay put): it loses the
+ * fortified bonus and Next Unit offers it again. Its moves are untouched, so a unit fortified
+ * this turn (which used up its moves) is ready again next turn.
+ */
+export function wake(state: GameState, unitId: number): ActionResult {
+  const unit = findUnit(state, unitId);
+  if (!unit) return { ok: false, reason: 'No such unit' };
+  const err = wakeError(state, unit);
+  if (err) return { ok: false, reason: err };
+  unit.fortified = false;
+  return { ok: true };
+}
+
 // ---- armies --------------------------------------------------------------------------------
 
 /** The other units that would join `unit` in an army (same owner, type, and tile), or an error. */

@@ -9,8 +9,13 @@
 //      almost always meant); from farther away, or if it can't get there at all, the tap
 //      opens the city instead, and when the unit can get there the panel offers
 //      "Move <unit> here" (`moveUnitId`), so tapping a city to look at it never moves anyone;
-//    - otherwise → move the unit there (even onto a tile holding your own units, or into an
-//      adjacent enemy city with nobody in it, which captures it).
+//    - a tile holding your own units (Round 18): the same idea as your own city. Next to it,
+//      one tap moves in (stacking up, or boarding a ship there); from farther away the tap
+//      selects a unit there instead (as in 2), and when the selected unit could get there the
+//      unit panel offers "Move <unit> here" / "Board the <ship>" (`moveUnitId`), so tapping
+//      another of your units never sends the selected one across the map;
+//    - otherwise → move the unit there (or into an adjacent enemy city with nobody in it,
+//      which captures it).
 //    An aircraft (Round 10) instead: a visible enemy in range → attack (a strike); a city or
 //    Carrier of yours it could rebase to → move (a rebase, as before Round 17); anything
 //    else → as in 2.
@@ -35,7 +40,8 @@ export type TapResult =
   | { kind: 'attack'; unitId: number }
   /** `moveUnitId`: the selected unit could go there; the city panel offers "Move … here". */
   | { kind: 'openCity'; cityId: number; moveUnitId?: number }
-  | { kind: 'select'; unitId: number }
+  /** `moveUnitId` (Round 18): the unit selected before could go there; the unit panel offers "Move … here". */
+  | { kind: 'select'; unitId: number; moveUnitId?: number }
   | { kind: 'inspect' }
   | { kind: 'none' };
 
@@ -66,21 +72,28 @@ export function resolveTap(
       if (path && distance(sel, myCity) === 1) return { kind: 'move', unitId: sel.id };
       return path ? { kind: 'openCity', cityId: myCity.id, moveUnitId: sel.id } : { kind: 'openCity', cityId: myCity.id };
     }
+    const mine = myUnitsAt(state, viewer, tx, ty);
+    if (mine.length > 0 && distance(sel, { x: tx, y: ty }) > 1) {
+      const path = findPath(state, sel, { x: tx, y: ty });
+      return path ? { kind: 'select', unitId: mine[0]!.id, moveUnitId: sel.id } : { kind: 'select', unitId: mine[0]!.id };
+    }
     return { kind: 'move', unitId: sel.id };
   }
 
   if (myCity) return { kind: 'openCity', cityId: myCity.id };
 
-  // Ships and units on their own feet first, then aircraft, then cargo (Rounds 8 and 10).
-  const rank = (u: { carriedBy: number | null; type: Parameters<typeof isAirType>[0] }) => (u.carriedBy !== null ? 2 : isAirType(u.type) ? 1 : 0);
-  const mine = state.units
-    .filter((u) => u.owner === viewer && u.x === tx && u.y === ty)
-    .sort((a, b) => rank(a) - rank(b));
+  const mine = myUnitsAt(state, viewer, tx, ty);
   if (mine.length > 0) {
     const i = mine.findIndex((u) => u.id === selectedUnitId);
     return { kind: 'select', unitId: mine[(i + 1) % mine.length]!.id };
   }
   return { kind: 'inspect' };
+}
+
+/** Your units on a tile: ships and units on their own feet first, then aircraft, then cargo (Rounds 8 and 10). */
+function myUnitsAt(state: GameState, viewer: number, tx: number, ty: number) {
+  const rank = (u: { carriedBy: number | null; type: Parameters<typeof isAirType>[0] }) => (u.carriedBy !== null ? 2 : isAirType(u.type) ? 1 : 0);
+  return state.units.filter((u) => u.owner === viewer && u.x === tx && u.y === ty).sort((a, b) => rank(a) - rank(b));
 }
 
 /** Round 17 (B2): a destination shown but not yet moved to ("Tap twice to move"). */

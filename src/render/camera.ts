@@ -68,3 +68,34 @@ export function clampCamera(cam: Camera, mapW: number, mapH: number): void {
   cam.cx = Math.min(mapW, Math.max(0, cam.cx));
   cam.cy = Math.min(mapH, Math.max(0, cam.cy));
 }
+
+/** Round 18: a rectangle on screen, in CSS pixels relative to the map canvas. */
+export interface ScreenRect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/**
+ * Round 18 (item 1): is tile (tx, ty) comfortably in view? Its square, grown by `margin` px on
+ * every side, must be inside the `w` × `h` screen and clear of every `blockers` rect (the top
+ * bar, the minimap, an open panel…).
+ */
+export function tileComfortablyVisible(cam: Camera, w: number, h: number, tx: number, ty: number, blockers: ScreenRect[], margin: number): boolean {
+  const p = worldToScreen(cam, w, h, tx, ty);
+  const r = { left: p.x - margin, top: p.y - margin, right: p.x + cam.tileSize + margin, bottom: p.y + cam.tileSize + margin };
+  if (r.left < 0 || r.top < 0 || r.right > w || r.bottom > h) return false;
+  return !blockers.some((b) => r.left < b.right && r.right > b.left && r.top < b.bottom && r.bottom > b.top);
+}
+
+/**
+ * Round 18 (item 1): the camera center that puts tile (tx, ty) in the middle of `safe`, the
+ * part of the screen nothing covers (below the top bar, above the unit panel, beside a side
+ * panel).
+ */
+export function centerInRect(cam: Camera, w: number, h: number, tx: number, ty: number, safe: ScreenRect): { cx: number; cy: number } {
+  const sx = (safe.left + safe.right) / 2;
+  const sy = (safe.top + safe.bottom) / 2;
+  return { cx: tx + 0.5 - (sx - w / 2) / cam.tileSize, cy: ty + 0.5 - (sy - h / 2) / cam.tileSize };
+}

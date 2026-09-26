@@ -36,9 +36,11 @@ import { RELIGION, RELIGION_SYMBOLS } from '../src/data/religion';
 import { ROADS } from '../src/data/roads';
 import { faithOpinion, holyReligion, religionCityCulture, religionCityGold, spreadTargets } from '../src/game/religion';
 import { roadAt, roadConnected } from '../src/game/roads';
-import { CYCLE_CITIES, LARGE_MAP_TURNS, MINIMAP_SEED, TAP_CITY_LEGION, TAP_CITY_WARRIOR } from '../src/dev/scenarios';
+import { CYCLE_CITIES, FORTIFIED, LARGE_MAP_TURNS, MINIMAP_SEED, NEXT_UNIT, TAP_CITY_LEGION, TAP_CITY_WARRIOR, TAP_OWN } from '../src/dev/scenarios';
+import { listUnits } from '../src/ui/unitsList';
 import { cityOrder, cycleCity, otherIdleCities } from '../src/ui/cityCycle';
 import { resolveTap } from '../src/ui/tap';
+import { DEFAULT_VIEW_TILES } from '../src/render/camera';
 import { findPath, pathTurns } from '../src/game/movement';
 import { FIXTURE_TURN } from '../src/dev/fixtures/fixtures';
 import { LOOK_SIZES } from '../src/dev/artDemo';
@@ -152,6 +154,68 @@ const OUTCOMES: Record<string, (s: GameState) => void> = {
     expect(applyAction(s, { type: 'move', unitId: legion.id, to: { x: city.x, y: city.y } }).ok).toBe(true);
     expect(legion.x).toBe(TAP_CITY_LEGION.x + 1);
     expect(resolveTap(s, 0, warrior.id, city.x, city.y)).toEqual({ kind: 'move', unitId: warrior.id });
+  },
+  // ---- Round 18 ----
+  'next-unit-in-view': (s) => {
+    const at = (p: { x: number; y: number }) => s.units.find((u) => u.x === p.x && u.y === p.y && u.owner === 0)!;
+    const warrior = at(NEXT_UNIT.warrior);
+    const galley = at(NEXT_UNIT.galley);
+    const horseman = at(NEXT_UNIT.horseman);
+    const ready = () => s.units.filter((u) => u.owner === 0 && u.movesLeft > 0 && !u.fortified && u.carriedBy === null).map((u) => u.id);
+    expect(ready()[0]).toBe(warrior.id);
+    // One tap on the Galley next to it boards it, which ends the Warrior's moves.
+    expect(resolveTap(s, 0, warrior.id, galley.x, galley.y)).toEqual({ kind: 'move', unitId: warrior.id });
+    expect(applyAction(s, { type: 'move', unitId: warrior.id, to: NEXT_UNIT.galley }).ok).toBe(true);
+    expect(warrior.carriedBy).toBe(galley.id);
+    expect(ready()).toEqual([galley.id, horseman.id]);
+    // The Galley sails 3 tiles with the Warrior aboard and has no moves left: the Horseman is next.
+    expect(applyAction(s, { type: 'move', unitId: galley.id, to: NEXT_UNIT.galleyTo }).ok).toBe(true);
+    expect([galley.x, galley.y, galley.movesLeft]).toEqual([NEXT_UNIT.galleyTo.x, NEXT_UNIT.galleyTo.y, 0]);
+    expect([warrior.x, warrior.y]).toEqual([galley.x, galley.y]);
+    expect(ready()).toEqual([horseman.id]);
+    // Far enough away to be off screen at the opening zoom (about 12 tiles across).
+    expect(distance(horseman, galley)).toBeGreaterThan(DEFAULT_VIEW_TILES.across / 2);
+  },
+  'fortified-units': (s) => {
+    const fortified = listUnits(s, 0, 'fortified');
+    expect(fortified.map((u) => u.type).sort()).toEqual(['archer', 'galley', 'warrior']);
+    expect(listUnits(s, 0, 'ready').map((u) => [u.x, u.y])).toEqual([[FORTIFIED.warrior.x, FORTIFIED.warrior.y]]);
+    const archer = fortified.find((u) => u.type === 'archer')!;
+    expect(noteOf('fortified-units')).toContain(`${UNITS.archer.name} is awake and ready to move`);
+    expect(applyAction(s, { type: 'wake', unitId: archer.id }).ok).toBe(true);
+    expect(archer.fortified).toBe(false);
+    expect(archer.movesLeft).toBe(UNITS.archer.moves);
+    expect(listUnits(s, 0, 'ready').map((u) => u.id)).toContain(archer.id);
+    const galley = fortified.find((u) => u.type === 'galley')!;
+    expect(applyAction(s, { type: 'wake', unitId: galley.id }).ok).toBe(true);
+  },
+  'tap-own-unit': (s) => {
+    const at = (p: { x: number; y: number }) => s.units.filter((u) => u.x === p.x && u.y === p.y && u.owner === 0);
+    const legion = at(TAP_OWN.legion)[0]!;
+    const stack = at(TAP_OWN.stack);
+    const warrior = at(TAP_OWN.warrior)[0]!;
+    const galley = at(TAP_OWN.galley)[0]!;
+    expect(stack).toHaveLength(2);
+    expect(s.units.find((u) => u.owner === 0 && u.movesLeft > 0)!.id).toBe(legion.id);
+    // The Galley from afar: selected, with the Board offer.
+    expect(resolveTap(s, 0, legion.id, galley.x, galley.y)).toEqual({ kind: 'select', unitId: galley.id, moveUnitId: legion.id });
+    const toShip = pathTurns(s, legion, findPath(s, legion, galley)!);
+    expect(noteOf('tap-own-unit')).toContain(`Board the Galley (Legion, ${toShip} turns)`);
+    // Tapping the Legion with the (spent) Galley selected selects it again.
+    expect(resolveTap(s, 0, galley.id, legion.x, legion.y)).toEqual({ kind: 'select', unitId: legion.id });
+    // The stack from afar: selected, with "Move Legion here".
+    const tap = resolveTap(s, 0, legion.id, TAP_OWN.stack.x, TAP_OWN.stack.y);
+    expect(tap).toEqual({ kind: 'select', unitId: stack[0]!.id, moveUnitId: legion.id });
+    const turns = pathTurns(s, legion, findPath(s, legion, TAP_OWN.stack)!);
+    expect(noteOf('tap-own-unit')).toContain(`Move Legion here (${turns} turns)`);
+    expect(applyAction(s, { type: 'move', unitId: legion.id, to: TAP_OWN.stack }).ok).toBe(true);
+    expect(legion.movesLeft).toBe(0);
+    expect(distance(legion, TAP_OWN.stack)).toBe(turns - 1);
+    // The Warrior is the next ready unit, and next to the stack one tap moves it in.
+    expect(s.units.filter((u) => u.owner === 0 && u.movesLeft > 0).map((u) => u.id)).toEqual([warrior.id]);
+    expect(resolveTap(s, 0, warrior.id, TAP_OWN.stack.x, TAP_OWN.stack.y)).toEqual({ kind: 'move', unitId: warrior.id });
+    expect(applyAction(s, { type: 'move', unitId: warrior.id, to: TAP_OWN.stack }).ok).toBe(true);
+    expect([warrior.x, warrior.y]).toEqual([TAP_OWN.stack.x, TAP_OWN.stack.y]);
   },
   'update-available': (s) => {
     expect(SCENARIOS.find((x) => x.id === 'update-available')!.fakeUpdate).toBe(true);
