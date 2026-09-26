@@ -10,7 +10,7 @@ import { metCivs } from '../game/diplomacy';
 import type { GameState } from '../game/types';
 import { atWar } from '../game/war';
 
-export type TipId = 'first-turn' | 'first-city' | 'first-tech' | 'first-contact' | 'first-war' | 'first-village' | 'first-great-person' | 'first-news';
+export type TipId = 'first-turn' | 'first-city' | 'first-tech' | 'first-contact' | 'first-war' | 'first-village' | 'first-great-person' | 'first-news' | 'first-unrest';
 
 export interface Tip {
   id: TipId;
@@ -72,6 +72,12 @@ export const TIPS: Tip[] = [
     title: 'The news',
     text: 'Missed a message? Tap 📰 at the top (or ☰ → News) for everything that happened in the last few turns. The count on it shows what’s new.',
     when: (s, h) => s.turn >= 3 && s.cities.some((c) => c.owner === h),
+  },
+  {
+    id: 'first-unrest',
+    title: 'Unrest',
+    text: 'A rival’s culture is pulling at one of your cities. Open it: the Borders line says who. A Temple, more defenders, or a Courthouse there keeps it from voting to leave.',
+    when: (s, h) => s.cities.some((c) => c.owner === h && c.unrest > 0),
   },
 ];
 

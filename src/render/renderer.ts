@@ -26,6 +26,7 @@ import { cityLook } from '../data/cityLooks';
 import { UNITS } from '../data/units';
 import { behindUnit } from '../game/stack';
 import { unitVisibleTo, visibleTiles } from '../game/fog';
+import { territory } from '../game/borders';
 import { carriedBy, isAir } from '../game/naval';
 import { tileIndex } from '../game/grid';
 import { visibleResource } from '../game/resources';
@@ -306,6 +307,39 @@ function drawRoads(ctx: CanvasRenderingContext2D, state: GameState, explored: nu
 }
 
 /** A small disc badge with an icon on it (its letter while the icon loads), as on Dan's picker page. */
+/** Round 19 (item 7): each civ's territory on explored tiles: a faint wash and a line along its edge. */
+function drawBorders(ctx: CanvasRenderingContext2D, state: GameState, explored: number[], x0: number, x1: number, y0: number, y1: number, s: number, pos: (x: number, y: number) => Coord): void {
+  const t = territory(state);
+  const w = state.map.width;
+  const h = state.map.height;
+  const own = (x: number, y: number) => (x < 0 || y < 0 || x >= w || y >= h ? -1 : t.owner[y * w + x]!);
+  const line = Math.max(2, Math.round(s / 11));
+  ctx.save();
+  for (let ty = y0; ty <= y1; ty++) {
+    for (let tx = x0; tx <= x1; tx++) {
+      const i = ty * w + tx;
+      const o = t.owner[i]!;
+      if (o < 0 || explored[i] !== 1) continue;
+      const p = pos(tx, ty);
+      const color = playerColor(state, o);
+      ctx.globalAlpha = 0.14;
+      ctx.fillStyle = color;
+      ctx.fillRect(p.x, p.y, s, s);
+      ctx.globalAlpha = 0.9;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = line;
+      ctx.beginPath();
+      const inset = line / 2;
+      if (own(tx, ty - 1) !== o) { ctx.moveTo(p.x, p.y + inset); ctx.lineTo(p.x + s, p.y + inset); }
+      if (own(tx, ty + 1) !== o) { ctx.moveTo(p.x, p.y + s - inset); ctx.lineTo(p.x + s, p.y + s - inset); }
+      if (own(tx - 1, ty) !== o) { ctx.moveTo(p.x + inset, p.y); ctx.lineTo(p.x + inset, p.y + s); }
+      if (own(tx + 1, ty) !== o) { ctx.moveTo(p.x + s - inset, p.y); ctx.lineTo(p.x + s - inset, p.y + s); }
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
 function drawBadge(
   ctx: CanvasRenderingContext2D, x: number, y: number, r: number, fill: string, rim: string, icon: string, iconColor: string, glyph: string, onReady?: () => void,
 ): void {
@@ -604,6 +638,9 @@ export function render(
 
   // Round 12: roads and rails, under everything that stands on a tile.
   drawRoads(ctx, state, explored, x0, x1, y0, y1, s, pos);
+
+  // Round 19 (item 7): culture borders, a soft tint and an edge in the owner's color.
+  drawBorders(ctx, state, explored, x0, x1, y0, y1, s, pos);
 
   // Round 9: resources the viewer can see, huts, and barbarian villages, on explored tiles.
   if (s >= 14) {

@@ -26,6 +26,7 @@ import { defendsTile, removeUnit } from './naval';
 import { nextFloat, pick } from './rng';
 import { knows, learnTech, researchError } from './tech';
 import { WONDERS } from '../data/wonders';
+import { BORDERS } from '../data/rules';
 import type { ActionResult, BuildItem, City, GameState, Unit } from './types';
 import { atWar } from './war';
 import { cityCulture } from './yields';
@@ -67,7 +68,7 @@ function capitalFor(state: GameState, owner: number): City | undefined {
 
 /** Round 19 (Part E): is the city in unrest (drawn to a rival's culture)? Read from the city. */
 export function inUnrest(city: City): boolean {
-  return (city.unrest ?? 0) > 0;
+  return city.unrest >= BORDERS.warnAt;
 }
 
 /** The gold it costs `buyer` to try to incite this city. */

@@ -259,6 +259,17 @@ const MIGRATIONS: Record<number, (s: Raw) => void> = {
   13: (s) => {
     for (const p of s.players as Raw[]) p.intel = [];
   },
+  // Round 19 Part E: each city starts with an equal share of its civ's culture so far (its
+  // borders), and no unrest.
+  14: (s) => {
+    const cities = s.cities as Raw[];
+    for (const c of cities) {
+      const owner = (s.players as Raw[])[c.owner as number];
+      const n = cities.filter((x) => x.owner === c.owner).length;
+      c.culture = Math.floor(((owner?.culture as number) ?? 0) / Math.max(1, n));
+      c.unrest = 0;
+    }
+  },
 };
 
 /** What each migration brought, for the "your game was updated" notice. Keyed like MIGRATIONS. */
@@ -275,6 +286,7 @@ export const MIGRATION_NOTES: Record<number, string> = {
   11: 'difficulty levels and map sizes (yours is Normal on a Normal map)',
   12: 'bigger news: victory warnings, era and wonder cards, and the news log',
   13: 'spies',
+  14: 'culture borders and referendums',
 };
 
 /** "the tech tree and combat and armies" for a save upgraded from version `from`. */
@@ -318,6 +330,7 @@ function shapeError(s: Record<string, unknown>): string | undefined {
   if (typeof s.mapSize !== 'string' || !Object.hasOwn(MAP_SIZES, s.mapSize)) return 'missing map size';
   if (!Array.isArray(s.laterWins) || typeof s.logCount !== 'number') return 'missing later wins';
   if (!s.players.every((p) => isObject(p) && Array.isArray(p.intel))) return 'missing spy reports';
+  if (!s.cities.every((c) => isObject(c) && typeof c.culture === 'number' && typeof c.unrest === 'number')) return 'missing borders';
   return undefined;
 }
 

@@ -351,3 +351,35 @@ export function rushBuyCost(remaining: number): number {
   const { goldPerShield, squareDivisor } = RULES.rushBuy;
   return Math.ceil(remaining * goldPerShield + (remaining * remaining) / squareDivisor);
 }
+
+/**
+ * Round 19 (item 7): culture borders and referendums (src/game/borders.ts). A city's influence
+ * reaches radius 1, then 2 and 3 once it has made `radius[1]` and `radius[2]` culture; on each
+ * tile it is (baseInfluence + culture + size × sizeWeight) ÷ (distance + 1). Unrest builds in a
+ * city (not an original capital, not within protectTurns of being founded or changing hands)
+ * when at least foreignTilePct of its neighbors belong to one foreign civ and the pulling city's
+ * influence is pullRatio times its own: +unrestGain a turn (half with the resistBuilding), else
+ * −unrestFade. Its owner is warned at warnAt; from voteAt, each turn a referendum happens with
+ * votePct (+perDefenderPct per defender, +resistBuildingPct with the resistBuilding, at least
+ * minVotePct) and the city joins the pulling civ, whose opinion of the loser drops too.
+ */
+export const BORDERS = {
+  radius: [0, 25, 120],
+  baseInfluence: 10,
+  sizeWeight: 2,
+  protectTurns: 20,
+  foreignTilePct: 55,
+  pullRatio: 3,
+  unrestGain: 1,
+  unrestFade: 1,
+  warnAt: 2,
+  voteAt: 6,
+  votePct: 25,
+  perDefenderPct: -6,
+  resistBuilding: 'courthouse' as const,
+  resistBuildingPct: -10,
+  minVotePct: 4,
+  lostCityOpinion: -4,
+  /** The AI builds a Temple in a city this close to a met rival's city (its borders). */
+  nearRivalDistance: 5,
+};

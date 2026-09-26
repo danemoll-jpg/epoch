@@ -278,7 +278,7 @@ export function playToVictory(seed: number, maxTurns = 320, game: SimGame = {}):
         warList.push({ turn: e.turn, era: playerEra(s.players[e.player]!), aiAi: e.player !== 0 && e.other !== 0, onHuman: e.other === 0 });
       }
       if (e.kind === 'peace') peace++;
-      if ((e.kind as string) === 'referendum' && e.ref?.cityId !== undefined && e.text.includes('joined')) flips++;
+      if (e.kind === 'referendum' && e.text.startsWith('Referendum!')) flips++;
       if (e.kind === 'spy' && e.text.startsWith('Your spy')) {
         const k = / investigated /.test(e.text) ? 'investigate' : / stole /.test(e.text) ? 'steal' : / sabotaged /.test(e.text) ? 'sabotage' : / caught /.test(e.text) ? 'caught' : 'other';
         spyActions[k] = (spyActions[k] ?? 0) + 1;

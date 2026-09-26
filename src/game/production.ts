@@ -16,6 +16,7 @@ import { TECHS, type TechId } from '../data/techs';
 import { UNITS, UNIT_IDS } from '../data/units';
 import { addLog } from './log';
 import { isObsolete, replacementOf } from './upgrades';
+import { addCityCulture } from './borders';
 import { CivName } from './conquest';
 import { hasTech } from './tech';
 import { addSpaceshipPart, spaceshipError, victoryWonderBlocker } from './victory';
@@ -23,7 +24,7 @@ import { completeWonder, wonderError } from './wonders';
 import { coastalError, isAircraftType } from './naval';
 import { effectsOf, firstEffect, leaderCost, rushBuyPct, uniqueBuildError, wonderBuyMult } from './leaders';
 import { UNIQUE_RULES } from '../data/leaders';
-import { cityYields, empireIncome, empireWonderEffect, foodSurplus, refreshWorkedTiles, settled } from './yields';
+import { cityCulture, cityYields, empireIncome, empireWonderEffect, foodSurplus, refreshWorkedTiles, settled } from './yields';
 import type { ActionResult, BuildItem, City, GameState, Unit } from './types';
 import { missionaryBuildError } from './religion';
 import { RELIGION } from '../data/religion';
@@ -357,6 +358,8 @@ export function processCities(state: GameState, playerId: number): void {
   // Read this turn's production before anything changes a city's size.
   const production = new Map(mine.map((c) => [c.id, cityYields(state, c).production]));
   for (const city of mine) {
+    // Round 19 (item 7): its culture adds up, and its borders grow with it.
+    addCityCulture(city, cityCulture(state, city));
     growCity(state, city);
     produce(state, city, production.get(city.id)!);
   }

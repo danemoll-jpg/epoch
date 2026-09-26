@@ -173,8 +173,10 @@ export interface City {
   airliftTurn?: number;
   /** Round 12: the religion most of its people follow (a Religion id), or null. */
   religion: number | null;
-  /** Round 19 (item 7, Part E): unrest from a rival's culture pulling at it (0 = calm). */
-  unrest?: number;
+  /** Round 19 (item 7): unrest from a rival's culture pulling at it (0 = calm). */
+  unrest: number;
+  /** Round 19 (item 7): the culture this city has made over the game (its borders grow with it). */
+  culture: number;
 }
 
 /**
@@ -191,8 +193,9 @@ export interface City {
  * 12 = Round 13 (the game's difficulty level and map size).
  * 13 = Round 19 Part A (wins after "Keep playing", the log's running count).
  * 14 = Round 19 Part C (spies: each civ's investigation reports).
+ * 15 = Round 19 Part E (culture borders: each city's culture so far, and its unrest).
  */
-export const STATE_VERSION = 14;
+export const STATE_VERSION = 15;
 
 export interface GameState {
   version: number;
@@ -395,7 +398,9 @@ export interface LogEntry {
     // Round 19: something built (a building, a unit), a city taken, a wonder someone else finished first.
     | 'built' | 'capture' | 'wonderLost'
     // Round 19 Part C: a spy acted (or was caught).
-    | 'spy';
+    | 'spy'
+    // Round 19 Part E: unrest in a city, and a referendum that moved one.
+    | 'referendum';
   /** Round 19: what the entry is about, so the UI can build its card (all optional). */
   ref?: LogRef;
   /** Where it happened, so the UI can hide rival events the viewer can't see. */

@@ -36,7 +36,7 @@ import { RELIGION, RELIGION_SYMBOLS } from '../src/data/religion';
 import { ROADS } from '../src/data/roads';
 import { faithOpinion, holyReligion, religionCityCulture, religionCityGold, spreadTargets } from '../src/game/religion';
 import { roadAt, roadConnected } from '../src/game/roads';
-import { BUILT_CITIES, NEW_UNITS_SCOUT, RIVAL_WONDER, UPGRADE_GOLD, CYCLE_CITIES, FORTIFIED, LARGE_MAP_TURNS, MINIMAP_SEED, NEXT_UNIT, TAP_CITY_LEGION, TAP_CITY_WARRIOR, TAP_OWN } from '../src/dev/scenarios';
+import { BUILT_CITIES, FLIP_TOWN, NEW_UNITS_SCOUT, RIVAL_WONDER, UPGRADE_GOLD, CYCLE_CITIES, FORTIFIED, LARGE_MAP_TURNS, MINIMAP_SEED, NEXT_UNIT, TAP_CITY_LEGION, TAP_CITY_WARRIOR, TAP_OWN } from '../src/dev/scenarios';
 import { listUnits } from '../src/ui/unitsList';
 import { cityOrder, cycleCity, otherIdleCities } from '../src/ui/cityCycle';
 import { resolveTap } from '../src/ui/tap';
@@ -55,6 +55,7 @@ import { guidePages } from '../src/ui/guide';
 import { dueTips } from '../src/ui/tips';
 import { upgradeCost, upgradeError } from '../src/game/upgrades';
 import { spyActionError, spyTargets } from '../src/game/spies';
+import { pullOn } from '../src/game/borders';
 import { unitVisibleTo } from '../src/game/fog';
 
 const AIR_TARGET = { x: 10, y: 5 };
@@ -136,6 +137,16 @@ const OUTCOMES: Record<string, (s: GameState) => void> = {
     expect(applyAction(s, { type: 'recon', unitId: drone.id, at }).ok).toBe(true);
     expect(s.players[0]!.explored[at.y * s.map.width + at.x]).toBe(1);
     expect(visibleTiles(s, 0)[at.y * s.map.width + at.x]).toBe(true);
+  },
+  'culture-flip': (s) => {
+    const town = s.cities.find((c) => c.name === FLIP_TOWN.name)!;
+    expect(town.owner).toBe(1);
+    expect(pullOn(s, town)?.owner).toBe(0);
+    endTurn(s);
+    expect(town.owner).toBe(0);
+    expect(s.log.some((e) => e.kind === 'referendum' && e.text.startsWith('Referendum!'))).toBe(true);
+    const home = s.cities.find((c) => c.capitalOf === 1)!;
+    expect(s.units.filter((u) => u.owner === 1 && u.x === home.x && u.y === home.y).length).toBeGreaterThanOrEqual(2);
   },
   // ---- Round 19 Part A ----
   'rival-victory-wonder': (s) => {

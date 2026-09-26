@@ -3048,3 +3048,9 @@ button.alink {
   border-color: #7a6aa8;
   min-height: 44px;
 }
+
+/* ---- Round 19 Part E: borders and unrest ---- */
+#cityPanel .unrest {
+  color: #ffb07a;
+  margin-top: 4px;
+}

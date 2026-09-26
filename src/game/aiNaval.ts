@@ -111,7 +111,7 @@ export function findOverseasSite(state: GameState, p: number, type: UnitTypeId):
       if (explored[k] !== 1) continue;
       const site = coord(state, k);
       const land = landmassAt(state.map, site);
-      if (land < 0 || land === home || hasCityOn(state, p, land) || !isValidCitySite(state, site)) continue;
+      if (land < 0 || land === home || hasCityOn(state, p, land) || !isValidCitySite(state, site, p)) continue;
       if (state.units.some((u) => u.x === site.x && u.y === site.y && u.owner !== p)) continue;
       const score = siteScore(state.map, site);
       if (score < N.minSiteScore) continue;
@@ -159,7 +159,7 @@ function ferryValid(state: GameState, p: number, f: AiFerry, war: AiPlan | null)
   if (!port || port.owner !== p) return false;
   if (f.shipId !== null && !findUnit(state, f.shipId)) return false;
   if (f.kind === 'settle') {
-    if (!isValidCitySite(state, f.target)) return false;
+    if (!isValidCitySite(state, f.target, p)) return false;
     return !state.units.some((u) => u.x === f.target.x && u.y === f.target.y && u.owner !== p);
   }
   const city = state.cities.find((c) => c.x === f.target.x && c.y === f.target.y);

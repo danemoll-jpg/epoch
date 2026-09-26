@@ -579,3 +579,131 @@ describe('Round 19 (Dan): Modern Infantry and the Drone', () => {
     expect(airBuild(s, c, false).drone).toBeUndefined();
   });
 });
+
+// ---- Part E: culture borders and referendums (item 7) -------------------------------------
+
+import { BORDERS } from '../src/data/rules';
+import { borderRadius, flipProtected, processBorders, pullOn, referendumChance, territory, tileOwner } from '../src/game/borders';
+import { foundCityError } from '../src/game/city';
+import { chooseBuild } from '../src/game/ai';
+
+describe('Round 19 item 7: culture borders and referendums', () => {
+  /** Your big capital at (3, 5) and a small rival town 3 east (founded long ago), plus the rival's capital far off. */
+  function flipState() {
+    const s = makeState(MAP, { peace: true });
+    s.turn = 60;
+    const cap = addCity(s, 0, 3, 5, { name: 'Babylon', capitalOf: 0, size: 6, culture: 320, foundedTurn: 1 });
+    const town = addCity(s, 1, 6, 5, { name: 'Taxila', size: 1, foundedTurn: 1 });
+    addCity(s, 1, 14, 10, { name: 'Pataliputra', capitalOf: 1, foundedTurn: 1 });
+    return { s, cap, town };
+  }
+
+  it('borders grow with a city\'s culture', () => {
+    const { cap } = flipState();
+    expect(borderRadius({ ...cap, culture: 0 })).toBe(1);
+    expect(borderRadius({ ...cap, culture: BORDERS.radius[1]! })).toBe(2);
+    expect(borderRadius({ ...cap, culture: BORDERS.radius[2]! })).toBe(3);
+  });
+
+  it('a tile goes to the city with more influence there; a city always holds its own tile', () => {
+    const { s, town } = flipState();
+    const t = territory(s);
+    expect(tileOwner(s, 5, 5, t)).toBe(0); // between them: the capital's culture wins
+    expect(tileOwner(s, 6, 5, t)).toBe(1); // the town's own tile
+    expect(tileOwner(s, 7, 5, t)).toBe(1); // beyond the capital's reach
+    expect(tileOwner(s, 10, 1, t)).toBe(-1);
+    expect(pullOn(s, town)?.name).toBe('Babylon');
+  });
+
+  it('no city inside another civ\'s borders', () => {
+    const { s } = flipState();
+    s.currentPlayer = 1;
+    const settler = addUnit(s, 'settler', 1, 3, 8);
+    expect(tileOwner(s, 3, 8)).toBe(0);
+    expect(foundCityError(s, settler.id)).toMatch(/^Inside .*borders$/);
+  });
+
+  it('unrest rises (warned once), fades without the pull; capitals and new cities are safe', () => {
+    const { s, town, cap } = flipState();
+    s.rngState = 1;
+    processBorders(s);
+    expect(town.unrest).toBe(1);
+    processBorders(s);
+    expect(town.unrest).toBe(2);
+    const warns = () => s.log.filter((e) => e.kind === 'referendum' && e.text.startsWith('Unrest in Taxila'));
+    expect(warns()).toHaveLength(1);
+    processBorders(s);
+    expect(warns()).toHaveLength(1);
+    cap.culture = 0; // no pull any more
+    const before = town.unrest;
+    processBorders(s);
+    expect(town.unrest).toBe(before - BORDERS.unrestFade);
+    expect(flipProtected(s, cap)).toBe(true);
+    town.foundedTurn = s.turn - 5;
+    expect(flipProtected(s, town)).toBe(true);
+  });
+
+  it('the referendum chance: less per defender and with a Courthouse', () => {
+    const { s, town } = flipState();
+    expect(referendumChance(s, town)).toBe(BORDERS.votePct);
+    addUnit(s, 'warrior', 1, 6, 5);
+    expect(referendumChance(s, town)).toBe(BORDERS.votePct + BORDERS.perDefenderPct);
+    town.buildings.push('courthouse');
+    expect(referendumChance(s, town)).toBe(BORDERS.votePct + BORDERS.perDefenderPct + BORDERS.resistBuildingPct);
+  });
+
+  it('a referendum moves the city, sends its units home, and sours the loser', () => {
+    let done = false;
+    for (let seed = 1; seed < 300 && !done; seed++) {
+      const { s, town } = flipState();
+      town.unrest = BORDERS.voteAt;
+      const w = addUnit(s, 'warrior', 1, 6, 5);
+      s.rngState = seed;
+      processBorders(s);
+      if (town.owner !== 0) continue;
+      done = true;
+      expect([w.x, w.y]).toEqual([14, 10]);
+      expect(town.unrest).toBe(0);
+      expect(s.diplomacy.opinion[1]![0]).toBe(BORDERS.lostCityOpinion);
+      const e = s.log.at(-1)!;
+      expect(e.text).toBe('Referendum! Taxila voted to join Babylon'.replace('Babylon', e.text.split('join ')[1]!));
+      expect(e.otherText).toContain('joined you');
+    }
+    expect(done).toBe(true);
+  });
+
+  it('works both ways: your own city can leave you', () => {
+    const { s, town } = flipState();
+    // Swap: the town is yours, the big city theirs.
+    town.owner = 0;
+    s.cities[0]!.owner = 1;
+    s.cities[0]!.capitalOf = 1;
+    expect(pullOn(s, town)?.owner).toBe(1);
+  });
+
+  it('the AI builds a Temple in a city under a rival\'s pull', () => {
+    const { s, town } = flipState();
+    s.players[1]!.techs = ['ceremonial_burial'];
+    // Its guards, plus the one more a city in unrest keeps (it asks for that first).
+    for (let i = 0; i < 4; i++) addUnit(s, 'warrior', 1, 6, 5);
+    town.unrest = 1;
+    s.currentPlayer = 1;
+    // It has only seen its own surroundings, so it isn't out to settle.
+    s.players[1]!.explored.fill(0);
+    for (let y = 4; y <= 6; y++) for (let x = 5; x <= 7; x++) s.players[1]!.explored[y * 16 + x] = 1;
+    expect(chooseBuild(s, town)).toEqual({ kind: 'building', id: 'temple' });
+  });
+
+  it('a v14 save migrates: each city gets its civ\'s culture shared out, no unrest', () => {
+    const g = createGame({ seed: 7 }) as unknown as { cities: Record<string, unknown>[]; players: Record<string, unknown>[]; version: number };
+    g.players[0]!.culture = 90;
+    for (const c of g.cities) {
+      delete c.culture;
+      delete c.unrest;
+    }
+    g.version = 14;
+    const res = deserializeGame(JSON.stringify({ saveVersion: 14, savedAt: 1, state: g }));
+    expect(res.kind).toBe('ok');
+    if (res.kind === 'ok') expect(res.state.cities.every((c) => c.unrest === 0 && typeof c.culture === 'number')).toBe(true);
+  });
+});

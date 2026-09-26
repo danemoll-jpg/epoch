@@ -52,6 +52,7 @@ export function guidePages(): GuidePage[] {
         <p>Short of time? <b>Buy</b> finishes the current build next turn for gold.</p>
         <p>When something is finished you're told: a <b>wonder</b> gets a full-screen card with what it does; buildings and units come as one list at the start of your turn (a new unit's panel says which city trained it).</p>
         <p><b>📰 News</b> (at the top, or ☰ → News) lists everything that happened in the last few turns: builds, growth, techs, wars and peace, wonders, eras, Great People. Its count shows what's new; tap a line to see where it happened. Messages at the top stay a few seconds; tap one to dismiss it.</p>
+        <p><b>Borders:</b> each city's culture spreads its borders (the colored edge on the map), wider as the city makes more culture. No one can found a city inside another civ's borders. A small city surrounded by a rival's richer culture grows <b>unrest</b> (its panel says who pulls at it), and in the end may vote to join them in a <b>referendum</b>, keeping its buildings. It works both ways: Temples, wonders, defenders and a Courthouse keep your own cities; culture can win you theirs. Capitals never leave.</p>
         <p class="sub">Tap ⓘ beside anything in the Build list to read its card in the Almanac.</p>`,
     },
     {

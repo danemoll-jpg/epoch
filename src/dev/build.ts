@@ -165,6 +165,8 @@ export function addCity(
     ...extra,
     founder: extra.founder ?? owner,
     religion: extra.religion ?? null,
+    unrest: extra.unrest ?? 0,
+    culture: extra.culture ?? 0,
   };
   state.cities.push(city);
   refreshWorkedTiles(state);

@@ -65,6 +65,8 @@ import { canEnter, findUnit, isEnterable, moveUnit, moveUnitToward } from './mov
 import { buildChoiceError, buyCost, buyError, clearBuild, rushBuy, sameItem, setBuild, setFocus, setScienceRate } from './production';
 import { aiUpgrade } from './upgrades';
 import { aiSpyBuild, playSpy } from './spies';
+import { bordersFoundError, pullOn } from './borders';
+import { BORDERS } from '../data/rules';
 import { capitalsHeld, launchError, launchSpaceship, victoryWonder } from './victory';
 import { cityYields } from './yields';
 import { nextFloat } from './rng';
@@ -105,10 +107,12 @@ function coordOf(state: GameState, k: number): Coord {
   return { x: k % state.map.width, y: Math.floor(k / state.map.width) };
 }
 
-export function isValidCitySite(state: GameState, c: Coord): boolean {
+export function isValidCitySite(state: GameState, c: Coord, owner?: number): boolean {
   const t = state.map.tiles[tileIndex(state.map, c.x, c.y)]!;
   if (!TERRAIN[t.terrain].canFoundCity) return false;
-  return state.cities.every((city) => distance(city, c) >= RULES.minCityDistance);
+  if (!state.cities.every((city) => distance(city, c) >= RULES.minCityDistance)) return false;
+  // Round 19 (item 7): never inside another civ's borders.
+  return owner === undefined || !bordersFoundError(state, owner, c.x, c.y);
 }
 
 function playSettler(state: GameState, unit: Unit): void {
@@ -123,7 +127,7 @@ function playSettler(state: GameState, unit: Unit): void {
   let best: { k: number; value: number } | undefined;
   for (const [k, steps] of reachable(state, unit, 8)) {
     const c = coordOf(state, k);
-    if (!isValidCitySite(state, c)) continue;
+    if (!isValidCitySite(state, c, unit.owner)) continue;
     const value = siteScore(state.map, c) - steps * 3 + nextFloat(state);
     if (!best || value > best.value) best = { k, value };
   }
@@ -142,6 +146,12 @@ function playSettler(state: GameState, unit: Unit): void {
     // No valid site in what we've seen yet: go and look.
     explore(state, unit);
   }
+}
+
+/** Round 19: a met rival's city within the border distance (where culture matters for borders). */
+function nearRivalCity(state: GameState, city: City): boolean {
+  const met = state.diplomacy.met[city.owner] ?? [];
+  return state.cities.some((c) => c.owner !== city.owner && met[c.owner] && distance(c, city) <= BORDERS.nearRivalDistance);
 }
 
 function cityAt(state: GameState, x: number, y: number): City | undefined {
@@ -215,7 +225,7 @@ function openSiteLandmasses(state: GameState, playerId: number): Set<number> {
       for (let x = a.x - r; x <= a.x + r; x++) {
         if (x < 0 || y < 0 || x >= state.map.width || y >= state.map.height) continue;
         if (explored[tileIndex(state.map, x, y)] !== 1 || landmassAt(state.map, { x, y }) !== land) continue;
-        if (isValidCitySite(state, { x, y }) && !state.units.some((u) => u.x === x && u.y === y && u.owner !== playerId)) {
+        if (isValidCitySite(state, { x, y }, playerId) && !state.units.some((u) => u.x === x && u.y === y && u.owner !== playerId)) {
           open.add(land);
           break search;
         }
@@ -351,6 +361,11 @@ export function chooseBuild(state: GameState, city: City, ctx: BuildContext = bu
   const settlerCap = overseasPort && !ctx.openSites.has(landmassAt(state.map, city)) ? 1 : atOnce;
   if (settleHere && underWay < settlerCap) return { kind: 'unit', id: 'settler' };
   if (home < wanted) return defender;
+  // Round 19 (item 7): a city in unrest keeps one more defender (it lowers the referendum's
+  // chance), and a city a rival's culture pulls at, or on a rival's border, builds a Temple.
+  if (city.unrest > 0 && home < wanted + 1) return defender;
+  const temple: BuildItem = { kind: 'building', id: 'temple' };
+  if (!buildChoiceError(state, city, temple) && (city.unrest > 0 || pullOn(state, city) || nearRivalCity(state, city))) return temple;
   // A boat to look for land (boxed in) or for the enemy (at war with no city in sight to attack).
   const navy = navalBuild(state, city, ctx.boxedIn || (ctx.atWar && !state.aiPlans[owner]) || ctx.seeking);
   if (navy.boat) return { kind: 'unit', id: navy.boat };

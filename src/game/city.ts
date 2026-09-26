@@ -11,6 +11,7 @@ import { distance, tileAt } from './grid';
 import { updateContacts } from './diplomacy';
 import { updateExplored } from './fog';
 import { addLog } from './log';
+import { bordersFoundError } from './borders';
 import { findUnit } from './movement';
 import { refreshWorkedTiles } from './yields';
 import type { ActionResult, City, Coord, GameState } from './types';
@@ -27,7 +28,8 @@ export function foundCityError(state: GameState, unitId: number): string | undef
   if (state.cities.some((c) => distance(c, unit) < RULES.minCityDistance)) {
     return 'Too close to another city';
   }
-  return undefined;
+  // Round 19 (item 7): not inside another civ's borders.
+  return bordersFoundError(state, unit.owner, unit.x, unit.y);
 }
 
 export function cityNameFor(state: GameState, playerId: number): string {
@@ -76,6 +78,8 @@ export function createCity(state: GameState, owner: number, at: Coord): City {
     greatPeople: [],
     founder: owner,
     religion: null,
+    unrest: 0,
+    culture: 0,
   };
   player.citiesFounded++;
   state.cities.push(city);

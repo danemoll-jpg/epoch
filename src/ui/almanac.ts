@@ -14,6 +14,7 @@ import { RESOURCES, RESOURCE_IDS } from '../data/resources';
 import { ERAS, TECHS, TECH_LIST, type TechId } from '../data/techs';
 import { TERRAIN } from '../data/terrain';
 import { UNITS, UNIT_IDS, type UnitTypeId } from '../data/units';
+import { BORDERS, RULES } from '../data/rules';
 import { SPIES, SPY_ACTIONS, SPY_ACTION_IDS } from '../data/spies';
 import { PROJECTS, PROJECT_IDS, VICTORY_NAMES } from '../data/victory';
 import { WONDER_LIST } from '../data/wonders';
@@ -24,7 +25,7 @@ import { portraitHtml } from './portraits';
 import { bonusListHtml } from './setup';
 import { esc, techIconHtml, unitSummary } from './text';
 
-export type AlmanacCategory = 'unit' | 'building' | 'wonder' | 'project' | 'tech' | 'resource' | 'greatPerson' | 'leader' | 'difficulty' | 'mapSize';
+export type AlmanacCategory = 'unit' | 'building' | 'wonder' | 'project' | 'tech' | 'resource' | 'greatPerson' | 'leader' | 'difficulty' | 'mapSize' | 'rule';
 
 export const ALMANAC_CATEGORIES: { id: AlmanacCategory; name: string }[] = [
   { id: 'unit', name: 'Units' },
@@ -37,6 +38,7 @@ export const ALMANAC_CATEGORIES: { id: AlmanacCategory; name: string }[] = [
   { id: 'leader', name: 'Leaders' },
   { id: 'difficulty', name: 'Difficulty' },
   { id: 'mapSize', name: 'Map sizes' },
+  { id: 'rule', name: 'Rules' },
 ];
 
 export interface AlmanacCard {
@@ -222,6 +224,23 @@ function mapSizeCards(): AlmanacCard[] {
   });
 }
 
+/** Round 19: the rules that aren't a thing you build (borders and referendums, spies, upgrades). */
+function ruleCards(): AlmanacCard[] {
+  const B = BORDERS;
+  const borders =
+    row('Borders', esc(`Each city's culture spreads its borders: 1 tile at first, 2 once it has made ${B.radius[1]} culture, 3 at ${B.radius[2]}. Where two cities reach, the tile goes to the one with more influence there (culture and size, less with distance).`)) +
+    row('Settling', 'No one can found a city inside another civ’s borders.') +
+    row('Unrest', esc(`A city whose surroundings mostly belong to one rival, pulled by a city with ${B.pullRatio}× its influence, grows unrest each turn (half as fast with a ${BUILDINGS[B.resistBuilding].name}). Its owner is warned at ${B.warnAt}.`)) +
+    row('Referendum', esc(`From ${B.voteAt} unrest, each turn a ${B.votePct}% chance (${B.perDefenderPct}% per defender, ${B.resistBuildingPct}% with a ${BUILDINGS[B.resistBuilding].name}, at least ${B.minVotePct}%) that it joins the rival, keeping its buildings. Original capitals never leave, nor a city within ${B.protectTurns} turns of being founded or changing hands. It works both ways.`));
+  const upgrades =
+    row('Old units', 'Once you can build a unit’s replacement, the old one leaves the Build list.') +
+    row('Upgrade', esc(`In one of your cities: (new cost − old cost) × ${RULES.upgrade.goldPerProduction} gold, at least ${RULES.upgrade.minGold}; an army counts its three units. It uses the turn; ★ and the army stay.`));
+  return [
+    card('rule:borders', 'rule', 'Borders and referendums', 'Rule', disc('🗺'), borders),
+    card('rule:upgrades', 'rule', 'Old units and upgrades', 'Rule', disc('⬆'), upgrades),
+  ];
+}
+
 let all: AlmanacCard[] | undefined;
 
 /** Every card, grouped by category in ALMANAC_CATEGORIES order (made once). */
@@ -237,6 +256,7 @@ export function almanacCards(): AlmanacCard[] {
     ...leaderCards(),
     ...difficultyCards(),
     ...mapSizeCards(),
+    ...ruleCards(),
   ];
   return all;
 }

@@ -8,6 +8,7 @@ import { visibleTiles } from '../game/fog';
 import type { GameState } from '../game/types';
 import type { Camera } from './camera';
 import { playerColor } from './renderer';
+import { territory } from '../game/borders';
 
 const MINI_COLOR: Record<TerrainId, [number, number, number]> = {
   grassland: [93, 154, 60],
@@ -94,6 +95,16 @@ export function drawMinimap(
   ctx.clearRect(0, 0, w, h);
   ctx.drawImage(terrain.get(state, viewer), 0, 0, w, h);
   const explored = state.players[viewer]!.explored;
+  // Round 19 (item 7): each civ's territory, tinted in its color.
+  const t = territory(state);
+  ctx.globalAlpha = 0.45;
+  for (let i = 0; i < t.owner.length; i++) {
+    const o = t.owner[i]!;
+    if (o < 0 || explored[i] !== 1) continue;
+    ctx.fillStyle = playerColor(state, o);
+    ctx.fillRect((i % map.width) * scale, Math.floor(i / map.width) * scale, scale, scale);
+  }
+  ctx.globalAlpha = 1;
   // Cities: a dot in the owner's color (a size a tap can hit is the frame's job, not the dot's).
   const r = Math.max(1.5, scale * 0.9);
   for (const c of state.cities) {

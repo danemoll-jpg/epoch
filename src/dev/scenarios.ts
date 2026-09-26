@@ -15,7 +15,7 @@ import { DIFFICULTIES } from '../data/difficulty';
 import { createGame } from '../game/newGame';
 import { endTurn, playComputerTurn } from '../game/turn';
 import { BUILDINGS } from '../data/buildings';
-import { growthThreshold } from '../data/rules';
+import { BORDERS, growthThreshold } from '../data/rules';
 import { PLAYABLE_CIVS, findCiv } from '../data/civs';
 import { LEADER_BONUSES, UNIQUE_RULES } from '../data/leaders';
 import { buyCost, itemCost } from '../game/production';
@@ -2117,7 +2117,34 @@ export function newUnitsScenario(): GameState {
   return state;
 }
 
+// ---- Round 19 Part E: culture borders and referendums --------------------------------------
+
+/** The small rival town in the culture-flip scenario, 3 tiles east of your capital. */
+export const FLIP_TOWN = { name: 'Taxila', x: CITY_X + 3, y: CITY_Y };
+function cultureFlipBase(): GameState {
+  const state = diplomacyBase();
+  const cap = state.cities.find((c) => c.owner === 0)!;
+  cap.size = 6;
+  cap.culture = 320;
+  cap.buildings.push('temple');
+  const town = addCity(state, RIVAL, FLIP_TOWN.x, FLIP_TOWN.y, { name: FLIP_TOWN.name, size: 1, build: { kind: 'unit', id: 'warrior' }, foundedTurn: 1 });
+  town.unrest = BORDERS.voteAt - 1;
+  addUnit(state, 'warrior', RIVAL, town.x, town.y, { fortified: true });
+  state.players[RIVAL]!.citiesFounded = 2;
+  return state;
+}
+export function cultureFlipScenario(): GameState {
+  return withDice(cultureFlipBase, (s) => s.cities.find((c) => c.name === FLIP_TOWN.name)?.owner === 0);
+}
+
 export const SCENARIOS: Scenario[] = [
+  // ---- Round 19 Part E ----
+  {
+    id: 'culture-flip',
+    title: 'Culture borders: a town votes to join you',
+    note: `Your capital's culture spreads its borders (the colored edge) over most of the land around ${FLIP_TOWN.name}, a small Mauryan town 3 tiles east, which is in unrest (${BORDERS.voteAt - 1} of ${BORDERS.voteAt}). Tap ${FLIP_TOWN.name}'s neighbor tiles: they're inside your borders, so no one could found a city there. Tap End Turn: the referendum comes (the dice are set for it): a card says ${FLIP_TOWN.name} joins you, its buildings stay, and its Warrior goes home to Pataliputra. Open ${CAPITAL}: the Borders line shows how far your culture reaches.`,
+    build: cultureFlipScenario,
+  },
   // ---- Round 19 Part C ----
   {
     id: 'spies',

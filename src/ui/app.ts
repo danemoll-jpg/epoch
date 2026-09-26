@@ -4,7 +4,7 @@
 import { victoryGoals } from '../data/mapSizes';
 import { BUILDINGS } from '../data/buildings';
 import { CIVS } from '../data/civs';
-import { CITY_FOCUSES, RULES, growthThreshold, type CityFocus } from '../data/rules';
+import { BORDERS, CITY_FOCUSES, RULES, growthThreshold, type CityFocus } from '../data/rules';
 import { ERAS, TECHS, TECH_LIST, type TechId } from '../data/techs';
 import { TERRAIN } from '../data/terrain';
 import { BUILDING_ICONS, ICON_CREDITS, ICON_LICENSE, ICON_SITE, MAP_ICONS, TECH_ICONS, usedIcons, wonderIcon, type IconGroup } from '../data/icons';
@@ -18,6 +18,7 @@ import { RESOURCES } from '../data/resources';
 import { villageAt } from '../game/barbarians';
 import { cityNameFor, foundCityError } from '../game/city';
 import { upgradableUnits, upgradeCost, upgradeError, upgradeTarget } from '../game/upgrades';
+import { borderRadius, flipProtected, pullOn, referendumChance } from '../game/borders';
 import { hasIntel, hasSpyDefense, inciteCost, isSpy, spyActionError, spyChance, spyDefenseName, spyTargets, stealableTechs, type SpyOutcome } from '../game/spies';
 import { SPY_ACTIONS, SPY_ACTION_IDS, type SpyActionId } from '../data/spies';
 import { cultureToNextGreatPerson, engineerCities, generalTiles, greatPersonError, merchantGold } from '../game/greatPeople';
@@ -672,6 +673,9 @@ export class App {
       case 'spy':
         // Against you: a panel. Your own spy's result has its own panel when it acts.
         return aimed || e.player === me;
+      case 'referendum':
+        // Your city's unrest, and any referendum you're part of, get a panel or card.
+        return e.player === me || (aimed && e.text.startsWith('Referendum!'));
       case 'leader':
         // The era bonus is on the new-era card.
         return e.player === me && batch.some((x) => x.kind === 'era' && x.player === me && x.ref?.era && e.text.startsWith(`${eraName(x.ref.era)} bonus:`));
@@ -743,6 +747,7 @@ export class App {
       else if (e.kind === 'capture' && aimed) this.queueCityLostCard(e);
       else if (e.kind === 'victory' && e.ref?.step === 'later' && e.player === me) this.queueLaterWinCard(e);
       else if (e.kind === 'spy' && aimed) this.queueSpyAlert(e);
+      else if (e.kind === 'referendum') this.queueReferendum(e);
     }
   }
 
@@ -1120,6 +1125,34 @@ export class App {
       text: `${CivName(this.state, city.owner)}'s city, as your spy saw it.`,
       lines: lines.map((l) => esc(l)),
       buttons: [{ label: until !== undefined ? `OK (readable until turn ${until})` : 'OK', cls: 'bigBtn' }],
+    });
+  }
+
+  /** Round 19 (item 7): unrest in your city (a panel), or a city leaving you or joining you (a card). */
+  private queueReferendum(e: LogEntry): void {
+    const me = this.human;
+    const city = e.ref?.cityId !== undefined ? findCity(this.state, e.ref.cityId) : undefined;
+    const vote = e.text.startsWith('Referendum!');
+    if (!vote) {
+      if (e.player !== me) return;
+      this.queueNotice({
+        title: `Unrest in ${city?.name ?? 'a city'}`,
+        portrait: e.other,
+        text: entryText(e, me),
+        sub: `If it keeps up, the city may vote to join them (a referendum). Build culture there (a Temple, wonders), add defenders, or a ${BUILDINGS[BORDERS.resistBuilding].name}.`,
+        buttons: [...(city ? [{ label: `Open ${city.name}`, run: () => this.openCity(city.id) }] : []), { label: 'OK', cls: 'bigBtn' }],
+      });
+      return;
+    }
+    const lost = e.player === me;
+    if (!lost && e.other !== me) return;
+    const other = lost ? e.other! : e.player;
+    this.queueNotice({
+      title: lost ? `${city?.name ?? 'A city'} has left you` : `${city?.name ?? 'A city'} joins you!`,
+      text: entryText(e, me),
+      sub: lost ? 'Its people voted for the richer culture next door. Your units there came home.' : 'Its people voted to join you: its buildings are yours. Keep its culture up, or it could leave again.',
+      card: { kicker: 'Referendum', tint: lost ? '#5a1a1a' : '#1f5a3a', hero: portraitHtml(this.state.players[other]!.civId, 160) },
+      buttons: [...(city ? [{ label: 'Show me', run: () => this.centerOn(city.x, city.y) }] : []), { label: 'OK', cls: 'bigBtn primary' }],
     });
   }
 
@@ -2056,6 +2089,7 @@ export class App {
       </div>
       ${resHtml}
       ${faithHtml}
+      ${this.cityBordersHtml(city)}
       <div class="section"><div class="label">Focus</div><div class="seg">${focusBtns}</div></div>
       <div class="section"><div class="label">Build</div><div class="buildList">${buildBtns}</div></div>
       ${spaceHtml}
@@ -2069,6 +2103,23 @@ export class App {
   }
 
   /** Round 12: the city's religion line (its dot, name, and holy city), and what it brings. */
+  /** Round 19 (item 7): the city's borders (culture so far, next ring) and any unrest, with who pulls at it. */
+  private cityBordersHtml(city: City): string {
+    const r = borderRadius(city);
+    const next = BORDERS.radius[r];
+    const ring = `Borders reach ${plural(r, 'tile')} · ${Math.floor(city.culture)} culture made here${next !== undefined ? ` (a wider ring at ${next})` : ''}`;
+    const pull = flipProtected(this.state, city) ? undefined : pullOn(this.state, city);
+    let unrest = '';
+    if (city.unrest > 0 || pull) {
+      const who = pull ? `${esc(civAdjective(this.state, pull.owner))} culture from ${esc(pull.name)}` : 'a rival’s culture';
+      const vote = city.unrest >= BORDERS.voteAt ? `<b>A referendum could come any turn (${referendumChance(this.state, city)}% a turn)</b>` : `A referendum becomes possible at ${BORDERS.voteAt}`;
+      unrest = `<div class="stat unrest">⚠ Unrest ${Math.floor(city.unrest)}/${BORDERS.voteAt}: its people are drawn to ${who}. ${vote}. Temples and wonders here, more defenders, and a ${esc(BUILDINGS[BORDERS.resistBuilding].name)} help.</div>`;
+    } else if (city.capitalOf !== null) {
+      unrest = '<div class="sub">A capital never leaves by referendum.</div>';
+    }
+    return `<div class="section"><div class="label">Borders</div><div class="sub">${ring}</div>${unrest}</div>`;
+  }
+
   private cityFaithHtml(city: City): string {
     const r = cityReligion(this.state, city);
     const holy = holyReligion(this.state, city);

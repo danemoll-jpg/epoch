@@ -14,6 +14,7 @@ import { checkVictory, issueWarnings } from './victory';
 import type { ActionResult, GameState } from './types';
 import { chooseVillage, pendingVillage } from './villages';
 import { checkFoundings, spreadReligions } from './religion';
+import { processBorders } from './borders';
 
 function startTurnFor(state: GameState, playerId: number): void {
   for (const u of state.units) {
@@ -47,6 +48,8 @@ export function endTurn(state: GameState): ActionResult {
   }
   // Round 12: religions spread once a game turn, before the first player moves.
   if (newTurn) spreadReligions(state);
+  // Round 19 (item 7): unrest, and referendums, once a game turn.
+  if (newTurn) processBorders(state);
   state.currentPlayer = next;
   startTurnFor(state, next);
   // Wonders just finished, captures during the turn, a spaceship arriving at this turn's start.

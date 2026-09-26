@@ -2066,6 +2066,33 @@ the leader-scene crops if not already done, and says "push".
   set in the balance pass (B), with borders and spies in.
 - **Verified:** tests pass; sim numbers above (`sim-out/`, git-ignored).
 
+**Part E — Culture borders and referendums (item 7): done, 2026-09-26.** Save version 15
+(migration: each city starts with an equal share of its civ's culture so far; no unrest).
+- **Borders:** every city now keeps the culture it has made (`City.culture`); its borders reach 1
+  tile, then 2 at 25 culture and 3 at 120. On each tile a city's influence is (10 + culture + size
+  × 2) ÷ (distance + 1); the tile goes to the strongest (a city always holds its own tile). Drawn
+  as a faint wash and a line in the civ's color on explored tiles, and tinted on the minimap.
+- **Settling (decided):** no city inside another civ's borders (you and the AI; the AI's site
+  search skips those tiles, overseas too).
+- **Unrest and referendums:** once a game turn, a city (not an original capital; not within 20
+  turns of being founded or changing hands) whose neighbors are mostly (55%+) one rival's, pulled
+  by a city with 3× its influence, gains 1 unrest (½ with a Courthouse), else loses 1. Its owner
+  gets a panel at 2 ("Unrest in Kyiv: its people are drawn to Egyptian culture from Thebes"); from
+  6, each turn 25% (−6% per defender, −10% with a Courthouse, at least 4%) that it votes to join:
+  it keeps its buildings, its units go home, and the loser's opinion of the winner drops (−4). A
+  card for a city leaving you or joining you. **Both ways (decided):** your cities too. The city
+  panel's new **Borders** line shows the reach, the culture, and any unrest with who pulls and the
+  chance. A spy's revolt costs half in a city in unrest (Part C).
+- **The AI:** a city in unrest keeps one more defender and builds a Temple; so does a city within 5
+  tiles of a met rival's city (culture on the border). Losing a city this way sours it on the
+  winner, which feeds its war decisions.
+- **Also:** How to Play (cities page), an Almanac "Rules" section (borders and referendums, old
+  units and upgrades), a first-game tip for unrest. Scenario **`culture-flip`**.
+- **Verified:** 10 new tests (1049 pass, `pace.test.ts` included); build clean; preview-verified
+  in iPad portrait (the borders on the map and minimap; End Turn: "Taxila joins you!" card).
+- Flips per game and the victory mix are in the balance pass (B).
+- (Part D's rival-war panel reaches the play server with this restart.)
+
 ## Next Steps (Do Not Start Yet)
 
 All of these are deferred for **sequencing only**. Each depends on the
