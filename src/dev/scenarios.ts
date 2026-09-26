@@ -2148,41 +2148,8 @@ export function leaderScenesScenario(): GameState {
   return state;
 }
 
-export const SCENARIOS: Scenario[] = [
-  // ---- Round 19 Part F ----
-  {
-    id: 'leader-scenes',
-    title: 'Leader scenes (full screen)',
-    note: 'Hatshepsut of Egypt fills the screen at once, demanding 40 gold, with her attitude and a speech box (Give / Refuse). Then open 🤝 Diplomacy and tap Egypt: she greets you full screen (Talk / Goodbye). Declare war: her reaction, full screen. Propose peace later: her answer. Turn the iPad: the picture moves to the left and the words to the right; the face is never covered.',
-    build: leaderScenesScenario,
-  },
-  // ---- Round 19 Part E ----
-  {
-    id: 'culture-flip',
-    title: 'Culture borders: a town votes to join you',
-    note: `Your capital's culture spreads its borders (the colored edge) over most of the land around ${FLIP_TOWN.name}, a small Mauryan town 3 tiles east, which is in unrest (${BORDERS.voteAt - 1} of ${BORDERS.voteAt}). Tap ${FLIP_TOWN.name}'s neighbor tiles: they're inside your borders, so no one could found a city there. Tap End Turn: the referendum comes (the dice are set for it): a card says ${FLIP_TOWN.name} joins you, its buildings stay, and its Warrior goes home to Pataliputra. Open ${CAPITAL}: the Borders line shows how far your culture reaches.`,
-    build: cultureFlipScenario,
-  },
-  // ---- Round 19 Part C ----
-  {
-    id: 'spies',
-    title: 'Spies',
-    note: `Four Spies (one a ★ veteran) stand between London, England's capital, which is building the Global Exchange, and York, a small town. You have 900 gold. Tap the Spies: each has Investigate (sure), Steal a technology, Sabotage production and Incite a revolt, with the chance (and York's price); London can't revolt (a capital). Investigate London: its report shows the Global Exchange and its turns (tap London later to read it again). Sabotage London: if it works its production is wiped out. Steal a tech (pick one). Incite York: if it works York joins you. Each Spy is used up. England can't see them.`,
-    build: spiesScenario,
-  },
-  {
-    id: 'new-units',
-    title: 'Modern Infantry and the Drone',
-    note: `You know Mass Production and Computers. Open ${CAPITAL}: the Build list has Modern Infantry (attack 8, defense 12) and no Rifleman; the ★ Rifleman there has ⬆ Upgrade to Modern Infantry (40 gold) and stays a veteran. Tap the Drone (range 10): tap a dark tile to the east to scout it: everything within 4 tiles of it lights up until the turn ends. Check both in the Almanac.`,
-    build: newUnitsScenario,
-  },
-  // ---- Round 19 Part B ----
-  {
-    id: 'upgrade-units',
-    title: 'Upgrade old units',
-    note: `You just learned Gunpowder and have ${UPGRADE_GOLD} gold. Open ${CAPITAL}: the Build list has the Musketman but no Warrior, Spearman, Pikeman or Archer (tap ⓘ on the Musketman: the Almanac says what it replaces). Each unit in the city has ⬆ Upgrade to Musketman: the Spearman and the Archer 40 gold each, the Warrior army 180 (three units). Upgrade the ★ Archer: it stays a veteran and its turn is used. ☰ → Units → Upgrade all does the rest (the Archer outside the city has to come home first).`,
-    build: upgradeUnitsScenario,
-  },
+/** Round 19: the playtest bundle's scenarios (listed last in the ☰ menu, like each round's). */
+const ROUND19_SCENARIOS: Scenario[] = [
   // ---- Round 19 Part A ----
   {
     id: 'rival-victory-wonder',
@@ -2209,6 +2176,43 @@ export const SCENARIOS: Scenario[] = [
     build: builtThisTurnScenario,
   },
 
+  // ---- Round 19 Part B ----
+  {
+    id: 'upgrade-units',
+    title: 'Upgrade old units',
+    note: `You just learned Gunpowder and have ${UPGRADE_GOLD} gold. Open ${CAPITAL}: the Build list has the Musketman but no Warrior, Spearman, Pikeman or Archer (tap ⓘ on the Musketman: the Almanac says what it replaces). Each unit in the city has ⬆ Upgrade to Musketman: the Spearman and the Archer 40 gold each, the Warrior army 180 (three units). Upgrade the ★ Archer: it stays a veteran and its turn is used. ☰ → Units → Upgrade all does the rest (the Archer outside the city has to come home first).`,
+    build: upgradeUnitsScenario,
+  },
+  // ---- Round 19 Part C ----
+  {
+    id: 'spies',
+    title: 'Spies',
+    note: `Four Spies (one a ★ veteran) stand between London, England's capital, which is building the Global Exchange, and York, a small town. You have 900 gold. Tap the Spies: each has Investigate (sure), Steal a technology, Sabotage production and Incite a revolt, with the chance (and York's price); London can't revolt (a capital). Investigate London: its report shows the Global Exchange and its turns (tap London later to read it again). Sabotage London: if it works its production is wiped out. Steal a tech (pick one). Incite York: if it works York joins you. Each Spy is used up. England can't see them.`,
+    build: spiesScenario,
+  },
+  {
+    id: 'new-units',
+    title: 'Modern Infantry and the Drone',
+    note: `You know Mass Production and Computers. Open ${CAPITAL}: the Build list has Modern Infantry (attack 8, defense 12) and no Rifleman; the ★ Rifleman there has ⬆ Upgrade to Modern Infantry (40 gold) and stays a veteran. Tap the Drone (range 10): tap a dark tile to the east to scout it: everything within 4 tiles of it lights up until the turn ends. Check both in the Almanac.`,
+    build: newUnitsScenario,
+  },
+  // ---- Round 19 Part E ----
+  {
+    id: 'culture-flip',
+    title: 'Culture borders: a town votes to join you',
+    note: `Your capital's culture spreads its borders (the colored edge) over most of the land around ${FLIP_TOWN.name}, a small Mauryan town 3 tiles east, which is in unrest (${BORDERS.voteAt - 1} of ${BORDERS.voteAt}). Tap ${FLIP_TOWN.name}'s neighbor tiles: they're inside your borders, so no one could found a city there. Tap End Turn: the referendum comes (the dice are set for it): a card says ${FLIP_TOWN.name} joins you, its buildings stay, and its Warrior goes home to Pataliputra. Open ${CAPITAL}: the Borders line shows how far your culture reaches.`,
+    build: cultureFlipScenario,
+  },
+  // ---- Round 19 Part F ----
+  {
+    id: 'leader-scenes',
+    title: 'Leader scenes (full screen)',
+    note: 'Hatshepsut of Egypt fills the screen at once, demanding 40 gold, with her attitude and a speech box (Give / Refuse). Then open 🤝 Diplomacy and tap Egypt: she greets you full screen (Talk / Goodbye). Declare war: her reaction, full screen. Propose peace later: her answer. Turn the iPad: the picture moves to the left and the words to the right; the face is never covered.',
+    build: leaderScenesScenario,
+  },
+];
+
+export const SCENARIOS: Scenario[] = [
   {
     id: 'grow',
     title: 'City grows',
@@ -2598,6 +2602,7 @@ export const SCENARIOS: Scenario[] = [
   ...ROUND16_SCENARIOS,
   ...ROUND17_SCENARIOS,
   ...ROUND18_SCENARIOS,
+  ...ROUND19_SCENARIOS,
 ];
 
 export function findScenario(id: string): Scenario | undefined {
