@@ -278,7 +278,10 @@ note: `sound`/`musicSwitch` on a scenario); (round 15) `update-available`
 (the update banner, `fakeUpdate` on a scenario), `theology` (Theology unlocks
 the Grand Cathedral), `ai-roads` (an AI links its cities); (round 16)
 `cloud-conflict`, `cloud-offline`, `cloud-slots` (a stand-in cloud:
-`cloud: () => CloudScenario` on a scenario); (round 16b) `cloud-signin-existing-game`
+`cloud: () => CloudScenario` on a scenario); (round 18) `next-unit-in-view` (board with
+one tap, sail the Galley, the map pans to the far Horseman), `fortified-units` (☰ →
+Units, Wake), `tap-own-unit` (Board the Galley / Move Legion here from afar, one-tap
+join next door); (round 16b) `cloud-signin-existing-game`
 (signed out with a game going: sign in and it uploads), `cloud-signin-fails` (the
 first sign-in doesn't finish: the toast; `mockBackend(store, user, { signedIn: false,
 failFirst: 1 })`); (round 17) `city-cycle` (5 cities, Lagash idle: the ◀ ▶
@@ -643,8 +646,8 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   removed so it doesn't look like the Battleship; compare in
   `docs/carrier-trim-candidates.html`).
 - The version shown on the About screen comes from `package.json`
-  (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.17.1 for
-  round 17's follow-up (the tech icons).
+  (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.18.0 for
+  round 18.
 - **Round 17: city arrows and the tap rule.** `src/ui/cityCycle.ts` (pure:
   `cityOrder` = the capital first, then founding order (city id); `cycleCity`
   wraps, and a city lost mid-cycle goes on from where it stood; `cityPlace`
@@ -661,6 +664,29 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   `tapTwice`, off by default): a 'move' tap first sets `App.pendingMove` and
   the renderer draws the path and "N turns" (`ViewState.plannedMove`); a second
   tap on the same tile for the same unit (`confirmMove`) moves.
+- **Round 18: the next unit in view, Wake, and tapping your own units.**
+  When the game selects the next unit on its own (`App.selectNext(false)`: after a
+  move, a fortify, a found city, boarding, an attack…) or the city panel is closed
+  by hand (`closeCityAndReveal`), `App.revealTile` pans smoothly (`panTo`, about a
+  quarter second, instant with reduced motion; any drag, pinch, or `centerOn`
+  stops it) **only if** the tile isn't comfortably in view: `tileComfortablyVisible`
+  and `centerInRect` in `camera.ts` (pure), with the covered parts read from the
+  DOM (`coveredRects`: top bar, ☰, minimap, unit panel, city panel, End Turn…).
+  Next Unit (`selectNext(true)`) still centers. After a move the next unit comes
+  when the selected one is no longer ready (`selectedDone`), and a move that stops
+  short with moves left says why in a toast. **Wake:** the `wake` action
+  (`combat.ts` `wake`/`wakeError`: clears `fortified`, moves untouched); the
+  Fortify/Stay button reads **Wake** on a fortified unit. **☰ → Units**
+  (`src/ui/unitsList.ts`, pure: `unitStatus`, `listUnits`, `filterCounts`,
+  `unitWhere`; the `#menuUnits` page, key `U` on a PC): filters All / Ready /
+  Fortified / Aboard; a tap selects the unit and centers the map on it. **The tap
+  rule** (`tap.ts`): with a unit selected, tapping a tile holding your own units
+  **selects** one there (a ship first) unless the selected unit is next to it
+  (then it moves in or boards, as before); when the selected unit can get there the
+  result carries `moveUnitId`, and the stack list offers **"Move <unit> here (N
+  turns)"** or **"⚓ Board the <ship> (<unit>, N turns)"** (`App.unitOffer`,
+  `unitOfferNow`, `moveUnitHere`). Your own city keeps Round 17's rule; aircraft
+  are unchanged. Scenarios `next-unit-in-view`, `fortified-units`, `tap-own-unit`.
 - **Round 17: `docs/tech-icon-candidates.html`** + `docs/tech-icon-candidates/`
   (168 SVGs, `SOURCES.md`): 3 game-icons.net candidates per tech, by era, each
   shown on a tree card, the research picker, the top-bar chip, and a toast;
@@ -787,11 +813,13 @@ what was pushed.
   "Move … here", the "Tap twice to move" setting, and Dan's tech icons.
   Pushing is Dan's call again.
 
-**Current objective: Round 18** (see TODO.md): gameplay fixes from Dan's
-testing: the map brings the auto-selected next unit into view, a Wake button
-and a Units list for fortified units, and tapping your own units from a
-distance selects them (with "Move here"). **Dan says push at the end of this
-round** (this round only).
+- **Round 18 (version 0.18.0): done, pushed 2026-09-26 on Dan's say-so (this
+  round only), live.** The auto-selected next unit brought into view, Wake and
+  ☰ → Units, and tapping your own units from a distance selects them (with
+  "Move … here" / "Board the …"). Pushing is Dan's call again.
+
+**Current objective: none (between rounds).** Wait for the planning session to
+set the next round in TODO.md.
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.
