@@ -246,6 +246,8 @@ export class App {
   private techPromptTech: TechId | undefined;
   /** The attack waiting for confirmation in the odds panel. */
   private pendingAttack: { unitId: number; at: Coord } | undefined;
+  /** Round 20 (item 8): the attack panel is asking "Capture <city>?" (a city held only by ships). */
+  private pendingCapture: { unitId: number; at: Coord } | undefined;
   /** A short flash on a tile after a fight (view only). */
   private flash: { x: number; y: number; won: boolean } | undefined;
   private flashTimer: number | undefined;
@@ -1445,6 +1447,7 @@ export class App {
     this.openCityId = undefined;
     this.selectedUnitId = undefined;
     this.pendingAttack = undefined;
+    this.pendingCapture = undefined;
     this.endDismissed = false;
     this.notices = [];
     this.newsSeen = state.logCount;
@@ -1643,6 +1646,33 @@ export class App {
     else if (after) this.revealTile(after.x, after.y);
   }
 
+  /** Moves the unit toward the tile (a tap's 'move', or a confirmed capture). */
+  private moveTo(unitId: number, tx: number, ty: number): void {
+    const enemyCity = this.state.cities.find((c) => c.x === tx && c.y === ty && c.owner !== this.human);
+    const mover = findUnit(this.state, unitId);
+    const res = this.dispatchResult({ type: 'move', unitId, to: { x: tx, y: ty } });
+    // An aircraft rebased (Round 10).
+    if (res.ok && mover && isAir(mover) && res.message) this.toast(`${UNITS[mover.type].name} flew ${res.message}`);
+    if (res.ok) {
+      this.sound.play('unit-move');
+      // Captures and eliminations are worth announcing.
+      this.announce(this.lastNews);
+      const after = this.selected();
+      // Round 18 (item 1): stopped short with moves left (the way on is blocked, or the next
+      // tile costs more than it has left): it stays selected, and says why.
+      if (after && !isAir(after) && after.movesLeft > 0 && (after.x !== tx || after.y !== ty) && after.id === unitId) {
+        const next = findPath(this.state, after, { x: tx, y: ty })?.[0];
+        const why = next ? stepError(this.state, after, next) : undefined;
+        this.toast(`${UNITS[after.type].name} stopped short: ${why === 'Not enough moves left' ? 'not enough moves left for the next tile' : 'the way on is blocked'}`);
+      }
+      if (this.selectedDone()) this.selectNext(false);
+      if (enemyCity && enemyCity.owner === this.human) {
+        this.showFlash(tx, ty, true);
+        this.openCity(enemyCity.id);
+      }
+    }
+  }
+
   private handleTap(sx: number, sy: number): void {
     const w = screenToWorld(this.camera, this.cssW, this.cssH, sx, sy);
     const tx = Math.floor(w.x);
@@ -1664,32 +1694,12 @@ export class App {
     }
     if (pending) this.requestDraw();
     switch (result.kind) {
-      case 'move': {
-        const enemyCity = this.state.cities.find((c) => c.x === tx && c.y === ty && c.owner !== this.human);
-        const mover = findUnit(this.state, result.unitId);
-        const res = this.dispatchResult({ type: 'move', unitId: result.unitId, to: { x: tx, y: ty } });
-        // An aircraft rebased (Round 10).
-        if (res.ok && mover && isAir(mover) && res.message) this.toast(`${UNITS[mover.type].name} flew ${res.message}`);
-        if (res.ok) {
-          this.sound.play('unit-move');
-          // Captures and eliminations are worth announcing.
-          this.announce(this.lastNews);
-          const after = this.selected();
-          // Round 18 (item 1): stopped short with moves left (the way on is blocked, or the next
-          // tile costs more than it has left): it stays selected, and says why.
-          if (after && !isAir(after) && after.movesLeft > 0 && (after.x !== tx || after.y !== ty) && after.id === result.unitId) {
-            const next = findPath(this.state, after, { x: tx, y: ty })?.[0];
-            const why = next ? stepError(this.state, after, next) : undefined;
-            this.toast(`${UNITS[after.type].name} stopped short: ${why === 'Not enough moves left' ? 'not enough moves left for the next tile' : 'the way on is blocked'}`);
-          }
-          if (this.selectedDone()) this.selectNext(false);
-          if (enemyCity && enemyCity.owner === this.human) {
-            this.showFlash(tx, ty, true);
-            this.openCity(enemyCity.id);
-          }
-        }
+      case 'move':
+        this.moveTo(result.unitId, tx, ty);
         return;
-      }
+      case 'capture':
+        this.openCapture(result.unitId, result.cityId);
+        return;
       case 'attack':
         this.openAttack(result.unitId, { x: tx, y: ty });
         return;
@@ -2426,7 +2436,7 @@ export class App {
     const odds = combatOdds(this.state, unit, at)!;
     this.pendingAttack = { unitId, at };
     const pct = Math.round(odds.chance * 100);
-    const others = this.state.units.filter((u) => u.x === at.x && u.y === at.y && u.id !== odds.defender.id).length;
+    const others = this.state.units.filter((u) => u.x === at.x && u.y === at.y && u.id !== odds.defender.id && u.carriedBy !== odds.defender.id).length;
     const stackNote = others > 0 ? `<p class="sub">Their best defender fights. If it loses, the other ${plural(others, 'unit')} on that tile stay.</p>` : '';
     const city = this.state.cities.find((c) => c.x === at.x && c.y === at.y);
     const bombard = isShip(unit) && !isWaterAt(this.state, at.x, at.y);
@@ -2467,14 +2477,48 @@ export class App {
     $<HTMLButtonElement>('attackGoBtn').focus({ preventScroll: true });
   }
 
+  /**
+   * Round 20 (item 8): an enemy city whose only units are ships in port (or aircraft): nobody
+   * defends it, so the panel offers "Capture <city>" instead of an attack.
+   */
+  private openCapture(unitId: number, cityId: number): void {
+    const unit = findUnit(this.state, unitId);
+    const city = this.state.cities.find((c) => c.id === cityId);
+    if (!unit || !city) return;
+    const here = this.state.units.filter((u) => u.x === city.x && u.y === city.y && u.owner === city.owner);
+    const ships = here.filter((u) => isShip(u) && u.carriedBy === null);
+    const aboard = here.filter((u) => u.carriedBy !== null && !isAir(u)).length;
+    const planes = here.filter((u) => isAir(u)).length;
+    const lost = [
+      ships.length ? `Their ${plural(ships.length, 'ship')} in port ${ships.length === 1 ? 'sinks' : 'sink'}${aboard ? `, with the ${plural(aboard, 'unit')} aboard` : ''}.` : '',
+      planes ? `Their ${planes} aircraft on the ground ${planes === 1 ? 'is' : 'are'} lost.` : '',
+    ].filter(Boolean);
+    this.pendingCapture = { unitId, at: { x: city.x, y: city.y } };
+    const name = esc(city.name);
+    $('attackBody').innerHTML = `
+      <h2>Capture ${name}?</h2>
+      <p>Nobody defends ${name}: your ${esc(UNITS[unit.type].name)} walks in and takes it.</p>
+      ${lost.length ? `<p class="sub">${lost.join(' ')}</p>` : ''}`;
+    $('attackGoBtn').textContent = `Capture ${city.name}`;
+    $('attackOverlay').hidden = false;
+    $<HTMLButtonElement>('attackGoBtn').focus({ preventScroll: true });
+  }
+
   private closeAttack(): void {
     this.pendingAttack = undefined;
+    this.pendingCapture = undefined;
+    $('attackGoBtn').textContent = 'Attack';
     $('attackOverlay').hidden = true;
   }
 
   private confirmAttack(): void {
     const p = this.pendingAttack;
+    const cap = this.pendingCapture;
     this.closeAttack();
+    if (cap) {
+      this.moveTo(cap.unitId, cap.at.x, cap.at.y);
+      return;
+    }
     if (!p) return;
     const res = this.dispatchResult({ type: 'attack', unitId: p.unitId, at: p.at });
     if (!res.ok || !res.combat) return;

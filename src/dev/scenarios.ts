@@ -2212,6 +2212,42 @@ const ROUND19_SCENARIOS: Scenario[] = [
   },
 ];
 
+// ---- Round 20: a city held only by ships (Dan's Metz, item 8) -------------------------------
+
+export const METZ = { x: 8, y: 5 };
+
+/**
+ * Metz (Mauryan, on the eastern landmass's west shore) holds only ships in port: a Destroyer with
+ * a Warrior aboard, and a Galley. Your Tank stands next to it; your Bomber is in your capital.
+ */
+function cityOnlyShipsBase(): GameState {
+  const state = seaState(8, 2);
+  state.players[0]!.techs.push('flight');
+  eastRival(state);
+  addCity(state, 1, METZ.x, METZ.y, { name: 'Metz', build: { kind: 'unit', id: 'warrior' } });
+  state.players[1]!.citiesFounded = 2;
+  const destroyer = addUnit(state, 'destroyer', 1, METZ.x, METZ.y);
+  addUnit(state, 'warrior', 1, METZ.x, METZ.y, { carriedBy: destroyer.id });
+  addUnit(state, 'galley', 1, METZ.x, METZ.y);
+  addUnit(state, 'tank', 0, METZ.x + 1, METZ.y - 1);
+  addUnit(state, 'bomber', 0, PORT.x, PORT.y);
+  return state;
+}
+
+function cityOnlyShipsScenario(): GameState {
+  return withDiceFor(cityOnlyShipsBase, (s) => !!strike(s, METZ).combat?.attackerWon);
+}
+
+/** Round 20 (listed last in the ☰ menu, like each round's). */
+const ROUND20_SCENARIOS: Scenario[] = [
+  {
+    id: 'city-only-ships',
+    title: 'City held only by ships',
+    note: `Metz (east, across the channel) holds only a Destroyer (a Warrior aboard) and a Galley in port: nobody defends it. Tap your Tank, then Metz: the panel says "Capture Metz?" (not "Nothing to attack"); tap Capture Metz and it's yours, and both ships sink with the Warrior. Or first strike Metz with the Bomber in ${CAPITAL} (${airOdds(cityOnlyShipsBase(), 'bomber', METZ)}%; the dice are set to win): it hits the Destroyer in port.`,
+    build: cityOnlyShipsScenario,
+  },
+];
+
 export const SCENARIOS: Scenario[] = [
   {
     id: 'grow',
@@ -2603,6 +2639,7 @@ export const SCENARIOS: Scenario[] = [
   ...ROUND17_SCENARIOS,
   ...ROUND18_SCENARIOS,
   ...ROUND19_SCENARIOS,
+  ...ROUND20_SCENARIOS,
 ];
 
 export function findScenario(id: string): Scenario | undefined {

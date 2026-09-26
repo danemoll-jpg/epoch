@@ -36,7 +36,7 @@ import { RELIGION, RELIGION_SYMBOLS } from '../src/data/religion';
 import { ROADS } from '../src/data/roads';
 import { faithOpinion, holyReligion, religionCityCulture, religionCityGold, spreadTargets } from '../src/game/religion';
 import { roadAt, roadConnected } from '../src/game/roads';
-import { BUILT_CITIES, FLIP_TOWN, NEW_UNITS_SCOUT, RIVAL_WONDER, UPGRADE_GOLD, CYCLE_CITIES, FORTIFIED, LARGE_MAP_TURNS, MINIMAP_SEED, NEXT_UNIT, TAP_CITY_LEGION, TAP_CITY_WARRIOR, TAP_OWN } from '../src/dev/scenarios';
+import { BUILT_CITIES, FLIP_TOWN, METZ, NEW_UNITS_SCOUT, RIVAL_WONDER, UPGRADE_GOLD, CYCLE_CITIES, FORTIFIED, LARGE_MAP_TURNS, MINIMAP_SEED, NEXT_UNIT, TAP_CITY_LEGION, TAP_CITY_WARRIOR, TAP_OWN } from '../src/dev/scenarios';
 import { listUnits } from '../src/ui/unitsList';
 import { cityOrder, cycleCity, otherIdleCities } from '../src/ui/cityCycle';
 import { resolveTap } from '../src/ui/tap';
@@ -85,6 +85,25 @@ function endTurn(s: GameState): void {
 
 /** What each scenario's note promises. A new scenario without an entry here fails the suite. */
 const OUTCOMES: Record<string, (s: GameState) => void> = {
+  // ---- Round 20 ----
+  'city-only-ships': (s) => {
+    const metz = s.cities.find((c) => c.name === 'Metz')!;
+    const tank = mine(s, 'tank');
+    // The tap offers a capture, not an attack; the rules agree nobody defends Metz.
+    expect(resolveTap(s, 0, tank.id, METZ.x, METZ.y)).toEqual({ kind: 'capture', unitId: tank.id, cityId: metz.id });
+    expect(attackError(s, tank, METZ)).toBe('Nothing to attack there');
+    // The Bomber can strike the Destroyer in port (the dice are set to win).
+    const copy = structuredClone(s);
+    const res = applyAction(copy, { type: 'attack', unitId: mine(copy, 'bomber').id, at: METZ });
+    expect(res.combat).toMatchObject({ attackerWon: true, airStrike: true, defenderType: 'destroyer', cargoLost: 1 });
+    expect(copy.cities.find((c) => c.name === 'Metz')!.owner).toBe(1);
+    expect(noteOf('city-only-ships')).toContain(`${Math.round(res.combat!.chance * 100)}%`);
+    // The Tank walks in: Metz is taken, both ships sink with the Warrior aboard.
+    expect(applyAction(s, { type: 'move', unitId: tank.id, to: METZ }).ok).toBe(true);
+    expect(metz.owner).toBe(0);
+    expect(s.units.filter((u) => u.owner === 1 && u.x === METZ.x && u.y === METZ.y)).toHaveLength(0);
+    expect(s.log.some((e) => e.text.includes('lost 2 ships and 1 unit aboard in port at Metz'))).toBe(true);
+  },
   'upgrade-units': (s) => {
     const opts = builds(s);
     expect(opts).toContain('musketman');

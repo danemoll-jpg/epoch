@@ -143,13 +143,23 @@ export function defenseStrength(state: GameState, u: Unit, attackerIsLand = true
   return strength(UNITS[u.type].defense * armyFactor(u), mods);
 }
 
-/** The unit on `at` that would defend against `attackerOwner`: the best effective defense. */
-export function pickDefender(state: GameState, at: Coord, attackerOwner: number): Unit | undefined {
+/**
+ * The unit on `at` that would defend against `attackerOwner`: the best effective defense.
+ * Round 20 (item 8): an aircraft striking a city with no defenders hits a ship in port there.
+ */
+export function pickDefender(state: GameState, at: Coord, attackerOwner: number, attacker?: Unit): Unit | undefined {
   let best: { u: Unit; d: number } | undefined;
   for (const u of state.units) {
     if (u.x !== at.x || u.y !== at.y || u.owner === attackerOwner || !defendsTile(state, u)) continue;
     const d = defenseStrength(state, u).total;
     if (!best || d > best.d || (d === best.d && u.id < best.u.id)) best = { u, d };
+  }
+  if (!best && attacker && isAir(attacker)) {
+    for (const u of state.units) {
+      if (u.x !== at.x || u.y !== at.y || u.owner === attackerOwner || !isShip(u) || u.carriedBy !== null) continue;
+      const d = defenseStrength(state, u, false).total;
+      if (!best || d > best.d || (d === best.d && u.id < best.u.id)) best = { u, d };
+    }
   }
   return best?.u;
 }
@@ -168,7 +178,7 @@ export function attackError(state: GameState, unit: Unit, at: Coord): string | u
     if (d > airRange(unit)) return `Out of range (${airRange(unit)} tiles)`;
   } else if (distance(unit, at) !== 1) return 'Move next to it first to attack';
   if (isLandAttack(unit) && isWaterAt(state, at.x, at.y)) return 'Land units can’t attack ships at sea';
-  const defender = pickDefender(state, at, unit.owner);
+  const defender = pickDefender(state, at, unit.owner, unit);
   if (!defender) return 'Nothing to attack there';
   // A strike from afar needs eyes on the target (next door, you always see it).
   if (isAir(unit) && !unitVisibleTo(state, unit.owner, defender)) return 'You can’t see anything to strike there';
@@ -210,7 +220,7 @@ function airDefense(u: Unit): Strength {
  */
 export function interception(state: GameState, attacker: Unit, at: Coord): Interception | undefined {
   if (!isAircraft(attacker)) return undefined;
-  const target = pickDefender(state, at, attacker.owner);
+  const target = pickDefender(state, at, attacker.owner, attacker);
   if (!target) return undefined;
   let best: Interception | undefined;
   for (const f of state.units) {
@@ -237,7 +247,7 @@ export function overallChance(state: GameState, unit: Unit, at: Coord): number {
 
 /** The odds of `unit` attacking the tile `at`, or undefined if there's nothing to attack. */
 export function combatOdds(state: GameState, unit: Unit, at: Coord): CombatOdds | undefined {
-  const defender = pickDefender(state, at, unit.owner);
+  const defender = pickDefender(state, at, unit.owner, unit);
   if (!defender) return undefined;
   const attack = attackStrength(unit, state, isAircraft(defender), defender.owner);
   const defense = defenseStrength(state, defender, isLandAttack(unit));
@@ -261,7 +271,7 @@ export function attack(state: GameState, unitId: number, at: Coord): ActionResul
     const ipct = Math.round(icpt.chance * 100);
     intercepted = { fighterType: fighter.type, fighterOwner: fighter.owner, fighterWon, chance: icpt.chance };
     if (fighterWon) {
-      const target = pickDefender(state, at, unit.owner)!;
+      const target = pickDefender(state, at, unit.owner, unit)!;
       const shotChance = combatOdds(state, unit, at)!.chance;
       removeUnit(state, unit.id);
       if (!fighter.veteran && nextFloat(state) * 100 < RULES.combat.veteranChancePct) fighter.veteran = true;

@@ -4,7 +4,8 @@
 // The rule, in order:
 // 1. A unit is selected and has moves, and you tap a different tile:
 //    - an adjacent tile with enemy units → attack (the UI shows the odds first and only
-//      attacks on confirm; a unit that can't attack gets told why);
+//      attacks on confirm; a unit that can't attack gets told why); but an enemy city whose
+//      only units are ships in port or aircraft (nobody defends it) → capture (Round 20);
 //    - your own city (Round 17): a unit on a tile next to it moves in with one tap (that's
 //      almost always meant); from farther away, or if it can't get there at all, the tap
 //      opens the city instead, and when the unit can get there the panel offers
@@ -29,6 +30,7 @@
 //    - anything else → inspect the tile (show its terrain and yields) and deselect.
 
 import { airRange, rebaseError, reconError } from '../game/air';
+import { capturableCity } from '../game/conquest';
 import { unitVisibleTo } from '../game/fog';
 import { distance } from '../game/grid';
 import { isAir, isAirType } from '../game/naval';
@@ -39,6 +41,8 @@ import { UNITS } from '../data/units';
 export type TapResult =
   | { kind: 'move'; unitId: number }
   | { kind: 'attack'; unitId: number }
+  /** Round 20: an adjacent enemy city with no defenders but ships in port (or aircraft): walking in takes it. */
+  | { kind: 'capture'; unitId: number; cityId: number }
   /** `moveUnitId`: the selected unit could go there; the city panel offers "Move … here". */
   | { kind: 'openCity'; cityId: number; moveUnitId?: number }
   /** `moveUnitId` (Round 18): the unit selected before could go there; the unit panel offers "Move … here". */
@@ -72,7 +76,13 @@ export function resolveTap(
   } else if (sel && sel.owner === viewer && sel.movesLeft > 0 && !onSelectedTile) {
     // Round 19: only units you can see (not a hidden spy); a Spy never attacks, it walks in.
     const enemyThere = state.units.some((u) => u.x === tx && u.y === ty && u.owner !== viewer && unitVisibleTo(state, viewer, u));
-    if (enemyThere && distance(sel, { x: tx, y: ty }) === 1 && !UNITS[sel.type].spy) return { kind: 'attack', unitId: sel.id };
+    if (enemyThere && distance(sel, { x: tx, y: ty }) === 1 && !UNITS[sel.type].spy) {
+      // Round 20 (item 8): an enemy city held only by ships in port (or aircraft) has nobody
+      // to fight: walking in captures it.
+      const city = capturableCity(state, sel, { x: tx, y: ty });
+      if (city) return { kind: 'capture', unitId: sel.id, cityId: city.id };
+      return { kind: 'attack', unitId: sel.id };
+    }
     if (myCity) {
       const path = findPath(state, sel, { x: tx, y: ty });
       if (path && distance(sel, myCity) === 1) return { kind: 'move', unitId: sel.id };
