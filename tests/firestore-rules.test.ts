@@ -73,6 +73,15 @@ describe.skipIf(!EMULATOR)('firestore.rules (emulator)', () => {
     // A save alone, not matching its entry's revision, is refused.
     const db = env.authenticatedContext('alice').firestore();
     await t.assertFails(fs.setDoc(fs.doc(db, 'users', 'alice', 'saves', 's1'), { rev: 5, data: fs.Bytes.fromUint8Array(new Uint8Array([1])) }));
+    // Round 16b (found by the first emulator run): nor is a save rewritten at its own revision.
+    await t.assertFails(fs.setDoc(fs.doc(db, 'users', 'alice', 'saves', 's1'), { rev: 2, data: fs.Bytes.fromUint8Array(new Uint8Array([9])) }));
+  });
+
+  it('Round 16b: a copy goes into a new slot at revision 1; renaming to the same name is not a write', async () => {
+    await t.assertSucceeds(write('alice', 'alice', 's1', 1));
+    await t.assertSucceeds(write('alice', 'alice', 's2', 1, new Uint8Array([4, 5]), { gameId: 'game-copy', name: 'Before the war' }));
+    const db = env.authenticatedContext('alice').firestore();
+    await t.assertFails(fs.updateDoc(fs.doc(db, 'users', 'alice', 'slots', 's1'), { name: 'Hatshepsut of Egypt' }));
   });
 
   it('lets a slot be renamed and deleted, but keeps the size limits', async () => {

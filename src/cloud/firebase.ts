@@ -125,28 +125,31 @@ export function startFirebase(): CloudBackend {
         return { kind: 'done' };
       } catch (e) {
         const code = (e as { code?: string }).code;
-        if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request' || code === 'auth/user-cancelled') return { kind: 'cancelled' };
+        if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request' || code === 'auth/user-cancelled') return { kind: 'cancelled', code };
         if (code === 'auth/popup-blocked' || code === 'auth/operation-not-supported-in-this-environment') {
           try {
             return await redirect();
           } catch (e2) {
-            return { kind: 'failed', message: problemText((e2 as { code?: string }).code) };
+            const code2 = (e2 as { code?: string }).code;
+            return { kind: 'failed', message: problemText(code2), ...(code2 ? { code: code2 } : {}) };
           }
         }
         console.warn('Epoch: sign-in failed', e);
-        return { kind: 'failed', message: problemText(code) };
+        return { kind: 'failed', message: problemText(code), ...(code ? { code } : {}) };
       }
     },
     async signOut() {
       await signOut(auth);
     },
-    async redirectProblem() {
+    async redirectResult() {
       try {
-        await getRedirectResult(auth);
-        return undefined;
+        const r = await getRedirectResult(auth);
+        // Round 16b: coming back from Google without an account is a sign-in that didn't finish.
+        return r?.user || auth.currentUser ? { kind: 'done' } : { kind: 'none' };
       } catch (e) {
         console.warn('Epoch: redirect sign-in failed', e);
-        return problemText((e as { code?: string }).code);
+        const code = (e as { code?: string }).code;
+        return { kind: 'failed', message: problemText(code), ...(code ? { code } : {}) };
       }
     },
     store: (uid) => new FirestoreStore(db, uid),

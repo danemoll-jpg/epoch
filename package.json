@@ -1,7 +1,7 @@
 {
   "name": "epoch",
   "private": true,
-  "version": "0.16.0",
+  "version": "0.16.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -15,7 +15,7 @@
     "test:watch": "vitest",
     "lint": "tsc --noEmit",
     "sim": "vitest run --config vitest.sim.config.ts",
-    "test:rules": "firebase emulators:exec --only firestore --project demo-epoch \"vitest run tests/firestore-rules.test.ts\""
+    "test:rules": "node scripts/test-rules.mjs"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.2",

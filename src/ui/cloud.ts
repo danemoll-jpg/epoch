@@ -6,9 +6,9 @@
 // Local saves stay primary: the App saves to the device exactly as before, with this game's
 // link to its cloud slot (`link`) inside the save file.
 
-import { loadFirebase, type CloudBackend, type CloudUser } from '../cloud/backend';
+import { loadFirebase, SIGN_IN_FAILED, type CloudBackend, type CloudUser, type RedirectOutcome, type SignInOutcome } from '../cloud/backend';
 import { gunzipText } from '../cloud/compress';
-import { CloudSync, STATUS_TEXT, type SlotMeta, type SlotSave, type SyncStatus } from '../cloud/sync';
+import { CloudSync, defaultSlotName, STATUS_TEXT, type SlotMeta, type SlotSave, type SyncOutcome, type SyncStatus } from '../cloud/sync';
 import { CLOUD } from '../data/firebase';
 import { DIFFICULTIES } from '../data/difficulty';
 import { MAP_SIZES } from '../data/mapSizes';
@@ -26,7 +26,47 @@ interface CloudPrefs {
   signedIn?: boolean;
   /** A redirect sign-in is on its way back. */
   pending?: boolean;
+  /** Round 16b: how the last sign-in attempt on this device ended (to diagnose the iPad). */
+  lastSignIn?: SignInRecord;
 }
+
+/** Round 16b: one sign-in attempt, kept on the device and shown in Settings while signed out. */
+export interface SignInRecord {
+  at: number;
+  how: 'popup' | 'redirect';
+  result: 'done' | 'cancelled' | 'notFinished' | 'failed';
+  code?: string;
+}
+
+/** Round 16b: what the player is told when a sign-in ends; undefined when it worked (or is on its way). */
+export function signInMessage(out: SignInOutcome | RedirectOutcome): string | undefined {
+  if (out.kind === 'cancelled' || out.kind === 'none') return SIGN_IN_FAILED;
+  if (out.kind === 'failed') return out.message;
+  return undefined;
+}
+
+/**
+ * Round 16b: the main menu's account line, so signed in or not is plain at a glance ("☁ Signed
+ * in as Dan", or "Not signed in" with the button). `hasGame`: is there a game on this device?
+ */
+export function accountHtml(o: { user: CloudUser | null; status: SyncStatus; signingIn: boolean; hasGame: boolean }): string {
+  if (o.user) {
+    return `<div class="cloudAcct in"><span>☁ Signed in as <b>${esc(o.user.name)}</b><span class="sub"> · ${esc(STATUS_TEXT[o.status])}</span></span><button type="button" data-cloud="signOut">Sign out</button></div>`;
+  }
+  if (o.status === 'unavailable') return `<div class="cloudAcct sub">${esc(STATUS_TEXT.unavailable)}</div>`;
+  const btn = o.signingIn
+    ? '<button type="button" data-cloud="signIn" class="primary" disabled>Signing in…</button>'
+    : '<button type="button" data-cloud="signIn" class="primary">Sign in with Google</button>';
+  const hint = o.hasGame ? '' : '<p class="cloudHint">Looking for a game from another device? Sign in with Google.</p>';
+  return `<div class="cloudAcct out"><span><b>Not signed in</b>: sign in to see your cloud games.</span>${btn}</div>${hint}`;
+}
+
+const SIGN_IN_RESULT_TEXT: Record<SignInRecord['result'], string> = {
+  done: 'signed in',
+  cancelled: 'closed before it finished',
+  notFinished: 'came back without signing in',
+  failed: 'failed',
+};
 
 /** What the controller needs from the App. */
 export interface CloudHost {
@@ -132,6 +172,10 @@ export class CloudController {
   private readonly makeBackend: () => Promise<CloudBackend | undefined>;
   private readonly device: string;
   private busyOp = false;
+  /** Round 16b: a sign-in is under way (the button says "Signing in…"). */
+  signingIn = false;
+  /** Round 16b: a sign-in was started on this page or came back from a redirect: say when it lands. */
+  private announceSignIn = false;
 
   constructor(
     private readonly host: CloudHost,
@@ -144,7 +188,7 @@ export class CloudController {
     this.makeBackend = opts.backend ?? loadFirebase;
     this.device = opts.device;
     $('cloudOverlay').addEventListener('click', (e) => this.handleOverlayClick(e));
-    $('cloudBadge').addEventListener('click', () => this.host.toast(this.statusLine()));
+    $('cloudBadge').addEventListener('click', () => this.openStatus());
   }
 
   // ---- prefs ----
@@ -186,9 +230,20 @@ export class CloudController {
         }
         b.onUser((u) => this.onUser(u));
         if (this.prefs().pending) {
-          const problem = await b.redirectProblem();
-          this.setPrefs({ ...this.prefs(), pending: false });
-          if (problem) this.host.toast(problem, true);
+          // Round 16b: coming back from a redirect sign-in (the Home Screen icon): never silent.
+          const out = await b.redirectResult();
+          const rec: SignInRecord = {
+            at: Date.now(),
+            how: 'redirect',
+            result: out.kind === 'done' ? 'done' : out.kind === 'none' ? 'notFinished' : 'failed',
+            ...(out.kind === 'failed' && out.code ? { code: out.code } : {}),
+          };
+          console.info('Epoch: redirect sign-in came back:', rec);
+          this.setPrefs({ ...this.prefs(), pending: false, lastSignIn: rec });
+          const msg = signInMessage(out);
+          if (msg) this.host.toast(msg, true);
+          else if (this.user) this.host.toast(`☁ Signed in as ${this.user.name}`);
+          else this.announceSignIn = true;
         }
         return b;
       });
@@ -202,11 +257,16 @@ export class CloudController {
     if (!u) {
       this.sync = undefined;
       this.slots = undefined;
-      this.setPrefs({});
+      const p = this.prefs();
+      this.setPrefs({ ...(p.pending ? { pending: true } : {}), ...(p.lastSignIn ? { lastSignIn: p.lastSignIn } : {}) });
       this.setStatus('signedOut');
       return;
     }
-    this.setPrefs({ signedIn: true });
+    this.setPrefs({ ...this.prefs(), signedIn: true });
+    if (this.announceSignIn) {
+      this.announceSignIn = false;
+      this.host.toast(`☁ Signed in as ${u.name}`);
+    }
     if (was === u.uid && this.sync) return;
     this.sync = new CloudSync(this.backend!.store(u.uid), u.uid, {
       current: () => (this.host.syncable() ? { state: this.host.state(), link: this.link, changes: this.changes } : undefined),
@@ -218,6 +278,8 @@ export class CloudController {
       take: (save) => void this.takeCloud(save, 'quiet'),
       conflict: (cloud) => this.askConflict(cloud),
       status: (s) => this.setStatus(s),
+      // Round 16b: signing in with a game in progress (or a new game's first write) says so.
+      uploaded: (m) => this.host.toast(`☁ This game is now saved in the cloud too: “${m.name}” (slot ${m.slot.slice(1)} of ${CLOUD.maxSlots})`),
       now: () => Date.now(),
       online: () => navigator.onLine,
       setTimer: (fn, ms) => setTimeout(fn, ms),
@@ -229,16 +291,44 @@ export class CloudController {
   }
 
   async signIn(): Promise<void> {
-    const b = await this.ensureBackend();
-    if (!b) {
-      this.host.toast('Cloud saves unavailable right now. Your game is saved on this device as always.', true);
-      return;
+    if (this.signingIn) return;
+    this.signingIn = true;
+    this.refreshViews();
+    try {
+      const b = await this.ensureBackend();
+      if (!b) {
+        this.host.toast('Cloud saves unavailable right now. Your game is saved on this device as always.', true);
+        return;
+      }
+      this.setPrefs({ ...this.prefs(), pending: true });
+      this.announceSignIn = true;
+      const out = await b.signIn();
+      if (out.kind === 'redirecting') return; // the page leaves, and comes back through ensureBackend
+      const rec: SignInRecord = {
+        at: Date.now(),
+        how: 'popup',
+        result: out.kind === 'done' ? 'done' : out.kind === 'cancelled' ? 'cancelled' : 'failed',
+        ...(out.kind !== 'done' && out.code ? { code: out.code } : {}),
+      };
+      console.info('Epoch: sign-in ended:', rec);
+      this.setPrefs({ ...this.prefs(), pending: false, lastSignIn: rec });
+      // Round 16b: a sign-in that doesn't finish is never silent.
+      const msg = signInMessage(out);
+      if (msg) {
+        this.announceSignIn = false;
+        this.host.toast(msg, true);
+      }
+      // 'done' arrives through onUser, which says "Signed in as …".
+    } finally {
+      this.signingIn = false;
+      this.refreshViews();
     }
-    this.setPrefs({ ...this.prefs(), pending: true });
-    const out = await b.signIn();
-    if (out.kind !== 'redirecting') this.setPrefs({ ...this.prefs(), pending: false });
-    if (out.kind === 'failed') this.host.toast(out.message, true);
-    // 'done' arrives through onUser; 'redirecting' leaves the page and comes back signed in.
+  }
+
+  /** The main menu and Settings show the sign-in button's state. */
+  private refreshViews(): void {
+    this.host.refreshSettings();
+    if (this.host.menuOpen()) this.host.refreshMenu();
   }
 
   async signOut(): Promise<void> {
@@ -336,17 +426,98 @@ export class CloudController {
     return menuEntries(mine, this.user ? this.link : undefined, this.user ? (this.slots ?? []) : []);
   }
 
-  /** The main menu's cloud part: sign-in or who's signed in, and the list of games. */
-  menuHtml(entries: MenuEntry[]): string {
-    const account = this.user
-      ? `<div class="cloudAcct"><span>☁ Signed in as <b>${esc(this.user.name)}</b> · ${esc(STATUS_TEXT[this.status])}</span><button type="button" data-cloud="signOut">Sign out</button></div>`
-      : this.status === 'unavailable'
-        ? `<div class="cloudAcct sub">${esc(STATUS_TEXT.unavailable)}</div>`
-        : `<div class="cloudAcct"><span class="sub">Play the same game on this and your other devices.</span><button type="button" data-cloud="signIn">Sign in with Google</button></div>`;
-    const list = this.user && entries.length
-      ? `<div class="cloudList">${entries.map((e) => this.entryHtml(e)).join('')}</div><div class="sub cloudNote">${this.slots ? `${this.slots.length} of ${CLOUD.maxSlots} cloud slots used` : 'Looking for your cloud games…'}</div>`
-      : '';
-    return `${account}${list}`;
+  /**
+   * The main menu's cloud part: who's signed in (or plainly "Not signed in"), and while signed
+   * in, the games here and in the cloud. `hasGame`: is there a game on this device?
+   */
+  menuHtml(entries: MenuEntry[], hasGame: boolean): string {
+    const account = accountHtml({ user: this.user, status: this.status, signingIn: this.signingIn, hasGame });
+    if (!this.user) return account;
+    const note = !this.slots ? 'Looking for your cloud games…' : this.slots.length ? `${this.slots.length} of ${CLOUD.maxSlots} cloud slots used` : 'No games in the cloud yet.';
+    const list = entries.length ? `<div class="cloudList">${entries.map((e) => this.entryHtml(e)).join('')}</div>` : '';
+    return `${account}${list}<div class="sub cloudNote">${note}</div>`;
+  }
+
+  /** Round 16b: the line at the top of ☰ → Restore a backup. */
+  backupsHtml(): string {
+    if (this.user) return `<p class="sub">☁ Your cloud games are on the main menu (signed in as ${esc(this.user.name)}).</p>`;
+    if (this.status === 'unavailable') return '';
+    return `<div class="cloudAcct out"><span>Cloud games are on the main menu once you sign in. <b>Looking for a game from another device?</b></span>${
+      this.signingIn ? '<button type="button" data-cloud="signIn" disabled>Signing in…</button>' : '<button type="button" data-cloud="signIn" class="primary">Sign in with Google</button>'
+    }</div>`;
+  }
+
+  get signedIn(): boolean {
+    return !!this.user && !!this.sync;
+  }
+
+  // ---- Round 16b: Save now, Sync now, a copy in a new slot, and the ☁ panel ----
+
+  /** ☰ → Save now's cloud half: writes the cloud copy now. Undefined when not signed in. */
+  async saveNow(): Promise<SyncOutcome | undefined> {
+    if (!this.user || !this.sync) return undefined;
+    return this.sync.syncNow();
+  }
+
+  /** The ☁ panel's Sync now: compares with the cloud (it may pick up another device's turns), then writes. */
+  async syncNow(): Promise<void> {
+    if (!this.sync) return;
+    if (this.host.busy()) {
+      this.host.toast('The rivals are still moving. Try Sync now again once they’re done.');
+      return;
+    }
+    this.host.toast('Syncing…');
+    await this.sync.check();
+    const r = await this.sync.syncNow();
+    this.host.toast(r.ok ? '☁ Synced ✓ The cloud copy is up to date.' : `Not synced: ${r.message}`, !r.ok);
+    void this.refreshSlots();
+  }
+
+  /** The ☁ mark: the status in words, when it last worked, the last problem, and Sync now. */
+  openStatus(): void {
+    const sync = this.sync;
+    const now = Date.now();
+    const who = this.user ? `<p>☁ Signed in as <b>${esc(this.user.name)}</b></p>` : '<p><b>Not signed in</b></p>';
+    const ok = sync?.lastOkAt ? `Last saved to the cloud: ${esc(whenText(sync.lastOkAt, now))}` : 'Not saved to the cloud yet since the game opened.';
+    const err = sync?.lastError ? `<p class="warn">Last problem (${esc(whenText(sync.lastError.at, now))}): ${esc(sync.lastError.text)}</p>` : '';
+    this.showPanel(
+      'Cloud saves',
+      `${who}<p>${esc(STATUS_TEXT[this.status])}</p><p class="sub">${ok}</p>${err}`,
+      [{ label: 'Close' }, ...(sync ? [{ label: 'Sync now', cls: 'primary', run: () => void this.syncNow() }] : [])],
+    );
+  }
+
+  /** ☰ → Save to a new cloud slot…: a named copy of the game as it is now, as a game of its own. */
+  askSaveCopy(): void {
+    if (!this.sync) {
+      this.host.toast('Sign in first (on the main menu) to save to the cloud.', true);
+      return;
+    }
+    if (this.slots && this.slots.length >= CLOUD.maxSlots) {
+      this.host.toast(`The cloud is full (${CLOUD.maxSlots} games). Delete one on the main menu first.`, true);
+      return;
+    }
+    const st = this.host.state();
+    const name = `${defaultSlotName(st)}, turn ${st.turn}`.slice(0, CLOUD.maxNameLength);
+    this.showPanel(
+      'Save to a new cloud slot',
+      `<p>A copy of the game as it is now, kept in the cloud as a game of its own (for example before a risky move). This game carries on in its own slot.</p>
+       <input id="cloudName" type="text" maxlength="${CLOUD.maxNameLength}" value="${esc(name)}" aria-label="Name" autocomplete="off" spellcheck="false">
+       <p class="sub">${this.slots ? `${this.slots.length} of ${CLOUD.maxSlots} cloud slots used. ` : ''}Open it later from the main menu.</p>`,
+      [
+        { label: 'Cancel' },
+        { label: 'Save copy', cls: 'primary', run: (v) => void this.saveCopy((v ?? '').trim() || name) },
+      ],
+    );
+  }
+
+  async saveCopy(name: string): Promise<SyncOutcome> {
+    if (!this.sync) return { ok: false, message: 'Not signed in.' };
+    this.host.toast('Saving a copy…');
+    const r = await this.sync.saveCopy(name, freshLink().gameId);
+    this.host.toast(r.ok ? `☁ Saved a copy as “${name}” (slot ${r.slot?.slice(1)} of ${CLOUD.maxSlots}). Your game carries on as before.` : `Couldn’t save the copy: ${r.message}`, !r.ok);
+    await this.refreshSlots();
+    return r;
   }
 
   private entryHtml(e: MenuEntry): string {
@@ -530,7 +701,7 @@ export class CloudController {
           cls: 'primary',
           run: (v) => {
             const name = (v ?? '').trim().slice(0, CLOUD.maxNameLength);
-            if (!name || !this.sync) return;
+            if (!name || !this.sync || name === m.name) return;
             this.sync.store.rename(slot, name).then(
               () => this.refreshSlots(),
               () => this.host.toast('Couldn’t reach the cloud to rename it. Try again.', true),
@@ -584,9 +755,14 @@ export class CloudController {
       };
     }
     if (this.status === 'unavailable') return { sub: esc(STATUS_TEXT.unavailable), control: '' };
+    // Round 16b: how the last try on this device ended (it's how an iPad sign-in gets diagnosed).
+    const last = this.prefs().lastSignIn;
+    const tried = last && last.result !== 'done'
+      ? ` Last try: ${esc(whenText(last.at, Date.now()))}, ${last.how}, ${SIGN_IN_RESULT_TEXT[last.result]}${last.code ? ` (${esc(last.code)})` : ''}.`
+      : '';
     return {
-      sub: 'Optional: play the same game on your other devices. Without it, your game is saved on this device as always.',
-      control: '<button type="button" data-cloud="signIn">Sign in with Google</button>',
+      sub: `<b>Not signed in.</b> Optional: play the same game on your other devices. Without it, your game is saved on this device as always.${tried}`,
+      control: this.signingIn ? '<button type="button" data-cloud="signIn" disabled>Signing in…</button>' : '<button type="button" data-cloud="signIn">Sign in with Google</button>',
     };
   }
 }

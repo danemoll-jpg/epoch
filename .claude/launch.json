@@ -18,6 +18,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["vite", "preview", "--outDir", "dist-play", "--port", "4176", "--strictPort"],
       "port": 4176
+    },
+    {
+      "name": "hub-local",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "5190", "--bind", "127.0.0.1", "--directory", "C:/Users/danmo/game-hub"],
+      "port": 5190
     }
   ]
 }

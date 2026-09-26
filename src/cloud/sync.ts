@@ -151,6 +151,30 @@ export interface SyncHost {
   clearTimer(handle: unknown): void;
   /** "iPad", "PC": written with each save. */
   device: string;
+  /** Round 16b: this game was just put in a slot of its own (its first write there). */
+  uploaded?(meta: SlotMeta): void;
+}
+
+/** Round 16b: what Save now / Sync now / a copy came to. */
+export type SyncOutcome = { ok: true; slot?: string } | { ok: false; status?: SyncStatus; message: string };
+
+/** Plain words for a failed cloud write or read (shown on the ☁ tap and after Save now). */
+export function cloudErrorText(e: unknown, online: boolean): string {
+  if (isOfflineError(e, online)) return 'No network: the cloud copy will be written once you’re back online.';
+  const code = (e as { code?: string } | undefined)?.code;
+  switch (code) {
+    case 'permission-denied':
+    case 'unauthenticated':
+      return 'The cloud refused the save (not allowed). Try signing out and in again.';
+    case 'too-big':
+      return 'This game is too big for the cloud.';
+    case 'slot-race':
+      return 'Another device was saving at the same moment. Try again.';
+    case 'resource-exhausted':
+      return 'The cloud is busy (too many saves today). Try again later.';
+    default:
+      return `Couldn’t save to the cloud${code ? ` (${code})` : ''}. It will try again.`;
+  }
 }
 
 /** An error from the store that means "no network" (Firestore's code, or a fetch failure). */
@@ -169,6 +193,12 @@ export class CloudSync {
   private checking: Promise<SyncDecision | undefined> | undefined;
   /** Write attempts and their results, for tests and the dev console. */
   readonly log: string[] = [];
+  /** Round 16b: when the cloud copy was last known to be in step (ms), and the last problem. */
+  lastOkAt: number | undefined;
+  lastError: { text: string; at: number } | undefined;
+  /** The last status reported (Save now reads how its write ended). */
+  lastStatus: SyncStatus | undefined;
+  private loopP: Promise<void> | undefined;
 
   constructor(
     readonly store: CloudStore,
@@ -179,7 +209,78 @@ export class CloudSync {
   /** Asks for a background write of the game as it is when the write starts. Never waits. */
   request(): void {
     this.wanted = true;
-    if (!this.running && !this.retryTimer && !this.paused) void this.loop();
+    if (!this.running && !this.retryTimer && !this.paused) this.loopP = this.loop();
+  }
+
+  private status(s: SyncStatus): void {
+    this.lastStatus = s;
+    if (s === 'saved') {
+      this.lastOkAt = this.host.now();
+      this.lastError = undefined;
+    }
+    this.host.status(s);
+  }
+
+  /**
+   * Round 16b (Save now, Sync now): writes the game now instead of in the background, waiting
+   * out any write already on its way and skipping a retry's wait, and says how it went.
+   */
+  async syncNow(): Promise<SyncOutcome> {
+    if (!this.host.current()) return { ok: false, message: 'There’s no game to save yet.' };
+    if (this.paused) return { ok: false, status: 'conflict', message: 'Choose which game to keep first (the question on screen).' };
+    if (this.retryTimer) {
+      this.host.clearTimer(this.retryTimer);
+      this.retryTimer = undefined;
+    }
+    this.wanted = true;
+    this.lastStatus = undefined;
+    while (this.running) await this.loopP;
+    if (this.retryTimer) {
+      // The write that was on its way failed while this waited: try once more, now.
+      this.host.clearTimer(this.retryTimer);
+      this.retryTimer = undefined;
+      this.wanted = true;
+    }
+    if (this.wanted && !this.paused) {
+      this.loopP = this.loop();
+      await this.loopP;
+    }
+    const s = this.lastStatus;
+    if (s === 'saved' || s === undefined) return { ok: true, ...(this.host.current()?.link.slot ? { slot: this.host.current()!.link.slot } : {}) };
+    const message = s === 'offline' || s === 'retrying' ? (this.lastError?.text ?? STATUS_TEXT[s]) : STATUS_TEXT[s];
+    return { ok: false, status: s, message };
+  }
+
+  /**
+   * Round 16b (☰ → Save to a new cloud slot): a copy of the game as it is now, as a game of its
+   * own (`gameId`) in a free slot, named `name`. The game here stays linked to its own slot.
+   */
+  async saveCopy(name: string, gameId: string): Promise<SyncOutcome> {
+    const cur = this.host.current();
+    if (!cur) return { ok: false, message: 'There’s no game to save yet.' };
+    try {
+      const text = serializeGame(cur.state, this.host.now());
+      const data = await gzipText(text);
+      if (data.length > CLOUD.maxSaveBytes) return { ok: false, message: cloudErrorText({ code: 'too-big' }, true) };
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const slot = freeSlot(await this.store.list());
+        if (!slot) return { ok: false, status: 'full', message: `The cloud is full (${CLOUD.maxSlots} games). Delete one on the main menu first.` };
+        const meta = slotMetaFor(cur.state, {
+          slot, gameId, rev: 1, name: name.slice(0, CLOUD.maxNameLength), savedAt: this.host.now(), device: this.host.device, bytes: data.length, rawBytes: text.length,
+        });
+        const res = await this.store.write(meta, data, 0);
+        if (res.ok) {
+          this.log.push(`copy to ${slot} turn ${cur.state.turn}`);
+          return { ok: true, slot };
+        }
+        // Another device took that slot a moment ago: try the next free one.
+      }
+      return { ok: false, message: cloudErrorText({ code: 'slot-race' }, true) };
+    } catch (e) {
+      const text = cloudErrorText(e, this.host.online());
+      this.lastError = { text, at: this.host.now() };
+      return { ok: false, message: text };
+    }
   }
 
   /** The network is back (or the player tapped): retry now instead of waiting out the backoff. */
@@ -207,7 +308,8 @@ export class CloudSync {
         } catch (e) {
           const offline = isOfflineError(e, this.host.online());
           this.log.push(`error: ${offline ? 'offline' : String((e as { code?: string })?.code ?? e)}`);
-          this.host.status(offline ? 'offline' : 'retrying');
+          this.lastError = { text: cloudErrorText(e, this.host.online()), at: this.host.now() };
+          this.status(offline ? 'offline' : 'retrying');
           this.retryMs = Math.min(CLOUD.retryMaxMs, this.retryMs ? this.retryMs * 2 : CLOUD.retryFirstMs);
           this.retryTimer = this.host.setTimer(() => {
             this.retryTimer = undefined;
@@ -226,11 +328,11 @@ export class CloudSync {
     const cur = this.host.current();
     if (!cur) return undefined;
     if (cur.link.localOnly) {
-      this.host.status('localOnly');
+      this.status('localOnly');
       return undefined;
     }
     if (cur.link.uid && cur.link.uid !== this.uid) {
-      this.host.status('otherAccount');
+      this.status('otherAccount');
       return undefined;
     }
     return cur;
@@ -241,10 +343,10 @@ export class CloudSync {
     if (!cur) return;
     const { state, link, changes } = cur;
     if (link.slot && !link.dirty) {
-      this.host.status('saved');
+      this.status('saved');
       return;
     }
-    this.host.status('syncing');
+    this.status('syncing');
     // Taken now: the newest game when this write starts (a later change asks for another write).
     const text = serializeGame(state, this.host.now());
     const data = await gzipText(text);
@@ -260,7 +362,7 @@ export class CloudSync {
         slot = freeSlot(used);
         if (!slot) {
           this.log.push('full');
-          this.host.status('full');
+          this.status('full');
           return;
         }
         expectRev = 0;
@@ -284,7 +386,8 @@ export class CloudSync {
         // Still dirty if the game changed while this write was on its way.
         const dirty = !now || now.changes !== changes;
         this.host.setLink({ gameId: link.gameId, slot, uid: this.uid, syncedRev: meta.rev, dirty });
-        this.host.status(dirty ? 'syncing' : 'saved');
+        if (expectRev === 0) this.host.uploaded?.(meta);
+        this.status(dirty ? 'syncing' : 'saved');
         if (dirty) this.wanted = true;
         return;
       }
@@ -293,7 +396,7 @@ export class CloudSync {
         // The cloud moved on while this device changed too: ask, and write nothing until answered.
         this.log.push(`conflict ${slot}: cloud rev ${other.rev}, this device had ${expectRev}`);
         this.paused = true;
-        this.host.status('conflict');
+        this.status('conflict');
         this.host.conflict(other);
         return;
       }
@@ -321,12 +424,13 @@ export class CloudSync {
     try {
       cloud = cur.link.slot ? await this.store.meta(cur.link.slot) : undefined;
     } catch (e) {
-      this.host.status(isOfflineError(e, this.host.online()) ? 'offline' : 'retrying');
+      this.lastError = { text: cloudErrorText(e, this.host.online()), at: this.host.now() };
+      this.status(isOfflineError(e, this.host.online()) ? 'offline' : 'retrying');
       return undefined;
     }
     const d = decide(cur.link, cloud);
     this.log.push(`check: ${d}`);
-    if (d === 'same') this.host.status('saved');
+    if (d === 'same') this.status('saved');
     else if (d === 'push') this.request();
     else if (d === 'upload') {
       this.host.setLink({ ...cur.link, slot: undefined, uid: this.uid, syncedRev: 0, dirty: true });
@@ -335,11 +439,11 @@ export class CloudSync {
       const save = await this.store.read(cloud!.slot);
       if (save) {
         this.host.take(save);
-        this.host.status('saved');
+        this.status('saved');
       }
     } else {
       this.paused = true;
-      this.host.status('conflict');
+      this.status('conflict');
       this.host.conflict(cloud!);
     }
     return d;
@@ -356,7 +460,7 @@ export class CloudSync {
   /** "Keep the cloud's": the caller has taken it; writing resumes from there. */
   keptCloud(): void {
     this.paused = false;
-    this.host.status('saved');
+    this.status('saved');
   }
 
   /** The question was put off (e.g. a scenario was left): nothing is written until the next check. */

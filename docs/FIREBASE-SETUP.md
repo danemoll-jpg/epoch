@@ -10,6 +10,12 @@ added as an authorized domain, Firestore created in production mode.
 **Still to do, once each (about 5 minutes).** Do steps 1 and 2 before pushing
 Round 16; the game works without them, but sign-in and saving will fail.
 
+**Round 16b: publish the rules once more (step 1).** The first run against the
+emulator found that the old rules let a save be written again at its own
+revision (an unchanged entry passed as a "rename"). `firestore.rules` now refuses
+that. The game works with either version, so this is safety, not a fix you need
+before playing: paste the new `firestore.rules` and Publish, as in step 1.
+
 ## 1. Publish the security rules
 
 Production mode starts with rules that refuse everything, so nothing can be
@@ -86,14 +92,19 @@ address; the game plays as always.)
 - **Sign-in says it doesn't work at this address**: the address isn't an
   authorized domain (step 3).
 - **Sign-in on the iPad goes to Google and comes back signed out**: step 2 isn't
-  done yet (or hasn't taken effect).
+  done yet (or hasn't taken effect). Since Round 16b the game says "Sign-in
+  failed. Please try again." whenever that happens, and ☰ → Settings → Cloud
+  saves shows how the last try ended ("Last try: …, redirect, came back without
+  signing in"), with Firebase's code when there is one.
 - **The mark stays ☁… or shows "Couldn't sync: will retry"**: the rules aren't
   published (step 1); check with `window.__epoch.app.cloud.sync.log` in the
   browser console.
 
 ## Testing the rules (for the coding agent)
 
-`npm run test:rules` runs `tests/firestore-rules.test.ts` against the Firestore emulator
-(`firebase-tools`, which needs **Java 21 or newer**; this PC has Java 8, so they
-haven't been run here yet). In a plain `npm test` those tests are skipped; the
-same rules are checked against the in-memory store in `tests/cloud.test.ts`.
+`npm run test:rules` (`scripts/test-rules.mjs`) runs `tests/firestore-rules.test.ts`
+against the Firestore emulator (`firebase-tools` 15 through npx, which needs **Java 21
+or newer**). This PC's system Java is 8, so Round 16b unpacked a portable Java 21
+(Temurin JRE, no admin) into `%LOCALAPPDATA%\epoch-tools\`; the script puts it on
+PATH when it's there. **6 pass (2026-09-25).** In a plain `npm test` those tests are
+skipped; the same rules are checked against the in-memory store in `tests/cloud.test.ts`.

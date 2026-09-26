@@ -1747,6 +1747,30 @@ function cloudSlots(): CloudScenario {
   };
 }
 
+/** Round 16b: signed out, with a game in progress here (never uploaded) and one game already in the cloud. */
+function cloudSignInExisting(): CloudScenario {
+  const store = new MemoryCloudStore();
+  return {
+    store,
+    link: { gameId: CLOUD_GAME, syncedRev: 0, dirty: true },
+    savedAt: Date.now() - 10 * 60_000,
+    backend: async () => {
+      await putSlot(store, cloudOtherGame('egypt', 87, ['alphabet', 'masonry', 'bronze_working']), { slot: 's1', gameId: 'g-egypt', rev: 41, device: 'iPad', agoMs: 3 * HOUR });
+      return mockBackend(store, undefined, { signedIn: false });
+    },
+  };
+}
+
+/** Round 16b: signed out; the first sign-in doesn't finish (as if the popup were closed), the second works. */
+function cloudSignInFails(): CloudScenario {
+  const store = new MemoryCloudStore();
+  return {
+    store,
+    link: { gameId: CLOUD_GAME, syncedRev: 0, dirty: true },
+    backend: async () => mockBackend(store, undefined, { signedIn: false, failFirst: 1 }),
+  };
+}
+
 const ROUND16_SCENARIOS: Scenario[] = [
   {
     id: 'cloud-conflict',
@@ -1765,9 +1789,25 @@ const ROUND16_SCENARIOS: Scenario[] = [
   {
     id: 'cloud-slots',
     title: 'Cloud: games on the main menu',
-    note: `The main menu, signed in, with the game on this device (England, turn 12) and three cloud games: Egypt turn 87 (renamed “Egypt, the long game”, iPad, 3 hours ago), the United States turn 143 (PC, yesterday), and Mali turn 34 (iPad, 5 days ago). Continue picks the newest: the game here (it's uploaded to the 4th slot within a moment: “On this device and in the cloud”). Try Open, Rename, and Delete (it asks first) on a cloud game. (Stand-in cloud: nothing real changes.)`,
+    note: `The main menu, signed in (“☁ Signed in as Dan (stand-in)” in a green box), with the game on this device (England, turn 12) and three cloud games: Egypt turn 87 (renamed “Egypt, the long game”, iPad, 3 hours ago), the United States turn 143 (PC, yesterday), and Mali turn 34 (iPad, 5 days ago). Continue picks the newest: the game here (it's uploaded to the 4th slot within a moment, with a toast: “On this device and in the cloud”). Try Open, Rename, and Delete (it asks first) on a cloud game. Round 16b: play, then ☰ → Save now (“Saved ✓ in the (stand-in) cloud”), and ☰ → Save to a new cloud slot… (a copy goes into slot 5; a second copy says the cloud is full). Tap the ☁ mark by the game's name: when it last saved, and Sync now. (Stand-in cloud: nothing real changes.)`,
     build: cloudLocalGame,
     cloud: cloudSlots,
+    opens: 'mainMenu',
+  },
+  {
+    id: 'cloud-signin-existing-game',
+    title: 'Cloud: sign in with a game going',
+    note: `The main menu, NOT signed in: an orange-edged box says “Not signed in: sign in to see your cloud games”. This device has a game going (England, turn 12) that was never uploaded, and the cloud already holds Egypt, turn 87. Tap Sign in with Google: the button says “Signing in…”, then “☁ Signed in as Dan (stand-in)” (a green box), the toast “This game is now saved in the cloud too … (slot 2 of 5)”, and the menu lists both games (England: “On this device and in the cloud”). (Stand-in cloud: nothing real changes.)`,
+    build: cloudLocalGame,
+    cloud: cloudSignInExisting,
+    opens: 'mainMenu',
+  },
+  {
+    id: 'cloud-signin-fails',
+    title: 'Cloud: sign-in doesn’t finish',
+    note: `The main menu, not signed in. Tap Sign in with Google: this first try doesn't finish (as if the Google window were closed), and the toast says “Sign-in failed. Please try again.” The box still says “Not signed in”, and ☰ → Settings → Cloud saves shows “Last try: … popup, closed before it finished (auth/popup-closed-by-user)”. Tap Sign in again: this time it works (“☁ Signed in as Dan (stand-in)”, and the game goes up to the cloud). (Stand-in cloud.)`,
+    build: cloudLocalGame,
+    cloud: cloudSignInFails,
     opens: 'mainMenu',
   },
 ];

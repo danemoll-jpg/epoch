@@ -17,12 +17,19 @@ export interface CloudBackend {
   /** Google sign-in: a popup in a browser tab, a redirect from the Home Screen icon. */
   signIn(): Promise<SignInOutcome>;
   signOut(): Promise<void>;
-  /** A redirect sign-in that just came back: its problem, if it had one. */
-  redirectProblem(): Promise<string | undefined>;
+  /**
+   * A redirect sign-in that just came back: signed in, back without an account (cancelled, or
+   * Safari lost the sign-in on the way), or failed with a problem.
+   */
+  redirectResult(): Promise<RedirectOutcome>;
   store(uid: string): CloudStore;
 }
 
-export type SignInOutcome = { kind: 'done' } | { kind: 'redirecting' } | { kind: 'cancelled' } | { kind: 'failed'; message: string };
+export type SignInOutcome = { kind: 'done' } | { kind: 'redirecting' } | { kind: 'cancelled'; code?: string } | { kind: 'failed'; message: string; code?: string };
+export type RedirectOutcome = { kind: 'done' } | { kind: 'none' } | { kind: 'failed'; message: string; code?: string };
+
+/** Round 16b: what the player sees whenever a sign-in doesn't finish (Dan's wording). */
+export const SIGN_IN_FAILED = 'Sign-in failed. Please try again.';
 
 /** Loads the Firebase chunk and starts it; undefined (never an error) when it can't. */
 export async function loadFirebase(): Promise<CloudBackend | undefined> {
@@ -39,14 +46,14 @@ export async function loadFirebase(): Promise<CloudBackend | undefined> {
 export function problemText(code: string | undefined): string {
   switch (code) {
     case 'auth/unauthorized-domain':
-      return 'Signing in doesn’t work at this address. Play at https://epoch-fsts.netlify.app/ to use cloud saves.';
+      return 'Sign-in failed: it doesn’t work at this address. Play at https://epoch-fsts.netlify.app/ to use cloud saves.';
     case 'auth/network-request-failed':
-      return 'No network, so you can’t sign in right now.';
+      return 'Sign-in failed: no network. Please try again once you’re online.';
     case 'auth/too-many-requests':
-      return 'Too many tries. Wait a minute and try again.';
+      return 'Sign-in failed: too many tries. Wait a minute and try again.';
     case 'auth/web-storage-unsupported':
-      return 'This browser is blocking the storage sign-in needs (private browsing?).';
+      return 'Sign-in failed: this browser is blocking the storage sign-in needs (private browsing?).';
     default:
-      return 'Signing in didn’t work. Try again in a moment.';
+      return SIGN_IN_FAILED;
   }
 }

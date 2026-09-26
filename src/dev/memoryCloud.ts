@@ -69,10 +69,19 @@ export class MemoryCloudStore implements CloudStore {
   }
 }
 
-/** A stand-in cloud for the dev scenarios: a signed-in player and a memory store. */
-export function mockBackend(store: MemoryCloudStore, user: CloudUser = { uid: 'dev-user', name: 'Dan (stand-in)' }): CloudBackend {
+/**
+ * A stand-in cloud for the dev scenarios: a signed-in player and a memory store. Round 16b:
+ * `signedIn: false` starts signed out, and `failFirst` makes the first N sign-ins not finish
+ * (as if the popup was closed).
+ */
+export function mockBackend(
+  store: MemoryCloudStore,
+  user: CloudUser = { uid: 'dev-user', name: 'Dan (stand-in)' },
+  o: { signedIn?: boolean; failFirst?: number } = {},
+): CloudBackend {
   let cb: ((u: CloudUser | null) => void) | undefined;
-  let current: CloudUser | null = user;
+  let current: CloudUser | null = o.signedIn === false ? null : user;
+  let fails = o.failFirst ?? 0;
   return {
     onUser(f) {
       cb = f;
@@ -80,6 +89,11 @@ export function mockBackend(store: MemoryCloudStore, user: CloudUser = { uid: 'd
       setTimeout(() => f(current), 0);
     },
     async signIn() {
+      await new Promise((r) => setTimeout(r, 400));
+      if (fails > 0) {
+        fails--;
+        return { kind: 'cancelled', code: 'auth/popup-closed-by-user' };
+      }
       current = user;
       cb?.(current);
       return { kind: 'done' };
@@ -88,8 +102,8 @@ export function mockBackend(store: MemoryCloudStore, user: CloudUser = { uid: 'd
       current = null;
       cb?.(null);
     },
-    async redirectProblem() {
-      return undefined;
+    async redirectResult() {
+      return { kind: 'none' };
     },
     store: () => store,
   };

@@ -471,6 +471,8 @@ export class App {
     this.turnBusy = on;
     $('rivalsMoving').hidden = !on;
     $<HTMLButtonElement>('endTurnBtn').disabled = on;
+    // Round 16b: Save now waits for the rivals (End Turn saves right after they've moved anyway).
+    $<HTMLButtonElement>('saveNowBtn').disabled = on;
   }
 
   /**
@@ -494,9 +496,37 @@ export class App {
     }
   }
 
-  private save(): void {
-    if (!this.autosave || this.placeholder) return;
-    saveToStorage(this.state, undefined, this.cloud.link);
+  private save(): boolean {
+    if (!this.autosave || this.placeholder) return false;
+    return saveToStorage(this.state, undefined, this.cloud.link);
+  }
+
+  /**
+   * Round 16b (☰ → Save now): saves on this device at once and, when signed in, writes the cloud
+   * copy now (mid-turn too), then says exactly what happened.
+   */
+  private async saveNow(): Promise<void> {
+    if (this.turnBusy) {
+      this.toast('The rivals are moving. Your game saves as soon as they’re done.');
+      return;
+    }
+    this.closeMenu();
+    const scenario = !!this.opts.scenario;
+    const local = scenario ? undefined : this.save();
+    const here = scenario ? 'Dev scenario: nothing is saved on this device' : local ? 'on this device' : '';
+    if (!scenario && !local) {
+      this.toast('Couldn’t save on this device (storage is full or blocked).', true);
+      return;
+    }
+    if (!this.cloud.signedIn) {
+      this.toast(scenario ? `${here}.` : 'Saved ✓ on this device. Sign in on the main menu to keep it in the cloud too.');
+      return;
+    }
+    this.toast(scenario ? 'Saving to the (stand-in) cloud…' : 'Saved on this device. Saving to the cloud…');
+    const r = await this.cloud.saveNow();
+    if (!r) return;
+    if (r.ok) this.toast(scenario ? `☁ Saved ✓ in the (stand-in) cloud. ${here}.` : 'Saved ✓ on this device and in the cloud');
+    else this.toast(scenario ? `Not saved in the (stand-in) cloud: ${r.message}` : `Saved ✓ on this device, but not in the cloud: ${r.message}`, true);
   }
 
   /** Round 16: cloud saves, wired to this game. */
@@ -504,6 +534,8 @@ export class App {
     const scenario = !!opts.scenario;
     const memory = new Map<string, string>();
     const memStore = { getItem: (k: string) => memory.get(k) ?? null, setItem: (k: string, v: string) => void memory.set(k, v), removeItem: (k: string) => void memory.delete(k) };
+    const prefs = new Map<string, string>();
+    const memPrefs = { getItem: (k: string) => prefs.get(k) ?? null, setItem: (k: string, v: string) => void prefs.set(k, v), removeItem: (k: string) => void prefs.delete(k) };
     return new CloudController(
       {
         state: () => this.state,
@@ -523,7 +555,8 @@ export class App {
         ...(opts.cloudLink ? { link: opts.cloudLink } : {}),
         ...(opts.savedAt ? { savedAt: opts.savedAt } : {}),
         // A dev scenario never touches the device's backups or its signed-in flag.
-        ...(scenario ? { localStore: memStore, prefsStore: null } : {}),
+        // (Round 16b: its own memory for the signed-in flag and the last sign-in try.)
+        ...(scenario ? { localStore: memStore, prefsStore: memPrefs } : {}),
         ...(opts.cloudBackend ? { backend: opts.cloudBackend } : {}),
         device: deviceLabel(navigator.userAgent, navigator.maxTouchPoints ?? 0),
       },
@@ -1263,6 +1296,9 @@ export class App {
         ? `Dev scenario “${sc.title}” · turn ${this.state.turn}. Not saved; your real game is untouched.`
         : `Turn ${this.state.turn} · seed ${this.state.seed}. Your game saves automatically.`;
       $('menuCloud').textContent = this.cloud.statusLine();
+      // Round 16b: Save now (held while the rivals move), and a copy in a new cloud slot (signed in).
+      $<HTMLButtonElement>('saveNowBtn').disabled = this.turnBusy;
+      $('saveSlotBtn').hidden = !this.cloud.signedIn;
       $('newGameBtn').hidden = !!sc;
       $('restoreBtn').hidden = !!sc;
       this.showMenuPage('menuMain');
@@ -1274,6 +1310,15 @@ export class App {
       this.showMenuPage('menuBackups');
     });
     $('backupsBackBtn').addEventListener('click', () => this.showMenuPage('menuMain'));
+    $('saveNowBtn').addEventListener('click', () => void this.saveNow());
+    $('saveSlotBtn').addEventListener('click', () => {
+      this.closeMenu();
+      this.cloud.askSaveCopy();
+    });
+    $('backupCloud').addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLElement>('button[data-cloud]');
+      if (btn && !(btn as HTMLButtonElement).disabled) this.cloud.handleClick(btn);
+    });
     $('aboutBtn').addEventListener('click', () => {
       this.renderAbout();
       this.showMenuPage('menuAbout');
@@ -1357,6 +1402,8 @@ export class App {
   private renderBackups(): void {
     const when = (ms: number) =>
       new Date(ms).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    // Round 16b: cloud games live on the main menu; a player who isn't signed in is told how to reach them.
+    $('backupCloud').innerHTML = this.opts.scenario ? '' : this.cloud.backupsHtml();
     const items = listBackups().map((b) => {
       const turn = b.turn === undefined ? 'Unknown turn' : `Turn ${b.turn}`;
       const saved = b.savedAt ? `saved ${when(b.savedAt)}` : '';
@@ -2609,8 +2656,8 @@ export class App {
       <span>${esc(newest.leader)} of ${esc(newest.civName)}${where}</span>
       <span class="sub">Turn ${newest.turn} · ${esc(newest.era)} era · ${esc(DIFFICULTIES[newest.difficulty as keyof typeof DIFFICULTIES]?.name ?? '')} · ${esc(MAP_SIZES[newest.mapSize as keyof typeof MAP_SIZES]?.name ?? '')} map</span></span>`;
     }
-    // The list only when there's a choice (signed in with a cloud game, or more than one game).
-    $('mmCloud').innerHTML = this.cloud.menuHtml(entries.length > 1 || entries.some((e) => e.kind === 'cloud') ? entries : []);
+    // Round 16b: signed in or not at a glance; while signed in, every game here and in the cloud.
+    $('mmCloud').innerHTML = this.cloud.menuHtml(entries, !this.placeholder);
     $('mmNew').classList.toggle('primary', !newest);
     $('mmFoot').textContent = `Version ${__APP_VERSION__}${sc ? ` · dev scenario “${sc.title}” (not saved)` : ''}`;
     const dev = this.opts.devScenarios;

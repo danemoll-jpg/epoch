@@ -110,6 +110,18 @@ const OUTCOMES: Record<string, (s: GameState) => void> = {
     expect(sc.cloud!().link.slot).toBeUndefined();
     expect(s.players[0]!.civId).toBe('england');
   },
+  // Round 16b: signing in (the sign-in and upload are run in tests/cloud.test.ts, "Round 16b").
+  'cloud-signin-existing-game': (s) => {
+    const sc = SCENARIOS.find((x) => x.id === 'cloud-signin-existing-game')!;
+    expect(sc.opens).toBe('mainMenu');
+    expect(sc.cloud!().link.slot).toBeUndefined();
+    expect(s.turn).toBe(12);
+  },
+  'cloud-signin-fails': (s) => {
+    const sc = SCENARIOS.find((x) => x.id === 'cloud-signin-fails')!;
+    expect(sc.note).toContain('Sign-in failed. Please try again.');
+    expect(s.turn).toBe(12);
+  },
   'update-available': (s) => {
     expect(SCENARIOS.find((x) => x.id === 'update-available')!.fakeUpdate).toBe(true);
     expect(s.cities.filter((c) => c.owner === 0)).toHaveLength(1);

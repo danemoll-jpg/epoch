@@ -6,16 +6,17 @@ import { dirname, join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { gunzipText, gzipText } from '../src/cloud/compress';
 import { deviceLabel } from '../src/cloud/device';
-import { CloudSync, decide, freeSlot, STATUS_TEXT, type SlotMeta, type SyncHost, type SyncStatus } from '../src/cloud/sync';
+import { problemText, SIGN_IN_FAILED } from '../src/cloud/backend';
+import { cloudErrorText, CloudSync, decide, freeSlot, STATUS_TEXT, type SlotMeta, type SyncHost, type SyncStatus } from '../src/cloud/sync';
 import { authDomainFor, CLOUD, FIREBASE_CONFIG, SLOT_IDS } from '../src/data/firebase';
 import { lateGame } from '../src/dev/fixtures/fixtures';
-import { MemoryCloudStore, putSlot } from '../src/dev/memoryCloud';
+import { mockBackend, MemoryCloudStore, putSlot } from '../src/dev/memoryCloud';
 import { SCENARIOS } from '../src/dev/scenarios';
 import { applyAction } from '../src/game/actions';
 import { deserializeGame, serializeGame, type CloudLink } from '../src/game/save';
 import type { GameState } from '../src/game/types';
 import { isCloudChunk, isOnDemandFile, precacheEntries } from '../src/pwa/files';
-import { menuEntries, type MenuEntry } from '../src/ui/cloud';
+import { accountHtml, menuEntries, signInMessage, type MenuEntry } from '../src/ui/cloud';
 import { backupCurrentSave, listBackups, loadOrStart, restoreBackup, saveToStorage, SAVE_KEY, type KeyValueStore } from '../src/ui/storage';
 import { makeState } from './helpers';
 
@@ -95,6 +96,7 @@ interface Harness {
   timers: { fn: () => void; ms: number }[];
   took: SlotMeta[];
   conflicts: SlotMeta[];
+  uploads: SlotMeta[];
   game: { state: GameState; link: CloudLink; changes: number };
   change: (turn?: number) => void;
   settle: () => Promise<void>;
@@ -108,6 +110,7 @@ function harness(o: { link?: CloudLink; store?: MemoryCloudStore; online?: boole
     timers: [] as { fn: () => void; ms: number }[],
     took: [] as SlotMeta[],
     conflicts: [] as SlotMeta[],
+    uploads: [] as SlotMeta[],
     game: { state: makeState(['ggg', 'ggg']), link: o.link ?? { gameId: 'g1', syncedRev: 0, dirty: true }, changes: 0 },
   } as Harness;
   const host: SyncHost = {
@@ -121,6 +124,7 @@ function harness(o: { link?: CloudLink; store?: MemoryCloudStore; online?: boole
     setTimer: (fn, ms) => h.timers.push({ fn, ms }),
     clearTimer: () => {},
     device: 'PC',
+    uploaded: (m) => void h.uploads.push(m),
   };
   h.sync = new CloudSync(store, o.uid ?? 'u1', host);
   h.change = (turn) => {
@@ -496,6 +500,167 @@ describe('C3: the cloud scenarios', () => {
     await h.settle();
     expect(c.store.slots.size).toBe(4);
     expect(h.game.link.slot).toBe('s4');
+  });
+});
+
+describe('Round 16b: signing in, Save now, a copy in a new slot, the ☁ panel', () => {
+  it('a sign-in that does not finish always says so (popup closed, redirect back without an account, an error)', () => {
+    expect(SIGN_IN_FAILED).toBe('Sign-in failed. Please try again.');
+    expect(signInMessage({ kind: 'cancelled', code: 'auth/popup-closed-by-user' })).toBe(SIGN_IN_FAILED);
+    expect(signInMessage({ kind: 'none' })).toBe(SIGN_IN_FAILED);
+    expect(signInMessage({ kind: 'failed', message: problemText('auth/internal-error') })).toBe(SIGN_IN_FAILED);
+    expect(signInMessage({ kind: 'failed', message: problemText('auth/network-request-failed') })).toContain('Sign-in failed');
+    expect(signInMessage({ kind: 'done' })).toBeUndefined();
+    expect(signInMessage({ kind: 'redirecting' })).toBeUndefined();
+  });
+
+  it('the main menu shows signed in or not at a glance', () => {
+    const inHtml = accountHtml({ user: { uid: 'u1', name: 'Dan' }, status: 'saved', signingIn: false, hasGame: true });
+    expect(inHtml).toContain('cloudAcct in');
+    expect(inHtml).toContain('☁ Signed in as <b>Dan</b>');
+    expect(inHtml).toContain('data-cloud="signOut"');
+    const out = accountHtml({ user: null, status: 'signedOut', signingIn: false, hasGame: true });
+    expect(out).toContain('cloudAcct out');
+    expect(out).toContain('<b>Not signed in</b>: sign in to see your cloud games.');
+    expect(out).toContain('>Sign in with Google<');
+    expect(out).not.toContain('Looking for a game from another device?');
+    // No game on this device yet: point at the cloud.
+    expect(accountHtml({ user: null, status: 'signedOut', signingIn: false, hasGame: false })).toContain('Looking for a game from another device? Sign in with Google.');
+    // While signing in, the button says so and can't be tapped twice.
+    expect(accountHtml({ user: null, status: 'signedOut', signingIn: true, hasGame: true })).toMatch(/disabled>Signing in…</);
+  });
+
+  it('the stand-in sign-in can fail once, then work (the cloud-signin-fails scenario)', async () => {
+    const b = mockBackend(new MemoryCloudStore(), undefined, { signedIn: false, failFirst: 1 });
+    const users: (string | null)[] = [];
+    b.onUser((u) => users.push(u?.name ?? null));
+    await new Promise((r) => setTimeout(r, 5));
+    expect(users).toEqual([null]);
+    expect(await b.signIn()).toMatchObject({ kind: 'cancelled' });
+    expect(await b.signIn()).toEqual({ kind: 'done' });
+    expect(users.at(-1)).toBe('Dan (stand-in)');
+  });
+
+  it('signing in with a game in progress uploads it to a free slot, and says so', async () => {
+    const sc = SCENARIOS.find((s) => s.id === 'cloud-signin-existing-game')!;
+    const c = sc.cloud!();
+    const backend = await c.backend();
+    let user: string | null | undefined;
+    backend.onUser((u) => (user = u?.uid ?? null));
+    await new Promise((r) => setTimeout(r, 5));
+    expect(user).toBeNull();
+    expect(await backend.signIn()).toEqual({ kind: 'done' });
+    expect(user).toBe('dev-user');
+    // What the controller does on sign-in: a sync for the account, then a check.
+    const h = harness({ store: c.store, link: c.link, uid: 'dev-user' });
+    h.game.state = sc.build();
+    expect(await h.sync.check()).toBe('upload');
+    await h.settle();
+    expect(h.uploads.map((m) => m.slot)).toEqual(['s2']);
+    expect(h.game.link).toMatchObject({ slot: 's2', uid: 'dev-user', syncedRev: 1, dirty: false });
+    expect(c.store.slots.get('s2')!.meta.turn).toBe(12);
+    expect(c.store.slots.get('s1')!.meta.civId).toBe('egypt');
+  });
+
+  it('Save now writes at once mid-turn, without waiting for End Turn', async () => {
+    const h = harness();
+    expect(await h.sync.syncNow()).toEqual({ ok: true, slot: 's1' });
+    expect(h.store.slots.get('s1')!.meta.rev).toBe(1);
+    h.change(4); // a move in the middle of the turn
+    expect(await h.sync.syncNow()).toMatchObject({ ok: true });
+    expect(h.store.slots.get('s1')!.meta).toMatchObject({ rev: 2, turn: 4 });
+    expect(h.sync.lastOkAt).toBe(1_000);
+    // Nothing new: still fine, and nothing written.
+    const writes = h.store.writes;
+    expect((await h.sync.syncNow()).ok).toBe(true);
+    expect(h.store.writes).toBe(writes);
+  });
+
+  it('Save now while a background write is on its way waits for it, then writes the newest game', async () => {
+    const h = harness();
+    h.store.delayMs = 30;
+    h.change(2);
+    h.sync.request();
+    h.change(3);
+    const r = await h.sync.syncNow();
+    expect(r.ok).toBe(true);
+    const back = deserializeGame(await gunzipText(h.store.slots.get('s1')!.data));
+    expect(back.kind === 'ok' && back.state.turn).toBe(3);
+    expect(h.game.link.dirty).toBe(false);
+  });
+
+  it('Save now offline says exactly what failed; the ☁ panel shows it; once back, Save now skips the wait', async () => {
+    const h = harness({ online: false });
+    h.store.offline = true;
+    const r = await h.sync.syncNow();
+    expect(r).toMatchObject({ ok: false, status: 'offline' });
+    expect(!r.ok && r.message).toBe('No network: the cloud copy will be written once you’re back online.');
+    expect(h.sync.lastError).toEqual({ text: 'No network: the cloud copy will be written once you’re back online.', at: 1_000 });
+    expect(h.sync.lastOkAt).toBeUndefined();
+    expect(h.timers).toHaveLength(1); // a retry is waiting…
+    h.store.offline = false;
+    expect(await h.sync.syncNow()).toMatchObject({ ok: true }); // …but Save now doesn't wait for it
+    expect(h.sync.lastError).toBeUndefined();
+    expect(h.sync.lastOkAt).toBe(1_000);
+  });
+
+  it('Save now while the keep-which question is open says to choose first', async () => {
+    const store = new MemoryCloudStore();
+    await putSlot(store, makeState(['ggg']), { slot: 's1', gameId: 'g1', rev: 5, device: 'iPad', agoMs: 0 });
+    const h = harness({ store, link: link({ syncedRev: 3, dirty: true }) });
+    expect(await h.sync.check()).toBe('ask');
+    expect(await h.sync.syncNow()).toMatchObject({ ok: false, status: 'conflict' });
+  });
+
+  it('errors on the ☁ panel are in plain words', () => {
+    expect(cloudErrorText({ code: 'permission-denied' }, true)).toBe('The cloud refused the save (not allowed). Try signing out and in again.');
+    expect(cloudErrorText({ code: 'too-big' }, true)).toBe('This game is too big for the cloud.');
+    expect(cloudErrorText({ code: 'unavailable' }, true)).toContain('No network');
+    expect(cloudErrorText(new Error('x'), false)).toContain('No network');
+    expect(cloudErrorText({ code: 'internal' }, true)).toBe('Couldn’t save to the cloud (internal). It will try again.');
+  });
+
+  it('a failed write keeps its words for the ☁ panel until a write works', async () => {
+    const h = harness();
+    h.store.write = async () => {
+      throw Object.assign(new Error('nope'), { code: 'permission-denied' });
+    };
+    h.sync.request();
+    await h.settle();
+    expect(h.statuses.at(-1)).toBe('retrying');
+    expect(h.sync.lastError?.text).toContain('refused');
+  });
+
+  it('Save to a new cloud slot: a copy as a game of its own; the game here keeps its slot', async () => {
+    const h = harness();
+    await h.sync.syncNow();
+    const r = await h.sync.saveCopy('Before the war', 'copy-1');
+    expect(r).toEqual({ ok: true, slot: 's2' });
+    expect(h.store.slots.get('s2')!.meta).toMatchObject({ gameId: 'copy-1', name: 'Before the war', rev: 1 });
+    expect(h.game.link).toMatchObject({ gameId: 'g1', slot: 's1' });
+    const back = deserializeGame(await gunzipText(h.store.slots.get('s2')!.data));
+    expect(back.kind === 'ok' && back.state.turn).toBe(h.game.state.turn);
+    // A name longer than the limit is cut to it.
+    expect(await h.sync.saveCopy('x'.repeat(60), 'copy-2')).toMatchObject({ ok: true });
+    expect(h.store.slots.get('s3')!.meta.name).toHaveLength(CLOUD.maxNameLength);
+  });
+
+  it('Save to a new cloud slot when all 5 are used says the cloud is full, and writes nothing', async () => {
+    const store = new MemoryCloudStore();
+    for (const slot of SLOT_IDS) await putSlot(store, makeState(['ggg']), { slot, gameId: `g-${slot}`, rev: 1, device: 'PC', agoMs: 0 });
+    const h = harness({ store });
+    const writes = store.writes;
+    const r = await h.sync.saveCopy('One more', 'copy-x');
+    expect(r).toEqual({ ok: false, status: 'full', message: 'The cloud is full (5 games). Delete one on the main menu first.' });
+    expect(store.writes).toBe(writes);
+  });
+
+  it('Save to a new cloud slot offline says so', async () => {
+    const h = harness({ online: false });
+    h.store.offline = true;
+    const r = await h.sync.saveCopy('Copy', 'copy-1');
+    expect(r.ok).toBe(false);
+    expect(!r.ok && r.message).toContain('No network');
   });
 });
 

@@ -2540,3 +2540,27 @@ button.alink {
 .cloudNote {
   text-align: center;
 }
+
+/* Round 16b: signed in or not, plain at a glance. */
+.cloudAcct.in {
+  border-color: #4caf7a;
+  background: rgba(24, 58, 40, 0.9);
+}
+.cloudAcct.out {
+  border-color: var(--accent);
+}
+.cloudHint {
+  margin: 0;
+  text-align: center;
+  color: var(--accent);
+  font-size: calc(14px * var(--ts));
+}
+#backupCloud {
+  margin-bottom: 10px;
+}
+#backupCloud p {
+  margin: 0;
+}
+#cloudBody p.warn {
+  color: #ff8a7a;
+}

@@ -55,20 +55,27 @@ service cloud.firestore {
         && (
           // a new version of the save: the revision goes up by one, and the same game stays
           request.resource.data.rev == resource.data.rev + 1
-          // or a rename: nothing but the name changes
-          || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name'])
+          // or a rename: the name changes and nothing else (Round 16b: an unchanged rewrite
+          // no longer passes as a "rename", so an old copy can't be written back at its revision)
+          || request.resource.data.diff(resource.data).affectedKeys() == ['name'].toSet()
         );
     }
 
-    match /users/{uid}/saves/{slot} {
-      allow read, delete: if signedInAs(uid);
-      allow create, update: if signedInAs(uid) && validSlotId(slot)
+    function validSave(uid, slot) {
+      return signedInAs(uid) && validSlotId(slot)
         && request.resource.data.keys().hasOnly(['rev', 'data'])
         && request.resource.data.data is bytes
         && request.resource.data.data.size() <= 921600
         && request.resource.data.rev is int
         // written together with its slot entry, at the same revision
         && getAfter(/databases/$(database)/documents/users/$(uid)/slots/$(slot)).data.rev == request.resource.data.rev;
+    }
+
+    match /users/{uid}/saves/{slot} {
+      allow read, delete: if signedInAs(uid);
+      allow create: if validSave(uid, slot);
+      // Round 16b: a save is replaced only by the next revision (never rewritten at its own).
+      allow update: if validSave(uid, slot) && request.resource.data.rev == resource.data.rev + 1;
     }
   }
 }
