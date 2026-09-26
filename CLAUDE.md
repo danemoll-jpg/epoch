@@ -572,11 +572,12 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   `docs/SOUNDS.md` (his list, with a starting ElevenLabs prompt for each);
   `docs/sounds.html` plays each at the game's loudness (on the play
   server: http://10.0.0.224:4173/docs/sounds.html).
-- `src/assets/icons/`: the 63 icons Dan picked (30 units: 16 land counting
+- `src/assets/icons/`: every icon Dan picked (30 units: 16 land counting
   the Missionary, 9 ships, 5 aircraft; 33 map icons: village, hut,
   barbarian badge, 15 resources, 5 Great People, artifact, and Round 12's
-  holy-city badge and 8 religion symbols; game-icons.net, CC BY 3.0; the
-  Carrier's is modified), credited in `CREDITS.md` and on ☰ → About /
+  holy-city badge and 8 religion symbols; then Round 14's building and
+  wonder icons and Round 17's 56 technology icons; game-icons.net, CC BY 3.0;
+  the Carrier's is modified), credited in `CREDITS.md` and on ☰ → About /
   Credits (a credit's `modified` field says what we changed).
 - `src/dev/`: dev/test only, never in the production build. `build.ts`
   (hand-made state builder shared by tests and scenarios), `scenarios.ts`,
@@ -642,8 +643,8 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   removed so it doesn't look like the Battleship; compare in
   `docs/carrier-trim-candidates.html`).
 - The version shown on the About screen comes from `package.json`
-  (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.17.0 for
-  round 17.
+  (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.17.1 for
+  round 17's follow-up (the tech icons).
 - **Round 17: city arrows and the tap rule.** `src/ui/cityCycle.ts` (pure:
   `cityOrder` = the capital first, then founding order (city id); `cycleCity`
   wraps, and a city lost mid-cycle goes on from where it stood; `cityPlace`
@@ -665,7 +666,13 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   shown on a tree card, the research picker, the top-bar chip, and a toast;
   none is an icon the game already uses (the script checks `src/assets/icons/`
   and marks a clash on the card). Picks are saved under `epoch.techIconPicks`;
-  "Dan's picks" at the bottom gives "all A except …". **Not wired in yet.**
+  "Dan's picks" at the bottom gives "all A except …". **Dan's picks are wired
+  in (0.17.1):** `TECH_ICONS` in `src/data/icons.ts` (credited, `usedIcons`
+  group `'Techs'`, a table in `CREDITS.md`); `techIconHtml(tech, cls)` and
+  `learnedTech(text)` in `src/ui/text.ts` (a "learned X" news toast gets X's
+  icon without any state change). They show on the tech tree, the tech screen's
+  heading, the top-bar research button, tech toasts, the Almanac, the New Game
+  cards, the leader panel, and the diplomacy trades (CSS `.ticon`).
 - **Meeting a civ reveals where its capital is** (Round 11: the tile is
   marked explored), so conquerors can find the capitals domination needs.
 - **Victory goals (Round 15):** culture 8000, gold 13000 on Normal. Each
@@ -772,14 +779,14 @@ what was pushed.
   for that round only. Commit as usual, push only when told, and list the
   waiting commits in the report.
 
-- **Round 17 (version 0.17.0): done, committed, NOT pushed.** City arrows,
-  the new city-tap rule with "Move … here", the "Tap twice to move" setting,
-  and the tech icon candidates page. **Dan (2026-09-25): don't push until the
-  tech icons he picks are wired in** (the next round), so Round 17's commits
-  wait in the local repo and go out with that round's push, on his say-so.
+- **Round 17 (version 0.17.0) and its follow-up (0.17.1): done, committed,
+  NOT pushed.** City arrows, the new city-tap rule with "Move … here", the
+  "Tap twice to move" setting, and the tech icons (Dan picked them on the
+  candidates page; they're wired in). Dan asked to hold the push until the tech
+  icons were in; they are, so the waiting commits go out when he says "push".
 
-**Current objective:** waiting for Dan's tech icon picks and the planning
-session (see TODO.md).
+**Current objective:** waiting for Dan's "push" and the planning session (see
+TODO.md).
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.

@@ -6,6 +6,7 @@ import { findPath, pathTurns } from '../src/game/movement';
 import { cityOrder, cityPlace, cycleCity, otherIdleCities } from '../src/ui/cityCycle';
 import { DEFAULT_SETTINGS, normalizeSettings } from '../src/ui/settings';
 import { confirmMove, resolveTap } from '../src/ui/tap';
+import { learnedTech } from '../src/ui/text';
 import { addCity, addUnit, makeState } from './helpers';
 
 const row = (n: number, ch = 'g') => ch.repeat(n);
@@ -169,5 +170,18 @@ describe('Round 17 B2: "Tap twice to move"', () => {
     expect(confirmMove(true, pending, 5, 3, 4)).toBe(true);
     expect(confirmMove(true, pending, 5, 3, 5)).toBe(false);
     expect(confirmMove(true, pending, 6, 3, 4)).toBe(false);
+  });
+});
+
+describe('Round 17: tech news gets its tech icon', () => {
+  it('finds the tech in every way the game words a learned tech', () => {
+    expect(learnedTech('Learned Writing')).toBe('writing');
+    expect(learnedTech('Traded with the Franks: learned Currency')).toBe('currency');
+    expect(learnedTech('Tribute from Mali: learned The Wheel')).toBe('the_wheel');
+    expect(learnedTech('Learned Mathematics from the hut')).toBe('mathematics');
+    expect(learnedTech('Learned Advanced Flight')).toBe('advanced_flight');
+    expect(learnedTech('Learned Space Flight')).toBe('space_flight');
+    expect(learnedTech('Learned Flight')).toBe('flight');
+    expect(learnedTech('Babylon grew to size 3')).toBeUndefined();
   });
 });

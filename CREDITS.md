@@ -136,6 +136,71 @@ The other candidates Dan chose from (not used in the game) are in
 `docs/building-icon-candidates/`, credited in
 their `SOURCES.md` files.
 
+## Technology icons
+
+The 56 technology icons (Dan's Round 17 picks) are from [game-icons.net](https://game-icons.net),
+licensed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/), recolored in the
+game; the shapes are unchanged.
+
+| Technology | Icon | Author | Source | License |
+|---|---|---|---|---|
+| Alphabet | Rune stone | Lorc | https://game-icons.net/1x1/lorc/rune-stone.html | CC BY 3.0 |
+| Bronze Working | Sword mold | Delapouite | https://game-icons.net/1x1/delapouite/sword-mold.html | CC BY 3.0 |
+| Ceremonial Burial | Tombstone | Lorc | https://game-icons.net/1x1/lorc/tombstone.html | CC BY 3.0 |
+| Horseback Riding | Cloaked figure on horseback | Caro Asercion | https://game-icons.net/1x1/caro-asercion/cloaked-figure-on-horseback.html | CC BY 3.0 |
+| Masonry | Trowel | Delapouite | https://game-icons.net/1x1/delapouite/trowel.html | CC BY 3.0 |
+| Pottery | Covered jar | Delapouite | https://game-icons.net/1x1/delapouite/covered-jar.html | CC BY 3.0 |
+| Archery | Arrow flights | Lorc | https://game-icons.net/1x1/lorc/arrow-flights.html | CC BY 3.0 |
+| Writing | Quill ink | Lorc | https://game-icons.net/1x1/lorc/quill-ink.html | CC BY 3.0 |
+| Code of Laws | Scales | Lorc | https://game-icons.net/1x1/lorc/scales.html | CC BY 3.0 |
+| Currency | Coins | Delapouite | https://game-icons.net/1x1/delapouite/coins.html | CC BY 3.0 |
+| Iron Working | Flat hammer | Lorc | https://game-icons.net/1x1/lorc/flat-hammer.html | CC BY 3.0 |
+| The Wheel | Stone wheel | Delapouite | https://game-icons.net/1x1/delapouite/stone-wheel.html | CC BY 3.0 |
+| Mathematics | Abacus | Delapouite | https://game-icons.net/1x1/delapouite/abacus.html | CC BY 3.0 |
+| Mysticism | Third eye | Lorc | https://game-icons.net/1x1/lorc/third-eye.html | CC BY 3.0 |
+| Map Making | Treasure map | Lorc | https://game-icons.net/1x1/lorc/treasure-map.html | CC BY 3.0 |
+| Monarchy | Imperial crown | Delapouite | https://game-icons.net/1x1/delapouite/imperial-crown.html | CC BY 3.0 |
+| Literacy | Open book | Lorc | https://game-icons.net/1x1/lorc/open-book.html | CC BY 3.0 |
+| Construction | Crane | Delapouite | https://game-icons.net/1x1/delapouite/crane.html | CC BY 3.0 |
+| Astronomy | Telescope | Delapouite | https://game-icons.net/1x1/delapouite/telescope.html | CC BY 3.0 |
+| Seafaring | Sailboat | Delapouite | https://game-icons.net/1x1/delapouite/sailboat.html | CC BY 3.0 |
+| Navigation | Compass | Lorc | https://game-icons.net/1x1/lorc/compass.html | CC BY 3.0 |
+| Philosophy | Think | Delapouite | https://game-icons.net/1x1/delapouite/think.html | CC BY 3.0 |
+| Feudalism | Hill fort | Delapouite | https://game-icons.net/1x1/delapouite/hill-fort.html | CC BY 3.0 |
+| Engineering | Arch bridge | Delapouite | https://game-icons.net/1x1/delapouite/arch-bridge.html | CC BY 3.0 |
+| Trade | Trade | Lorc | https://game-icons.net/1x1/lorc/trade.html | CC BY 3.0 |
+| Chivalry | Black knight helm | Delapouite | https://game-icons.net/1x1/delapouite/black-knight-helm.html | CC BY 3.0 |
+| Monotheism | Holy symbol | Lorc | https://game-icons.net/1x1/lorc/holy-symbol.html | CC BY 3.0 |
+| Banking | Piggy bank | Delapouite | https://game-icons.net/1x1/delapouite/piggy-bank.html | CC BY 3.0 |
+| University | Diploma | Delapouite | https://game-icons.net/1x1/delapouite/diploma.html | CC BY 3.0 |
+| Invention | Clockwork | Lorc | https://game-icons.net/1x1/lorc/clockwork.html | CC BY 3.0 |
+| Magnetism | Magnet | Lorc | https://game-icons.net/1x1/lorc/magnet.html | CC BY 3.0 |
+| Theology | Prayer | Lorc | https://game-icons.net/1x1/lorc/prayer.html | CC BY 3.0 |
+| Gunpowder | Musket | Skoll | https://game-icons.net/1x1/skoll/musket.html | CC BY 3.0 |
+| Physics | Atom | Skoll | https://game-icons.net/1x1/skoll/atom.html | CC BY 3.0 |
+| Theory of Gravity | Shiny apple | Lorc | https://game-icons.net/1x1/lorc/shiny-apple.html | CC BY 3.0 |
+| Metallurgy | Cannon ball | Lorc | https://game-icons.net/1x1/lorc/cannon-ball.html | CC BY 3.0 |
+| Democracy | Vote | Delapouite | https://game-icons.net/1x1/delapouite/vote.html | CC BY 3.0 |
+| Economics | Pie chart | Delapouite | https://game-icons.net/1x1/delapouite/pie-chart.html | CC BY 3.0 |
+| Chemistry | Erlenmeyer | Lorc | https://game-icons.net/1x1/lorc/erlenmeyer.html | CC BY 3.0 |
+| Steam Engine | Steam | Delapouite | https://game-icons.net/1x1/delapouite/steam.html | CC BY 3.0 |
+| Conscription | Brodie helmet | Skoll | https://game-icons.net/1x1/skoll/brodie-helmet.html | CC BY 3.0 |
+| Railroad | Steam locomotive | Delapouite | https://game-icons.net/1x1/delapouite/steam-locomotive.html | CC BY 3.0 |
+| Electricity | Light bulb | Lorc | https://game-icons.net/1x1/lorc/light-bulb.html | CC BY 3.0 |
+| Industrialization | Chimney | Delapouite | https://game-icons.net/1x1/delapouite/chimney.html | CC BY 3.0 |
+| Corporation | Briefcase | Delapouite | https://game-icons.net/1x1/delapouite/briefcase.html | CC BY 3.0 |
+| Refining | Oil rig | Delapouite | https://game-icons.net/1x1/delapouite/oil-rig.html | CC BY 3.0 |
+| Electronics | Circuitry | Lorc | https://game-icons.net/1x1/lorc/circuitry.html | CC BY 3.0 |
+| Machine Tools | Drill | Delapouite | https://game-icons.net/1x1/delapouite/drill.html | CC BY 3.0 |
+| Combustion | Bright explosion | Lorc | https://game-icons.net/1x1/lorc/bright-explosion.html | CC BY 3.0 |
+| Automobile | Race car | Skoll | https://game-icons.net/1x1/skoll/race-car.html | CC BY 3.0 |
+| Flight | Airplane | Skoll | https://game-icons.net/1x1/skoll/airplane.html | CC BY 3.0 |
+| Mass Production | Cargo crate | Delapouite | https://game-icons.net/1x1/delapouite/cargo-crate.html | CC BY 3.0 |
+| Computers | Laptop | Delapouite | https://game-icons.net/1x1/delapouite/laptop.html | CC BY 3.0 |
+| Rocketry | Rocket | Lorc | https://game-icons.net/1x1/lorc/rocket.html | CC BY 3.0 |
+| Advanced Flight | Commercial airplane | Delapouite | https://game-icons.net/1x1/delapouite/commercial-airplane.html | CC BY 3.0 |
+| Space Flight | Space shuttle | Delapouite | https://game-icons.net/1x1/delapouite/space-shuttle.html | CC BY 3.0 |
+
 ## Sounds and music
 
 - **Sound effects** (the 14 in `src/assets/sounds/`): generated by Dan with

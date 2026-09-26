@@ -1,7 +1,10 @@
 // Small text helpers shared by the panels (Round 13: pulled out of app.ts so the Almanac and
 // How to Play use the same wording).
 
+import { TECH_ICONS } from '../data/icons';
 import { RELIGION } from '../data/religion';
+import { TECH_LIST, type TechId } from '../data/techs';
+import { iconHtml } from '../render/icons';
 import { UNITS, type UnitTypeId } from '../data/units';
 
 export function esc(text: string): string {
@@ -39,4 +42,20 @@ export function unitSummary(id: string): string {
     parts.push(`spreads this city’s religion ${RELIGION.missionaryCharges} times · can’t fight`);
   }
   return parts.join(' · ');
+}
+
+/** Round 17: a tech's icon (Dan's picks), inline, sized by `cls` in CSS. */
+export function techIconHtml(tech: TechId, cls = 'ticon'): string {
+  return iconHtml(TECH_ICONS[tech], '', cls);
+}
+
+// Longest names first, so "learned Advanced Flight" isn't read as Flight.
+const BY_LENGTH = [...TECH_LIST].sort((a, b) => b.name.length - a.name.length);
+
+/**
+ * Round 17: the tech a news line says was learned ("Learned Writing", "Traded with …: learned
+ * Writing", "… from the hut"), for its icon beside the message; undefined for other news.
+ */
+export function learnedTech(text: string): TechId | undefined {
+  return BY_LENGTH.find((t) => text.includes(`earned ${t.name}`))?.id;
 }

@@ -9,6 +9,7 @@ import { DEFAULT_DIFFICULTY, DIFFICULTIES, DIFFICULTY_IDS, type DifficultyId } f
 import { DEFAULT_MAP_SIZE, MAP_SIZES, MAP_SIZE_IDS, type MapSizeId } from '../data/mapSizes';
 import { ERAS, TECHS } from '../data/techs';
 import { portraitHtml } from './portraits';
+import { techIconHtml } from './text';
 
 export interface SetupChoice {
   /** The civ id, or undefined for a random one. */
@@ -86,13 +87,13 @@ export class SetupScreen {
       return `<button type="button" class="civCard ${on ? 'on' : ''}" data-civ="${c.id}" aria-pressed="${on}" style="--civ:${c.color}">
         ${portraitHtml(c.id, 64)}
         <span class="civText"><b>${esc(c.leader)}</b><span class="civName"><span class="swatch" style="background:${c.color}"></span>${esc(c.name)}</span>
-        <span class="sub">Starts with ${esc(tech)}</span>
+        <span class="sub">Starts with ${c.startTech ? techIconHtml(c.startTech) : ''}${esc(tech)}</span>
         <span class="sub">${start ? esc(start.text) : ''}</span></span></button>`;
     }).join('');
     const chosen = this.civ ? findCiv(this.civ) : undefined;
     const detail = chosen
       ? `<div class="setupDetail">${portraitHtml(chosen.id, 96)}<div><h3>${esc(chosen.leader)} of ${esc(chosen.name)}</h3>
-          <p class="sub">Starting tech: ${chosen.startTech ? esc(TECHS[chosen.startTech].name) : '—'} (known from turn 1, even without the techs before it)</p>
+          <p class="sub">Starting tech: ${chosen.startTech ? `${techIconHtml(chosen.startTech)}${esc(TECHS[chosen.startTech].name)}` : '—'} (known from turn 1, even without the techs before it)</p>
           ${bonusListHtml(chosen.id)}</div></div>`
       : `<div class="setupDetail"><div><h3>Random civ</h3><p class="sub">You'll get one of the 12 at random. Tap a card to choose instead, and to see all its bonuses.</p></div></div>`;
     const max = MAP_SIZES[this.mapSize].maxRivals;

@@ -4,13 +4,14 @@
 // src/assets/icons/ (`<icon>.svg`) and an entry here; the About / Credits screen and
 // CREDITS.md list them (`usedIcons`). Swapping an icon: drop the new SVG into
 // src/assets/icons/, point the thing at it, and add its credit here (tests/icons.test.ts
-// checks all three line up).
+// checks all three line up). Round 17: each technology's icon (TECH_ICONS).
 
 import { BUILDINGS, BUILDING_IDS, type BuildingId } from './buildings';
 import { GREAT_PEOPLE, GREAT_PERSON_KINDS } from './greatPeople';
 import { WONDER_LIST, type WonderId } from './wonders';
 import { RESOURCES, RESOURCE_IDS } from './resources';
 import { RELIGION_SYMBOLS } from './religion';
+import { TECH_LIST, type TechId } from './techs';
 import { UNITS, UNIT_IDS } from './units';
 
 export interface IconCredit {
@@ -128,6 +129,63 @@ export const ICON_CREDITS: Record<string, IconCredit> = {
   'world': { title: 'World', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/world.html' },
   'pay-money': { title: 'Pay money', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/pay-money.html' },
   'crown': { title: 'Crown', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/crown.html' },
+  // Technologies (Dan's Round 17 picks from docs/tech-icon-candidates.html).
+  'rune-stone': { title: 'Rune stone', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/rune-stone.html' },
+  'sword-mold': { title: 'Sword mold', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/sword-mold.html' },
+  'tombstone': { title: 'Tombstone', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/tombstone.html' },
+  'cloaked-figure-on-horseback': { title: 'Cloaked figure on horseback', author: 'Caro Asercion', url: 'https://game-icons.net/1x1/caro-asercion/cloaked-figure-on-horseback.html' },
+  'trowel': { title: 'Trowel', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/trowel.html' },
+  'covered-jar': { title: 'Covered jar', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/covered-jar.html' },
+  'arrow-flights': { title: 'Arrow flights', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/arrow-flights.html' },
+  'quill-ink': { title: 'Quill ink', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/quill-ink.html' },
+  'scales': { title: 'Scales', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/scales.html' },
+  'coins': { title: 'Coins', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/coins.html' },
+  'flat-hammer': { title: 'Flat hammer', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/flat-hammer.html' },
+  'stone-wheel': { title: 'Stone wheel', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/stone-wheel.html' },
+  'abacus': { title: 'Abacus', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/abacus.html' },
+  'third-eye': { title: 'Third eye', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/third-eye.html' },
+  'treasure-map': { title: 'Treasure map', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/treasure-map.html' },
+  'imperial-crown': { title: 'Imperial crown', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/imperial-crown.html' },
+  'open-book': { title: 'Open book', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/open-book.html' },
+  'crane': { title: 'Crane', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/crane.html' },
+  'telescope': { title: 'Telescope', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/telescope.html' },
+  'sailboat': { title: 'Sailboat', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/sailboat.html' },
+  'compass': { title: 'Compass', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/compass.html' },
+  'think': { title: 'Think', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/think.html' },
+  'hill-fort': { title: 'Hill fort', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/hill-fort.html' },
+  'arch-bridge': { title: 'Arch bridge', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/arch-bridge.html' },
+  'trade': { title: 'Trade', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/trade.html' },
+  'black-knight-helm': { title: 'Black knight helm', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/black-knight-helm.html' },
+  'holy-symbol': { title: 'Holy symbol', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/holy-symbol.html' },
+  'piggy-bank': { title: 'Piggy bank', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/piggy-bank.html' },
+  'diploma': { title: 'Diploma', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/diploma.html' },
+  'clockwork': { title: 'Clockwork', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/clockwork.html' },
+  'magnet': { title: 'Magnet', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/magnet.html' },
+  'prayer': { title: 'Prayer', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/prayer.html' },
+  'musket': { title: 'Musket', author: 'Skoll', url: 'https://game-icons.net/1x1/skoll/musket.html' },
+  'atom': { title: 'Atom', author: 'Skoll', url: 'https://game-icons.net/1x1/skoll/atom.html' },
+  'shiny-apple': { title: 'Shiny apple', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/shiny-apple.html' },
+  'cannon-ball': { title: 'Cannon ball', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/cannon-ball.html' },
+  'vote': { title: 'Vote', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/vote.html' },
+  'pie-chart': { title: 'Pie chart', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/pie-chart.html' },
+  'erlenmeyer': { title: 'Erlenmeyer', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/erlenmeyer.html' },
+  'steam': { title: 'Steam', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/steam.html' },
+  'brodie-helmet': { title: 'Brodie helmet', author: 'Skoll', url: 'https://game-icons.net/1x1/skoll/brodie-helmet.html' },
+  'steam-locomotive': { title: 'Steam locomotive', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/steam-locomotive.html' },
+  'light-bulb': { title: 'Light bulb', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/light-bulb.html' },
+  'chimney': { title: 'Chimney', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/chimney.html' },
+  'briefcase': { title: 'Briefcase', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/briefcase.html' },
+  'oil-rig': { title: 'Oil rig', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/oil-rig.html' },
+  'circuitry': { title: 'Circuitry', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/circuitry.html' },
+  'drill': { title: 'Drill', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/drill.html' },
+  'bright-explosion': { title: 'Bright explosion', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/bright-explosion.html' },
+  'race-car': { title: 'Race car', author: 'Skoll', url: 'https://game-icons.net/1x1/skoll/race-car.html' },
+  'airplane': { title: 'Airplane', author: 'Skoll', url: 'https://game-icons.net/1x1/skoll/airplane.html' },
+  'cargo-crate': { title: 'Cargo crate', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/cargo-crate.html' },
+  'laptop': { title: 'Laptop', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/laptop.html' },
+  'rocket': { title: 'Rocket', author: 'Lorc', url: 'https://game-icons.net/1x1/lorc/rocket.html' },
+  'commercial-airplane': { title: 'Commercial airplane', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/commercial-airplane.html' },
+  'space-shuttle': { title: 'Space shuttle', author: 'Delapouite', url: 'https://game-icons.net/1x1/delapouite/space-shuttle.html' },
 };
 
 /** Icons for things that aren't units, resources, or Great People (Dan's round 9 picks). */
@@ -194,6 +252,70 @@ export const WONDER_ICONS: Partial<Record<WonderId, string>> = {
   versailles: 'crown',
 };
 
+/**
+ * Round 17: each technology's icon (Dan's picks from docs/tech-icon-candidates.html), shown on the
+ * tech screen, the top bar's research button, tech news, the Almanac, the diplomacy screen's
+ * trades, and the leader cards' starting tech.
+ */
+export const TECH_ICONS: Record<TechId, string> = {
+  alphabet: 'rune-stone',
+  bronze_working: 'sword-mold',
+  ceremonial_burial: 'tombstone',
+  horseback_riding: 'cloaked-figure-on-horseback',
+  masonry: 'trowel',
+  pottery: 'covered-jar',
+  archery: 'arrow-flights',
+  writing: 'quill-ink',
+  code_of_laws: 'scales',
+  currency: 'coins',
+  iron_working: 'flat-hammer',
+  the_wheel: 'stone-wheel',
+  mathematics: 'abacus',
+  mysticism: 'third-eye',
+  map_making: 'treasure-map',
+  monarchy: 'imperial-crown',
+  literacy: 'open-book',
+  construction: 'crane',
+  astronomy: 'telescope',
+  seafaring: 'sailboat',
+  navigation: 'compass',
+  philosophy: 'think',
+  feudalism: 'hill-fort',
+  engineering: 'arch-bridge',
+  trade: 'trade',
+  chivalry: 'black-knight-helm',
+  monotheism: 'holy-symbol',
+  banking: 'piggy-bank',
+  university: 'diploma',
+  invention: 'clockwork',
+  magnetism: 'magnet',
+  theology: 'prayer',
+  gunpowder: 'musket',
+  physics: 'atom',
+  theory_of_gravity: 'shiny-apple',
+  metallurgy: 'cannon-ball',
+  democracy: 'vote',
+  economics: 'pie-chart',
+  chemistry: 'erlenmeyer',
+  steam_engine: 'steam',
+  conscription: 'brodie-helmet',
+  railroad: 'steam-locomotive',
+  electricity: 'light-bulb',
+  industrialization: 'chimney',
+  corporation: 'briefcase',
+  refining: 'oil-rig',
+  electronics: 'circuitry',
+  machine_tools: 'drill',
+  combustion: 'bright-explosion',
+  automobile: 'race-car',
+  flight: 'airplane',
+  mass_production: 'cargo-crate',
+  computers: 'laptop',
+  rocketry: 'rocket',
+  advanced_flight: 'commercial-airplane',
+  space_flight: 'space-shuttle',
+};
+
 /** Round 14: the icon for a wonder with none of its own. */
 export const GENERIC_WONDER_ICON = 'ancient-columns';
 
@@ -201,7 +323,7 @@ export function wonderIcon(id: WonderId): string {
   return WONDER_ICONS[id] ?? GENERIC_WONDER_ICON;
 }
 
-export type IconGroup = 'Units' | 'Map' | 'Buildings';
+export type IconGroup = 'Units' | 'Map' | 'Buildings' | 'Techs';
 
 /** Every icon the game uses, with what it stands for, in the order the credits list them. */
 export function usedIcons(): { group: IconGroup; name: string; icon: string; unit?: (typeof UNIT_IDS)[number] }[] {
@@ -214,5 +336,6 @@ export function usedIcons(): { group: IconGroup; name: string; icon: string; uni
     ...BUILDING_IDS.map((id) => ({ group: 'Buildings' as const, name: BUILDINGS[id].name, icon: BUILDING_ICONS[id] })),
     ...WONDER_LIST.map((w) => ({ group: 'Buildings' as const, name: w.name, icon: wonderIcon(w.id) })),
     { group: 'Buildings' as const, name: 'Any other wonder', icon: GENERIC_WONDER_ICON },
+    ...TECH_LIST.map((t) => ({ group: 'Techs' as const, name: t.name, icon: TECH_ICONS[t.id] })),
   ];
 }

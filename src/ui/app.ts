@@ -7,7 +7,7 @@ import { CIVS } from '../data/civs';
 import { CITY_FOCUSES, RULES, growthThreshold, type CityFocus } from '../data/rules';
 import { ERAS, TECHS, TECH_LIST, type TechId } from '../data/techs';
 import { TERRAIN } from '../data/terrain';
-import { BUILDING_ICONS, ICON_CREDITS, ICON_LICENSE, ICON_SITE, MAP_ICONS, usedIcons, wonderIcon } from '../data/icons';
+import { BUILDING_ICONS, ICON_CREDITS, ICON_LICENSE, ICON_SITE, MAP_ICONS, TECH_ICONS, usedIcons, wonderIcon, type IconGroup } from '../data/icons';
 import { UNITS, type UnitTypeId } from '../data/units';
 import { PROJECTS, VICTORY, VICTORY_NAMES, type VictoryKind } from '../data/victory';
 import { WONDERS, WONDER_LIST } from '../data/wonders';
@@ -104,7 +104,7 @@ import { cityPlace, cycleCity, otherIdleCities } from './cityCycle';
 import { armyCandidates, isMixedStack, stackLabel, unitsOnTile } from '../game/stack';
 
 import { portraitHtml } from './portraits';
-import { esc, plural, unitSummary } from './text';
+import { esc, learnedTech, plural, techIconHtml, unitSummary } from './text';
 import { DEFAULT_SETTINGS, flashMs, loadSettings, loadTipsSeen, saveSettings, saveTipsSeen, toastMs, type Settings } from './settings';
 import { GAME } from '../data/game';
 import { musicPresent, SoundEngine, soundFilesPresent } from './sound';
@@ -229,6 +229,8 @@ export class App {
   /** The tech highlighted on the tech screen, and its prompt line (view state only). */
   private techSelected: TechId | undefined;
   private techPrompt: string | undefined;
+  /** Round 17: the tech just learned, whose icon leads the prompt. */
+  private techPromptTech: TechId | undefined;
   /** The attack waiting for confirmation in the odds panel. */
   private pendingAttack: { unitId: number; at: Coord } | undefined;
   /** A short flash on a tile after a fight (view only). */
@@ -612,8 +614,11 @@ export class App {
       const aimedAtMe = e.other === this.human && e.player !== this.human;
       if (e.kind === 'contact' || (aimedAtMe && (e.kind === 'war' || e.kind === 'demand' || e.kind === 'warning'))) continue;
       // Round 10: Dan's icons beside the Round 9 news (a hut's result, a village, an artifact).
-      const icon = e.kind === 'hut' ? MAP_ICONS.hut : e.kind === 'village' ? MAP_ICONS.village : e.kind === 'artifact' ? MAP_ICONS.artifact : undefined;
-      this.toast(entryText(e, this.human), false, icon);
+      const text = entryText(e, this.human);
+      // Round 17: a tech learned (by research, trade, a hut, a village, a Great Person) shows its icon.
+      const learned = learnedTech(text);
+      const icon = learned ? TECH_ICONS[learned] : e.kind === 'hut' ? MAP_ICONS.hut : e.kind === 'village' ? MAP_ICONS.village : e.kind === 'artifact' ? MAP_ICONS.artifact : undefined;
+      this.toast(text, false, icon);
     }
   }
 
@@ -700,8 +705,8 @@ export class App {
     this.startHumanTurn();
     // Just learned a tech: ask what to research next (on top of any city that needs a build).
     if (me.techs.length > techsBefore && !me.researching && availableTechs(me).length > 0) {
-      const learned = TECHS[me.techs[me.techs.length - 1]!].name;
-      this.openTech(`You learned ${learned}. Choose what to research next.`);
+      const learned = me.techs[me.techs.length - 1]!;
+      this.openTech(`You learned ${TECHS[learned].name}. Choose what to research next.`, learned);
     }
   }
 
@@ -1468,7 +1473,7 @@ export class App {
   /** ☰ → About / Credits (every build): the game's name and version, and the icon credits the license asks for. */
   private renderAbout(): void {
     // Round 10: the map icons too (village, hut, barbarian badge, artifact, resources, Great People).
-    const rowsFor = (group: 'Units' | 'Map' | 'Buildings') =>
+    const rowsFor = (group: IconGroup) =>
       usedIcons()
         .filter((u) => u.group === group)
         .map((u) => {
@@ -1491,6 +1496,9 @@ export class App {
       <div class="label">Building and wonder icons</div>
       <p class="sub">Also from game-icons.net, same license, shapes unchanged.</p>
       <ul class="credits">${rowsFor('Buildings')}</ul>
+      <div class="label">Technology icons</div>
+      <p class="sub">Also from game-icons.net, same license, shapes unchanged.</p>
+      <ul class="credits">${rowsFor('Techs')}</ul>
       ${soundFilesPresent().length ? `<div class="label">Sounds</div><p class="sub">${soundFilesPresent().some((f) => !f.startsWith('music-')) ? 'Sound effects generated with ElevenLabs.' : ''}${musicPresent() ? ' Music generated with Suno.' : ''}</p>` : ''}`;
   }
 
@@ -1790,7 +1798,7 @@ export class App {
         <div class="sub">${err ? esc(err) : 'Your capital becomes the holy city of a faith of your own (you name it), even if others founded theirs first. Needs a Temple. Once per game.'}</div>`);
     }
     if (hasUnique(this.state, this.human, 'challenge')) {
-      actions.push(`<button type="button" data-act="techs">⭐ National Challenge: ${me.challenge ? esc(TECHS[me.challenge].name) : 'none named'}</button>
+      actions.push(`<button type="button" data-act="techs">⭐ National Challenge: ${me.challenge ? `${techIconHtml(me.challenge)}${esc(TECHS[me.challenge].name)}` : 'none named'}</button>
         <div class="sub">Name a tech on the tech screen: +${UNIQUE_RULES.challenge.sciencePct}% science while you research it.</div>`);
     }
     if (hasUnique(this.state, this.human, 'versailles')) actions.push(`<div class="sub">🏰 Versailles: build it in your capital (city panel).</div>`);
@@ -1798,7 +1806,7 @@ export class App {
     if (hasUnique(this.state, this.human, 'returnCity')) actions.push(`<div class="sub">🕊️ When you take a city someone else founded, you can give it back that turn.</div>`);
     $('leaderBody').innerHTML = `
       <div class="leaderHead">${portraitHtml(me.civId, 128)}<div>
-        <h3>${esc(def.leader)}</h3><div class="sub">${esc(def.name)} · started with ${def.startTech ? esc(TECHS[def.startTech].name) : 'no tech'}</div>
+        <h3>${esc(def.leader)}</h3><div class="sub">${esc(def.name)} · started with ${def.startTech ? `${techIconHtml(def.startTech)}${esc(TECHS[def.startTech].name)}` : 'no tech'}</div>
         ${bonusListHtml(me.civId, era)}
       </div></div>
       ${actions.length ? `<div class="label">Unique actions</div><div class="uniqueActions">${actions.join('')}</div>` : ''}`;
@@ -1922,10 +1930,11 @@ export class App {
   // ---- tech screen ---------------------------------------------------------------------
 
   /** Opens the tech screen. `prompt` is shown above the status line (e.g. after learning a tech). */
-  private openTech(prompt?: string): void {
+  private openTech(prompt?: string, learned?: TechId): void {
     const me = this.state.players[this.human]!;
     this.techSelected = me.researching ?? availableTechs(me)[0] ?? this.techSelected;
     this.techPrompt = prompt;
+    this.techPromptTech = learned;
     $('techOverlay').hidden = false;
     this.renderTech();
     // Bring the highlighted tech into view in the tree.
@@ -1958,7 +1967,7 @@ export class App {
     } else if (btn.dataset.act === 'research' && this.techSelected) {
       const tech = this.techSelected;
       if (this.dispatch({ type: 'setResearch', tech })) {
-        this.toast(`Researching ${TECHS[tech].name}`);
+        this.toast(`Researching ${TECHS[tech].name}`, false, TECH_ICONS[tech]);
         this.closeTech();
       }
     }
@@ -1979,7 +1988,7 @@ export class App {
       ? `Researching ${TECHS[current].name}: ${Math.min(me.science, techCost(this.state, this.human, current))}/${techCost(this.state, this.human, current)} · +${income} science per turn`
       : `Nothing being researched${me.science > 0 ? ` · ${me.science} science banked` : ''} · +${income} per turn`;
     $('techStatus').innerHTML = this.techPrompt
-      ? `<b class="prompt">${esc(this.techPrompt)}</b><br>${esc(status)}`
+      ? `<b class="prompt">${this.techPromptTech ? techIconHtml(this.techPromptTech, 'ticon learned') : ''}${esc(this.techPrompt)}</b><br>${esc(status)}`
       : esc(status);
 
     const treeEl = $('techTree');
@@ -1999,7 +2008,7 @@ export class App {
           }
           const sel = t.id === this.techSelected ? ' sel' : '';
           return `<button type="button" class="tech ${st}${sel}" data-tech="${t.id}">
-            <span class="tname">${t.name}</span><span class="tmeta">${meta}</span></button>`;
+            <span class="tname">${techIconHtml(t.id)}${t.name}</span><span class="tmeta">${meta}</span></button>`;
         })
         .join('');
       return `<div class="era"><h3>${era.name} <span class="sub">${known}/${techs.length} known</span></h3>
@@ -2021,7 +2030,7 @@ export class App {
 
     const prereqs = def.prereqs.length
       ? def.prereqs
-          .map((p) => `<span class="${knows(me, p) ? 'have' : 'need'}">${knows(me, p) ? '✓' : '✗'} ${TECHS[p].name}</span>`)
+          .map((p) => `<span class="${knows(me, p) ? 'have' : 'need'}">${knows(me, p) ? '✓' : '✗'} ${techIconHtml(p)}${TECHS[p].name}</span>`)
           .join(' ')
       : '<span class="sub">None</span>';
 
@@ -2053,7 +2062,7 @@ export class App {
     }
 
     return `
-      <h3>${def.name} ${cardLink(`tech:${tech}`, 'Almanac ›')}</h3>
+      <h3 class="techTitle">${techIconHtml(tech, 'ticon big')}<span>${def.name} ${cardLink(`tech:${tech}`, 'Almanac ›')}</span></h3>
       <div class="sub">${eraName(def.era)} era · ${stateText}${st === 'known' ? '' : ` · cost ${cost}`}</div>
       <p>${def.description}</p>
       ${action}
@@ -2594,7 +2603,7 @@ export class App {
       const pickTheirs = theirs.length
         ? `<div class="techPick">${theirs
             .map(
-              (t) => `<button type="button" data-get="${t}" class="${t === this.tradeGet ? 'sel' : ''}">${TECHS[t].name}
+              (t) => `<button type="button" data-get="${t}" class="${t === this.tradeGet ? 'sel' : ''}">${techIconHtml(t)}${TECHS[t].name}
                 <span class="tmeta">worth ${techValue(this.state, this.human, t)} science to you</span></button>`,
             )
             .join('')}</div>`
@@ -2605,7 +2614,7 @@ export class App {
         const swap = ours.length
           ? `<div class="techPick">${ours
               .map(
-                (t) => `<button type="button" data-give="${t}">Give ${TECHS[t].name}
+                (t) => `<button type="button" data-give="${t}">Give ${techIconHtml(t)}${TECHS[t].name}
                   <span class="tmeta">worth ${techValue(this.state, civ, t)} to them</span></button>`,
               )
               .join('')}</div>`
@@ -3225,7 +3234,7 @@ export class App {
     const rb = $<HTMLButtonElement>('researchBtn');
     if (player.researching) {
       const t = turnsToLearn(this.state, this.human, player.researching);
-      rb.innerHTML = `🔬 ${TECHS[player.researching].name} <span class="sub">(${t ?? '—'})</span>`;
+      rb.innerHTML = `${techIconHtml(player.researching, 'ticon chip')}${TECHS[player.researching].name} <span class="sub">(${t ?? '—'})</span>`;
       rb.classList.remove('ready');
     } else if (availableTechs(player).length > 0) {
       const banked = player.science > 0 ? ` <span class="sub">· ${player.science} banked</span>` : '';

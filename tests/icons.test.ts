@@ -5,7 +5,8 @@
 // from Dan's round 8 picks (the Carrier's is modified); aircraft and the map icons in round 10.
 
 import { describe, expect, it } from 'vitest';
-import { ICON_CREDITS, MAP_ICONS, usedIcons } from '../src/data/icons';
+import { ICON_CREDITS, MAP_ICONS, TECH_ICONS, usedIcons } from '../src/data/icons';
+import { TECH_LIST } from '../src/data/techs';
 import { WONDER_LIST } from '../src/data/wonders';
 import { GREAT_PEOPLE, GREAT_PERSON_KINDS } from '../src/data/greatPeople';
 import { RESOURCES, RESOURCE_IDS } from '../src/data/resources';
@@ -58,6 +59,17 @@ describe('icons', () => {
 
   it('every building and wonder has an icon (Round 14)', () => {
     expect(USED.filter((u) => u.group === 'Buildings')).toHaveLength(17 + WONDER_LIST.length + 1);
+  });
+
+  it('every technology has its own icon, unlike anything else in the game (Round 17)', () => {
+    const techs = USED.filter((u) => u.group === 'Techs');
+    expect(techs).toHaveLength(56);
+    for (const t of TECH_LIST) expect(TECH_ICONS[t.id], t.id).toBeTruthy();
+    const icons = techs.map((u) => u.icon);
+    expect(new Set(icons).size).toBe(icons.length);
+    const others = USED.filter((u) => u.group !== 'Techs').map((u) => u.icon);
+    expect(icons.filter((i) => others.includes(i))).toEqual([]);
+    expect(credits).toContain('## Technology icons');
   });
 
   it('only used icons are credited, and every bundled file is used', () => {

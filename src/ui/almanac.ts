@@ -21,7 +21,7 @@ import { techLeadsTo, techUnlocks } from '../game/tech';
 import { iconHtml, unitIconHtml } from '../render/icons';
 import { portraitHtml } from './portraits';
 import { bonusListHtml } from './setup';
-import { esc, unitSummary } from './text';
+import { esc, techIconHtml, unitSummary } from './text';
 
 export type AlmanacCategory = 'unit' | 'building' | 'wonder' | 'project' | 'tech' | 'resource' | 'greatPerson' | 'leader' | 'difficulty' | 'mapSize';
 
@@ -56,7 +56,8 @@ export function cardLink(id: string, label: string): string {
   return `<button type="button" class="alink" data-card="${esc(id)}">${esc(label)}</button>`;
 }
 
-const techLink = (t: TechId) => cardLink(`tech:${t}`, TECHS[t].name);
+// Round 17: with the tech's icon.
+const techLink = (t: TechId) => `${techIconHtml(t)}${cardLink(`tech:${t}`, TECHS[t].name)}`;
 const row = (label: string, value: string) => `<dt>${esc(label)}</dt><dd>${value}</dd>`;
 const needs = (t: TechId | undefined, also?: TechId) =>
   t ? `${techLink(t)}${also ? ` and ${techLink(also)}` : ''}` : '<span class="sub">Nothing: available from the start</span>';
@@ -144,7 +145,7 @@ function techCards(): AlmanacCard[] {
       (FOUNDING_TECHS.includes(t.id) ? row('Religion', 'The first civ to learn it founds a religion (one per civ)') : '') +
       (leads.length ? row('Leads to', leads.join(', ')) : '') +
       (starters.length ? row('Starting tech of', starters.join(', ')) : '');
-    return card(`tech:${t.id}`, 'tech', t.name, `${eraName(t.id)} tech`, disc('🔬'), facts, `<p>${esc(t.description)}</p>`);
+    return card(`tech:${t.id}`, 'tech', t.name, `${eraName(t.id)} tech`, disc(techIconHtml(t.id, 'uicon')), facts, `<p>${esc(t.description)}</p>`);
   });
 }
 
