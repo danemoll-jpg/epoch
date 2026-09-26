@@ -15,11 +15,13 @@ import { GREAT_PEOPLE_RULES } from '../src/data/greatPeople';
 import { WONDERS } from '../src/data/wonders';
 import { BUILDINGS } from '../src/data/buildings';
 import { TECH_COST } from '../src/data/techs';
+import { BORDERS } from '../src/data/rules';
+import { SPIES } from '../src/data/spies';
 
 // Tuning experiments without editing the data: TUNE="VICTORY.cultureGoal=8000;MAP_SIZES.large.victoryPct=140"
 // sets those numbers for this run (TAG=name keeps its JSON apart). Only for trying numbers; the
 // kept values go into src/data/.
-const TUNABLE: Record<string, unknown> = { VICTORY, RULES, MAP_SIZES, DIFFICULTIES, ROADS, RELIGION, GREAT_PEOPLE_RULES, WONDERS, BUILDINGS, TECH_COST };
+const TUNABLE: Record<string, unknown> = { VICTORY, RULES, MAP_SIZES, DIFFICULTIES, ROADS, RELIGION, GREAT_PEOPLE_RULES, WONDERS, BUILDINGS, TECH_COST, BORDERS, SPIES };
 for (const pair of (process.env.TUNE ?? '').split(';').filter(Boolean)) {
   const [path, value] = pair.split('=') as [string, string];
   const keys = path.split('.');
