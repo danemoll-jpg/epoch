@@ -818,8 +818,12 @@ what was pushed.
   ☰ → Units, and tapping your own units from a distance selects them (with
   "Move … here" / "Board the …"). Pushing is Dan's call again.
 
-**Current objective: none (between rounds).** Wait for the planning session to
-set the next round in TODO.md.
+**Current objective: Round 19** (see TODO.md): one bundled update from Dan's
+playtest, built in Parts A–F plus balance: victory warnings, the era card,
+wonder and build pop-ups, the news log, obsolete units and upgrades, spies,
+more wars, culture borders and referendums, full-screen leader scenes.
+Commit and restart the play server after each part, with a progress note in
+TODO.md. **Don't push until Dan says, once everything is in.**
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.
