@@ -49,7 +49,7 @@ export const SPIES = {
     unrestPct: 50,
   },
   /** The victim's opinion of a spy's owner when the spy is caught. */
-  caughtOpinion: -4,
+  caughtOpinion: -2,
   /** The AI: how many spies at once (from Medieval), and how far it sends them. */
   ai: {
     maxSpies: 1,
@@ -61,6 +61,6 @@ export const SPIES = {
     /** Only cities this small are worth inciting. */
     inciteMaxSize: 4,
     /** It acts only when the chance is at least this (percent). */
-    minChancePct: 30,
+    minChancePct: 45,
   },
 };

@@ -27,7 +27,7 @@ export const VICTORY = {
    * since religion (holy cities, follower Temples and Cathedrals) adds culture everywhere.
    * Round 15 (B1): 7000 → 8000 (culture was over half the wins).
    */
-  cultureGoal: 8000,
+  cultureGoal: 9500,
   /**
    * Economic: this much gold in the treasury (when starting and finishing), then build the Global
    * Exchange. Round 15 (B1, B4): 9000 → 13000, since the AIs now link their cities by road

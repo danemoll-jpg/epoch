@@ -155,7 +155,7 @@ export const RULES = {
     // (ratio − warMinStrengthRatio) × warStrengthWeight + (aggression − 3) × warAggressionWeight
     // − opinion × warOpinionWeight; each turn it declares with chance score × warChancePctPerPoint
     // percent, capped at warMaxChancePct.
-    warMinStrengthRatio: 1.3,
+    warMinStrengthRatio: 1.4,
     warMaxDistance: 12,
     /**
      * Round 19 (item 5): extra war score when the two civs' nearest cities are this close (a
@@ -168,8 +168,8 @@ export const RULES = {
     warStrengthWeight: 2,
     warAggressionWeight: 1,
     warOpinionWeight: 0.4,
-    warChancePctPerPoint: 4,
-    warMaxChancePct: 25,
+    warChancePctPerPoint: 2.5,
+    warMaxChancePct: 15,
     /** ...and only if its best attack (as an army) would beat their best fortified city defender this often. */
     warMinAttackChance: 0.55,
 
@@ -373,13 +373,13 @@ export const BORDERS = {
   unrestGain: 1,
   unrestFade: 1,
   warnAt: 2,
-  voteAt: 6,
-  votePct: 25,
+  voteAt: 8,
+  votePct: 15,
   perDefenderPct: -6,
   resistBuilding: 'courthouse' as const,
   resistBuildingPct: -10,
   minVotePct: 4,
   lostCityOpinion: -4,
   /** The AI builds a Temple in a city this close to a met rival's city (its borders). */
-  nearRivalDistance: 5,
+  nearRivalDistance: 3,
 };

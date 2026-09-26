@@ -135,6 +135,9 @@ python scripts/make-portrait-webp.py      # Round 16: remake src/assets/portrait
 node scripts/make-art-page.mjs            # Round 14: rebuild docs/terrain-style-candidates.html after changing src/render/art.ts
 node scripts/make-building-icons-page.mjs # Round 14: rebuild docs/building-icon-candidates.html (fetches missing SVGs)
 node scripts/make-tech-icons-page.mjs     # Round 17: rebuild docs/tech-icon-candidates.html (56 techs × 3, fetches missing SVGs; fails on a duplicate candidate)
+node scripts/make-spy-icons-page.mjs      # Round 19: rebuild docs/spy-icon-candidates.html (Spy, Modern Infantry, Drone × 3; fetches missing SVGs)
+python scripts/make-scene-webp.py         # Round 19: remake src/assets/portraits-full/scene-*.webp from docs/portraits-full-master/*.png
+node scripts/make-leader-scenes-page.mjs  # Round 19: rebuild docs/leader-scenes.html (all 12 scenes at 3 screen shapes; pictures embedded)
 ```
 **iPad over the local network:**
 ```
@@ -187,7 +190,7 @@ debugging, including from Safari's Web Inspector on the iPad.
 completes inside Safari's `pagehide`). Saved after every successful action
 (including End Turn), on `visibilitychange` → hidden, and on `pagehide`.
 The save carries `saveVersion` (= `STATE_VERSION` in `src/game/types.ts`,
-currently 12). **Bump `STATE_VERSION` whenever the state shape changes, and
+currently 15). **Bump `STATE_VERSION` whenever the state shape changes, and
 add a migration** to `MIGRATIONS` in `src/game/save.ts` (keyed by the
 version it upgrades from), plus a line in `MIGRATION_NOTES` for the notice,
 so Dan's game carries forward. Migrated so far: 2 → 3 (M3: no techs,
@@ -211,7 +214,10 @@ afloat count as built), and 10 → 11 (Round 12: no religions and no city
 follows one; a founding tech any civ already knows is "lapsed"
 (`religionTechsLapsed`) and founds nothing, but the next unknown one still
 can; no roads; no Missionaries; Theology is simply unknown), and 11 → 12
-(Round 13: `difficulty` 'normal' and `mapSize` 'normal').
+(Round 13: `difficulty` 'normal' and `mapSize` 'normal'), and 12 → 13 (Round 19
+Part A: `laterWins` empty, `logCount` = the log's length), 13 → 14 (Part C: every
+player's `intel` empty), and 14 → 15 (Part E: each city's `culture` = an equal share
+of its civ's culture so far, `unrest` 0).
 
 **Round 14: End Turn runs in a Web Worker.** `src/ui/turnRunner.ts` sends a
 copy of the state to `src/ui/turnWorker.ts`, which runs `runTurnJob`
@@ -287,7 +293,9 @@ first sign-in doesn't finish: the toast; `mockBackend(store, user, { signedIn: f
 failFirst: 1 })`); (round 17) `city-cycle` (5 cities, Lagash idle: the ◀ ▶
 arrows, "n / 5", the dot), `tap-city-with-unit` (a Legion 4 tiles from Babylon
 selected first: tapping Babylon opens it with "Move Legion here (4 turns)"; the
-Warrior next to it moves in with one tap). A scenario can open a screen at load
+Warrior next to it moves in with one tap); (round 19) `rival-victory-wonder`,
+`keep-playing-spaceship`, `rival-era`, `built-this-turn`, `upgrade-units`, `spies`,
+`new-units` (Modern Infantry and the Drone), `culture-flip`, `leader-scenes`. A scenario can open a screen at load
 (`opens: 'mainMenu' | 'settings' | 'almanac' | 'howToPlay' | 'setup'`) and
 show every tip afresh (`freshTips`, without touching the device's list);
 scenarios are silent unless Settings → Sound in dev scenarios. The religion ones use
@@ -646,8 +654,31 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   removed so it doesn't look like the Battleship; compare in
   `docs/carrier-trim-candidates.html`).
 - The version shown on the About screen comes from `package.json`
-  (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.18.0 for
-  round 18.
+  (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.19.0 for
+  round 19.
+- **Round 19: the news, the cards, and the log's running count.** The log is
+  capped (`RULES.maxLogEntries`, 400), so **never find new entries by the log's
+  length**: use `state.logCount` (the running count) and `entriesSince(state, mark)`
+  (`log.ts`). Log entries can carry `ref` (`LogRef`: cityId, unitId, item, era,
+  victory, warning step, turns) so the UI can build cards. In `app.ts`:
+  `presentCards` (full-screen cards: Notice `card`; leader scenes: Notice `scene`),
+  `announce` (toasts; builds as one list; `carded` decides which entries a card
+  replaces), the news log (`#newsOverlay`, 📰 `#newsBtn` with `#newsCount`, ☰ →
+  News, key L), toasts held while a card is up (`heldToasts`). Victory warnings
+  (`victory.ts` `victoryWarnings`/`issueWarnings`/`warningAdvice`/`turnsToVictory`,
+  `VICTORY.warnSoonTurns`/`warnEveryTurnFrom`); wins after Keep playing go to
+  `state.laterWins`. Era flavor and tint in `ERAS` (`techs.ts`), `eraUnlocks`.
+- **Round 19: upgrades** (`src/game/upgrades.ts`; `upgradesTo` lines in `units.ts`;
+  `RULES.upgrade`; `upgradePct` per difficulty), **spies** (`src/data/spies.ts`,
+  `src/game/spies.ts`; the Spy is invisible except next to a rival Courthouse, walks
+  into cities at peace; `transferCity` in `conquest.ts` moves a city without a fight),
+  **the Drone's Scout** (`recon` in `air.ts`, `Unit.recon`, `UnitDef.recon`), **borders**
+  (`src/game/borders.ts`: `territory` (cached per state), `processBorders` once a game
+  turn, `bordersFoundError`; `BORDERS` in `rules.ts`; `City.culture`, `City.unrest`),
+  **leader scenes** (`sceneUrl`/`sceneLayout`/`faceOnScreen` in `portraits.ts`,
+  `sceneFocus` in `civs.ts`, lines in `src/data/leaderLines.ts`; the pictures are
+  cached on first use, `isSceneFile` in `src/pwa/files.ts`). The sim matrix reports
+  wars, flips and spy actions, and `TUNE=` accepts `BORDERS.*` and `SPIES.*`.
 - **Round 17: city arrows and the tap rule.** `src/ui/cityCycle.ts` (pure:
   `cityOrder` = the capital first, then founding order (city id); `cycleCity`
   wraps, and a city lost mid-cycle goes on from where it stood; `cityPlace`

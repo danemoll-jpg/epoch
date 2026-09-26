@@ -2035,6 +2035,9 @@ the leader-scene crops if not already done, and says "push".
   its capital (1 at a time, 2 from turn 150) when it has a mission: sabotage a rival's victory
   wonder or spaceship part, else steal from the civ with the most techs it lacks, else incite a
   small city it can afford; it acts at 30%+. All numbers in `src/data/spies.ts`.
+- **Dan's icon picks (2026-09-26): A for all three** (Spy: Spy, Delapouite; Modern Infantry: Body
+  armor, Skoll; Drone: Quadcopter drone, Delapouite). They were already the ones in the game, so nothing
+  changed; the credits stand.
 - **Dan's mid-round addition (2026-09-26):** **Modern Infantry** (Mass Production; attack 8,
   defense 12, 1 move, 70): the new top of the foot line, Rifleman → Modern Infantry (Riflemen go out
   of date and upgrade for 40 gold); the AI's best defender from then on. **The Drone** (Computers;

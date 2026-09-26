@@ -649,7 +649,7 @@ describe('Round 19 item 7: culture borders and referendums', () => {
     addUnit(s, 'warrior', 1, 6, 5);
     expect(referendumChance(s, town)).toBe(BORDERS.votePct + BORDERS.perDefenderPct);
     town.buildings.push('courthouse');
-    expect(referendumChance(s, town)).toBe(BORDERS.votePct + BORDERS.perDefenderPct + BORDERS.resistBuildingPct);
+    expect(referendumChance(s, town)).toBe(Math.max(BORDERS.minVotePct, BORDERS.votePct + BORDERS.perDefenderPct + BORDERS.resistBuildingPct));
   });
 
   it('a referendum moves the city, sends its units home, and sours the loser', () => {
