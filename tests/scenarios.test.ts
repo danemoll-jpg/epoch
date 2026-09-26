@@ -1335,5 +1335,6 @@ describe('dev scenarios', () => {
     expect(scenario.build()).toEqual(a);
     const loaded = deserializeGame(serializeGame(a, 0));
     expect(loaded.kind).toBe('ok');
-  });
+    // large-map plays 60 AI turns per build: under a full parallel run it can pass 5 s.
+  }, 30_000);
 });
