@@ -20,7 +20,7 @@
 // Every choice an AI makes here is deterministic: answers to the human depend only on the
 // state (asking twice gets the same answer), and the AI's own initiatives use the seeded RNG.
 
-import { victoryGoals } from '../data/mapSizes';
+import { DEFAULT_MAP_SIZE, MAP_SIZES, victoryGoals } from '../data/mapSizes';
 import { CIVS, type CivDef } from '../data/civs';
 import { RULES } from '../data/rules';
 import { TECHS, type TechId } from '../data/techs';
@@ -572,18 +572,31 @@ export function warScore(state: GameState, ai: number, target: number): number {
   const runaway = conqueror && runawayProgress(state, target) >= V.runawayProgress;
   const minRatio = runaway ? V.runawayMinStrengthRatio : conqueror ? V.dominationMinStrengthRatio : D.warMinStrengthRatio;
   if (ratio < minRatio) return -Infinity;
-  if (cityDistance(state, ai, target) > D.warMaxDistance) return -Infinity;
+  const near = cityDistance(state, ai, target);
+  if (near > warReach(state)) return -Infinity;
   // Only a war it could win: its best attack (as an army) must beat their best city defender.
   if (winChance(bestAttack(state, ai), bestCityDefense(state, target)) < D.warMinAttackChance) return -Infinity;
   const aggression = aiAggression(state, ai, target);
   const conquest = (conqueror ? V.dominationWarBonus : 0) + (runaway ? V.runawayWarBonus : 0);
+  // Round 19 (item 5): a shared border (cities close together) and a target already busy in
+  // another war make a war likelier.
+  const border = near <= D.warBorderDistance ? D.warBorderBonus : 0;
+  const busy = state.players.some((q) => q.id !== ai && q.id !== target && q.alive && q.kind !== 'barbarian' && atWar(state, target, q.id)) ? D.warOpportunistBonus : 0;
   return (
     (Math.min(ratio, 4) - D.warMinStrengthRatio) * D.warStrengthWeight +
     (aggression - 3) * D.warAggressionWeight -
     opinionOf(state, ai, target) * D.warOpinionWeight +
-    conquest -
+    conquest +
+    border +
+    busy -
     deterrence
   );
+}
+
+/** Round 19 (item 5): how far an AI looks for a war, scaled with the map (wider maps, farther). */
+export function warReach(state: GameState): number {
+  const w = MAP_SIZES[state.mapSize ?? DEFAULT_MAP_SIZE]?.width ?? MAP_SIZES.normal.width;
+  return Math.max(D.warMaxDistance, Math.round((D.warMaxDistance * w) / MAP_SIZES.normal.width));
 }
 
 /** How close `p` is to a culture or economic win (0–1): the nearer of the two goals. */

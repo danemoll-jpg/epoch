@@ -59,12 +59,31 @@ export interface MatrixRow {
   roads100: number;
   roads200: number;
   msPerTurn: number;
+  /** Round 19: per game, on average: wars (AI vs AI, with the stand-in), peace, flips, spy actions. */
+  wars: number;
+  warsAiAi: number;
+  warsWithHuman: number;
+  /** Wars an AI declared on the stand-in (what a human would face). */
+  warsOnHuman: number;
+  peace: number;
+  /** Share of games with a war by the Medieval era (declarer in Ancient or Medieval), and the median first-war turn. */
+  warByMedieval: number;
+  firstWar?: number;
+  warsByEra: Record<string, number>;
+  flips: number;
+  spy: number;
+  spyByKind: Record<string, number>;
+  earliestWin?: number;
 }
 
 function run(c: Config): MatrixRow {
   const n = Number(process.env.SEEDS ?? 20);
   const seeds = Array.from({ length: n }, (_, i) => 101 + i * 7);
-  const row: MatrixRow = { id: c.id, label: c.label, games: n, mix: {}, winTurns: [], standIn: 0, wins: {}, played: {}, fair: {}, eras: {}, roads100: 0, roads200: 0, msPerTurn: 0 };
+  const row: MatrixRow = {
+    id: c.id, label: c.label, games: n, mix: {}, winTurns: [], standIn: 0, wins: {}, played: {}, fair: {}, eras: {}, roads100: 0, roads200: 0, msPerTurn: 0,
+    wars: 0, warsAiAi: 0, warsWithHuman: 0, warsOnHuman: 0, peace: 0, warByMedieval: 0, warsByEra: {}, flips: 0, spy: 0, spyByKind: {},
+  };
+  const firstWars: (number | undefined)[] = [];
   const eraVals: Record<string, (number | undefined)[]> = { medieval: [], industrial: [], modern: [] };
   const r100: number[] = [];
   const r200: number[] = [];
@@ -87,7 +106,20 @@ function run(c: Config): MatrixRow {
     for (const e of r.eraTurns) for (const k of Object.keys(eraVals)) eraVals[k]!.push(e[k as 'medieval']);
     if (r.roadsAt[100]) r100.push(...r.roadsAt[100]);
     if (r.roadsAt[200]) r200.push(...r.roadsAt[200]);
-    report(`[${c.id}${TAG}] seed ${seed}: ${v ? `${r.winnerCiv} ${v.kind} t${v.turn}` : 'no winner'} | ${r.civs.join(',')} | wars=${r.wars} captures=${r.captures} roads@100=${r.roadsAt[100]?.join('/') ?? '-'} @200=${r.roadsAt[200]?.join('/') ?? '-'}`);
+    row.wars += r.wars / n;
+    row.warsAiAi += r.warsAiAi / n;
+    row.warsWithHuman += r.warsWithHuman / n;
+    row.warsOnHuman += r.warList.filter((w) => w.onHuman).length / n;
+    row.peace += r.peace / n;
+    row.flips += r.flips / n;
+    if (r.warList.some((w) => w.era === 'ancient' || w.era === 'medieval')) row.warByMedieval += 1 / n;
+    for (const w of r.warList) row.warsByEra[w.era] = (row.warsByEra[w.era] ?? 0) + 1 / n;
+    firstWars.push(r.warList[0]?.turn);
+    for (const [k, v2] of Object.entries(r.spyActions)) {
+      row.spyByKind[k] = (row.spyByKind[k] ?? 0) + v2 / n;
+      row.spy += v2 / n;
+    }
+    report(`[${c.id}${TAG}] seed ${seed}: ${v ? `${r.winnerCiv} ${v.kind} t${v.turn}` : 'no winner'} | ${r.civs.join(',')} | wars=${r.wars} (ai-ai ${r.warsAiAi}, first t${r.warList[0]?.turn ?? '-'}) peace=${r.peace} captures=${r.captures} flips=${r.flips} spy=${JSON.stringify(r.spyActions)}`);
   }
   row.winTurns.sort((a, b) => a - b);
   row.median = row.winTurns[Math.floor((row.winTurns.length - 1) / 2)];
@@ -96,9 +128,15 @@ function run(c: Config): MatrixRow {
   row.roads100 = avg(r100);
   row.roads200 = avg(r200);
   row.msPerTurn = Math.round(ms / Math.max(1, turns));
+  row.firstWar = medianTurn(firstWars);
+  row.earliestWin = row.winTurns[0];
+  const r1 = (x: number) => Math.round(x * 10) / 10;
+  for (const k of ['wars', 'warsAiAi', 'warsWithHuman', 'warsOnHuman', 'peace', 'flips', 'spy', 'warByMedieval'] as const) row[k] = r1(row[k]);
+  for (const m of [row.warsByEra, row.spyByKind]) for (const k of Object.keys(m)) m[k] = r1(m[k]!);
   simOut()?.writeFileSync(`${SIM_OUT}/sim-matrix-${c.id}${TAG}.json`, JSON.stringify(row, null, 1));
   report(`[${c.id}${TAG}] MIX ${JSON.stringify(row.mix)} median t${row.median} range ${row.winTurns[0]}-${row.winTurns.at(-1)} standIn ${row.standIn}`);
   report(`[${c.id}${TAG}] LEADERS ${Object.keys(row.played).sort().map((k) => `${k}:${row.wins[k] ?? 0}/${row.played[k]} (fair ${row.fair[k]!.toFixed(1)})`).join(' ')}`);
+  report(`[${c.id}${TAG}] WARS ${row.wars}/game (ai-ai ${row.warsAiAi}, with stand-in ${row.warsWithHuman}, declared on it ${row.warsOnHuman}; by era ${JSON.stringify(row.warsByEra)}); war by Medieval in ${Math.round(row.warByMedieval * 100)}% of games; first war median t${row.firstWar}; peace ${row.peace}/game; FLIPS ${row.flips}/game; SPY ${row.spy}/game ${JSON.stringify(row.spyByKind)}`);
   report(`[${c.id}${TAG}] ERAS medieval ${row.eras.medieval} industrial ${row.eras.industrial} modern ${row.eras.modern}; ROADS per civ t100 ${row.roads100} t200 ${row.roads200}; ${row.msPerTurn} ms/turn`);
   return row;
 }

@@ -157,6 +157,14 @@ export const RULES = {
     // percent, capped at warMaxChancePct.
     warMinStrengthRatio: 1.3,
     warMaxDistance: 12,
+    /**
+     * Round 19 (item 5): extra war score when the two civs' nearest cities are this close (a
+     * shared border), and when the target is already at war with someone else. warMaxDistance
+     * grows with the map's width (diplomacy.ts warReach).
+     */
+    warBorderDistance: 7,
+    warBorderBonus: 0,
+    warOpportunistBonus: 0,
     warStrengthWeight: 2,
     warAggressionWeight: 1,
     warOpinionWeight: 0.4,

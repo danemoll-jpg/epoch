@@ -655,6 +655,7 @@ export class App {
       case 'contact':
         return true;
       case 'war':
+        return aimed || (e.player !== me && e.other !== me);
       case 'demand':
       case 'warning':
       case 'capture':
@@ -736,6 +737,8 @@ export class App {
       else if (e.kind === 'wonder' && e.player === me) this.queueWonderCard(e);
       else if (e.kind === 'wonder') this.queueRivalWonder(e, seen);
       else if (e.kind === 'war' && aimed) this.queueWarCard(e);
+      // Round 19 (item 5): a war between two other civs you've met gets a panel too.
+      else if (e.kind === 'war' && e.player !== me && e.other !== me) this.queueRivalWar(e);
       else if (e.kind === 'warning' && aimed) this.queueWarningCard(e);
       else if (e.kind === 'capture' && aimed) this.queueCityLostCard(e);
       else if (e.kind === 'victory' && e.ref?.step === 'later' && e.player === me) this.queueLaterWinCard(e);
@@ -827,6 +830,21 @@ export class App {
       buttons: [
         { label: 'Diplomacy', run: () => this.openDiplo(civ) },
         { label: 'To arms', cls: 'bigBtn primary' },
+      ],
+    });
+  }
+
+  /** Round 19 (item 5): two other civs went to war. */
+  private queueRivalWar(e: LogEntry): void {
+    const text = entryText(e, this.human);
+    this.queueNotice({
+      title: 'War between rivals',
+      portrait: e.player,
+      text: /[.!]$/.test(text) ? text : `${text}.`,
+      sub: 'Their armies are busy with each other. Diplomacy shows who is at war with whom.',
+      buttons: [
+        { label: 'Diplomacy', run: () => this.openDiplo(e.player) },
+        { label: 'OK', cls: 'bigBtn' },
       ],
     });
   }

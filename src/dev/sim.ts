@@ -234,6 +234,17 @@ export interface WinResult {
   treeDone: (number | undefined)[];
   /** Round 15: road and rail tiles near each civ's cities at turns 100 and 200 (undefined = game over by then). */
   roadsAt: Record<number, number[]>;
+  /**
+   * Round 19 (item 5): wars between two AIs, and wars with player 0 (the stand-in for the human);
+   * each war's turn and the declarer's era; peace treaties.
+   */
+  warsAiAi: number;
+  warsWithHuman: number;
+  warList: { turn: number; era: EraId; aiAi: boolean; onHuman: boolean }[];
+  peace: number;
+  /** Round 19: cities that changed hands by referendum (item 7), and spy actions (item 11) by kind. */
+  flips: number;
+  spyActions: Record<string, number>;
   state: GameState;
 }
 
@@ -250,6 +261,10 @@ export function playToVictory(seed: number, maxTurns = 320, game: SimGame = {}):
   const eraTurns: Partial<Record<EraId, number>>[] = s.players.map(() => ({ ancient: 1 }));
   const treeDone: (number | undefined)[] = s.players.map(() => undefined);
   const roadsAt: Record<number, number[]> = {};
+  const warList: { turn: number; era: EraId; aiAi: boolean; onHuman: boolean }[] = [];
+  let peace = 0;
+  let flips = 0;
+  const spyActions: Record<string, number> = {};
   while (s.turn <= maxTurns && !s.victory) {
     const turn = s.turn;
     playComputerTurn(s, s.currentPlayer);
@@ -258,7 +273,17 @@ export function playToVictory(seed: number, maxTurns = 320, game: SimGame = {}):
       if (seenLog.has(e)) continue;
       seenLog.add(e);
       if (/ captured /.test(e.text)) captures++;
-      if (e.kind === 'war') wars++;
+      if (e.kind === 'war') {
+        wars++;
+        warList.push({ turn: e.turn, era: playerEra(s.players[e.player]!), aiAi: e.player !== 0 && e.other !== 0, onHuman: e.other === 0 });
+      }
+      if (e.kind === 'peace') peace++;
+      if ((e.kind as string) === 'referendum' && e.ref?.cityId !== undefined && e.text.includes('joined')) flips++;
+      if (e.kind === 'spy' && e.text.startsWith('Your spy')) {
+        const k = / investigated /.test(e.text) ? 'investigate' : / stole /.test(e.text) ? 'steal' : / sabotaged /.test(e.text) ? 'sabotage' : / caught /.test(e.text) ? 'caught' : 'other';
+        spyActions[k] = (spyActions[k] ?? 0) + 1;
+      }
+      if (e.kind === 'spy' && / revolted and joined you/.test(e.text)) spyActions.incite = (spyActions.incite ?? 0) + 1;
     }
     for (const q of s.players) {
       const era = playerEra(q);
@@ -282,6 +307,12 @@ export function playToVictory(seed: number, maxTurns = 320, game: SimGame = {}):
     eraTurns: civs.map((p) => eraTurns[p.id]!),
     treeDone: civs.map((p) => treeDone[p.id]),
     roadsAt,
+    warsAiAi: warList.filter((w) => w.aiAi).length,
+    warsWithHuman: warList.filter((w) => !w.aiAi).length,
+    warList,
+    peace,
+    flips,
+    spyActions,
     state: s,
   };
 }
