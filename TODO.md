@@ -1677,22 +1677,77 @@ Dan pasted his picks into the coding session: Alphabet: B; Bronze Working: A; Ce
 
 ## Current Objective (Focus Area)
 
-### Between rounds — nothing assigned
+### Round 18 — Gameplay fixes from Dan's testing: the next unit in view, Wake, and tapping your own units
 
-Everything through Round 17 is done and live (0.17.1). **Don't start new work until the planning
-session sets the next round here.**
+**Dan's request (2026-09-26):** fix these now and **push**, because they affect every game, especially
+the next unit being selected off screen.
+
+**Pushing: Dan says push the `epoch` repo at the end of this round** (this round only; the standing
+rule stays "Dan's call"). Don't touch the hub.
+
+0. **Commit the updated docs first:** `CLAUDE.md` and `TODO.md` as their own commit, then re-read
+   them.
+
+**Items for the coding agent. Report status on each one individually** (numbered 1–3 as Dan found them):
+1. **After a move, the next unit is selected but can be off screen, so it looks like nothing
+   was selected** (Dan saw it with the Galley, and **confirmed this is what happened**,
+   2026-09-25). Cause: the auto-advance after a move calls `selectNext(false)`, which selects the
+   next unit without moving the map. **Fix:** when the game selects the next unit on its own
+   (after a move, End-of-moves, a closed city panel, etc.), **bring it into view**: pan smoothly
+   to it if it's off screen or near the edge (under the top bar, the minimap, or an open panel);
+   leave the map alone if it's already comfortably visible. Also check while there, and fix if
+   real: a land unit that **boards** a ship keeps its leftover moves and stays selected though
+   it's no longer "ready", so nothing advances; and a ship whose move **stops short** stays
+   selected (that one is fine if intended). Add a scenario and tests.
+
+2. **Un-fortifying is hard to find** (Dan, 2026-09-25: "when something is fortified I don't know
+   how to select it so that I can make it no longer fortified"). Today a fortified unit is skipped
+   by Next Unit; you select it by tapping it (or, in a city, from the city panel's unit list), and
+   it un-fortifies only by moving; the Fortify button just reads "Fortified" (disabled). **Fix:**
+   - with a fortified unit selected, the button becomes **"Wake"** (ships and others: "Stay" →
+     "Wake" too): it un-fortifies the unit, keeps it selected, and puts it back in Next Unit;
+   - make fortified units easy to reach: in the city panel's unit list and the stack list, tapping
+     a fortified unit selects it (check it does), and add a small **"Units" list** (☰ or the top
+     bar) of all your units, filterable by fortified / ready / aboard, where tapping one selects it
+     and centers the map on it;
+   - a line in How to Play (units page): how to wake a fortified unit;
+   - tests and a scenario (`fortified-units`).
+
+3. **Tapping your own unit moves the selected unit onto it instead of selecting it** (Dan,
+   2026-09-25: he'd fortified a Galley by mistake; another unit was auto-selected and he didn't want
+   to move it; tapping the Galley tried to move that unit to the Galley). Today's workaround is ✕
+   (deselect) first, then tap the Galley; not discoverable. **Fix, same idea as Round 17's city
+   rule:** with a unit selected, **tapping a tile holding your own units selects them** (the stack
+   list opens as usual) **unless the selected unit is next to that tile**, where one tap still moves
+   or boards as today. When selecting instead of moving, if the selected unit could go there, the
+   stack list offers **"Move [Warrior] here (N turns)"** / "Board the Galley (N turns)", like the
+   city panel's button. Update `tap.ts`'s rule and comment, How to Play, tests (far/next/diagonal,
+   ships, aircraft unchanged), and extend the `tap-city-with-unit` scenario or add
+   `tap-own-unit`.
+   **DECIDED by Dan (2026-09-26):** this rule, with the extra tap for stacking from a distance
+   (forming an army: tap the stack, then "Move Legion here"; a unit next to the stack still moves
+   in with one tap). **No press-and-hold** shortcut for now.
+
+4. **Wrap-up:** the scenarios named above, each with a note; tests (`pace.test.ts` included); lint and
+   build clean; preview-verified on desktop and in iPad emulation (portrait and landscape).
+
+**Done means:** every item (0, 1–4) reported individually; tests pass; **pushed**, and the live site
+shows the new version; the play server restarted.
+
+**Dan then:** plays a real game on the live site and checks: the map follows the next unit; a
+fortified unit (or Galley) can be woken; tapping another of your units from a distance selects it;
+forming an army from a distance works with "Move here".
 
 **Still open for Dan (no agent work needed):**
-- the iPad **Home Screen icon** sign-in, and the **keep-which question** (play a turn on each
-  device without syncing, then reopen one); after that, cloud saves are signed off;
-- **Q31:** time `huge-map` and `epic-map` on the iPad, to decide Epic's "best on a computer" label;
+- the iPad **Home Screen icon** sign-in, and the **keep-which question**; after that, cloud saves are
+  signed off;
+- **Q31:** time `huge-map` and `epic-map` on the iPad (Epic's "best on a computer" label);
 - optional: the title picture (`docs/TITLE-ART.md`).
 
 **Done by Dan (2026-09-25):** the rules republished after Round 16b; the WebP portraits approved.
 
-**Candidates for the next round (Dan picks):** the balance round in Next Steps (North Korea,
-Russia and the Franks weak; no domination on Huge/Epic; Huge leans economic; Legendary leans
-technology), or whatever Dan finds while playing.
+**After this round:** the balance round in Next Steps (North Korea, Russia and the Franks weak; no
+domination on Huge/Epic; Huge leans economic; Legendary leans technology), or whatever Dan finds.
 
 ## Next Steps (Do Not Start Yet)
 
