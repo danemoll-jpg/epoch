@@ -787,7 +787,9 @@ what was pushed.
   "Move … here", the "Tap twice to move" setting, and Dan's tech icons.
   Pushing is Dan's call again.
 
-**Current objective:** waiting for the planning session (see TODO.md).
+**Current objective: none (between rounds).** Rounds through 17 are done,
+approved, and live (0.17.1). Wait for the planning session to set the next
+round in TODO.md.
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.

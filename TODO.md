@@ -1635,131 +1635,7 @@ saves on the device, but signing in on the iPad and saving to the cloud fail.
 8. **Hub:** https://dansgamehub.netlify.app/ ends with the Epoch card; tap Play.
 9. Still open from Round 16: compare the portraits at http://10.0.0.224:4173/docs/portraits.html.
 
-
-## Current Objective (Focus Area)
-
-### Round 17 — City arrows, no accidental moves into cities, and technology icons (candidates) — done (0.17.0, then 0.17.1 with the tech icons), pushed and live 2026-09-25; reports at the end of this section
-
-**Dan's requests (2026-09-25), from playing the live game:**
-1. In a city screen, arrows to cycle through his other cities.
-2. Tapping a city shouldn't accidentally move a unit.
-3. Icons for the technologies.
-
-**Pushing is Dan's call:** commit as usual, **don't push unless the relay
-says to**, and list the waiting commits in the report. Never push the hub.
-
-**Items for the coding agent. Report status on each one individually:**
-
-0. **Commit the updated docs first:** `CLAUDE.md` and `TODO.md` as their own
-   commit, then re-read them.
-
-**Part A — Cycling through cities**
-
-A1. **◀ ▶ arrows in the city panel's header**, either side of the city
-    name:
-    - they go to the previous / next of **your** cities, in a fixed order
-      (founding order, the capital first), wrapping around; the map
-      recenters on the new city, and the panel keeps the same tab or scroll
-      section where that makes sense (e.g. the build list stays the build
-      list);
-    - show "3 / 12" (this city's place in the list) small under the name,
-      or next to the arrows;
-    - hidden with one city; 44 px tap targets; works in iPad portrait and
-      landscape, and in the landscape side panel;
-    - **PC:** keyboard shortcuts too (e.g. `,` and `.`, or `[` and `]`,
-      whichever doesn't clash with existing keys), shown in the button's
-      tooltip;
-    - **a swipe** left or right on the panel's header does the same on
-      touch, if it can be done without fighting the panel's scrolling;
-      otherwise skip it and say so;
-    - optional, if cheap: a small "needs a build" dot on the arrows' city
-      count when another city is idle.
-
-**Part B — No accidental moves when tapping a city**
-
-B1. **Today's rule** (`src/ui/tap.ts`): with a unit selected, tapping your
-    own city **moves the unit there** (it only opens the city if the unit
-    can't reach it). That's what catches Dan. **New rule:**
-    - with a unit selected, **tapping your own city opens the city panel**
-      instead of moving, **unless the unit is on a tile next to the city**
-      (a one-step move into a city is almost always intended);
-    - **within the city panel**, when it was opened with a unit selected
-      that can reach the city, show a clear button: **"Move [Legion] here
-      (2 turns)"** (the unit's icon, name, and the turns the path takes). It
-      moves the unit and closes the panel;
-    - tapping any other tile moves exactly as today (no change to normal
-      movement);
-    - update the rule's comment, its unit tests, and How to Play / the tip
-      that explains moving, if either says otherwise.
-
-B2. **An optional safety setting, off by default (Q35):** ☰ → Settings →
-    **"Tap twice to move"**: the first tap on a destination shows the path
-    and turns; a second tap on the same tile moves; tapping elsewhere
-    cancels. Only if it fits cleanly with the existing path preview;
-    otherwise report and skip.
-
-**Part C — Technology icons: candidates for Dan to pick (don't wire them in yet)**
-
-C1. **`docs/tech-icon-candidates.html`**, like the earlier icon pickers
-    (building, map, and religion/road icons):
-    - all **56 techs**, grouped by era, each with **3 candidates (A, B, C)**
-      from **game-icons.net (CC BY 3.0)**, with the author shown;
-    - each candidate shown at the sizes it will actually be used (the tech
-      tree card, the research picker, the top bar's research chip, and a
-      toast), on the game's own panel colors;
-    - pick icons that **say what the tech is** at a glance (e.g. The Wheel →
-      a wheel, Writing → a quill or scroll, Railroad → a locomotive,
-      Rocketry → a rocket). **Avoid reusing an icon the game already uses
-      for a unit, building, wonder, resource, or map mark**; where a
-      clash is unavoidable (e.g. Railroad vs the railroad map mark), say so
-      on the card;
-    - the icons stay single-color (tinted by the game), like the others;
-    - a **"Dan's picks" summary** at the bottom Dan can fill in or just tell
-      the planning session ("all A except …");
-    - served on the play server at `/docs/tech-icon-candidates.html`, and
-      checked in iPad-size emulation.
-
-C2. **Where the icons will go** (plan only, for the wiring round): the tech
-    tree, the research picker, the top bar's research chip, the "You
-    learned …" toast, the Almanac, and the leader cards' starting tech.
-    List the places in the report so the next round can wire them.
-
-**Part D — Wrap-up**
-
-D1. **Dev scenarios, each with a note:**
-    - `city-cycle`: 5 cities, one idle; the arrows and count;
-    - `tap-city-with-unit`: a Legion selected 4 tiles from your city;
-      tapping the city opens it with the "Move Legion here" button; a
-      Warrior next to the city moves in with one tap.
-
-D2. **Tests:** the new tap rule (selected unit far vs next to your city;
-    enemy and other tiles unchanged; aircraft unchanged), city cycling
-    (order, wrap, one city, a city lost mid-cycle), the Move-here button's
-    turns, the setting if built, the scenarios, and `pace.test.ts`.
-
-**Done means:**
-- every item (0, A1, B1–B2, C1–C2, D1–D2) is reported individually;
-- tests pass;
-- it's preview-verified on desktop and in iPad emulation;
-- the commits are **listed as waiting for Dan to push**; the play server is
-  restarted.
-
-**Dan then:**
-- (a) tries the arrows and the city tap on the play server
-  (http://10.0.0.224:4173/, `city-cycle` and `tap-city-with-unit`);
-- (b) picks the tech icons on
-  http://10.0.0.224:4173/docs/tech-icon-candidates.html and tells the
-  planning session;
-- (c) says "push" when he wants it live.
-
-**Still open from Round 16/16b (Dan, when convenient):** republish
-`firestore.rules`; the Round 16b checklist (iPad Safari and the Home Screen
-icon sign-in, the keep-which question); compare the WebP portraits.
-
-**Open questions (defaults in bold):**
-- **Q31 — Epic's label on the iPad:** **keep "best on a computer"** until Dan
-  times it.
-- **Q35 — "Tap twice to move" setting:** **built, off by default.**
+* **Round 17 — City arrows, no accidental moves into cities, Tap twice to move, and technology icons (Dan's 56 picks wired in) — done, pushed and live as 0.17.1 (2026-09-25). APPROVED by Dan (2026-09-25).** The hub card now shows Epoch's app icon (hub `1b649f8`). The agent's reports follow, moved from Current Objective.
 
 #### Round 17 report (coding agent, 2026-09-25): all items done; committed, NOT pushed (Dan: wait for the tech icons)
 
@@ -1797,6 +1673,26 @@ Dan pasted his picks into the coding session: Alphabet: B; Bronze Working: A; Ce
 - **Pushed on Dan's "push" (2026-09-25):** `main` `4689436..593168c` (`3b0715c`, `62ec120`, `b9df793`, `593168c`), plus this docs commit. **Live:** https://epoch-fsts.netlify.app/ serves 0.17.1 (`index-Dm2mraAx.js`, the same build as the play server). Pushing is Dan's call again from here.
 
 **Hub card icon (2026-09-25, Dan asked why the hub card used 🏛️):** the hub only supported emoji. On Dan's yes, hub commit `1b649f8` (pushed, live) adds an optional `image` field to hub cards (`app.js`, `styles.css`, documented in `games.js`) and gives the Epoch card `icons/epoch.png`, a copy of Epoch's 192 px app icon, shown at the emoji's size (40 px, rounded); 🏛️ stays as the fallback. Checked locally at desktop, iPad (820) and phone (375) widths: the other 12 cards unchanged, no console errors, the card still opens the live game. The live hub serves the icon.
+
+
+## Current Objective (Focus Area)
+
+### Between rounds — nothing assigned
+
+Everything through Round 17 is done and live (0.17.1). **Don't start new work until the planning
+session sets the next round here.**
+
+**Still open for Dan (no agent work needed):**
+- the iPad **Home Screen icon** sign-in, and the **keep-which question** (play a turn on each
+  device without syncing, then reopen one); after that, cloud saves are signed off;
+- **Q31:** time `huge-map` and `epic-map` on the iPad, to decide Epic's "best on a computer" label;
+- optional: the title picture (`docs/TITLE-ART.md`).
+
+**Done by Dan (2026-09-25):** the rules republished after Round 16b; the WebP portraits approved.
+
+**Candidates for the next round (Dan picks):** the balance round in Next Steps (North Korea,
+Russia and the Franks weak; no domination on Huge/Epic; Huge leans economic; Legendary leans
+technology), or whatever Dan finds while playing.
 
 ## Next Steps (Do Not Start Yet)
 
