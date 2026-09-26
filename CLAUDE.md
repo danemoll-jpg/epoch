@@ -134,6 +134,7 @@ npm run test:rules           # Round 16: firestore.rules against the Firestore e
 python scripts/make-portrait-webp.py      # Round 16: remake src/assets/portraits/*.webp from docs/portraits-master/*.png
 node scripts/make-art-page.mjs            # Round 14: rebuild docs/terrain-style-candidates.html after changing src/render/art.ts
 node scripts/make-building-icons-page.mjs # Round 14: rebuild docs/building-icon-candidates.html (fetches missing SVGs)
+node scripts/make-tech-icons-page.mjs     # Round 17: rebuild docs/tech-icon-candidates.html (56 techs × 3, fetches missing SVGs; fails on a duplicate candidate)
 ```
 **iPad over the local network:**
 ```
@@ -224,7 +225,7 @@ the worker and the page could disagree.
 
 **Settings (Round 13)** live apart from saves, per device:
 `epoch.settings` (`src/ui/settings.ts`, `loadSettings`/`saveSettings`,
-store as a parameter; Round 14 added `minimap`) and `epoch.tipsSeen`
+store as a parameter; Round 14 added `minimap`, Round 17 `tapTwice`) and `epoch.tipsSeen`
 (first-game tips already shown). Dev builds also keep `epoch.devArt`
 (☰ → Art style, the art candidates) on the device.
 Nothing that replaces a save touches them.
@@ -280,7 +281,10 @@ the Grand Cathedral), `ai-roads` (an AI links its cities); (round 16)
 `cloud: () => CloudScenario` on a scenario); (round 16b) `cloud-signin-existing-game`
 (signed out with a game going: sign in and it uploads), `cloud-signin-fails` (the
 first sign-in doesn't finish: the toast; `mockBackend(store, user, { signedIn: false,
-failFirst: 1 })`). A scenario can open a screen at load
+failFirst: 1 })`); (round 17) `city-cycle` (5 cities, Lagash idle: the ◀ ▶
+arrows, "n / 5", the dot), `tap-city-with-unit` (a Legion 4 tiles from Babylon
+selected first: tapping Babylon opens it with "Move Legion here (4 turns)"; the
+Warrior next to it moves in with one tap). A scenario can open a screen at load
 (`opens: 'mainMenu' | 'settings' | 'almanac' | 'howToPlay' | 'setup'`) and
 show every tip afresh (`freshTips`, without touching the device's list);
 scenarios are silent unless Settings → Sound in dev scenarios. The religion ones use
@@ -638,8 +642,30 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   removed so it doesn't look like the Battleship; compare in
   `docs/carrier-trim-candidates.html`).
 - The version shown on the About screen comes from `package.json`
-  (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.16.1 for
-  round 16b.
+  (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.17.0 for
+  round 17.
+- **Round 17: city arrows and the tap rule.** `src/ui/cityCycle.ts` (pure:
+  `cityOrder` = the capital first, then founding order (city id); `cycleCity`
+  wraps, and a city lost mid-cycle goes on from where it stood; `cityPlace`
+  "3 / 12"; `otherIdleCities` for the orange dot). The city panel's header has
+  ◀ ▶ (`data-act` prevCity/nextCity, hidden with one city), keys `,` `.` and
+  `[` `]` while a city is open, and a sideways swipe on the header (the panel is
+  `touch-action: pan-y`, so it never fights the scrolling). **The tap rule
+  (`src/ui/tap.ts`):** with a unit selected, tapping your own city **opens it**
+  unless the unit is next to it (distance 1: then it moves in); when the unit
+  can get there, the result carries `moveUnitId` and the panel shows **"Move
+  <unit> here (N turns)"** (`App.moveHere`, `pathTurns` in `movement.ts`: moves
+  spent as `moveUnit` does, unexplored tiles cost 1). Aircraft are unchanged
+  (a city in range is a rebase). **"Tap twice to move"** (Settings,
+  `tapTwice`, off by default): a 'move' tap first sets `App.pendingMove` and
+  the renderer draws the path and "N turns" (`ViewState.plannedMove`); a second
+  tap on the same tile for the same unit (`confirmMove`) moves.
+- **Round 17: `docs/tech-icon-candidates.html`** + `docs/tech-icon-candidates/`
+  (168 SVGs, `SOURCES.md`): 3 game-icons.net candidates per tech, by era, each
+  shown on a tree card, the research picker, the top-bar chip, and a toast;
+  none is an icon the game already uses (the script checks `src/assets/icons/`
+  and marks a clash on the card). Picks are saved under `epoch.techIconPicks`;
+  "Dan's picks" at the bottom gives "all A except …". **Not wired in yet.**
 - **Meeting a civ reveals where its capital is** (Round 11: the tile is
   marked explored), so conquerors can find the capitals domination needs.
 - **Victory goals (Round 15):** culture 8000, gold 13000 on Normal. Each
@@ -746,11 +772,14 @@ what was pushed.
   for that round only. Commit as usual, push only when told, and list the
   waiting commits in the report.
 
-**Current objective: Round 17** (see TODO.md): ◀ ▶ arrows to cycle cities
-in the city panel, tapping your own city with a unit selected opens the city
-(with a "Move here" button) instead of moving, an optional "Tap twice to
-move" setting, and a technology-icon candidates page for Dan (not wired in
-yet). **Don't push** unless Dan says.
+- **Round 17 (version 0.17.0): done, committed, NOT pushed.** City arrows,
+  the new city-tap rule with "Move … here", the "Tap twice to move" setting,
+  and the tech icon candidates page. **Dan (2026-09-25): don't push until the
+  tech icons he picks are wired in** (the next round), so Round 17's commits
+  wait in the local repo and go out with that round's push, on his say-so.
+
+**Current objective:** waiting for Dan's tech icon picks and the planning
+session (see TODO.md).
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.
