@@ -849,6 +849,9 @@ what was pushed.
   ☰ → Units, and tapping your own units from a distance selects them (with
   "Move … here" / "Board the …"). Pushing is Dan's call again.
 
+- **Round 19 (version 0.19.0): done, pushed 2026-09-26 on Dan's say-so, live.** See the
+  Round 19 report in TODO.md (balance leftovers listed there). Pushing is Dan's call again.
+
 **Current objective: Round 19** (see TODO.md): one bundled update from Dan's
 playtest, built in Parts A–F plus balance: victory warnings, the era card,
 wonder and build pop-ups, the news log, obsolete units and upgrades, spies,

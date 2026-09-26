@@ -2120,6 +2120,27 @@ the leader-scene crops if not already done, and says "push".
 - **Verified:** tests (1055 pass), build clean; preview-verified in iPad portrait and landscape
   (the demand scene).
 
+#### Round 19 report (coding agent, 2026-09-26): all items done; version 0.19.0; pushed on Dan's say-so
+
+| # | Item | Status | Verified |
+|---|---|---|---|
+| 0 | Docs commit | Done: `306cd2d` (CLAUDE.md, TODO.md only), then re-read. Nothing from the Round 18 report was dropped. | n/a |
+| 1 | New era moment | Done (Part A): full-screen era card (tint, flavor, era bonus, what's new), the era chip in the top bar, a panel when a rival enters an era first. | Unit-tested; scenarios `era`, `rival-era`; preview (landscape). |
+| 2 | Pop-ups for builds and wonders | Done (Part A): wonder card with what it does; one list for buildings (with effects) and units; rival wonders get a panel, and say when yours can't be built. | Unit/scenario-tested (`built-this-turn`, `wonder`, `wonder-race`); preview (portrait). |
+| 3 | Toasts and news log | Done (Part A): bigger, longer (4–12 s by length), tap to dismiss, held while a card is up; 📰 News (count) and ☰ → News. **Root cause found:** the capped log stopped all new news mid-game (fixed with a running count). | Unit-tested; preview. |
+| 4 | City on a new unit | Done (Part A): "Legion · just trained in Kish". | Scenario `built-this-turn`; preview. |
+| 5 | Wars | Done (Part D + B): measured first (before: 4.8 wars per Normal game, 90% by Medieval, so the rules had wars; Dan wasn't told, see item 3); every war between civs you've met now has a panel (a card or scene when on you); AI war numbers tuned in B. After: 5.7 per Normal game counting the stand-in's own declarations; about 4.7 that a human would see (3.5 AI vs AI + 1.2 on the player); 90% by Medieval. Slightly above the 2–4 target. | Sim matrix (40 games per row). |
+| 6 | Leader scenes | Done (Part F): all 12 originals present; masters in `docs/portraits-full-master/`, 1200 px WebP (1,702 KB, cached on first use, not up front). Used for first contact, Diplomacy, demands/offers, war both ways, peace, and met rivals' victory warnings. **Dan: approve the crops on `docs/leader-scenes.html`.** | Unit-tested (face clear of the words at 5 screen shapes); scenario `leader-scenes`; preview (portrait, landscape). |
+| 7 | Culture borders and referendums | Done (Part E), with save v15. No founding inside others' borders; both ways; capitals and new/recent cities safe; AI answers with defenders and Temples. After: 2.5 flips per Normal game (0.5–2.5 by size). | Unit-tested; scenario `culture-flip`; preview (portrait). |
+| 8 | Obsolete units and upgrades | Done (Part B): Legion → Rifleman and a separate cargo ship line (reported changes to the draft); Upgrade in the unit and city panels, Upgrade all; the AI upgrades. | Unit-tested; scenario `upgrade-units`; preview (portrait). |
+| 9 | Victory warnings | Done (Part A, top priority): full-screen cards at 75%, goal, started (city and turns), ≤5 turns, every turn from 3, spaceship countdown, one capital left; advice; unmet civs warned; red dot on 🏆; 🏆 shows wonders in progress. | Unit-tested; scenario `rival-victory-wonder`; preview. |
+| 10 | Keep playing: later wins | Done (Part A): later wins recorded (`laterWins`) with a card; 🏆 and launch buttons say a win won't count. | Unit-tested; scenario `keep-playing-spaceship`; preview. |
+| 11 | Spies | Done (Part C) with save v14; Dan picked icon A (in use). AI spies too. After: about 1 spy action per Normal game (1–2.6 by row). **Plus Dan's mid-round addition:** Modern Infantry and the Drone (Scout), AI builds and uses both. | Unit-tested; scenarios `spies`, `new-units`; preview. |
+| B | Balance | Done, partly on target. Final numbers: culture goal 9500 (was 8000), AI war ratio 1.4 and war chance 2.5%/point (max 15%), referendums from 8 unrest at 15%, AI spies at 45%+. **40 games per row, before → after:** earliest win: Small t141 → t160, all rows ≥ t158 ✓. Mix (share of top kind): Small culture 35 → 40%, Normal culture 48 → 35% ✓, Large 35 → economic 40%, Huge economic 43 → **52%** ✗, Epic culture 43 → technology 40%, Novice culture 48 → **48%** ✗, Legendary technology 48 → **58%** ✗. Leaders over 2× their fair share after: Ukraine on Normal (10 of 40), the USA on Epic (13), Germany on Huge (11), Ukraine on Legendary (9) ✗. Domination on Huge/Epic: still none ✗. North Korea, Russia and the Franks: still under their share ✗. A targeted run on Huge's gold goal and Legendary's goals was still going at push time; its numbers aren't in. | Sim matrix; tests (1055 pass). |
+
+**Pushed on Dan's say-so, 2026-09-26:** `main` up to `0ff3a82` plus this report. Every push deploys to https://epoch-fsts.netlify.app/. The hub was not touched.
+**Dan then:** approve the leader-scene crops; play a full game; the balance leftovers above (Huge economic, Legendary technology, Novice culture, some leaders too strong) are for the planning session.
+
 ## Next Steps (Do Not Start Yet)
 
 All of these are deferred for **sequencing only**. Each depends on the
