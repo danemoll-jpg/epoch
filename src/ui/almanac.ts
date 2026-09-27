@@ -234,7 +234,7 @@ function ruleCards(): AlmanacCard[] {
     row('Referendum', esc(`From ${B.voteAt} unrest, each turn a ${B.votePct}% chance (${B.perDefenderPct}% per defender, ${B.resistBuildingPct}% with a ${BUILDINGS[B.resistBuilding].name}, at least ${B.minVotePct}%) that it joins the rival, keeping its buildings. Original capitals never leave, nor a city within ${B.protectTurns} turns of being founded or changing hands. It works both ways.`));
   const upgrades =
     row('Old units', 'Once you can build a unit’s replacement, the old one leaves the Build list.') +
-    row('Upgrade', esc(`In one of your cities: (new cost − old cost) × ${RULES.upgrade.goldPerProduction} gold, at least ${RULES.upgrade.minGold}; an army counts its three units. It uses the turn; ★ and the army stay.`));
+    row('Upgrade', esc(`Anywhere inside your borders, land or sea (not aboard a ship): (new cost − old cost) × ${RULES.upgrade.goldPerProduction} gold, at least ${RULES.upgrade.minGold}; an army counts its three units. It uses the turn; ★ and the army stay.`));
   return [
     card('rule:borders', 'rule', 'Borders and referendums', 'Rule', disc('🗺'), borders),
     card('rule:upgrades', 'rule', 'Old units and upgrades', 'Rule', disc('⬆'), upgrades),

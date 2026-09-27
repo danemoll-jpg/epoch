@@ -91,7 +91,7 @@ export interface UnitDef {
   spreadsReligion?: boolean;
   /**
    * Round 19 (item 8): the unit that replaces this one. Once its owner can build that, this one
-   * leaves the build list, and units of this kind in a city can be upgraded (src/game/upgrades.ts).
+   * leaves the build list, and units of this kind inside their owner's borders can be upgraded (src/game/upgrades.ts).
    */
   upgradesTo?: UnitTypeId;
   /** Round 19 (item 11): a Spy: invisible to rivals, acts once on a rival city (src/game/spies.ts). */

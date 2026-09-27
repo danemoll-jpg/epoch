@@ -17,7 +17,7 @@ import { GREAT_PEOPLE, GREAT_PEOPLE_RULES } from '../data/greatPeople';
 import { RESOURCES } from '../data/resources';
 import { villageAt } from '../game/barbarians';
 import { cityNameFor, foundCityError } from '../game/city';
-import { upgradableUnits, upgradeCost, upgradeError, upgradeTarget } from '../game/upgrades';
+import { inUpgradeZone, upgradableUnits, upgradeCost, upgradeError, upgradeTarget } from '../game/upgrades';
 import { borderRadius, flipProtected, pullOn, referendumChance } from '../game/borders';
 import { hasIntel, hasSpyDefense, inciteCost, isSpy, spyActionError, spyChance, spyDefenseName, spyTargets, stealableTechs, type SpyOutcome } from '../game/spies';
 import { SPY_ACTIONS, SPY_ACTION_IDS, type SpyActionId } from '../data/spies';
@@ -1024,16 +1024,15 @@ export class App {
   }
 
   /**
-   * Round 19 (item 8): "⬆ Upgrade to Musketman (40 gold)" for an out-of-date unit in one of your
-   * cities (disabled, with the reason, when it can't right now); nothing otherwise.
+   * Round 19 (item 8): "⬆ Upgrade to Musketman (40 gold)" for an out-of-date unit inside your
+   * borders (Round 22; disabled, with the reason, when it can't right now); nothing otherwise.
    */
   private upgradeButton(u: Unit, compact = false): string {
     if (u.owner !== this.human) return '';
     const to = upgradeTarget(this.state, u);
     const cost = upgradeCost(this.state, u);
     if (!to || cost === undefined) return '';
-    const inCity = this.state.cities.some((c) => c.x === u.x && c.y === u.y && c.owner === this.human) && u.carriedBy === null;
-    if (!inCity) return compact ? '' : `<div class="label">⬆ Can be upgraded to the ${UNITS[to].name} in one of your cities.</div>`;
+    if (!inUpgradeZone(this.state, u)) return compact ? '' : `<div class="label">⬆ Can be upgraded to the ${UNITS[to].name} inside your borders.</div>`;
     const err = upgradeError(this.state, u);
     return `<button type="button" data-act="upgrade" data-unit="${u.id}" class="upgradeBtn" ${err ? 'disabled' : ''} title="${esc(err ?? 'Uses its turn; it stays a veteran if it is one')}">${
       compact ? '' : this.badge(to, u.owner)
@@ -4447,7 +4446,7 @@ export class App {
       }
       if (!targets.length) navalBtns += `<div class="label">Walk into or next to a city that doesn’t follow ${esc(faith?.name ?? 'your faith')} (yours, or a civ at peace with you), then spread it.</div>`;
     }
-    // Round 19 (item 8): an out-of-date unit in one of your cities can be upgraded.
+    // Round 19 (item 8): an out-of-date unit inside your borders (Round 22) can be upgraded.
     if (mine) navalBtns += this.upgradeButton(sel);
     // Round 19 (item 11): a Spy inside or next to a rival city: its four actions, with the odds.
     if (mine && isSpy(sel)) navalBtns += this.spyButtons(sel);

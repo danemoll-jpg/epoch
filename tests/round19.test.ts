@@ -358,9 +358,9 @@ describe('Round 19 item 8: obsolete units and upgrades', () => {
     p.gold = 500;
     expect(upgradeError(s, w)).toBeUndefined();
     const out = addUnit(s, 'warrior', 0, 5, 5);
-    expect(upgradeError(s, out)).toBe('Only in one of your cities');
+    expect(upgradeError(s, out)).toBe('Only inside your borders');
     const theirs = addUnit(s, 'warrior', 0, 10, 3);
-    expect(upgradeError(s, theirs)).toBe('Only in one of your cities');
+    expect(upgradeError(s, theirs)).toBe('Only inside your borders');
     const frigate = addUnit(s, 'frigate', 0, 3, 3);
     addUnit(s, 'warrior', 0, 3, 3, { carriedBy: frigate.id });
     expect(upgradeError(s, frigate)).toBe('Unload its cargo first');

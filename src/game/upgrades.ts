@@ -4,7 +4,8 @@
 //   Once its owner knows the replacement's techs, the old unit leaves the build list (units
 //   already out stay); a city still set to build it switches to the replacement, keeping its
 //   production.
-// - Upgrade: a unit standing in one of its owner's cities (not aboard a ship) becomes the best
+// - Upgrade: a unit standing inside its owner's borders, land or sea (not aboard a ship; Round 22
+//   item 1, was: only in a city), becomes the best
 //   unit along its line that its owner can build, for gold: the production difference times
 //   RULES.upgrade.goldPerProduction, at least minGold, an army counting each of its units, and
 //   the difficulty level's percent for the player. It uses the unit's turn; veteran status,
@@ -14,6 +15,7 @@
 import { DIFFICULTIES, DEFAULT_DIFFICULTY } from '../data/difficulty';
 import { RULES } from '../data/rules';
 import { UNITS, type UnitTypeId } from '../data/units';
+import { tileOwner } from './borders';
 import { cargoOf, isShip } from './naval';
 import { hasTech } from './tech';
 import type { ActionResult, GameState, Player, Unit } from './types';
@@ -57,14 +59,21 @@ export function upgradeCost(state: GameState, u: Unit): number | undefined {
   return Math.ceil((base * pct) / 100);
 }
 
+/** Round 22 (item 1): where upgrades happen: any tile inside the owner's borders, land or water. */
+export const UPGRADE_WHERE = 'Only inside your borders';
+
+/** The unit stands inside its owner's borders (and isn't aboard a ship), so it may upgrade there. */
+export function inUpgradeZone(state: GameState, u: Unit): boolean {
+  return u.carriedBy === null && tileOwner(state, u.x, u.y) === u.owner;
+}
+
 /** Why this unit can't be upgraded right now, or undefined if it can. */
 export function upgradeError(state: GameState, u: Unit): string | undefined {
   const to = upgradeTarget(state, u);
   if (!to) return 'Nothing newer to upgrade to';
   if (state.currentPlayer !== u.owner) return 'Not your turn';
-  if (u.carriedBy !== null) return 'Only in one of your cities';
-  const city = state.cities.find((c) => c.x === u.x && c.y === u.y);
-  if (!city || city.owner !== u.owner) return 'Only in one of your cities';
+  if (u.carriedBy !== null) return 'Not while aboard a ship';
+  if (!inUpgradeZone(state, u)) return UPGRADE_WHERE;
   if (u.movesLeft <= 0) return 'It has already used its turn';
   if (isShip(u) && cargoOf(state, u).length > UNITS[to].cargo) return 'Unload its cargo first';
   const cost = upgradeCost(state, u)!;
@@ -88,15 +97,14 @@ export function upgradeUnit(state: GameState, unitId: number): ActionResult {
   return { ok: true, message: `${from}${u.army ? ' army' : ''} upgraded to ${UNITS[to].name}${u.veteran ? ' (still a veteran)' : ''} for ${cost} gold` };
 }
 
-/** The player's units that could be upgraded (tech-wise) and stand in one of their cities, with each cost. */
+/** The player's units that could be upgraded (tech-wise) and stand inside their borders, with each cost. */
 export function upgradableUnits(state: GameState, p: number): { unit: Unit; to: UnitTypeId; cost: number }[] {
   const out: { unit: Unit; to: UnitTypeId; cost: number }[] = [];
   for (const u of state.units) {
     if (u.owner !== p || u.carriedBy !== null) continue;
     const to = upgradeTarget(state, u);
     if (!to) continue;
-    const city = state.cities.find((c) => c.x === u.x && c.y === u.y);
-    if (!city || city.owner !== p) continue;
+    if (!inUpgradeZone(state, u)) continue;
     out.push({ unit: u, to, cost: upgradeCost(state, u)! });
   }
   return out;

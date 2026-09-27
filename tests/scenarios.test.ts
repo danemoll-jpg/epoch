@@ -36,7 +36,8 @@ import { RELIGION, RELIGION_SYMBOLS } from '../src/data/religion';
 import { ROADS } from '../src/data/roads';
 import { faithOpinion, holyReligion, religionCityCulture, religionCityGold, spreadTargets } from '../src/game/religion';
 import { roadAt, roadConnected } from '../src/game/roads';
-import { BUILT_CITIES, FLIP_TOWN, METZ, NEW_UNITS_SCOUT, RIVAL_WONDER, UPGRADE_GOLD, CYCLE_CITIES, FORTIFIED, LARGE_MAP_TURNS, MINIMAP_SEED, NEXT_UNIT, TAP_CITY_LEGION, TAP_CITY_WARRIOR, TAP_OWN } from '../src/dev/scenarios';
+import { BUILT_CITIES, FLIP_TOWN, METZ, NEW_UNITS_SCOUT, RIVAL_WONDER, UPGRADE_COAST,
+  UPGRADE_GOLD, CYCLE_CITIES, FORTIFIED, LARGE_MAP_TURNS, MINIMAP_SEED, NEXT_UNIT, TAP_CITY_LEGION, TAP_CITY_WARRIOR, TAP_OWN } from '../src/dev/scenarios';
 import { listUnits } from '../src/ui/unitsList';
 import { cityOrder, cycleCity, otherIdleCities } from '../src/ui/cityCycle';
 import { resolveTap } from '../src/ui/tap';
@@ -148,7 +149,17 @@ const OUTCOMES: Record<string, (s: GameState) => void> = {
     expect(s.players[0]!.gold).toBe(UPGRADE_GOLD - 260);
     expect(inCity.find((u) => u.army)!.type).toBe('musketman');
     const outside = s.units.find((u) => u.owner === 0 && u.type === 'archer')!;
-    expect(upgradeError(s, outside)).toBe('Only in one of your cities');
+    expect(upgradeError(s, outside)).toBe('Only inside your borders');
+    // Round 22 (item 1): in Eridu's borders, the Horseman in the field and the Galley at sea.
+    const horse = s.units.find((u) => u.owner === 0 && u.type === 'horseman')!;
+    const galley = s.units.find((u) => u.owner === 0 && u.type === 'galley')!;
+    expect(galley).toMatchObject(UPGRADE_COAST);
+    expect(s.cities.some((c) => c.x === horse.x && c.y === horse.y)).toBe(false);
+    expect(upgradeError(s, horse)).toBeUndefined();
+    expect(upgradeError(s, galley)).toBeUndefined();
+    expect(applyAction(s, { type: 'upgrade', unitId: galley.id }).ok).toBe(true);
+    expect(galley.type).toBe('caravel');
+    expect(noteOf('upgrade-units')).toContain('the Galley at sea can both upgrade');
   },
   spies: (s) => {
     const spies = s.units.filter((u) => u.owner === 0 && u.type === 'spy');

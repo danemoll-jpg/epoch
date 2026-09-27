@@ -2071,6 +2071,8 @@ function builtThisTurnScenario(): GameState {
 
 /** Round 19 (item 8): just after Gunpowder, with gold; a Spearman, a veteran Archer and a Warrior army in the capital. */
 export const UPGRADE_GOLD = 300;
+/** Round 22 (item 1): the coast tile west of Eridu, where the Galley waits (inside Eridu's borders). */
+export const UPGRADE_COAST = { x: 1, y: 7 };
 export function upgradeUnitsScenario(): GameState {
   const { state } = withCapital(undefined, { size: 4, build: { kind: 'unit', id: 'pikeman' } });
   const p = state.players[0]!;
@@ -2079,8 +2081,15 @@ export function upgradeUnitsScenario(): GameState {
   addUnit(state, 'spearman', 0, CITY_X, CITY_Y, { fortified: true });
   addUnit(state, 'archer', 0, CITY_X, CITY_Y, { veteran: true });
   addUnit(state, 'warrior', 0, CITY_X, CITY_Y, { army: true });
-  // One outside the city: it can't upgrade until it comes home.
+  // One two tiles out, beyond the capital's borders: it can't upgrade until it comes inside them.
   addUnit(state, 'archer', 0, CITY_X + 2, CITY_Y);
+  // Round 22 (item 1): a second city on the west coast, a Horseman in its borders outside the
+  // city and a Galley at sea inside them: both can upgrade where they stand.
+  p.techs.push('horseback_riding', 'the_wheel', 'map_making', 'navigation');
+  addCity(state, 0, UPGRADE_COAST.x + 1, UPGRADE_COAST.y, { name: 'Eridu', build: { kind: 'unit', id: 'musketman' } });
+  p.citiesFounded = 2;
+  addUnit(state, 'horseman', 0, UPGRADE_COAST.x + 2, UPGRADE_COAST.y + 1);
+  addUnit(state, 'galley', 0, UPGRADE_COAST.x, UPGRADE_COAST.y);
   // The Pikeman build went out of date with Gunpowder (as learning it does in a game).
   state.cities[0]!.build = { kind: 'unit', id: 'musketman' };
   return state;
@@ -2182,7 +2191,7 @@ const ROUND19_SCENARIOS: Scenario[] = [
   {
     id: 'upgrade-units',
     title: 'Upgrade old units',
-    note: `You just learned Gunpowder and have ${UPGRADE_GOLD} gold. Open ${CAPITAL}: the Build list has the Musketman but no Warrior, Spearman, Pikeman or Archer (tap ⓘ on the Musketman: the Almanac says what it replaces). Each unit in the city has ⬆ Upgrade to Musketman: the Spearman and the Archer 40 gold each, the Warrior army 180 (three units). Upgrade the ★ Archer: it stays a veteran and its turn is used. ☰ → Units → Upgrade all does the rest (the Archer outside the city has to come home first).`,
+    note: `You just learned Gunpowder and have ${UPGRADE_GOLD} gold. Open ${CAPITAL}: the Build list has the Musketman but no Warrior, Spearman, Pikeman or Archer (tap ⓘ on the Musketman: the Almanac says what it replaces). Each unit in the city has ⬆ Upgrade to Musketman: the Spearman and the Archer 40 gold each, the Warrior army 180 (three units). Upgrade the ★ Archer: it stays a veteran and its turn is used. ☰ → Units → Upgrade all does the rest (the Archer two tiles east is outside your borders: it has to come inside them first). Upgrades work anywhere inside your borders: near Eridu, on the west coast, the Horseman in the field and the Galley at sea can both upgrade where they stand.`,
     build: upgradeUnitsScenario,
   },
   // ---- Round 19 Part C ----
