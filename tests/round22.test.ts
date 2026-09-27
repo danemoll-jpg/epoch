@@ -352,3 +352,51 @@ describe('Round 22 item 2: bought roads', () => {
     expect(roadOption(s, 0, chernihiv, oxford)!.newTiles).toBe(0);
   });
 });
+
+// ---- item 6: Unload all ----------------------------------------------------------------------
+
+import { unloadAll, unloadAllError } from '../src/game/movement';
+
+describe('Round 22 item 6: Unload all', () => {
+  // Water in column 0-1, land from column 2; a Galley at (1, 1).
+  function beach() {
+    const s = makeState(['ccgggg', 'ccgggg', 'ccgggg']);
+    addCity(s, 0, 4, 1, { name: 'Ur' });
+    const galley = addUnit(s, 'galley', 0, 1, 1);
+    return { s, galley };
+  }
+
+  it('needs a land tile next to the ship at sea; stacks everyone there', () => {
+    const { s, galley } = beach();
+    const a = addUnit(s, 'warrior', 0, 1, 1, { carriedBy: galley.id });
+    const b = addUnit(s, 'archer', 0, 1, 1, { carriedBy: galley.id });
+    expect(unloadAll(s, galley.id).reason).toBe('Tap a land tile next to the ship to unload there');
+    expect(unloadAll(s, galley.id, { x: 3, y: 1 }).reason).toBe('Pick a land tile next to the ship');
+    expect(unloadAll(s, galley.id, { x: 0, y: 1 }).reason).toBe('Pick a land tile next to the ship');
+    expect(unloadAll(s, galley.id, { x: 2, y: 2 })).toEqual({ ok: true, message: '2 units went ashore' });
+    for (const u of [a, b]) expect(u).toMatchObject({ x: 2, y: 2, carriedBy: null, movesLeft: 0 });
+  });
+
+  it('those that can\'t go stay aboard with a reason; nothing to do says so', () => {
+    const { s, galley } = beach();
+    expect(unloadAllError(s, galley)).toBe('Nothing aboard');
+    const w = addUnit(s, 'warrior', 0, 1, 1, { carriedBy: galley.id, movesLeft: 0 });
+    expect(unloadAllError(s, galley)).toBe('Everyone aboard has used their moves');
+    w.movesLeft = 1;
+    // A rival unit on the beach (at peace): nobody can land there.
+    s.atWar[0]![1] = false;
+    s.atWar[1]![0] = false;
+    addUnit(s, 'warrior', 1, 2, 1);
+    const res = unloadAll(s, galley.id, { x: 2, y: 1 });
+    expect(res.ok).toBe(false);
+    expect(res.reason).toMatch(/^Nobody could go ashore \(Warrior: you are at peace with/);
+    expect(w.carriedBy).toBe(galley.id);
+  });
+
+  it('works through applyAction, only on your turn and your ship', () => {
+    const { s, galley } = beach();
+    addUnit(s, 'warrior', 0, 1, 1, { carriedBy: galley.id });
+    s.currentPlayer = 1;
+    expect(applyAction(s, { type: 'unloadAll', shipId: galley.id, to: { x: 2, y: 1 } }).reason).toBe('Not your turn');
+  });
+});

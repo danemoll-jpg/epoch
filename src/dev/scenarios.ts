@@ -2341,6 +2341,25 @@ export function roadDirectScenario(): GameState {
   return state;
 }
 
+/**
+ * Round 22 (item 6): a Transport at sea next to the eastern beach with a Warrior, a Legion army
+ * and a Settler that has used its move; a Galley in port with an Archer and a Spearman.
+ */
+export const UNLOAD_SEA = { x: 8, y: 5 };
+export const UNLOAD_BEACH = { x: 9, y: 5 };
+export function unloadAllScenario(): GameState {
+  const state = seaState(9);
+  state.players[0]!.techs.push('industrialization');
+  const transport = addUnit(state, 'transport', 0, UNLOAD_SEA.x, UNLOAD_SEA.y);
+  addUnit(state, 'warrior', 0, UNLOAD_SEA.x, UNLOAD_SEA.y, { carriedBy: transport.id });
+  addUnit(state, 'legion', 0, UNLOAD_SEA.x, UNLOAD_SEA.y, { carriedBy: transport.id, army: true });
+  addUnit(state, 'settler', 0, UNLOAD_SEA.x, UNLOAD_SEA.y, { carriedBy: transport.id, movesLeft: 0 });
+  const galley = addUnit(state, 'galley', 0, PORT.x, PORT.y);
+  addUnit(state, 'archer', 0, PORT.x, PORT.y, { carriedBy: galley.id });
+  addUnit(state, 'spearman', 0, PORT.x, PORT.y, { carriedBy: galley.id });
+  return state;
+}
+
 function roadDirectOption() {
   const s = roadDirectScenario();
   return roadOption(s, 0, s.cities[0]!, s.cities[1]!)!;
@@ -2364,6 +2383,12 @@ const ROUND22_SCENARIOS: Scenario[] = [
     title: 'Roads go direct',
     note: `An old road runs from ${CAPITAL} down to Nantes (a rival's city, at peace) and back up to Oxford. Open ${CAPITAL}: under Build road to…, tap Oxford: the route shows on the map, heading east in ${plural(roadDirectOption().path.length + 1, 'step')} (${plural(roadDirectOption().newTiles, 'new tile')}, ${roadDirectOption().cost} gold), not down through Nantes, with a ✓ Build button. Tap Build. Nantes is already joined to ${CAPITAL} by the old road.`,
     build: roadDirectScenario,
+  },
+  {
+    id: 'unload-all',
+    title: 'Unload all',
+    note: `Your Transport, off the eastern beach, carries a Warrior, a Legion army and a Settler that has already moved. Tap the Transport: ⚓ Unload all (2). Tap it, then the beach tile next to the ship: the Warrior and the Legion army go ashore together (still an army); the Settler stays aboard, and the message says why. Or drag the Transport onto the beach. In ${CAPITAL}, the Galley in port has an Archer and a Spearman: Unload all puts both in the city at once.`,
+    build: unloadAllScenario,
   },
 ];
 

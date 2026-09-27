@@ -3201,3 +3201,9 @@ button.alink {
 .roadConfirm .diploActions button {
   min-height: 44px;
 }
+
+/* ---- Round 22 (item 6): Unload all waiting for a tile ---- */
+#stackList .navalBtn.waiting {
+  outline: 3px solid #ffe066;
+  outline-offset: 1px;
+}

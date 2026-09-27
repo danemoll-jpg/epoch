@@ -25,7 +25,7 @@ import { distance, inBounds, neighbors, tileAt } from './grid';
 import { civName } from './conquest';
 import { updateContacts } from './diplomacy';
 import { updateExplored } from './fog';
-import { airRoom, cargoCapacity, cargoRoom, carriedBy, hovers, isAir, isCoastal, isShip, isWaterAt, shipTerrainError, shipWithRoom, terrainAllows } from './naval';
+import { airRoom, cargoCapacity, cargoOf, cargoRoom, carriedBy, hovers, isAir, isCoastal, isShip, isWaterAt, shipTerrainError, shipWithRoom, terrainAllows } from './naval';
 import { rebase, rebaseTargets } from './air';
 import { roadStepCost } from './roads';
 import { atWar } from './war';
@@ -217,6 +217,57 @@ export function unloadHere(state: GameState, unitId: number): ActionResult {
   unit.carriedBy = null;
   unit.movesLeft = 0;
   return { ok: true };
+}
+
+/**
+ * Round 22 (item 6): the land tiles next to a ship at sea where its cargo could go ashore (an
+ * empty list in port, where "Unload all" needs no tile).
+ */
+export function unloadAllTiles(state: GameState, ship: Unit): Coord[] {
+  if (!isWaterAt(state, ship.x, ship.y)) return [];
+  return neighbors(state.map, ship).filter((n) => !isWaterAt(state, n.x, n.y) && TERRAIN[tileAt(state.map, n.x, n.y)!.terrain].landPassable);
+}
+
+/** Why "Unload all" can't be used on this ship at all, or undefined. */
+export function unloadAllError(state: GameState, ship: Unit | undefined): string | undefined {
+  if (!ship || !isShip(ship)) return 'Not a ship';
+  if (state.currentPlayer !== ship.owner) return 'Not your turn';
+  const cargo = cargoOf(state, ship);
+  if (!cargo.length) return 'Nothing aboard';
+  if (!cargo.some((u) => u.movesLeft > 0)) return 'Everyone aboard has used their moves';
+  return undefined;
+}
+
+/**
+ * Round 22 (item 6): every land unit aboard `shipId` with moves left goes ashore: in port, into
+ * the city; at sea, onto the land tile `to` next to the ship (each takes its own step, so they
+ * stack there as usual and an army stays an army). Those that can't (no moves left, or that
+ * tile won't take them) stay aboard, and the message says why.
+ */
+export function unloadAll(state: GameState, shipId: number, to?: Coord): ActionResult {
+  const ship = findUnit(state, shipId);
+  const err = unloadAllError(state, ship);
+  if (err) return { ok: false, reason: err };
+  const atSea = isWaterAt(state, ship!.x, ship!.y);
+  if (atSea) {
+    if (!to) return { ok: false, reason: 'Tap a land tile next to the ship to unload there' };
+    if (!unloadAllTiles(state, ship!).some((c) => c.x === to.x && c.y === to.y)) return { ok: false, reason: 'Pick a land tile next to the ship' };
+  }
+  let moved = 0;
+  const stayed: string[] = [];
+  for (const u of cargoOf(state, ship!).sort((a, b) => a.id - b.id)) {
+    const name = `${UNITS[u.type].name}${u.army ? ' army' : ''}`;
+    if (u.movesLeft <= 0) {
+      stayed.push(`${name}: no moves left`);
+      continue;
+    }
+    const res = atSea ? moveUnit(state, u.id, to!) : unloadHere(state, u.id);
+    if (res.ok) moved++;
+    else stayed.push(`${name}: ${(res.reason ?? 'can’t go there').replace(/^./, (c) => c.toLowerCase())}`);
+  }
+  if (!moved) return { ok: false, reason: `Nobody could go ashore (${stayed.join('; ')})` };
+  const went = `${moved === 1 ? '1 unit' : `${moved} units`} went ashore`;
+  return { ok: true, message: stayed.length ? `${went}; staying aboard: ${stayed.join('; ')}` : went };
 }
 
 /**

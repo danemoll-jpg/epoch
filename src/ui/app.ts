@@ -46,7 +46,7 @@ import { distance, neighbors, tileAt, tileIndex } from '../game/grid';
 import { unitVisibleTo } from '../game/fog';
 import { aircraftOf, airCapacity, armyWord, cargoCapacity, cargoOf, hovers, isAir, isShip, isWaterAt } from '../game/naval';
 import { entriesSince, entryText, eventsVisibleTo } from '../game/log';
-import { findPath, findUnit, pathTurns, reachableThisTurn, stepError } from '../game/movement';
+import { findPath, findUnit, pathTurns, reachableThisTurn, stepError, unloadAllError, unloadAllTiles } from '../game/movement';
 import { migrationSummary } from '../game/save';
 import {
   buildOptions,
@@ -261,6 +261,8 @@ export class App {
   private endDismissed = false;
   /** Diplomacy screen view state: the civ picked, which page, the tech asked for, the last answer. */
   private diploCiv: number | undefined;
+  /** Round 22 (item 6): Unload all at sea: the ship whose cargo goes ashore on the next land tile tapped. */
+  private unloadAllShip: number | undefined;
   /** Round 22 (item 2): a road tapped in the city panel, shown on the map until Build or Cancel. */
   private roadPlan: { fromId: number; toId: number } | undefined;
   /** Round 22 (item 3): a nation opens on its overview; 'main' is the talk page (after the leader scene). */
@@ -369,6 +371,7 @@ export class App {
       if (btn.dataset.act === 'army') this.formArmyOf(id);
       else if (btn.dataset.act === 'board') this.boardShip(id, Number(btn.dataset.ship));
       else if (btn.dataset.act === 'unload') this.unloadHere(id);
+      else if (btn.dataset.act === 'unloadAll') this.startUnloadAll(Number(btn.dataset.ship));
       else if (btn.dataset.act === 'airlift') this.pickAirlift(id);
       else if (btn.dataset.act === 'spread') this.spreadReligion(id, Number(btn.dataset.city));
       else if (btn.dataset.act === 'moveHere') this.moveUnitHere(id);
@@ -1418,6 +1421,42 @@ export class App {
     }
   }
 
+  /**
+   * Round 22 (item 6): Unload all. In port everyone with moves steps into the city at once; at
+   * sea the next tap (or a drag of the ship) on a land tile next to it unloads them there.
+   */
+  private startUnloadAll(shipId: number): void {
+    const ship = findUnit(this.state, shipId);
+    if (!ship) return;
+    if (!isWaterAt(this.state, ship.x, ship.y)) {
+      this.finishUnloadAll(shipId);
+      return;
+    }
+    if (!unloadAllTiles(this.state, ship).length) {
+      this.toast('No land next to the ship to unload onto');
+      return;
+    }
+    this.unloadAllShip = shipId;
+    this.toast('Tap a land tile next to the ship: everyone aboard goes ashore there');
+    this.refresh();
+  }
+
+  private finishUnloadAll(shipId: number, to?: Coord): void {
+    this.unloadAllShip = undefined;
+    const res = this.dispatchResult({ type: 'unloadAll', shipId, to });
+    if (res.ok) {
+      this.sound.play('unit-move');
+      this.announce(this.lastNews);
+      if (res.message) this.toast(res.message);
+      // The units now ashore: select the first one still able to move, or go on.
+      const here = to ?? findUnit(this.state, shipId);
+      const next = here ? this.state.units.find((u) => u.owner === this.human && u.x === here.x && u.y === here.y && u.carriedBy === null && !isShip(u) && u.movesLeft > 0) : undefined;
+      if (next) this.select(next.id);
+      else this.selectNext(false);
+    } else if (res.reason) this.toast(res.reason);
+    this.refresh();
+  }
+
   /** Goes ashore into the city the ship is docked in. */
   private unloadHere(unitId: number): void {
     const u = findUnit(this.state, unitId);
@@ -1765,7 +1804,9 @@ export class App {
     d.tx = t.x;
     d.ty = t.y;
     const over = this.coveredRects().blockers.some((r) => inRect(r, d.sx, d.sy));
-    d.preview = over ? undefined : dragPreview(this.state, this.human, d.unitId, t.x, t.y);
+    const ship = findUnit(this.state, d.unitId);
+    const unloading = !!ship && isShip(ship) && !unloadAllError(this.state, ship) && unloadAllTiles(this.state, ship).some((c) => c.x === t.x && c.y === t.y);
+    d.preview = over ? undefined : unloading ? { path: [t], turns: 1 } : dragPreview(this.state, this.human, d.unitId, t.x, t.y);
     this.requestDraw();
   }
 
@@ -1794,6 +1835,12 @@ export class App {
     if (!d || cancelled || this.turnBusy) return;
     if (this.coveredRects().blockers.some((r) => inRect(r, sx, sy))) return;
     const t = this.tileAtScreen(sx, sy);
+    // Round 22 (item 6): a ship dragged onto the land next to it unloads everyone aboard there.
+    const ship = findUnit(this.state, d.unitId);
+    if (ship && isShip(ship) && !unloadAllError(this.state, ship) && unloadAllTiles(this.state, ship).some((c) => c.x === t.x && c.y === t.y)) {
+      this.finishUnloadAll(ship.id, t);
+      return;
+    }
     const result = dropResult(this.state, this.human, d.unitId, t.x, t.y);
     if (result) this.runTap(result, t.x, t.y, true);
   }
@@ -1804,6 +1851,18 @@ export class App {
     const ty = Math.floor(w.y);
     const tile = tileAt(this.state.map, tx, ty);
     if (!tile) return;
+    // Round 22 (item 6): Unload all is waiting for a land tile next to the ship.
+    if (this.unloadAllShip !== undefined) {
+      const shipId = this.unloadAllShip;
+      const ship = findUnit(this.state, shipId);
+      this.unloadAllShip = undefined;
+      if (ship && unloadAllTiles(this.state, ship).some((c) => c.x === tx && c.y === ty)) {
+        this.finishUnloadAll(shipId, { x: tx, y: ty });
+        return;
+      }
+      this.toast('Unload all cancelled');
+      this.refresh();
+    }
     const result = resolveTap(this.state, this.human, this.selectedUnitId, tx, ty);
     // Round 17 (B2): with "Tap twice to move" on, the first tap only shows the path and turns.
     const pending = this.pendingMove;
@@ -2736,6 +2795,13 @@ export class App {
   /** The unit type's icon on its owner's color, as on the map (Round 7). */
   private badge(type: UnitTypeId, owner: number): string {
     return `<span class="udisc" style="background:${playerColor(this.state, owner)}">${unitIconHtml(type)}</span>`;
+  }
+
+  /** Round 22 (item 6): while Unload all waits for a tile, the land next to the ship is outlined instead. */
+  private unloadAllTargets(): Coord[] | undefined {
+    if (this.unloadAllShip === undefined) return undefined;
+    const ship = findUnit(this.state, this.unloadAllShip);
+    return ship ? unloadAllTiles(this.state, ship) : undefined;
   }
 
   /** Tiles the selected unit could attack right now (outlined in red): next door, or in an aircraft's range. */
@@ -4302,7 +4368,7 @@ export class App {
       camera: this.camera,
       viewer: this.human,
       selectedUnitId: sel?.id,
-      reachable: sel ? reachableThisTurn(this.state, sel) : [],
+      reachable: this.unloadAllTargets() ?? (sel ? reachableThisTurn(this.state, sel) : []),
       targets: this.attackTargets(sel),
       openCityId: this.openCityId,
       flash: this.flash,
@@ -4569,6 +4635,16 @@ export class App {
     }
     if (mine && !isAir(sel) && sel.carriedBy !== null && !isWaterAt(this.state, sel.x, sel.y)) {
       navalBtns += `<button type="button" data-act="unload" data-unit="${sel.id}" class="navalBtn">Go ashore here</button>`;
+    }
+    // Round 22 (item 6): Unload all, from the ship or any unit aboard.
+    const hold = mine ? (isShip(sel) ? sel : sel.carriedBy !== null ? findUnit(this.state, sel.carriedBy) : undefined) : undefined;
+    if (hold && isShip(hold) && cargoOf(this.state, hold).length) {
+      const ready = cargoOf(this.state, hold).filter((u) => u.movesLeft > 0).length;
+      const err = unloadAllError(this.state, hold);
+      const waiting = this.unloadAllShip === hold.id;
+      navalBtns += `<button type="button" data-act="unloadAll" data-unit="${sel.id}" data-ship="${hold.id}" class="navalBtn${waiting ? ' waiting' : ''}" ${err ? 'disabled' : ''}>⚓ Unload all (${ready})${
+        err ? ` <span class="sub">· ${esc(err)}</span>` : waiting ? ' <span class="sub">· tap a land tile next to the ship</span>' : ''
+      }</button>`;
     }
     // The Airport's airlift (Round 10).
     if (mine && !airliftSourceError(this.state, sel) && airliftTargets(this.state, sel).length > 0) {

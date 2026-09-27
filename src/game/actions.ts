@@ -7,7 +7,7 @@ import { foundCity } from './city';
 import { attack, formArmy, fortify, wake } from './combat';
 import { airlift, rebase, recon } from './air';
 import { answerOffer, declareWar, giveGold, proposePeace, tradeTech } from './diplomacy';
-import { boardShip, moveUnitToward, unloadHere } from './movement';
+import { boardShip, moveUnitToward, unloadAll, unloadHere } from './movement';
 import { rushBuy, setBuild, setFocus, setScienceRate } from './production';
 import { setResearch } from './tech';
 import { endHumanTurn } from './turn';
@@ -40,6 +40,8 @@ export type Action =
   | { type: 'board'; unitId: number; shipId: number }
   /** Go ashore from a ship docked in a city, into the city. Elsewhere, unloading is a move onto land. */
   | { type: 'unload'; unitId: number }
+  /** Round 22 (item 6): everyone aboard with moves goes ashore (into the port, or onto `to` next to the ship). */
+  | { type: 'unloadAll'; shipId: number; to?: Coord }
   /** Round 10: fly an aircraft to a city or Carrier in range (a 'move' order for an aircraft does the same). */
   | { type: 'rebase'; unitId: number; to: Coord }
   /** Round 10: fly a land unit from its city's Airport to another city with one. */
@@ -105,6 +107,8 @@ function runAction(state: GameState, action: Action): ActionResult {
       return boardShip(state, action.unitId, action.shipId);
     case 'unload':
       return unloadHere(state, action.unitId);
+    case 'unloadAll':
+      return unloadAll(state, action.shipId, action.to);
     case 'rebase':
       return rebase(state, action.unitId, action.to);
     case 'airlift':

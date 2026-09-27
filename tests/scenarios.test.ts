@@ -37,7 +37,8 @@ import { RELIGION, RELIGION_SYMBOLS } from '../src/data/religion';
 import { ROADS } from '../src/data/roads';
 import { faithOpinion, holyReligion, religionCityCulture, religionCityGold, spreadTargets } from '../src/game/religion';
 import { roadAt, roadConnected, roadOption } from '../src/game/roads';
-import { LAST_MALI, LAST_MAURYA, ROAD_OXFORD } from '../src/dev/scenarios';
+import { LAST_MALI, LAST_MAURYA, ROAD_OXFORD, UNLOAD_BEACH } from '../src/dev/scenarios';
+import { unloadAllTiles } from '../src/game/movement';
 import { BUILT_CITIES, FLIP_TOWN, METZ, NEW_UNITS_SCOUT, RIVAL_WONDER, UPGRADE_COAST,
   UPGRADE_GOLD, CYCLE_CITIES, FORTIFIED, LARGE_MAP_TURNS, MINIMAP_SEED, NEXT_UNIT, TAP_CITY_LEGION, TAP_CITY_WARRIOR, TAP_OWN } from '../src/dev/scenarios';
 import { listUnits } from '../src/ui/unitsList';
@@ -91,6 +92,22 @@ function endTurn(s: GameState): void {
 /** What each scenario's note promises. A new scenario without an entry here fails the suite. */
 const OUTCOMES: Record<string, (s: GameState) => void> = {
   // ---- Round 22 ----
+  'unload-all': (s) => {
+    const transport = mine(s, 'transport');
+    const galley = mine(s, 'galley');
+    expect(unloadAllTiles(s, transport)).toContainEqual(UNLOAD_BEACH);
+    expect(applyAction(s, { type: 'unloadAll', shipId: transport.id }).ok).toBe(false);
+    const res = applyAction(s, { type: 'unloadAll', shipId: transport.id, to: UNLOAD_BEACH });
+    expect(res.ok).toBe(true);
+    expect(res.message).toBe('2 units went ashore; staying aboard: Settler: no moves left');
+    expect(mine(s, 'warrior')).toMatchObject({ ...UNLOAD_BEACH, carriedBy: null });
+    expect(mine(s, 'legion')).toMatchObject({ ...UNLOAD_BEACH, carriedBy: null, army: true });
+    expect(mine(s, 'settler').carriedBy).toBe(transport.id);
+    const port = applyAction(s, { type: 'unloadAll', shipId: galley.id });
+    expect(port).toMatchObject({ ok: true, message: '2 units went ashore' });
+    expect(cargoOf(s, galley)).toHaveLength(0);
+    expect(mine(s, 'archer')).toMatchObject({ x: galley.x, y: galley.y, carriedBy: null });
+  },
   'road-direct': (s) => {
     const cap = capital(s);
     const oxford = s.cities.find((c) => c.name === 'Oxford')!;
