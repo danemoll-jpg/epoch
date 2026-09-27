@@ -36,8 +36,8 @@ import { airliftTargets } from '../src/game/air';
 import { RELIGION, RELIGION_SYMBOLS } from '../src/data/religion';
 import { ROADS } from '../src/data/roads';
 import { faithOpinion, holyReligion, religionCityCulture, religionCityGold, spreadTargets } from '../src/game/religion';
-import { roadAt, roadConnected } from '../src/game/roads';
-import { LAST_MALI, LAST_MAURYA } from '../src/dev/scenarios';
+import { roadAt, roadConnected, roadOption } from '../src/game/roads';
+import { LAST_MALI, LAST_MAURYA, ROAD_OXFORD } from '../src/dev/scenarios';
 import { BUILT_CITIES, FLIP_TOWN, METZ, NEW_UNITS_SCOUT, RIVAL_WONDER, UPGRADE_COAST,
   UPGRADE_GOLD, CYCLE_CITIES, FORTIFIED, LARGE_MAP_TURNS, MINIMAP_SEED, NEXT_UNIT, TAP_CITY_LEGION, TAP_CITY_WARRIOR, TAP_OWN } from '../src/dev/scenarios';
 import { listUnits } from '../src/ui/unitsList';
@@ -60,7 +60,7 @@ import { guidePages } from '../src/ui/guide';
 import { dueTips } from '../src/ui/tips';
 import { upgradeCost, upgradeError } from '../src/game/upgrades';
 import { spyActionError, spyTargets } from '../src/game/spies';
-import { pullOn } from '../src/game/borders';
+import { pullOn, tileOwner } from '../src/game/borders';
 import { unitVisibleTo } from '../src/game/fog';
 
 const AIR_TARGET = { x: 10, y: 5 };
@@ -91,6 +91,16 @@ function endTurn(s: GameState): void {
 /** What each scenario's note promises. A new scenario without an entry here fails the suite. */
 const OUTCOMES: Record<string, (s: GameState) => void> = {
   // ---- Round 22 ----
+  'road-direct': (s) => {
+    const cap = capital(s);
+    const oxford = s.cities.find((c) => c.name === 'Oxford')!;
+    const opt = roadOption(s, 0, cap, oxford)!;
+    // Direct (4 tiles between the two cities, 5 steps), nowhere near Nantes's borders.
+    expect(opt.path).toHaveLength(ROAD_OXFORD.x - cap.x - 1);
+    expect(opt.path.every((c) => tileOwner(s, c.x, c.y) !== 1)).toBe(true);
+    expect(noteOf('road-direct')).toContain(`${plural(opt.newTiles, 'new tile')}, ${opt.cost} gold`);
+    expect(applyAction(s, { type: 'buyRoad', fromCityId: cap.id, toCityId: oxford.id }).ok).toBe(true);
+  },
   satellites: (s) => {
     const me = s.players[0]!;
     expect(me.explored.filter((e) => e === 0).length).toBeGreaterThan(0);

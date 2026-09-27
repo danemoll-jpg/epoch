@@ -274,3 +274,81 @@ describe('Round 22 item 9: the map-revealing tech', () => {
     expect(e.publicText).toBe("Maurya's satellites have mapped the whole world");
   });
 });
+
+// ---- item 2: roads go direct, and never through another nation's borders --------------------
+
+import { aiBuyRoads, blockedRoadTargets, buyRoadError, roadOption, roadPath } from '../src/game/roads';
+import { ROADS } from '../src/data/roads';
+import { tileIndex } from '../src/game/grid';
+
+describe('Round 22 item 2: bought roads', () => {
+  // Dan's case: your Chernihiv (2, 2) and Oxford (8, 2), a rival's Nantes at (5, 8) with an old
+  // road from Chernihiv to Nantes and from Nantes to Oxford.
+  const OLD = [
+    { x: 2, y: 3 }, { x: 3, y: 4 }, { x: 3, y: 5 }, { x: 4, y: 6 }, { x: 4, y: 7 },
+    { x: 6, y: 7 }, { x: 6, y: 6 }, { x: 7, y: 5 }, { x: 7, y: 4 }, { x: 8, y: 3 },
+  ];
+  function dans() {
+    const s = makeState(Array.from({ length: 10 }, () => 'gggggggggggg'), { peace: true });
+    const chernihiv = addCity(s, 0, 2, 2, { name: 'Chernihiv' });
+    const oxford = addCity(s, 0, 8, 2, { name: 'Oxford' });
+    const nantes = addCity(s, 1, 5, 8, { name: 'Nantes' });
+    for (const c of OLD) s.map.tiles[tileIndex(s.map, c.x, c.y)]!.road = 'road';
+    s.players[0]!.gold = 500;
+    return { s, chernihiv, oxford, nantes };
+  }
+
+  it('reproduces the cause: the old router took the old road through Nantes (0 new tiles, 12 steps vs 6)', () => {
+    const { chernihiv, oxford } = dans();
+    // The old road does join them, through Nantes; the direct line is 6 steps.
+    expect(OLD.length + 2).toBeGreaterThan(Math.max(Math.abs(oxford.x - chernihiv.x), Math.abs(oxford.y - chernihiv.y)) + ROADS.maxDetour);
+  });
+
+  it('goes straight to Oxford instead, paying for the new tiles', () => {
+    const { s, chernihiv, oxford } = dans();
+    const path = roadPath(s, 0, chernihiv, oxford)!;
+    expect(path).toEqual([3, 4, 5, 6, 7].map((x) => ({ x, y: 2 })));
+    const opt = roadOption(s, 0, chernihiv, oxford)!;
+    expect(opt).toMatchObject({ newTiles: 5, cost: 5 * ROADS.goldPerTile });
+    expect(applyAction(s, { type: 'buyRoad', fromCityId: chernihiv.id, toCityId: oxford.id }).ok).toBe(true);
+    for (let x = 3; x <= 7; x++) expect(s.map.tiles[tileIndex(s.map, x, 2)]!.road).toBe('road');
+  });
+
+  it('reuses old road when it adds at most a tile or two', () => {
+    const { s, chernihiv, oxford } = dans();
+    // An old road bowing one row south of the direct line: reused (7 steps, 0 new tiles).
+    for (const c of [{ x: 3, y: 3 }, { x: 4, y: 3 }, { x: 5, y: 3 }, { x: 6, y: 3 }, { x: 7, y: 3 }]) s.map.tiles[tileIndex(s.map, c.x, c.y)]!.road = 'road';
+    const opt = roadOption(s, 0, chernihiv, oxford)!;
+    expect(opt.newTiles).toBe(0);
+    expect(opt.path.every((c) => c.y === 3)).toBe(true);
+  });
+
+  it('never passes through another nation\'s city or borders; says whose borders block it', () => {
+    const s = makeState(['ggggggggg', 'ggggggggg', 'ggggggggg'], { peace: true });
+    const a = addCity(s, 0, 0, 1, { name: 'Chernihiv' });
+    const b = addCity(s, 0, 8, 1, { name: 'Oxford' });
+    addCity(s, 1, 4, 1, { name: 'Nantes', culture: 120 });
+    s.players[0]!.gold = 500;
+    expect(roadPath(s, 0, a, b)).toBeUndefined();
+    expect(buyRoadError(s, a.id, b.id)).toBe("Nantes's borders are in the way");
+    expect(blockedRoadTargets(s, a).map((x) => x.reason)).toEqual(["Nantes's borders are in the way"]);
+    expect(applyAction(s, { type: 'buyRoad', fromCityId: a.id, toCityId: b.id }).ok).toBe(false);
+  });
+
+  it('a road to a friendly nation\'s city may enter that nation\'s land, not a third nation\'s', () => {
+    const s = makeState(['gggggggggg', 'gggggggggg', 'gggggggggg'], { players: 3, peace: true });
+    const mine = addCity(s, 0, 0, 1, { name: 'Ur' });
+    const theirs = addCity(s, 1, 6, 1, { name: 'Taxila' });
+    expect(roadPath(s, 0, mine, theirs)).toBeDefined();
+    addCity(s, 2, 3, 1, { name: 'Timbuktu', culture: 120 });
+    expect(roadPath(s, 0, mine, theirs)).toBeUndefined();
+  });
+
+  it('the AI follows the same rule', () => {
+    const { s, chernihiv, oxford } = dans();
+    s.players[0]!.kind = 'ai';
+    expect(aiBuyRoads(s, 0, 0)).toBe(true);
+    for (let x = 3; x <= 7; x++) expect(s.map.tiles[tileIndex(s.map, x, 2)]!.road).toBe('road');
+    expect(roadOption(s, 0, chernihiv, oxford)!.newTiles).toBe(0);
+  });
+});

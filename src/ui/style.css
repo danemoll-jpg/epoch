@@ -3187,3 +3187,17 @@ button.alink {
   border-bottom: 1px solid var(--panel-border);
   font-size: calc(14px * var(--ts));
 }
+
+/* ---- Round 22 (item 2): a road's route shown before it's bought ---- */
+.roadConfirm {
+  border: 2px solid #ffe066;
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.roadConfirm .diploActions button {
+  min-height: 44px;
+}

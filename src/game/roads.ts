@@ -1,6 +1,8 @@
 // Roads and railroads (Round 12), Civ Rev style: no workers. A city buys a road to another
-// city with gold; it's laid at once along the cheapest land path (no water or mountains),
-// paying only for tiles without a road. Cities always count as road. Roads belong to no one:
+// city with gold; it's laid at once along the most direct land path (no water or mountains),
+// paying only for tiles without a road. Round 22 (item 2): it reuses old road only when that
+// adds no more than ROADS.maxDetour tiles to the direct route, and never crosses another
+// nation's city or borders (only your own land, unclaimed land, and a friendly target's). Cities always count as road. Roads belong to no one:
 // everyone moves on them (enemies too), a captured area keeps them, and they're never
 // pillaged (Q26). A civ that knows Railroad has its roads upgraded to rails for free (Q25):
 // every road tile whose nearest city is its own, checked when it learns the tech and at each
@@ -9,10 +11,10 @@
 // territory"). Worked road tiles give +1 trade, rail tiles +1 production too (yields.ts).
 // Numbers are in src/data/roads.ts.
 
-import { MinHeap } from './heap';
 import { ROADS } from '../data/roads';
 import { TERRAIN } from '../data/terrain';
-import { CivName } from './conquest';
+import { territory } from './borders';
+import { CivName, civPossessive } from './conquest';
 import { hasMet } from './diplomacy';
 import { distance, neighbors, tileIndex } from './grid';
 import { effectsOf } from './leaders';
@@ -54,64 +56,185 @@ function roadable(state: GameState, k: number): boolean {
 /** A road may wander this far outside the box around its two cities (keeps the search small). */
 const PATH_MARGIN = 3;
 
+interface RoadSearch {
+  /** The box the road may use (inclusive), and its width and tile count. */
+  x0: number;
+  y0: number;
+  w: number;
+  size: number;
+  /** Box-local indexes of the two cities. */
+  start: number;
+  goal: number;
+  /** Tiles a road may use (roadable, explored by the buyer, and allowed by borders), box-local. */
+  ok: Uint8Array;
+  /** Tiles that already have a road or a city, box-local. */
+  road: Uint8Array;
+  /** Each box tile's distance (in tiles) from the straight line between the two cities. */
+  offLine: Float64Array;
+}
+
 /**
- * The cheapest land path for a road from `from` to `to`, as the tiles between them (the two
- * cities not included), or undefined. Only tiles the buyer has explored, within a few tiles of
- * the box around the two cities. Cheapest = fewest new road tiles, then the shortest.
+ * The box a road from `from` to `to` may use, and which tiles in it are open. `borders` false
+ * ignores who owns the land (to find what's in the way when the real search fails).
  */
-export function roadPath(state: GameState, buyer: number, from: City, to: City): Coord[] | undefined {
+function roadSearch(state: GameState, buyer: number, from: City, to: City, borders: boolean): RoadSearch {
   const { map } = state;
   const explored = state.players[buyer]?.explored;
-  const start = tileIndex(map, from.x, from.y);
-  const goal = tileIndex(map, to.x, to.y);
-  const box = {
-    x0: Math.min(from.x, to.x) - PATH_MARGIN,
-    x1: Math.max(from.x, to.x) + PATH_MARGIN,
-    y0: Math.min(from.y, to.y) - PATH_MARGIN,
-    y1: Math.max(from.y, to.y) + PATH_MARGIN,
-  };
-  // Round 14: a heap, and each tile's city looked up once (the same order as before: the
-  // cheapest first, then the lowest tile index).
-  const n = map.width * map.height;
-  const cost = new Float64Array(n).fill(Infinity);
-  const prev = new Int32Array(n).fill(-1);
-  const done = new Uint8Array(n);
-  const cityTile = new Uint8Array(n);
-  for (const c of state.cities) cityTile[c.y * map.width + c.x] = 1;
-  const heap = new MinHeap();
-  cost[start] = 0;
-  heap.push(0, start, start);
-  while (heap.size) {
-    const cur = heap.pop();
-    if (done[cur]) continue;
-    done[cur] = 1;
-    if (cur === goal) break;
-    const c = { x: cur % map.width, y: Math.floor(cur / map.width) };
-    for (const nb of neighbors(map, c)) {
-      const k = tileIndex(map, nb.x, nb.y);
-      if (done[k] || !roadable(state, k)) continue;
-      if (explored && explored[k] !== 1) continue;
-      if (nb.x < box.x0 || nb.x > box.x1 || nb.y < box.y0 || nb.y > box.y1) continue;
-      // A city in the way is fine (it has a road); new road tiles cost the most, and a diagonal
-      // step a hair more than a straight one, so a road runs straight when it can.
-      const fresh = k !== goal && !cityTile[k] && !map.tiles[k]!.road ? 1000 : 0;
-      const diagonal = nb.x !== c.x && nb.y !== c.y ? 0.01 : 0;
-      const nc = cost[cur]! + fresh + 1 + diagonal;
-      if (nc < cost[k]!) {
-        cost[k] = nc;
-        prev[k] = cur;
-        heap.push(nc, k, k);
-      }
+  const x0 = Math.max(0, Math.min(from.x, to.x) - PATH_MARGIN);
+  const x1 = Math.min(map.width - 1, Math.max(from.x, to.x) + PATH_MARGIN);
+  const y0 = Math.max(0, Math.min(from.y, to.y) - PATH_MARGIN);
+  const y1 = Math.min(map.height - 1, Math.max(from.y, to.y) + PATH_MARGIN);
+  const w = x1 - x0 + 1;
+  const size = w * (y1 - y0 + 1);
+  const owner = borders ? territory(state).owner : undefined;
+  const ok = new Uint8Array(size);
+  const road = new Uint8Array(size);
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const k = tileIndex(map, x, y);
+      const i = (y - y0) * w + (x - x0);
+      if (map.tiles[k]!.road) road[i] = 1;
+      if (!roadable(state, k) || (explored && explored[k] !== 1)) continue;
+      // Your land, unclaimed land, and (for a road to a friendly nation's city) that nation's land.
+      const o = owner ? owner[k]! : -1;
+      if (o < 0 || o === buyer || o === to.owner) ok[i] = 1;
     }
   }
-  if (prev[goal] === -1) return undefined;
+  for (const c of state.cities) {
+    if (c.x >= x0 && c.x <= x1 && c.y >= y0 && c.y <= y1) road[(c.y - y0) * w + (c.x - x0)] = 1;
+  }
+  const start = (from.y - y0) * w + (from.x - x0);
+  const goal = (to.y - y0) * w + (to.x - x0);
+  ok[start] = 1;
+  ok[goal] = 1;
+  // How far each tile is from the segment between the two cities.
+  const offLine = new Float64Array(size);
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const len2 = dx * dx + dy * dy || 1;
+  for (let i = 0; i < size; i++) {
+    const px = x0 + (i % w) - from.x;
+    const py = y0 + Math.floor(i / w) - from.y;
+    const t = Math.max(0, Math.min(1, (px * dx + py * dy) / len2));
+    offLine[i] = Math.hypot(px - t * dx, py - t * dy);
+  }
+  return { x0, y0, w, size, start, goal, ok, road, offLine };
+}
+
+/** The box-local neighbors of box tile `i`. */
+function boxNeighbors(sr: RoadSearch, i: number): number[] {
+  const h = sr.size / sr.w;
+  const x = i % sr.w;
+  const y = Math.floor(i / sr.w);
+  const out: number[] = [];
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if ((dx || dy) && nx >= 0 && ny >= 0 && nx < sr.w && ny < h) out.push(ny * sr.w + nx);
+    }
+  }
+  return out;
+}
+
+/** Steps from box tile `from` to every open box tile (-1 where it can't get). */
+function stepsFrom(sr: RoadSearch, from: number): Int32Array {
+  const dist = new Int32Array(sr.size).fill(-1);
+  dist[from] = 0;
+  let layer = [from];
+  while (layer.length) {
+    const next: number[] = [];
+    for (const k of layer) {
+      for (const n of boxNeighbors(sr, k)) {
+        if (dist[n] !== -1 || !sr.ok[n]) continue;
+        dist[n] = dist[k]! + 1;
+        next.push(n);
+      }
+    }
+    layer = next;
+  }
+  return dist;
+}
+
+/**
+ * The road's path under `sr`: among the routes at most ROADS.maxDetour steps longer than the
+ * most direct one, the one with the fewest new road tiles, each extra step counting as
+ * ROADS.detourTileCost new tiles (so old road is reused only when that saves real work) and
+ * each tile's distance from the straight line as ROADS.offLinePenalty of one (so it doesn't
+ * wander off to pick up old road), then the fewest diagonal steps. Tiles between the two cities.
+ */
+function searchRoad(sr: RoadSearch): Coord[] | undefined {
+  const fromGoal = stepsFrom(sr, sr.goal);
+  const direct = fromGoal[sr.start]!;
+  if (direct < 0) return undefined;
+  const maxSteps = direct + ROADS.maxDetour;
+  // score = new tiles × 1000 + diagonal steps, per step count (layer) and tile.
+  const score: Float64Array[] = [new Float64Array(sr.size).fill(Infinity)];
+  const prev: Int32Array[] = [new Int32Array(sr.size).fill(-1)];
+  score[0]![sr.start] = 0;
+  let frontier = [sr.start];
+  let best: { steps: number; score: number } | undefined;
+  for (let s = 1; s <= maxSteps && frontier.length; s++) {
+    const sc = new Float64Array(sr.size).fill(Infinity);
+    const pv = new Int32Array(sr.size).fill(-1);
+    const next: number[] = [];
+    for (const k of frontier) {
+      for (const t of boxNeighbors(sr, k)) {
+        const left = fromGoal[t]!;
+        if (left < 0 || s + left > maxSteps) continue;
+        const fresh = t !== sr.goal && !sr.road[t] ? 1000 : 0;
+        const diagonal = t % sr.w !== k % sr.w && Math.floor(t / sr.w) !== Math.floor(k / sr.w) ? 1 : 0;
+        const v = score[s - 1]![k]! + fresh + Math.round(sr.offLine[t]! * ROADS.offLinePenalty * 1000) + diagonal;
+        if (v < sc[t]!) {
+          if (sc[t] === Infinity) next.push(t);
+          sc[t] = v;
+          pv[t] = k;
+        }
+      }
+    }
+    score.push(sc);
+    prev.push(pv);
+    // Each step beyond the direct route counts as ROADS.detourTileCost new tiles.
+    const total = sc[sr.goal]! + (s - direct) * ROADS.detourTileCost * 1000;
+    if (total < Infinity && (!best || total < best.score)) best = { steps: s, score: total };
+    frontier = next.filter((t) => t !== sr.goal);
+  }
+  if (!best) return undefined;
   const path: Coord[] = [];
-  let k = prev[goal]!;
-  while (k !== start) {
-    path.unshift({ x: k % map.width, y: Math.floor(k / map.width) });
-    k = prev[k]!;
+  let k = prev[best.steps]![sr.goal]!;
+  for (let s = best.steps - 1; s > 0; s--) {
+    path.unshift({ x: sr.x0 + (k % sr.w), y: sr.y0 + Math.floor(k / sr.w) });
+    k = prev[s]![k]!;
   }
   return path;
+}
+
+/**
+ * The land path for a road from `from` to `to`, as the tiles between them (the two cities not
+ * included), or undefined. Only tiles the buyer has explored, within a few tiles of the box
+ * around the two cities, and outside other nations' borders (see searchRoad for the choice).
+ */
+export function roadPath(state: GameState, buyer: number, from: City, to: City): Coord[] | undefined {
+  return searchRoad(roadSearch(state, buyer, from, to, true));
+}
+
+/**
+ * Why no road can be laid between the two cities: another nation's borders in the way
+ * ("Nantes's borders are in the way"), or no land path at all. Undefined when there's a path.
+ */
+export function roadBlocker(state: GameState, buyer: number, from: City, to: City): string | undefined {
+  if (roadPath(state, buyer, from, to)) return undefined;
+  const free = searchRoad(roadSearch(state, buyer, from, to, false));
+  if (!free) return 'No land path (roads can’t cross water or mountains)';
+  const t = territory(state);
+  for (const c of free) {
+    const k = tileIndex(state.map, c.x, c.y);
+    const o = t.owner[k]!;
+    if (o < 0 || o === buyer || o === to.owner) continue;
+    const city = state.cities.find((x) => x.id === t.city[k]);
+    return city ? `${city.name}'s borders are in the way` : `${civPossessive(state, o)} borders are in the way`;
+  }
+  return 'Other nations’ borders are in the way';
 }
 
 /** Tiles on the path that still need a road. */
@@ -169,6 +292,20 @@ export function roadTargets(state: GameState, city: City): RoadOption[] {
   return out.sort((a, b) => distance(city, a.city) - distance(city, b.city) || a.city.id - b.city.id);
 }
 
+/** Round 22 (item 2): cities a road could reach but for borders in the way, with why (for the city panel). */
+export function blockedRoadTargets(state: GameState, city: City): { city: City; reason: string }[] {
+  const p = city.owner;
+  const out: { city: City; reason: string }[] = [];
+  for (const to of state.cities) {
+    if (roadTargetError(state, city, to)) continue;
+    if (to.owner !== p && state.atWar[p]?.[to.owner]) continue;
+    if (roadPath(state, p, city, to)) continue;
+    const reason = roadBlocker(state, p, city, to);
+    if (reason && !reason.startsWith('No land path')) out.push({ city: to, reason });
+  }
+  return out.sort((a, b) => distance(city, a.city) - distance(city, b.city) || a.city.id - b.city.id);
+}
+
 /** Why the current player can't buy this road now, or undefined. */
 export function buyRoadError(state: GameState, fromCityId: number, toCityId: number): string | undefined {
   const from = state.cities.find((c) => c.id === fromCityId);
@@ -178,7 +315,7 @@ export function buyRoadError(state: GameState, fromCityId: number, toCityId: num
   const err = roadTargetError(state, from, to);
   if (err) return err;
   const opt = roadOption(state, from.owner, from, to);
-  if (!opt) return 'No land path (roads can’t cross water or mountains)';
+  if (!opt) return roadBlocker(state, from.owner, from, to) ?? 'No land path (roads can’t cross water or mountains)';
   if (opt.newTiles === 0) return 'Already joined by road';
   if (state.players[from.owner]!.gold < opt.cost) return `Needs ${opt.cost} gold`;
   return undefined;

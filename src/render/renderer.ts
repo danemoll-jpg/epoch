@@ -53,6 +53,8 @@ export interface ViewState {
   flash?: { x: number; y: number; won: boolean };
   /** Round 17 (B2): "Tap twice to move": the path shown after the first tap, and its turns. */
   plannedMove?: { path: Coord[]; turns: number };
+  /** Round 22 (item 2): a road about to be bought: its tiles from city to city, and the price label. */
+  plannedRoad?: { path: Coord[]; label: string };
   /** Called when a unit icon finishes loading, so the map can be drawn again with it. */
   onIconReady?: () => void;
   /** Round 14: the terrain and city styles (today's look unless a dev build switched). */
@@ -807,6 +809,7 @@ export function render(
   }
 
   if (view.plannedMove) drawPlannedMove(ctx, view.plannedMove, pos, s);
+  if (view.plannedRoad) drawPlannedRoad(ctx, view.plannedRoad, pos, s);
 
   // City name labels on top of everything so they stay readable.
   ctx.font = `600 ${Math.max(11, Math.round(s * 0.26))}px system-ui, sans-serif`;
@@ -829,6 +832,52 @@ export function render(
 }
 
 /** Round 17 (B2): the path of a move waiting for its second tap: dots, and the turns on the goal. */
+/** Round 22 (item 2): the road you're about to buy: a dashed line from city to city, and its price. */
+function drawPlannedRoad(
+  ctx: CanvasRenderingContext2D,
+  plan: { path: Coord[]; label: string },
+  pos: (x: number, y: number) => { x: number; y: number },
+  s: number,
+): void {
+  const goal = plan.path[plan.path.length - 1];
+  if (!goal || plan.path.length < 2) return;
+  const center = (c: Coord) => {
+    const p = pos(c.x, c.y);
+    return { x: p.x + s / 2, y: p.y + s / 2 };
+  };
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  plan.path.forEach((c, i) => {
+    const p = center(c);
+    if (i === 0) ctx.moveTo(p.x, p.y);
+    else ctx.lineTo(p.x, p.y);
+  });
+  ctx.strokeStyle = 'rgba(20,20,20,0.75)';
+  ctx.lineWidth = Math.max(5, s * 0.14);
+  ctx.stroke();
+  ctx.setLineDash([Math.max(6, s * 0.18), Math.max(4, s * 0.12)]);
+  ctx.strokeStyle = '#ffe066';
+  ctx.lineWidth = Math.max(3, s * 0.08);
+  ctx.stroke();
+  ctx.restore();
+  const g = pos(goal.x, goal.y);
+  const fs = Math.max(11, Math.min(16, s * 0.24));
+  ctx.font = `bold ${fs}px system-ui, sans-serif`;
+  const w = ctx.measureText(plan.label).width + fs;
+  const lx = g.x + s / 2 - w / 2;
+  const ly = g.y - fs * 1.6;
+  ctx.fillStyle = 'rgba(16,24,34,0.92)';
+  ctx.fillRect(lx, ly, w, fs * 1.5);
+  ctx.fillStyle = '#ffe066';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(plan.label, g.x + s / 2, ly + fs * 0.75);
+  ctx.textAlign = 'start';
+  ctx.textBaseline = 'alphabetic';
+}
+
 function drawPlannedMove(
   ctx: CanvasRenderingContext2D,
   plan: { path: Coord[]; turns: number },

@@ -17,6 +17,15 @@ export const ROADS = {
   /** A worked road (or rail) tile: +trade. A worked rail tile also: +production. City centers aren't counted. */
   roadTrade: 1,
   railProduction: 1,
+  /**
+   * Round 22 (item 2): a road reuses old road only if that makes it at most this many tiles longer
+   * than the most direct route between its two cities.
+   */
+  maxDetour: 2,
+  /** …and each tile it adds counts as this many new tiles, so a detour must save real work. */
+  detourTileCost: 2,
+  /** …and each tile of the road counts this much of a new tile per tile it strays from the straight line. */
+  offLinePenalty: 0.5,
   /** The tech that turns roads into rails. */
   railTech: 'railroad' as const,
 

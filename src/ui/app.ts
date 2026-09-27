@@ -148,7 +148,7 @@ import {
   suggestReligionName,
   symbolOf,
 } from '../game/religion';
-import { roadGoldPerTile, roadTargets } from '../game/roads';
+import { blockedRoadTargets, roadGoldPerTile, roadOption, roadTargets } from '../game/roads';
 import type { Religion } from '../game/types';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -261,6 +261,8 @@ export class App {
   private endDismissed = false;
   /** Diplomacy screen view state: the civ picked, which page, the tech asked for, the last answer. */
   private diploCiv: number | undefined;
+  /** Round 22 (item 2): a road tapped in the city panel, shown on the map until Build or Cancel. */
+  private roadPlan: { fromId: number; toId: number } | undefined;
   /** Round 22 (item 3): a nation opens on its overview; 'main' is the talk page (after the leader scene). */
   private diploPage: 'overview' | 'main' | 'trade' | 'confirmWar' = 'overview';
   private tradeGet: TechId | undefined;
@@ -2061,8 +2063,17 @@ export class App {
       const name = city.build ? itemName(city.build) : '';
       if (this.dispatch({ type: 'rushBuy', cityId: city.id })) this.toast(`Bought ${name}; it's ready next turn`);
     } else if (act === 'road') {
+      // Round 22 (item 2): the first tap shows the route and its price on the map; Build buys it.
+      this.roadPlan = { fromId: city.id, toId: Number(btn.dataset.to) };
+      this.refresh();
+    } else if (act === 'roadCancel') {
+      this.roadPlan = undefined;
+      this.refresh();
+    } else if (act === 'roadBuy') {
       const res = this.dispatchResult({ type: 'buyRoad', fromCityId: city.id, toCityId: Number(btn.dataset.to) });
+      this.roadPlan = undefined;
       if (res.ok && res.message) this.toast(res.message);
+      else if (!res.ok && res.reason) this.toast(res.reason);
     } else if (act === 'religions') {
       this.openReligion();
     } else if (act === 'upgrade') {
@@ -2310,20 +2321,40 @@ export class App {
   /** Round 12: "Build road to…": the nearest cities it could be joined to, with each road's gold cost. */
   private cityRoadsHtml(city: City, gold: number): string {
     const options = roadTargets(this.state, city).slice(0, 8);
-    if (!options.length) return '';
+    // Round 22 (item 2): cities cut off by another nation's borders, and why.
+    const blocked = blockedRoadTargets(this.state, city).slice(0, 4);
+    if (!options.length && !blocked.length) return '';
+    const plan = this.roadPlan?.fromId === city.id ? this.roadPlan : undefined;
     const per = roadGoldPerTile(this.state, this.human);
     const rail = this.state.players[this.human]!.techs.includes(ROADS.railTech);
     const btns = options
       .map((o) => {
         const whose = o.city.owner === this.human ? '' : ` <span class="sub">(${esc(civDef(this.state, o.city.owner).name)})</span>`;
         if (o.newTiles === 0) return `<button type="button" disabled>${esc(o.city.name)}${whose} <span class="sub">· joined by road</span></button>`;
+        if (plan?.toId === o.city.id) {
+          return `<div class="roadConfirm"><div>${esc(o.city.name)}${whose}: <b>${plural(o.newTiles, 'new tile')}, ${o.cost} gold</b> <span class="sub">(the route is shown on the map)</span></div>
+            <div class="diploActions"><button type="button" data-act="roadBuy" data-to="${o.city.id}" class="primary" ${gold < o.cost ? 'disabled' : ''}>✓ Build for ${o.cost} gold</button>
+            <button type="button" data-act="roadCancel">Cancel</button></div></div>`;
+        }
         return `<button type="button" data-act="road" data-to="${o.city.id}" ${gold < o.cost ? 'disabled' : ''}>${esc(o.city.name)}${whose}
           <span class="sub">· ${plural(o.newTiles, 'new tile')} · ${o.cost} gold</span></button>`;
       })
-      .join('');
+      .join('') +
+      blocked.map((b) => `<button type="button" disabled>${esc(b.city.name)} <span class="sub">· ${esc(b.reason)}</span></button>`).join('');
     return `<div class="section"><div class="label">Build ${rail ? 'railroad' : 'road'} to…</div>
-      <div class="sub">${per} gold a tile, laid at once. Moving along a ${rail ? 'rail costs 1/10' : 'road costs 1/3'} of a move a tile, and worked ${rail ? 'rail tiles give +1 trade and +1 production' : 'road tiles give +1 trade'}. Anyone may use it.</div>
+      <div class="sub">${per} gold a tile, laid at once, as directly as the land allows and never through another nation’s borders. Tap a city to see the route first. Moving along a ${rail ? 'rail costs 1/10' : 'road costs 1/3'} of a move a tile, and worked ${rail ? 'rail tiles give +1 trade and +1 production' : 'road tiles give +1 trade'}. Anyone may use it.</div>
       <div class="roadList">${btns}</div></div>`;
+  }
+
+  /** Round 22 (item 2): the road waiting for Build, drawn on the map with its price (only while its city is open). */
+  private plannedRoadView(): { path: Coord[]; label: string } | undefined {
+    const plan = this.roadPlan;
+    if (!plan || plan.fromId !== this.openCityId) return undefined;
+    const from = findCity(this.state, plan.fromId);
+    const to = findCity(this.state, plan.toId);
+    const opt = from && to ? roadOption(this.state, this.human, from, to) : undefined;
+    if (!from || !to || !opt) return undefined;
+    return { path: [from, ...opt.path, to].map((c) => ({ x: c.x, y: c.y })), label: `${plural(opt.newTiles, 'new tile')} · ${opt.cost} gold` };
   }
 
   // ---- menu ------------------------------------------------------------------------------
@@ -4275,6 +4306,7 @@ export class App {
       targets: this.attackTargets(sel),
       openCityId: this.openCityId,
       flash: this.flash,
+      plannedRoad: this.plannedRoadView(),
       plannedMove: this.unitDrag
         ? this.unitDrag.preview
         : this.pendingMove && this.pendingMove.unitId === sel?.id

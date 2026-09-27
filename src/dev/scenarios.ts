@@ -49,6 +49,7 @@ import { RELIGION, RELIGION_NAMES, RELIGION_SYMBOLS } from '../data/religion';
 import { ROADS } from '../data/roads';
 import { conversionChancePct, faithOpinion, foundReligion, religionCityCulture, religionCityGold } from '../game/religion';
 import { roadOption } from '../game/roads';
+import { noWars } from '../game/war';
 import { attitude, opinionOf } from '../game/diplomacy';
 import type { CloudBackend } from '../cloud/backend';
 import type { CloudLink } from '../game/save';
@@ -2317,6 +2318,34 @@ export function satellitesScenario(): GameState {
   return state;
 }
 
+/**
+ * Round 22 (item 2): Dan's road. Your capital and Oxford 5 tiles east; a rival's Nantes (at
+ * peace) off to the south-east, with an old road from your capital to Nantes and on to Oxford.
+ */
+export const ROAD_OXFORD = { x: 12, y: 5 };
+export const ROAD_NANTES = { x: 10, y: 9 };
+export const ROAD_OLD = [
+  { x: 8, y: 6 }, { x: 9, y: 7 }, { x: 9, y: 8 },
+  { x: 11, y: 8 }, { x: 11, y: 7 }, { x: 12, y: 6 },
+];
+export function roadDirectScenario(): GameState {
+  const { state } = withCapital(undefined, { size: 4 }, 2);
+  state.atWar = noWars(state.players.length);
+  addCity(state, 0, ROAD_OXFORD.x, ROAD_OXFORD.y, { name: 'Oxford', size: 2, build: { kind: 'unit', id: 'warrior' } });
+  state.players[0]!.citiesFounded = 2;
+  addCity(state, 1, ROAD_NANTES.x, ROAD_NANTES.y, { name: 'Nantes', capitalOf: 1, build: { kind: 'unit', id: 'warrior' } });
+  addUnit(state, 'warrior', 1, ROAD_NANTES.x, ROAD_NANTES.y, { fortified: true });
+  state.players[1]!.citiesFounded = 1;
+  for (const c of ROAD_OLD) state.map.tiles[tileIndex(state.map, c.x, c.y)]!.road = 'road';
+  state.players[0]!.gold = 200;
+  return state;
+}
+
+function roadDirectOption() {
+  const s = roadDirectScenario();
+  return roadOption(s, 0, s.cities[0]!, s.cities[1]!)!;
+}
+
 const ROUND22_SCENARIOS: Scenario[] = [
   {
     id: 'last-city',
@@ -2329,6 +2358,12 @@ const ROUND22_SCENARIOS: Scenario[] = [
     title: 'Satellites map the world',
     note: `Only the land around ${CAPITAL} is on your map. Tap End Turn: you learn ${TECHS.rocketry.name}, and its satellites map the whole world: the minimap fills in, and ${RIVAL_CAPITAL} in the south-east appears, though its units stay hidden in the fog (tiles out of sight stay dim). The Almanac's ${TECHS.rocketry.name} card says so.`,
     build: satellitesScenario,
+  },
+  {
+    id: 'road-direct',
+    title: 'Roads go direct',
+    note: `An old road runs from ${CAPITAL} down to Nantes (a rival's city, at peace) and back up to Oxford. Open ${CAPITAL}: under Build road to…, tap Oxford: the route shows on the map, heading east in ${plural(roadDirectOption().path.length + 1, 'step')} (${plural(roadDirectOption().newTiles, 'new tile')}, ${roadDirectOption().cost} gold), not down through Nantes, with a ✓ Build button. Tap Build. Nantes is already joined to ${CAPITAL} by the old road.`,
+    build: roadDirectScenario,
   },
 ];
 
