@@ -858,7 +858,9 @@ what was pushed.
   ships in port) was pushed on Dan's say-so as 0.19.1 and is live. The balance items (1–7)
   were pushed on Dan's say-so (2026-09-26, `67c2463`) and are live; see the Round 20 report in TODO.md. Pushing is Dan's call again.
 
-**Current objective:** none set; the planning session picks the next round (see TODO.md).
+**Current objective: Round 21** (see TODO.md): the bug where an enemy Spy in your
+city blocks your own units ("Nothing to attack there"), plus catching spies (push it, Dan's OK), then drag to
+move (commit, don't push).
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.

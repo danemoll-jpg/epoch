@@ -1898,52 +1898,7 @@ Dan pasted his picks into the coding session: Alphabet: B; Bronze Working: A; Ce
 **Pushed on Dan's say-so, 2026-09-26:** `main` up to `0ff3a82` plus this report. Every push deploys to https://epoch-fsts.netlify.app/. The hub was not touched.
 **Dan then:** play a full game; the balance leftovers above (Huge economic, Legendary technology, Novice culture, some leaders too strong) are for the planning session.
 
-
-## Current Objective (Focus Area)
-
-### Round 20 — Balance follow-up to Round 19
-
-**Order and pushing (Dan, 2026-09-26): do item 8 (the Metz bug) FIRST.** When it's fixed and tested, commit
-it and **push it** (Dan says so, for item 8 only), and restart the play server, so he can use it in his current
-game. **Then** do the balance items 1–7: commit them, but **don't push**; Dan decides when they go out.
-Dan takes the planning session's word on balance: report the numbers, but keep the summary short and plain.
-
-0. **Commit the updated docs first:** `CLAUDE.md` and `TODO.md` as their own commit, then re-read them.
-
-**Items. Report each individually, with numbers before → after** (the full `npm run sim -- matrix`,
-**40+ games per row**, same seeds before and after; say how many):
-
-1. **Legendary (technology 58%):** apply the change you proposed (Legendary's culture and gold goals
-   back to 100%; the AI's science bonus +20% → +10%). **Dan said yes (2026-09-26)**, provided it tests
-   well at 40+ games. Keep the first Legendary win at turn 150 or later and the stand-in rarely winning.
-2. **Huge (economic 52%):** finish the gold-goal test you started and apply the best version.
-3. **Novice (culture 48%):** bring culture to 40% or under.
-4. **Leaders over 2× their fair share:** Ukraine (Normal and Legendary), the USA (Epic), Germany (Huge).
-   Trim their bonuses (as data), without making them weak.
-5. **Leaders under their share:** North Korea, Russia, and the Franks. Round 15 found the conquerors
-   struggle to finish wars; look at why (the AI's war follow-through, armies, siege) as well as
-   their bonuses.
-6. **No domination on Huge or Epic:** some chance of it, e.g. through item 5's war follow-through and
-   transports, without shortening games (none won before turn 150).
-7. **Wars** came in slightly above the 2–4 target (about 4.7 a human would see per Normal game): fine
-   as is unless Dan says otherwise; just keep it from rising.
-
-8. **Bug from Dan's game (2026-09-26, turn 218): a city held only by ships can't be taken.** Metz's only
-   unit was a ship in port. Ships in port don't defend (`defendsTile`), so tanks and bombers get "Nothing
-   to attack there"; but `tap.ts` sees an enemy unit on the tile and treats the tap as an attack, so a
-   land unit can't move in and capture it either. Only his destroyers could do anything. **Fix:** a land
-   unit moving into an enemy city (at war) with **no land defenders** captures it, and any ships in port
-   are **sunk (with their cargo) or moved to the nearest free sea tile**: pick one and say which. The tap
-   and the panel say **"Capture Metz"** there, not "Nothing to attack". **Bombers can strike ships in
-   port.** Check the AI handles the same case (it should capture such cities too). A scenario
-   (`city-only-ships`) and tests.
-
-**Targets (unchanged):** no game won before turn 150; no victory kind over 40% on any row; every leader
-under 2× its fair share; flips and spy actions happen but don't decide games. If a target can't be met
-without hurting another, say which and why rather than forcing it.
-
-**Done means:** every item reported (1–7 with numbers, 8 with its fix); tests pass (`pace.test.ts` and `balance.test.ts`
-included); committed; **not pushed**; the play server restarted.
+* **Round 20 — Balance follow-up and the Metz bug (a city held only by ships) — done; item 8 pushed as 0.19.1, the balance pushed on Dan's say-so (2026-09-26).** Leftovers Dan accepted as good enough: Ukraine on Legendary and the USA on Epic slightly over 2×; Russia, North Korea and the Franks under their share on big maps; no domination on Huge/Epic. The agent's report follows, moved from Current Objective.
 
 #### Round 20 report (coding agent, 2026-09-26)
 
@@ -1977,11 +1932,52 @@ share.
 The play server was restarted after item 8 and again at the end of the round (http://10.0.0.224:4173/), so it now has the balance changes too (saves carry over; nothing in the state changed). The live site has only item 8.
 
 
-**Still open for Dan (no agent work needed):**
-- play a full game on the live site with Round 19;
-- the iPad **Home Screen icon** sign-in, and the **keep-which question**;
-- **Q31:** time `huge-map` and `epic-map` on the iPad (Epic's "best on a computer" label);
-- optional: the title picture (`docs/TITLE-ART.md`).
+## Current Objective (Focus Area)
+
+### Round 21 — Bug: an enemy spy in your city blocks your own units
+
+**Dan's game (2026-09-26, turn 231):** he captured Oxford; an enemy (blue) Spy is inside it. Every unit he
+tries to move into Oxford gets **"Nothing to attack there"**. Same family as Round 20's Metz bug.
+
+**Cause (from reading the code):** `tap.ts` treats any *visible* enemy unit on the tile as an attack
+(`enemyThere`), but a Spy never defends (`defendsTile`) and never blocks movement (`movement.ts`), so
+`attackError` finds nobody and the move never happens. The Metz fix only covered enemy *cities*.
+
+**Order and pushing:** fix the bug (items 1–3) **first**, then commit, **push** (Dan OKs it), and restart the
+play server so he can finish his game. **Then** do item 4 (drag to move): commit it, but **don't push**; Dan
+decides when it goes out. Don't touch the hub.
+
+0. **Commit the updated docs first:** `CLAUDE.md` and `TODO.md` as their own commit, then re-read them.
+1. **Fix the tap:** an adjacent tile whose only enemy units **can't defend it** (spies, ships in port on land,
+   aircraft on the ground) is a **move** (or the Metz-style capture for an enemy city), never an attack.
+   Use the same rule the combat code uses (`pickDefender` / `defendsTile`), in one place, so the tap and the
+   combat code can't disagree again. Check every other place that decides "is there an enemy here" (the
+   odds panel, "Move … here" / board offers, Tap twice to move, the AI) for the same mismatch.
+   **Also:** Dan tried the city panel's **"Move … here"** button from a unit 2+ tiles away, and it didn't get
+   into Oxford either. Find out why and fix it (some of his nearby units had almost no moves left, so
+   check with full moves as well), and cover that path in the tests.
+2. **Catching spies:** when your military unit moves onto a tile with an enemy Spy (your city or anywhere),
+   the Spy is **caught** and removed: a news item and a toast ("You caught a Babylonian spy in Oxford"),
+   the same opinion effect as a spy caught acting. **An enemy Spy in a city that changes hands is expelled**
+   (sent to its owner's nearest city) or caught; pick one and say which. The AI catches spies the same way.
+3. **Tests and a scenario** (`spy-in-my-city`: your city with an enemy Spy inside and your units around it):
+   moving in from next door and from afar both work; the spy is caught; a spy on open ground is caught too;
+   Metz still works.
+
+4. **Drag to move (Dan, 2026-09-26: "as another option").** Press on the **selected unit** and drag: the
+   path and "N turns" show as you drag (the Round 17 path preview), and **releasing on a tile does what
+   a tap there would** (move, board, attack with the odds panel, capture). Releasing back on the unit, or
+   off the map, cancels. A drag that **starts anywhere else still pans the map**, exactly as today; a
+   pinch still zooms. Works with touch and the mouse; doesn't fight the minimap or panels; while dragging,
+   the map scrolls when you reach a screen edge. Tap to move keeps working, and "Tap twice to move" is
+   unaffected. How to Play gets a line; tests for the gesture rules; preview-verified on iPad emulation.
+
+**Done means:** items 0–4 reported; tests pass; items 1–3 **pushed** (Dan's OK) and live; item 4 committed,
+**not pushed**; the play server restarted.
+
+**Still open for Dan (no agent work needed):** a full game with Round 19; the iPad **Home Screen icon**
+sign-in and the **keep-which question**; **Q31** (time `huge-map` and `epic-map` on the iPad); optional:
+the title picture (`docs/TITLE-ART.md`).
 
 ## Next Steps (Do Not Start Yet)
 
