@@ -856,7 +856,7 @@ what was pushed.
 
 - **Round 20: done.** Item 8 (a city held only by ships can be captured; bombers strike
   ships in port) was pushed on Dan's say-so as 0.19.1 and is live. The balance items (1–7)
-  are committed but **not pushed**; see the Round 20 report in TODO.md. Pushing is Dan's call.
+  were pushed on Dan's say-so (2026-09-26, `67c2463`) and are live; see the Round 20 report in TODO.md. Pushing is Dan's call again.
 
 **Current objective:** none set; the planning session picks the next round (see TODO.md).
 

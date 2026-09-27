@@ -1973,7 +1973,7 @@ North Korea and the Franks are still under their share on the big maps. And ther
 More trimming would weaken Ukraine and the USA on the other rows, where they're now at or under their
 share.
 
-**Committed, not pushed:** the balance commit on `main` after `93186c4`. Tests: 1062 pass (pace and balance included).
+**Pushed on Dan's say-so (2026-09-26):** the balance commit `67c2463`, now live. Tests: 1062 pass (pace and balance included).
 The play server was restarted after item 8 and again at the end of the round (http://10.0.0.224:4173/), so it now has the balance changes too (saves carry over; nothing in the state changed). The live site has only item 8.
 
 
