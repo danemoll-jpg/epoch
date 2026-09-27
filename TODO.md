@@ -2031,7 +2031,9 @@ decides when it goes out. Don't touch the hub.
   tiles moved there, the map didn't pan) and in touch emulation (760×1000, touch pointer events: the
   path preview with "2 turns" mid-drag; back on the unit cancels; the edge scroll moves the view east;
   the pane was hidden, so the frame loop was stepped by hand there). Not yet on the iPad.
-- **Commits waiting to be pushed:** the item 4 commit and this docs update (see `git log origin/main..main`).
+- **Play server** restarted again at the end of the round (standing rule) with 0.21.0, so drag to move
+  can be tried on the iPad at http://10.0.0.224:4173/ before it's pushed.
+- **Commits waiting to be pushed:** item 4 with its docs, and this note (see `git log origin/main..main`).
 
 
 **Still open for Dan (no agent work needed):** a full game with Round 19; the iPad **Home Screen icon**
