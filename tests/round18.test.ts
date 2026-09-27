@@ -126,7 +126,7 @@ describe('Round 18 item 2: the Units list', () => {
     expect(listUnits(s, 0, 'all').map((u) => u.id)).toEqual([ship.id, ready.id, fort.id, aboard.id, done.id]);
     expect(listUnits(s, 0, 'fortified').map((u) => u.id)).toEqual([fort.id]);
     expect(listUnits(s, 0, 'aboard').map((u) => u.id)).toEqual([aboard.id]);
-    expect(filterCounts(s, 0)).toEqual({ all: 5, ready: 2, fortified: 1, aboard: 1 });
+    expect(filterCounts(s, 0)).toEqual({ all: 5, ready: 2, exploring: 0, fortified: 1, aboard: 1 });
     expect(unitWhere(s, 0, fort)).toBe(`in ${c.name}`);
     expect(unitWhere(s, 0, ready)).toBe(`2 tiles from ${c.name}`);
     expect(unitWhere(s, 0, done)).toBe(`1 tile from ${c.name}`);

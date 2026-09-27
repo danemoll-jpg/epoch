@@ -35,6 +35,7 @@ import { TERRAIN } from '../data/terrain';
 import { UNITS } from '../data/units';
 import { GREAT_PEOPLE_RULES } from '../data/greatPeople';
 import { isBarbarian, raidCity, raidError, villageAt, villageDefensePct } from './barbarians';
+import { stopExploring } from './exploreStop';
 import { captureCity, catchSpies, checkEliminations, civAdjective, CivName, civName } from './conquest';
 import { recordLoss, updateContacts } from './diplomacy';
 import { enterTile } from './villages';
@@ -320,6 +321,8 @@ export function attack(state: GameState, unitId: number, at: Coord): ActionResul
   const attackerWon = nextFloat(state) < chance;
   const winner = attackerWon ? unit : defender;
   const loser = attackerWon ? defender : unit;
+  // Round 22 (item 8): an explorer that survives an attack stops and asks for orders.
+  if (!attackerWon) stopExploring(state, defender, 'it was attacked');
   // A sunk ship takes its cargo down with it.
   const cargoLost = removeUnit(state, loser.id).length - 1;
   let promoted = false;
@@ -434,7 +437,7 @@ export function fortify(state: GameState, unitId: number): ActionResult {
 /** Round 18 (item 2): why a unit can't be woken, or undefined if it can. */
 export function wakeError(state: GameState, unit: Unit): string | undefined {
   if (state.currentPlayer !== unit.owner) return 'Not your turn';
-  if (!unit.fortified) return 'Not fortified';
+  if (!unit.fortified && !unit.exploring) return 'Not fortified';
   return undefined;
 }
 
@@ -449,6 +452,8 @@ export function wake(state: GameState, unitId: number): ActionResult {
   const err = wakeError(state, unit);
   if (err) return { ok: false, reason: err };
   unit.fortified = false;
+  // Round 22 (item 8): Wake also ends Explore mode.
+  unit.exploring = false;
   return { ok: true };
 }
 

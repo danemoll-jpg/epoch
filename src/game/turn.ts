@@ -16,6 +16,7 @@ import { chooseVillage, pendingVillage } from './villages';
 import { checkFoundings, spreadReligions } from './religion';
 import { processBorders } from './borders';
 import { checkEliminations } from './conquest';
+import { runExplorers } from './explore';
 
 function startTurnFor(state: GameState, playerId: number): void {
   for (const u of state.units) {
@@ -57,6 +58,8 @@ export function endTurn(state: GameState): ActionResult {
   for (let i = 0; i < n && !state.players[next]!.alive; i++) next = (next + 1) % n;
   state.currentPlayer = next;
   startTurnFor(state, next);
+  // Round 22 (item 8): the player's explorers take their turn first.
+  if (state.players[next]!.kind === 'human') runExplorers(state, next);
   // Wonders just finished, captures during the turn, a spaceship arriving at this turn's start.
   checkVictory(state);
   return { ok: true };

@@ -531,6 +531,11 @@ function formArmies(state: GameState, playerId: number): void {
 }
 
 /** Walk toward the nearest frontier of unexplored tiles. False if there's none to go to. */
+/** Round 22 (item 8): the player's Explore mode takes the same step as the AI's explorers (no wandering). */
+export function aiExploreStep(state: GameState, unit: Unit): boolean {
+  return explore(state, unit, false);
+}
+
 function explore(state: GameState, unit: Unit, wander = true): boolean {
   const { map } = state;
   const explored = state.players[unit.owner]!.explored;

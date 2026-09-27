@@ -129,6 +129,8 @@ export interface Unit {
   charges?: number;
   /** Round 19: where a Drone scouted this turn (it sees around there until the turn ends). */
   recon?: { x: number; y: number; turn: number };
+  /** Round 22 (item 8): in Explore mode (it moves on its own at the start of each of its owner's turns). */
+  exploring?: boolean;
 }
 
 export type BuildItem =
@@ -409,7 +411,9 @@ export interface LogEntry {
     // Round 19 Part E: unrest in a city, and a referendum that moved one.
     | 'referendum'
     // Round 22: a nation eliminated, and one that lost its last city but still has a Settler.
-    | 'eliminated' | 'homeless';
+    | 'eliminated' | 'homeless'
+    // Round 22: a unit stopped exploring and wants orders.
+    | 'explore';
   /** Round 19: what the entry is about, so the UI can build its card (all optional). */
   ref?: LogRef;
   /** Where it happened, so the UI can hide rival events the viewer can't see. */

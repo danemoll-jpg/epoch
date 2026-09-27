@@ -475,6 +475,8 @@ function drawUnit(
     ctx.fillText(`×${RULES.combat.armyMultiplier}`, lx, ly + s * 0.005);
   }
   if (unit.fortified) drawShield(ctx, cx - r * 0.95, cy + r * 0.2, s * 0.2);
+  // Round 22 (item 8): a small compass on an exploring unit.
+  if (unit.exploring) drawCompass(ctx, cx - r * 0.95, cy - r * 0.75, s * 0.11);
   if (cargo > 0) {
     // Units aboard: a teal badge at the lower right (a bit higher on a fleet, clear of its ×3 tag).
     const bx = cx + r * (unit.army ? 1.05 : 0.85);
@@ -522,6 +524,34 @@ function drawGlyph(ctx: CanvasRenderingContext2D, unit: Unit, cx: number, cy: nu
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(glyph, cx, cy);
+}
+
+/** Round 22 (item 8): a small compass (exploring), centered on (x, y), radius `r`. */
+function drawCompass(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
+  ctx.fillStyle = '#f4efe2';
+  ctx.strokeStyle = '#1b2430';
+  ctx.lineWidth = Math.max(1, r * 0.18);
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  // The needle: red to the north, dark to the south.
+  const n = r * 0.78;
+  const w = r * 0.32;
+  ctx.fillStyle = '#d23b2e';
+  ctx.beginPath();
+  ctx.moveTo(x, y - n);
+  ctx.lineTo(x + w, y);
+  ctx.lineTo(x - w, y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#1b2430';
+  ctx.beginPath();
+  ctx.moveTo(x, y + n);
+  ctx.lineTo(x + w, y);
+  ctx.lineTo(x - w, y);
+  ctx.closePath();
+  ctx.fill();
 }
 
 /** Small shield (fortified), centered on (x, y), `h` tall. */

@@ -2360,6 +2360,27 @@ export function unloadAllScenario(): GameState {
   return state;
 }
 
+/**
+ * Round 22 (item 8): the north of your island known, its south not: a Horseman to explore it, a
+ * Galley in the channel to explore the coast (a rival capital on the far shore, at war, will stop it),
+ * and a Settler that can't explore.
+ */
+export function exploreScenario(): GameState {
+  const state = seaState(9, 2);
+  eastRival(state, 9, 6);
+  state.players[0]!.techs.push('horseback_riding');
+  const me = state.players[0]!;
+  me.explored.fill(0);
+  // The north of your island and the channel beside it are known; the south isn't.
+  for (let y = 0; y <= 6; y++) for (let x = 0; x <= 7; x++) me.explored[tileIndex(state.map, x, y)] = 1;
+  addUnit(state, 'horseman', 0, 3, 5);
+  addUnit(state, 'galley', 0, 7, 2);
+  addUnit(state, 'settler', 0, PORT.x, PORT.y);
+  state.diplomacy.met[0]![1] = false;
+  state.diplomacy.met[1]![0] = false;
+  return state;
+}
+
 function roadDirectOption() {
   const s = roadDirectScenario();
   return roadOption(s, 0, s.cities[0]!, s.cities[1]!)!;
@@ -2389,6 +2410,12 @@ const ROUND22_SCENARIOS: Scenario[] = [
     title: 'Unload all',
     note: `Your Transport, off the eastern beach, carries a Warrior, a Legion army and a Settler that has already moved. Tap the Transport: ⚓ Unload all (2). Tap it, then the beach tile next to the ship: the Warrior and the Legion army go ashore together (still an army); the Settler stays aboard, and the message says why. Or drag the Transport onto the beach. In ${CAPITAL}, the Galley in port has an Archer and a Spearman: Unload all puts both in the city at once.`,
     build: unloadAllScenario,
+  },
+  {
+    id: 'explore',
+    title: 'Explore mode',
+    note: `The south of your island and the sea beyond are dark. Tap the Horseman, then 🧭 Explore: it rides off toward the unknown on its own, with a small compass on it, and Next Unit skips it. Do the same with the Galley in the channel. Tap End Turn several times: they keep going each turn; the Horseman stops once the island is known ("nothing left to explore"), and the Galley stops when it sights ${RIVAL_CAPITAL} across the water (you're at war). ☰ → Units lists them as exploring. Tap an exploring unit to take it off Explore. The Settler has no Explore button.`,
+    build: exploreScenario,
   },
 ];
 

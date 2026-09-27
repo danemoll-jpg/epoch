@@ -39,6 +39,7 @@ import { faithOpinion, holyReligion, religionCityCulture, religionCityGold, spre
 import { roadAt, roadConnected, roadOption } from '../src/game/roads';
 import { LAST_MALI, LAST_MAURYA, ROAD_OXFORD, UNLOAD_BEACH } from '../src/dev/scenarios';
 import { unloadAllTiles } from '../src/game/movement';
+import { canExplore } from '../src/game/explore';
 import { BUILT_CITIES, FLIP_TOWN, METZ, NEW_UNITS_SCOUT, RIVAL_WONDER, UPGRADE_COAST,
   UPGRADE_GOLD, CYCLE_CITIES, FORTIFIED, LARGE_MAP_TURNS, MINIMAP_SEED, NEXT_UNIT, TAP_CITY_LEGION, TAP_CITY_WARRIOR, TAP_OWN } from '../src/dev/scenarios';
 import { listUnits } from '../src/ui/unitsList';
@@ -92,6 +93,19 @@ function endTurn(s: GameState): void {
 /** What each scenario's note promises. A new scenario without an entry here fails the suite. */
 const OUTCOMES: Record<string, (s: GameState) => void> = {
   // ---- Round 22 ----
+  explore: (s) => {
+    const RIVAL_CAPITAL_NAME = s.cities.find((c) => c.owner === 1)!.name;
+    expect(noteOf('explore')).toContain(`sights ${RIVAL_CAPITAL_NAME}`);
+    const horse = mine(s, 'horseman');
+    const galley = mine(s, 'galley');
+    expect(canExplore(mine(s, 'settler'))).toBe(false);
+    expect(applyAction(s, { type: 'explore', unitId: horse.id }).ok).toBe(true);
+    expect(applyAction(s, { type: 'explore', unitId: galley.id }).ok).toBe(true);
+    const stops = () => s.log.filter((e) => e.kind === 'explore' && e.player === 0).map((e) => e.text);
+    for (let i = 0; i < 20 && (horse.exploring || galley.exploring); i++) endTurn(s);
+    expect(stops()).toContain('Horseman stopped exploring: nothing left to explore that it can reach');
+    expect(stops()).toContain(`Galley stopped exploring: it sighted ${RIVAL_CAPITAL_NAME}, an enemy city`);
+  },
   'unload-all': (s) => {
     const transport = mine(s, 'transport');
     const galley = mine(s, 'galley');

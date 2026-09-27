@@ -19,6 +19,7 @@ import { dissolution, pilgrimage, returnCity, setChallenge } from './uniques';
 import { nameReligion, nationalChurch, spreadReligion } from './religion';
 import { buyRoad } from './roads';
 import { upgradeUnit } from './upgrades';
+import { startExploring } from './explore';
 import { spyAction } from './spies';
 import type { SpyActionId } from '../data/spies';
 
@@ -27,6 +28,8 @@ export type Action =
   | { type: 'foundCity'; unitId: number }
   | { type: 'attack'; unitId: number; at: Coord }
   | { type: 'fortify'; unitId: number }
+  /** Round 22 (item 8): send a ship, land military unit, or Drone exploring on its own. */
+  | { type: 'explore'; unitId: number }
   /** Round 18: un-fortify a unit (or a ship told to stay put). */
   | { type: 'wake'; unitId: number }
   /** Round 19 (item 8): upgrade a unit in one of your cities to the newest of its line. */
@@ -77,6 +80,11 @@ export type Action =
   | { type: 'endTurn' };
 
 export function applyAction(state: GameState, action: Action): ActionResult {
+  // Round 22 (item 8): any other order for an exploring unit ends Explore mode.
+  if ('unitId' in action && action.type !== 'explore' && action.type !== 'wake') {
+    const u = state.units.find((x) => x.id === action.unitId);
+    if (u?.exploring && u.owner === state.currentPlayer) u.exploring = false;
+  }
   const res = runAction(state, action);
   // A capture can win the game on the spot (domination).
   if (res.ok) checkVictory(state);
@@ -109,6 +117,8 @@ function runAction(state: GameState, action: Action): ActionResult {
       return unloadHere(state, action.unitId);
     case 'unloadAll':
       return unloadAll(state, action.shipId, action.to);
+    case 'explore':
+      return startExploring(state, action.unitId);
     case 'rebase':
       return rebase(state, action.unitId, action.to);
     case 'airlift':

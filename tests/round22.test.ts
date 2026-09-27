@@ -400,3 +400,106 @@ describe('Round 22 item 6: Unload all', () => {
     expect(applyAction(s, { type: 'unloadAll', shipId: galley.id, to: { x: 2, y: 1 } }).reason).toBe('Not your turn');
   });
 });
+
+// ---- item 8: Explore mode -------------------------------------------------------------------
+
+import { canExplore, enemyInSight, exploreError, runExplorers } from '../src/game/explore';
+import { listUnits, unitStatus } from '../src/ui/unitsList';
+
+describe('Round 22 item 8: Explore mode', () => {
+  // A wide grassland, only your corner explored; your city at (1, 1).
+  function field(width = 30) {
+    const s = makeState(Array.from({ length: 6 }, () => 'g'.repeat(width)), { exploreAll: false, peace: true });
+    addCity(s, 0, 1, 1, { name: 'Ur' });
+    const me = s.players[0]!;
+    for (let y = 0; y <= 3; y++) for (let x = 0; x <= 3; x++) me.explored[y * width + x] = 1;
+    return s;
+  }
+
+  it('ships, land military units and the Drone can explore; Settlers, Spies and Missionaries can\'t', () => {
+    const s = field();
+    expect(canExplore(addUnit(s, 'warrior', 0, 1, 1))).toBe(true);
+    expect(canExplore(addUnit(s, 'galley', 0, 1, 1))).toBe(true);
+    expect(canExplore(addUnit(s, 'drone', 0, 1, 1))).toBe(true);
+    expect(canExplore(addUnit(s, 'fighter', 0, 1, 1))).toBe(false);
+    for (const t of ['settler', 'spy', 'missionary'] as const) expect(canExplore(addUnit(s, t, 0, 1, 1))).toBe(false);
+    expect(exploreError(s, addUnit(s, 'settler', 0, 1, 1))).toBe('A Settler doesn’t explore');
+  });
+
+  it('goes at once toward the unknown, then again at the start of each of your turns; Next Unit and the list see it', () => {
+    const s = field();
+    const w = addUnit(s, 'horseman', 0, 1, 1);
+    const res = applyAction(s, { type: 'explore', unitId: w.id });
+    expect(res).toMatchObject({ ok: true, message: 'Horseman is exploring' });
+    expect(w.exploring).toBe(true);
+    expect(w.movesLeft).toBe(0);
+    const known = () => s.players[0]!.explored.filter((e) => e === 1).length;
+    const k1 = known();
+    expect(w.x).toBeGreaterThan(1);
+    expect(unitStatus(w)).toBe('exploring');
+    expect(listUnits(s, 0, 'exploring').map((u) => u.id)).toEqual([w.id]);
+    applyAction(s, { type: 'endTurn' });
+    expect(s.currentPlayer).toBe(0);
+    expect(known()).toBeGreaterThan(k1);
+    expect(w.exploring).toBe(true);
+  });
+
+  it('stops and asks for orders when it sights an enemy unit, and says why', () => {
+    const s = field();
+    s.atWar[0]![1] = true;
+    s.atWar[1]![0] = true;
+    const w = addUnit(s, 'warrior', 0, 3, 2);
+    applyAction(s, { type: 'explore', unitId: w.id });
+    addUnit(s, 'archer', 1, w.x + 1, w.y);
+    expect(enemyInSight(s, w)).toBe('it sighted an enemy Archer');
+    w.movesLeft = 1;
+    runExplorers(s, 0);
+    expect(w.exploring).toBe(false);
+    const e = s.log.at(-1)!;
+    expect(e).toMatchObject({ kind: 'explore', player: 0, text: 'Warrior stopped exploring: it sighted an enemy Archer' });
+  });
+
+  it('stops when attacked, when nothing is left, and on any order (or Wake)', () => {
+    const s = field(6);
+    s.players[0]!.explored.fill(1);
+    const w = addUnit(s, 'warrior', 0, 2, 2);
+    expect(applyAction(s, { type: 'explore', unitId: w.id }).message).toBe('Warrior stopped exploring: nothing left to explore that it can reach');
+    expect(w.exploring).toBe(false);
+    // An order ends it.
+    w.exploring = true;
+    applyAction(s, { type: 'fortify', unitId: w.id });
+    expect(w.exploring).toBe(false);
+    w.exploring = true;
+    expect(applyAction(s, { type: 'wake', unitId: w.id }).ok).toBe(true);
+    expect(w.exploring).toBe(false);
+    // Attacked and survived.
+    s.atWar[0]![1] = true;
+    s.atWar[1]![0] = true;
+    const d = addUnit(s, 'pikeman', 0, 4, 4, { fortified: false });
+    d.exploring = true;
+    const a = addUnit(s, 'warrior', 1, 5, 5);
+    s.currentPlayer = 1;
+    s.rngState = 99;
+    const fight = applyAction(s, { type: 'attack', unitId: a.id, at: { x: 4, y: 4 } });
+    expect(fight.combat!.attackerWon).toBe(false);
+    expect(d.exploring).toBe(false);
+    expect(s.log.some((e) => e.text === 'Pikeman stopped exploring: it was attacked')).toBe(true);
+  });
+
+  it('a ship explores the sea; the Drone scouts the least-known spot in range', () => {
+    const s = makeState(['ccccccccccccccc', 'ccccccccccccccc', 'ggggggggggggggg'], { exploreAll: false });
+    addCity(s, 0, 0, 2, { name: 'Ur' });
+    const me = s.players[0]!;
+    for (const i of [0, 1, 15, 16, 30, 31]) me.explored[i] = 1;
+    const g = addUnit(s, 'galley', 0, 1, 1);
+    const k0 = me.explored.filter((e) => e === 1).length;
+    applyAction(s, { type: 'explore', unitId: g.id });
+    expect(g.exploring).toBe(true);
+    expect(me.explored.filter((e) => e === 1).length).toBeGreaterThan(k0);
+    const drone = addUnit(s, 'drone', 0, 0, 2);
+    const before = me.explored.filter((e) => e === 1).length;
+    expect(applyAction(s, { type: 'explore', unitId: drone.id }).ok).toBe(true);
+    expect(drone.recon).toBeDefined();
+    expect(me.explored.filter((e) => e === 1).length).toBeGreaterThan(before);
+  });
+});

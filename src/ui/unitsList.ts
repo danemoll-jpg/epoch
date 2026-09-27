@@ -5,12 +5,13 @@ import { distance } from '../game/grid';
 import { isAir } from '../game/naval';
 import type { GameState, Unit } from '../game/types';
 
-export type UnitStatus = 'ready' | 'fortified' | 'aboard' | 'done';
-export type UnitFilter = 'all' | 'ready' | 'fortified' | 'aboard';
+export type UnitStatus = 'ready' | 'exploring' | 'fortified' | 'aboard' | 'done';
+export type UnitFilter = 'all' | 'ready' | 'exploring' | 'fortified' | 'aboard';
 
 export const UNIT_FILTERS: { id: UnitFilter; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'ready', label: 'Ready' },
+  { id: 'exploring', label: 'Exploring' },
   { id: 'fortified', label: 'Fortified' },
   { id: 'aboard', label: 'Aboard' },
 ];
@@ -20,6 +21,8 @@ export const UNIT_FILTERS: { id: UnitFilter; label: string }[] = [
  * a ship (an aircraft on a Carrier isn't cargo), then ready (moves left) or done.
  */
 export function unitStatus(u: Unit): UnitStatus {
+  // Round 22 (item 8): out exploring on its own.
+  if (u.exploring) return 'exploring';
   if (u.fortified) return 'fortified';
   if (u.carriedBy !== null && !isAir(u)) return 'aboard';
   return u.movesLeft > 0 ? 'ready' : 'done';
@@ -27,7 +30,7 @@ export function unitStatus(u: Unit): UnitStatus {
 
 /** Your units that pass the filter, grouped by status (ready, fortified, aboard, done), oldest first. */
 export function listUnits(state: GameState, viewer: number, filter: UnitFilter): Unit[] {
-  const order: UnitStatus[] = ['ready', 'fortified', 'aboard', 'done'];
+  const order: UnitStatus[] = ['ready', 'exploring', 'fortified', 'aboard', 'done'];
   return state.units
     .filter((u) => u.owner === viewer && (filter === 'all' || unitStatus(u) === filter))
     .sort((a, b) => order.indexOf(unitStatus(a)) - order.indexOf(unitStatus(b)) || a.id - b.id);
@@ -35,7 +38,7 @@ export function listUnits(state: GameState, viewer: number, filter: UnitFilter):
 
 /** How many of your units each filter shows (for the filter buttons). */
 export function filterCounts(state: GameState, viewer: number): Record<UnitFilter, number> {
-  const counts: Record<UnitFilter, number> = { all: 0, ready: 0, fortified: 0, aboard: 0 };
+  const counts: Record<UnitFilter, number> = { all: 0, ready: 0, exploring: 0, fortified: 0, aboard: 0 };
   for (const u of state.units) {
     if (u.owner !== viewer) continue;
     counts.all++;

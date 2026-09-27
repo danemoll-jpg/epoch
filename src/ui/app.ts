@@ -46,6 +46,7 @@ import { distance, neighbors, tileAt, tileIndex } from '../game/grid';
 import { unitVisibleTo } from '../game/fog';
 import { aircraftOf, airCapacity, armyWord, cargoCapacity, cargoOf, hovers, isAir, isShip, isWaterAt } from '../game/naval';
 import { entriesSince, entryText, eventsVisibleTo } from '../game/log';
+import { canExplore, exploreError } from '../game/explore';
 import { findPath, findUnit, pathTurns, reachableThisTurn, stepError, unloadAllError, unloadAllTiles } from '../game/movement';
 import { migrationSummary } from '../game/save';
 import {
@@ -372,6 +373,7 @@ export class App {
       else if (btn.dataset.act === 'board') this.boardShip(id, Number(btn.dataset.ship));
       else if (btn.dataset.act === 'unload') this.unloadHere(id);
       else if (btn.dataset.act === 'unloadAll') this.startUnloadAll(Number(btn.dataset.ship));
+      else if (btn.dataset.act === 'explore') this.exploreUnit(id);
       else if (btn.dataset.act === 'airlift') this.pickAirlift(id);
       else if (btn.dataset.act === 'spread') this.spreadReligion(id, Number(btn.dataset.city));
       else if (btn.dataset.act === 'moveHere') this.moveUnitHere(id);
@@ -1457,6 +1459,19 @@ export class App {
     this.refresh();
   }
 
+  /** Round 22 (item 8): sends the unit exploring; Next Unit moves on. */
+  private exploreUnit(unitId: number): void {
+    const res = this.dispatchResult({ type: 'explore', unitId });
+    if (!res.ok) {
+      if (res.reason) this.toast(res.reason);
+      return;
+    }
+    this.sound.play('unit-move');
+    this.announce(this.lastNews.filter((e) => e.kind !== 'explore'));
+    if (res.message) this.toast(res.message);
+    this.selectNext(false);
+  }
+
   /** Goes ashore into the city the ship is docked in. */
   private unloadHere(unitId: number): void {
     const u = findUnit(this.state, unitId);
@@ -1591,7 +1606,7 @@ export class App {
 
   /** Units still waiting for orders this turn (fortified units, and cargo riding aboard a ship, are left alone; aircraft on a Carrier aren't cargo). */
   private readyUnits(): Unit[] {
-    return this.myUnits().filter((u) => u.movesLeft > 0 && !u.fortified && (u.carriedBy === null || isAir(u)));
+    return this.myUnits().filter((u) => u.movesLeft > 0 && !u.fortified && !u.exploring && (u.carriedBy === null || isAir(u)));
   }
 
   private myCities(): City[] {
@@ -1600,6 +1615,11 @@ export class App {
 
   private select(unitId: number | undefined): void {
     if (unitId !== undefined && unitId !== this.selectedUnitId) this.sound.play('tap');
+    // Round 22 (item 8): tapping an exploring unit takes it off Explore mode, ready for orders.
+    const picked = unitId !== undefined ? findUnit(this.state, unitId) : undefined;
+    if (picked?.exploring && picked.owner === this.human && this.dispatch({ type: 'wake', unitId: picked.id })) {
+      this.toast(`${UNITS[picked.type].name} stopped exploring: it’s waiting for your orders`);
+    }
     if (unitId !== this.selectedUnitId) {
       this.pendingMove = undefined;
       this.unitOffer = undefined;
@@ -2540,7 +2560,7 @@ export class App {
     $('unitsFilters').innerHTML = UNIT_FILTERS.map(
       (f) => `<button type="button" data-filter="${f.id}" class="${this.unitsFilter === f.id ? 'on' : ''}" aria-pressed="${this.unitsFilter === f.id}">${f.label} <span class="sub">${counts[f.id]}</span></button>`,
     ).join('');
-    const words: Record<ReturnType<typeof unitStatus>, string> = { ready: 'ready', fortified: '🛡 fortified', aboard: '⚓ aboard', done: 'done this turn' };
+    const words: Record<ReturnType<typeof unitStatus>, string> = { ready: 'ready', exploring: '🧭 exploring', fortified: '🛡 fortified', aboard: '⚓ aboard', done: 'done this turn' };
     const units = listUnits(this.state, this.human, this.unitsFilter);
     $('unitsList').innerHTML = units.length
       ? units
@@ -4661,6 +4681,13 @@ export class App {
         navalBtns += `<button type="button" data-act="spread" data-unit="${sel.id}" data-city="${c.id}" class="navalBtn spreadBtn">✦ Spread ${esc(faith?.name ?? 'the faith')} to ${esc(c.name)}${c.owner !== this.human ? ` (${esc(civDef(this.state, c.owner).name)})` : ''}</button>`;
       }
       if (!targets.length) navalBtns += `<div class="label">Walk into or next to a city that doesn’t follow ${esc(faith?.name ?? 'your faith')} (yours, or a civ at peace with you), then spread it.</div>`;
+    }
+    // Round 22 (item 8): Explore, for ships, land military units, and the Drone.
+    if (mine && canExplore(sel) && !(sel.carriedBy !== null && !isAir(sel))) {
+      const err = exploreError(this.state, sel);
+      navalBtns += `<button type="button" data-act="explore" data-unit="${sel.id}" class="navalBtn exploreBtn" ${err ? 'disabled' : ''} title="It heads for unexplored land each turn on its own, and stops when it sights an enemy">🧭 Explore${
+        err && err !== 'Not your turn' ? ` <span class="sub">· ${esc(err)}</span>` : ''
+      }</button>`;
     }
     // Round 19 (item 8): an out-of-date unit inside your borders (Round 22) can be upgraded.
     if (mine) navalBtns += this.upgradeButton(sel);
