@@ -325,7 +325,7 @@ export function victoryWarnings(state: GameState, p: number): VictoryWarning[] {
   const Who = CivName(state, p);
   const has = civVerb(state, p, 'has', 'have');
   const is = civVerb(state, p, 'is', 'are');
-  const unknown = 'An unknown civilization';
+  const unknown = 'An unknown nation';
   const goals = victoryGoals(state.mapSize, state.difficulty);
   const space = player.space;
   if (space.launchedTurn !== null && space.arrivesTurn !== null) {
@@ -352,7 +352,7 @@ export function victoryWarnings(state: GameState, p: number): VictoryWarning[] {
         turns: left,
         ...at,
         text: `${whose.charAt(0).toUpperCase()}${whose.slice(1)} spaceship arrives in ${turnsWord(left)}${capital ? `. Only taking ${capital.name} stops it` : ''}.`,
-        unknownText: `The spaceship of an unknown civilization arrives in ${turnsWord(left)}.`,
+        unknownText: `The spaceship of an unknown nation arrives in ${turnsWord(left)}.`,
       });
     }
   }
@@ -461,7 +461,7 @@ export function warningAdvice(state: GameState, viewer: number, rival: number, k
   const city = cityId !== undefined ? state.cities.find((c) => c.id === cityId) : undefined;
   const war = met && state.atWar[viewer]?.[rival] === true;
   let stop: string;
-  if (!met) stop = 'Explore to find them: you can only fight or bargain with a civ you have met.';
+  if (!met) stop = 'Explore to find them: you can only fight or bargain with a nation you have met.';
   else if (kind === 'domination') stop = `Hold on to your capital${war ? '' : ' and keep the peace with them'}, and help anyone they are fighting.`;
   else if (city) stop = `${war ? 'You are at war with them: capture' : 'Declare war and capture'} ${city.name} to stop it.`;
   else stop = war ? 'You are at war with them: take their cities.' : 'Declare war and take their cities.';

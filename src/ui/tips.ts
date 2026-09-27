@@ -45,7 +45,7 @@ export const TIPS: Tip[] = [
   },
   {
     id: 'first-contact',
-    title: 'You met another civ',
+    title: 'You met another nation',
     text: 'Open 🤝 Diplomacy to see them. You can trade techs, give gifts, make peace, or declare war. How you treat them is remembered.',
     when: (s, h) => metCivs(s, h).length > 0,
   },

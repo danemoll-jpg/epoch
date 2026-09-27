@@ -27,7 +27,7 @@
 </head>
 <body>
 <h1>Leader portraits: every size the game uses</h1>
-<p>Each row: the full picture (the gold dot is the face focus, <code>portraitFocus</code> in src/data/civs.ts), then every size the game draws. At 48 px and under the game zooms in on the face. The placeholder (initials on the civ color) comes last: it's what a leader without a picture gets. If a small one looks off, adjust that leader's focus in civs.ts, then run <code>python scripts/make-portraits-page.py</code>.</p>
+<p>Each row: the full picture (the gold dot is the face focus, <code>portraitFocus</code> in src/data/civs.ts), then every size the game draws. At 48 px and under the game zooms in on the face. The placeholder (initials on the nation's color) comes last: it's what a leader without a picture gets. If a small one looks off, adjust that leader's focus in civs.ts, then run <code>python scripts/make-portraits-page.py</code>.</p>
 <h2>Round 16: PNG (before) and WebP (after), side by side</h2>
 <p>The game now uses WebP copies of the portraits (quality 90): about 850 KB for all 12 instead of 5.2 MB. Dan's PNG masters stay in <code>docs/portraits-master/</code>. Left: the PNG master; right: the WebP the game uses, each at 256 px (twice the largest size the game shows), then both at 128 px. If any looks different to you, say which. Rebuild the WebPs from the masters with <code>python scripts/make-portrait-webp.py</code>.</p>
 <div id="cmpList"></div>

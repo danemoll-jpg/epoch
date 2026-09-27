@@ -1135,7 +1135,7 @@ export class App {
   /** The spy's actions on each rival city it's in or next to, with each one's chance (or why not). */
   private spyButtons(spy: Unit): string {
     const targets = spyTargets(this.state, spy);
-    if (!targets.length) return `<div class="label">🕵 Walk into or next to a rival city (you can enter the cities of civs you're at peace with), then investigate, steal a tech, sabotage, or incite a revolt. Rivals can't see a Spy unless it's next to their city with a ${esc(spyDefenseName())}.</div>`;
+    if (!targets.length) return `<div class="label">🕵 Walk into or next to a rival city (you can enter the cities of nations you're at peace with), then investigate, steal a tech, sabotage, or incite a revolt. Rivals can't see a Spy unless it's next to their city with a ${esc(spyDefenseName())}.</div>`;
     return targets
       .map((c) => {
         const rows = SPY_ACTION_IDS.map((a) => {
@@ -2940,7 +2940,7 @@ export class App {
       const err = pilgrimageError(this.state, this.human);
       const R = UNIQUE_RULES.pilgrimage;
       actions.push(`<button type="button" data-act="pilgrimage" ${err ? 'disabled' : ''}>🕌 The Pilgrimage: ${me.gold} gold → ${Math.floor(me.gold * R.culturePerGold)} culture</button>
-        <div class="sub">${err ? esc(err) : `Spends all your gold (at least ${R.minGold}); every civ you’ve met thinks better of you. Once per game.`}</div>`);
+        <div class="sub">${err ? esc(err) : `Spends all your gold (at least ${R.minGold}); every nation you’ve met thinks better of you. Once per game.`}</div>`);
     }
     if (hasUnique(this.state, this.human, 'dissolution') || me.uniquesUsed.includes('dissolution')) {
       const err = dissolutionError(this.state, this.human);
@@ -3024,7 +3024,7 @@ export class App {
       ? `${v.winner === this.human ? 'You' : CivName(this.state, v.winner)} won ${aVictory(v.kind)} on turn ${v.turn}${
           this.state.keepPlaying ? '. You kept playing: a win now won’t change the result, but it goes on the record' : ''
         }.`
-      : `Turn ${this.state.turn}. The first civ to reach any one of these wins.`;
+      : `Turn ${this.state.turn}. The first nation to reach any one of these wins.`;
     // Round 13: the level and map this game is played at.
     $('victoryStatus').textContent += ` · ${DIFFICULTIES[this.state.difficulty].name} · ${MAP_SIZES[this.state.mapSize].name} map`;
     const body = $('victoryBody');
@@ -3033,7 +3033,7 @@ export class App {
     const cards = order.map((p) => this.victoryCard(p)).join('');
     const S = VICTORY.spaceship;
     const rules = `<div class="vrules">
-      <div><b>Domination</b> <span class="sub">Hold every rival's original capital (★). Wiping a civ out counts too.</span></div>
+      <div><b>Domination</b> <span class="sub">Hold every rival's original capital (★). Wiping a nation out counts too.</span></div>
       <div><b>Culture</b> <span class="sub">Reach ${victoryGoals(this.state.mapSize, this.state.difficulty).culture} culture (Temples and wonders), then build the ${WONDERS.world_council.name}.</span></div>
       <div><b>Economic</b> <span class="sub">Have ${victoryGoals(this.state.mapSize, this.state.difficulty).gold} gold, then build the ${WONDERS.global_exchange.name} (with production; keep the gold until it's done).</span></div>
       <div><b>Technology</b> <span class="sub">Learn Space Flight, build ${S.parts} spaceship parts in your capital, launch, and hold your capital for ${S.travelTurns} turns until it arrives.</span></div>
@@ -3045,13 +3045,13 @@ export class App {
         ? '<span class="sub">Not built yet</span>'
         : met
           ? `<span class="swatch" style="background:${playerColor(this.state, city.owner)}"></span> ${city.owner === this.human ? 'You' : esc(civDef(this.state, city.owner).name)} · ${esc(city.name)}`
-          : '<span class="sub">A civ you haven’t met</span>';
+          : '<span class="sub">A nation you haven’t met</span>';
       return `<li><b>${w.name}</b> <span class="sub">${TECHS[w.requires].name}${w.victory ? ' · wins the game' : ''}</span><span class="wwhere">${where}</span></li>`;
     }).join('');
     // Round 19 (item 10): wins reached after the game was decided.
     const later = this.state.laterWins.length
       ? `<div class="label">For the record (after the game was decided)</div><ul class="wonderList">${this.state.laterWins
-          .map((w) => `<li><b>${w.winner === this.human ? 'You' : hasMet(this.state, this.human, w.winner) ? esc(civDef(this.state, w.winner).name) : 'A civ you haven’t met'}</b> <span class="sub">${VICTORY_NAMES[w.kind]} victory · turn ${w.turn}</span></li>`)
+          .map((w) => `<li><b>${w.winner === this.human ? 'You' : hasMet(this.state, this.human, w.winner) ? esc(civDef(this.state, w.winner).name) : 'A nation you haven’t met'}</b> <span class="sub">${VICTORY_NAMES[w.kind]} victory · turn ${w.turn}</span></li>`)
           .join('')}</ul>`
       : '';
     body.innerHTML = `${rules}${later}<div class="vcards">${cards}</div>
@@ -3077,7 +3077,7 @@ export class App {
       })
       .join('');
     if (!me && !hasMet(this.state, this.human, p)) {
-      return `<div class="vcard unknown"><div class="vhead"><span class="swatch unknownSwatch"></span><b>Unknown civ</b></div>
+      return `<div class="vcard unknown"><div class="vhead"><span class="swatch unknownSwatch"></span><b>Unknown nation</b></div>
         <div class="sub">You haven’t met them yet.</div>${inProgress}</div>`;
     }
     if (!pl.alive) return `<div class="vcard out">${head}<span class="sub">Eliminated${pl.eliminatedTurn !== undefined ? ` on turn ${pl.eliminatedTurn}` : ''}</span></div></div>`;
@@ -3626,7 +3626,7 @@ export class App {
     const st = this.state;
     const R = RELIGION;
     const known = (c: City) => st.players[this.human]!.explored[c.y * st.map.width + c.x] === 1;
-    const who = (p: number) => (p === this.human ? 'You' : p === undefined ? '' : hasMet(st, this.human, p) ? esc(CivName(st, p)) : 'A civ you haven’t met');
+    const who = (p: number) => (p === this.human ? 'You' : p === undefined ? '' : hasMet(st, this.human, p) ? esc(CivName(st, p)) : 'A nation you haven’t met');
     const mineFaith = ownReligion(st, this.human);
     $('religionStatus').textContent = `${plural(st.religions.length, 'religion')} founded · ${st.cities.filter((c) => c.religion !== null).length} of ${st.cities.length} cities follow one`;
     const cards = st.religions
@@ -3649,7 +3649,7 @@ export class App {
     const open = FOUNDING_TECHS.filter((t) => !st.religions.some((r) => r.tech === t) && !st.religionTechsLapsed.includes(t));
     const lapsed = st.religionTechsLapsed.map((t) => TECHS[t].name);
     const rules = `<div class="vrules">
-      <div><b>Founding</b> <span class="sub">The first civ to learn ${FOUNDING_TECHS.map((t) => TECHS[t].name).join(', ')} founds a religion (${R.maxReligions} at most) in its capital, the holy city.</span></div>
+      <div><b>Founding</b> <span class="sub">The first nation to learn ${FOUNDING_TECHS.map((t) => TECHS[t].name).join(', ')} founds a religion (${R.maxReligions} at most) in its capital, the holy city.</span></div>
       <div><b>Spreading</b> <span class="sub">Cities near a city of a religion may convert each turn (closer, bigger, holy, Temples, Cathedrals, and roads help). A Missionary (${R.missionaryCharges} spreads) or a Great Artist converts a city at once. Holy cities never change faith.</span></div>
       <div><b>Holy city</b> <span class="sub">+${R.holyCity.culture} culture, +${R.holyCity.gold} gold, and +${R.holyCity.goldPerFollower} gold per follower city (up to +${R.holyCity.maxFollowerGold}), for whoever holds it.</span></div>
       <div><b>Followers</b> <span class="sub">A Temple makes +${R.followerCulture.temple} culture and a Cathedral +${R.followerCulture.cathedral} in a city that follows any religion. Capitals of the same faith: +${R.sharedFaithOpinion} opinion; different faiths −${Math.abs(R.differentFaithOpinion)}.</span></div>
@@ -4680,7 +4680,7 @@ export class App {
       for (const c of targets) {
         navalBtns += `<button type="button" data-act="spread" data-unit="${sel.id}" data-city="${c.id}" class="navalBtn spreadBtn">✦ Spread ${esc(faith?.name ?? 'the faith')} to ${esc(c.name)}${c.owner !== this.human ? ` (${esc(civDef(this.state, c.owner).name)})` : ''}</button>`;
       }
-      if (!targets.length) navalBtns += `<div class="label">Walk into or next to a city that doesn’t follow ${esc(faith?.name ?? 'your faith')} (yours, or a civ at peace with you), then spread it.</div>`;
+      if (!targets.length) navalBtns += `<div class="label">Walk into or next to a city that doesn’t follow ${esc(faith?.name ?? 'your faith')} (yours, or a nation at peace with you), then spread it.</div>`;
     }
     // Round 22 (item 8): Explore, for ships, land military units, and the Drone.
     if (mine && canExplore(sel) && !(sel.carriedBy !== null && !isAir(sel))) {

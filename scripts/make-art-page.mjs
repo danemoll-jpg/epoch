@@ -66,7 +66,7 @@ button.pick.on{background:var(--pick);border-color:var(--pick);color:#fff}
 </style></head>
 <body><main id="app">
 <h1>Terrain and city styles</h1>
-<p class="intro">Every picture on this page is drawn by the game's own code, on a small made-up map with <b>every terrain</b>, a coastline and an island, two civs' cities (one walled, a capital, a holy city), units on land and sea, resources, a hut, a barbarian village, a road and a railroad, and <b>fog</b> (the dim tiles are explored but out of sight). Pick <b>one terrain style</b> (A, B, or C) and <b>one city style</b> (A or B); they don't have to match. "Now" is today's look, for comparison. The bottom of the page shows your two picks together. Then tap <b>Copy my picks</b> and paste them into the chat.</p>
+<p class="intro">Every picture on this page is drawn by the game's own code, on a small made-up map with <b>every terrain</b>, a coastline and an island, two nations' cities (one walled, a capital, a holy city), units on land and sea, resources, a hut, a barbarian village, a road and a railroad, and <b>fog</b> (the dim tiles are explored but out of sight). Pick <b>one terrain style</b> (A, B, or C) and <b>one city style</b> (A or B); they don't have to match. "Now" is today's look, for comparison. The bottom of the page shows your two picks together. Then tap <b>Copy my picks</b> and paste them into the chat.</p>
 <h2>Terrain</h2>
 <div id="terrain"></div>
 <h2>Cities</h2>

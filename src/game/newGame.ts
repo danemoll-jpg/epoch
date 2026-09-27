@@ -57,7 +57,7 @@ export function createGame(opts: NewGameOptions): GameState {
   }
   const sizeId = opts.mapSize ?? DEFAULT_MAP_SIZE;
   if (playerCount > MAP_SIZES[sizeId].maxRivals + 1) throw new Error(`A ${sizeId} map fits at most ${MAP_SIZES[sizeId].maxRivals} rivals`);
-  if (opts.civ !== undefined && !PLAYABLE_CIVS.some((c) => c.id === opts.civ)) throw new Error(`Unknown civ ${opts.civ}`);
+  if (opts.civ !== undefined && !PLAYABLE_CIVS.some((c) => c.id === opts.civ)) throw new Error(`Unknown nation ${opts.civ}`);
   const difficulty = opts.difficulty ?? DEFAULT_DIFFICULTY;
   const mapSize = opts.mapSize ?? DEFAULT_MAP_SIZE;
   const size = MAP_SIZES[mapSize];

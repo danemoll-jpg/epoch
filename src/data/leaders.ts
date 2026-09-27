@@ -173,7 +173,7 @@ export const LEADER_BONUSES: Record<string, LeaderBonuses> = {
   egypt: {
     start: b('Monument builders', 'Wonders cost 15% less.', { kind: 'cost', of: 'wonders', pct: -15 }),
     eras: {
-      ancient: b('Envoys and caravans', 'Meeting a new civ brings 30 gold; +1 gold a turn per civ you know (up to +5); +1 gold on every worked road tile.', { kind: 'meetGold', gold: 30 }, { kind: 'goldPerMetCiv', gold: 1, max: 5 }, { kind: 'roadGold', gold: 1 }),
+      ancient: b('Envoys and caravans', 'Meeting a new nation brings 30 gold; +1 gold a turn per nation you know (up to +5); +1 gold on every worked road tile.', { kind: 'meetGold', gold: 30 }, { kind: 'goldPerMetCiv', gold: 1, max: 5 }, { kind: 'roadGold', gold: 1 }),
       medieval: b('Royal patronage', 'Each wonder in your cities also makes +3 culture and +2 gold a turn there.', { kind: 'wonderCityYield', culture: 3, gold: 2 }),
       industrial: b('River trade', 'Harbors and Marketplaces cost half as much.', { kind: 'cost', of: { buildings: ['harbor', 'marketplace'] }, pct: -50 }),
       modern: b('Treasury', '+25% gold in every city.', { kind: 'empirePct', yield: 'gold', pct: 25 }),
@@ -218,7 +218,7 @@ export const LEADER_BONUSES: Record<string, LeaderBonuses> = {
       industrial: b('Royal marriages', 'Gold gifts count double, and AIs accept your peace offers more readily.', { kind: 'royalMarriages', giftMult: 2, peaceBonus: 1.5 }),
       modern: b('Crown jewels', '+25% culture.', { kind: 'empirePct', yield: 'culture', pct: 25 }),
     },
-    drawback: b('Six wives', 'Declaring war on a civ you have a peace treaty with makes every civ cooler toward you.', { kind: 'breakTreaty', opinion: -2 }),
+    drawback: b('Six wives', 'Declaring war on a nation you have a peace treaty with makes every nation cooler toward you.', { kind: 'breakTreaty', opinion: -2 }),
   },
   france: {
     // Round 15: France won 22 of 71 games; Splendor was +50%.
@@ -234,18 +234,18 @@ export const LEADER_BONUSES: Record<string, LeaderBonuses> = {
   russia: {
     // Round 15 (B2): Russia's catch-up was too small to matter. Round 20 (item 5): still under
     // its share (1 win in 18 on Normal); was 35% less.
-    start: b('Grand embassy', 'Techs a civ you’ve met already knows cost 45% less.', { kind: 'metTechCost', pct: -45 }),
+    start: b('Grand embassy', 'Techs a nation you’ve met already knows cost 45% less.', { kind: 'metTechCost', pct: -45 }),
     eras: {
       ancient: b('Shipyards', 'Ships built in coastal cities get +25% production.', { kind: 'shipProduction', pct: 25 }),
       medieval: b('Window on the sea', 'The first ship of each type costs half as much.', { kind: 'firstShipCost', pct: -50 }),
-      industrial: b('Western advisers', '+6 science a turn for each civ you’ve met.', { kind: 'sciencePerMetCiv', science: 6 }),
-      modern: b('Modernization', '+35% science while a civ you’ve met knows more techs than you.', { kind: 'behindSciencePct', pct: 35 }),
+      industrial: b('Western advisers', '+6 science a turn for each nation you’ve met.', { kind: 'sciencePerMetCiv', science: 6 }),
+      modern: b('Modernization', '+35% science while a nation you’ve met knows more techs than you.', { kind: 'behindSciencePct', pct: 35 }),
     },
   },
   gran_colombia: {
     start: b('Liberation', 'Taking a city someone else founded brings 100 culture and 50 gold, and it keeps its population.', { kind: 'liberation', culture: 100, gold: 50 }),
     eras: {
-      ancient: b('Underdog', 'Units attack at +25% against civs with more cities than you.', { kind: 'attackVsBigger', pct: 25 }),
+      ancient: b('Underdog', 'Units attack at +25% against nations with more cities than you.', { kind: 'attackVsBigger', pct: 25 }),
       medieval: b('Return a liberated city', 'When you take a city, you may give it back to its founder: 150 culture, peace, and a friend.', { kind: 'unique', id: 'returnCity' }),
       industrial: b('Republics', 'Cities you captured make +2 culture a turn.', { kind: 'capturedCityCulture', culture: 2 }),
       modern: b('El Libertador', '+25% culture.', { kind: 'empirePct', yield: 'culture', pct: 25 }),
@@ -270,10 +270,10 @@ export const LEADER_BONUSES: Record<string, LeaderBonuses> = {
       // Round 20 (item 4): Ukraine won 2.4× its share on Normal (technology); was 20 science.
       ancient: b('Open doors', 'A tech received in a trade also brings 10 science, and AIs trade with you more willingly.', { kind: 'tradeScience', science: 10 }, { kind: 'tradeWillingness', delta: 1 }),
       // Round 20: was +2; Ukraine still won 2.4× its share on Legendary.
-      medieval: b('Catching up', '+1 science a turn for each civ you’ve met that knows more techs than you.', { kind: 'sciencePerMetCiv', science: 1, onlyAhead: true }),
+      medieval: b('Catching up', '+1 science a turn for each nation you’ve met that knows more techs than you.', { kind: 'sciencePerMetCiv', science: 1, onlyAhead: true }),
       // Round 15: Ukraine was the strongest leader over the matrix (1.5× its share); was up to +20%.
       // Round 20: was +4% each, up to +12%.
-      industrial: b('Partners', '+2% science for each civ you’ve met and are at peace with (up to +6%).', { kind: 'peaceSciencePct', pct: 2, max: 6 }),
+      industrial: b('Partners', '+2% science for each nation you’ve met and are at peace with (up to +6%).', { kind: 'peaceSciencePct', pct: 2, max: 6 }),
       modern: b('Resilience', 'Losing a city, or a war ending, brings 50 culture.', { kind: 'resilience', culture: 50 }),
     },
   },

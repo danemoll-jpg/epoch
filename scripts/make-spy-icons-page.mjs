@@ -3,7 +3,7 @@
 // each (CC BY 3.0), fetched once into docs/spy-icon-candidates/ and
 // normalized as in earlier rounds (viewBox 0 0 512 512, the black square removed,
 // fill="currentColor", a credit comment). Each is shown at the sizes the game uses: big, on the
-// map (white on a civ's color, next to other units), in the unit panel, and in a list row.
+// map (white on a nation's color, next to other units), in the unit panel, and in a list row.
 // Run: node scripts/make-spy-icons-page.mjs   (needs the network only for missing SVGs)
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -151,7 +151,7 @@ ${symbols.join('\n')}
 </defs></svg>
 <main>
 <h1>New Unit Icons</h1>
-<p class="intro">Round 19's three new units need icons: the <b>Spy</b>, <b>Modern Infantry</b> (the Rifleman's successor) and the <b>Drone</b>. Each candidate is shown big, on the map (white on a civ's color, on a tile and beside units it will stand with), in the unit panel, and in the ☰ → Units list. <b>The game uses A for each until you pick.</b></p>
+<p class="intro">Round 19's three new units need icons: the <b>Spy</b>, <b>Modern Infantry</b> (the Rifleman's successor) and the <b>Drone</b>. Each candidate is shown big, on the map (white on a nation's color, on a tile and beside units it will stand with), in the unit panel, and in the ☰ → Units list. <b>The game uses A for each until you pick.</b></p>
 <p class="intro"><b>Tap one icon per unit</b> to pick it (tap again to undo). Your picks are remembered on this device. Then tap <b>Copy my picks</b> (or <b>Share</b>) and paste them into the chat.</p>
 ${SUBJECTS.map((sub) => `<section><h2>${sub.name}</h2><div class="cands">
 ${sub.list.map((c) => candHtml(sub, c)).join('\n')}

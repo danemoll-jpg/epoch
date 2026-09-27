@@ -2,18 +2,18 @@
 
 The game shows each leader's portrait on the New Game cards, in first contact, in
 Diplomacy, on demands and offers, on the victory progress cards, and on the victory and
-defeat screens. A leader without a picture gets a placeholder: their initials on the civ's
+defeat screens. A leader without a picture gets a placeholder: their initials on the nation's
 color in a circle.
 
 ## Dan's 12 portraits (in place since Round 11)
 
 Round 16: the game uses **WebP** copies (quality 90, about 850 KB for all 12 instead of
 5.2 MB, so the offline download is about 4.4 MB smaller). They live in
-`src/assets/portraits/`, named by civ id. **Dan's PNG originals are the masters**, kept in
+`src/assets/portraits/`, named by nation id (`civId` in the code). **Dan's PNG originals are the masters**, kept in
 `docs/portraits-master/<civ-id>.png`; `python scripts/make-portrait-webp.py` makes the
 WebPs from them.
 
-| Leader | Civ | File |
+| Leader | Nation | File |
 |---|---|---|
 | Hatshepsut | Egypt | `egypt.webp` |
 | Caligula | Rome | `rome.webp` |

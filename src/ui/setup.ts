@@ -26,7 +26,7 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
 /** Every bonus of a civ as HTML: start, each era, and the drawback. */
 export function bonusListHtml(civId: string, activeEra?: number): string {
   const b = LEADER_BONUSES[civId];
-  if (!b) return '<p class="sub">No leader bonuses (an older civ, kept for old saves).</p>';
+  if (!b) return '<p class="sub">No leader bonuses (an older nation, kept for old saves).</p>';
   const row = (label: string, name: string, text: string, on: boolean | undefined, cls = '') =>
     `<li class="${cls} ${on === false ? 'later' : ''}"><span class="blabel">${label}</span><b>${esc(name)}</b> ${esc(text)}</li>`;
   const rows = [row('Start', b.start.name, b.start.text, activeEra === undefined ? undefined : true)];
@@ -95,7 +95,7 @@ export class SetupScreen {
       ? `<div class="setupDetail">${portraitHtml(chosen.id, 96)}<div><h3>${esc(chosen.leader)} of ${esc(chosen.name)}</h3>
           <p class="sub">Starting tech: ${chosen.startTech ? `${techIconHtml(chosen.startTech)}${esc(TECHS[chosen.startTech].name)}` : '—'} (known from turn 1, even without the techs before it)</p>
           ${bonusListHtml(chosen.id)}</div></div>`
-      : `<div class="setupDetail"><div><h3>Random civ</h3><p class="sub">You'll get one of the 12 at random. Tap a card to choose instead, and to see all its bonuses.</p></div></div>`;
+      : `<div class="setupDetail"><div><h3>Random nation</h3><p class="sub">You'll get one of the 12 at random. Tap a card to choose instead, and to see all its bonuses.</p></div></div>`;
     const max = MAP_SIZES[this.mapSize].maxRivals;
     const seg = (act: string, id: string, on: boolean, name: string, sub: string) =>
       `<button type="button" data-${act}="${id}" class="optBtn ${on ? 'on' : ''}" aria-pressed="${on}"><b>${esc(name)}</b><span class="sub">${esc(sub)}</span></button>`;
@@ -110,7 +110,7 @@ export class SetupScreen {
       ${sizeNote(this.mapSize)}
       <div class="label">Leader</div>
       <div class="setupControls row">
-        <button type="button" data-act="random" class="${this.civ ? '' : 'on'}" aria-pressed="${!this.civ}">🎲 Random civ</button>
+        <button type="button" data-act="random" class="${this.civ ? '' : 'on'}" aria-pressed="${!this.civ}">🎲 Random nation</button>
         <span class="rivals">Rivals
           <button type="button" data-act="fewer" aria-label="Fewer rivals" ${this.rivals <= 1 ? 'disabled' : ''}>−</button>
           <b id="rivalCount">${this.rivals}</b>

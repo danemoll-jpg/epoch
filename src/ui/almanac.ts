@@ -155,7 +155,7 @@ function techCards(): AlmanacCard[] {
       row('Unlocks', unlocks.length ? unlocks.join(', ') : '<span class="sub">Nothing to build; it leads on</span>') +
       (reveals.length ? row('Reveals', reveals.join(', ')) : '') +
       (t.revealsMap ? row('Satellites', 'Maps the whole world: every land, coast and city goes on your map (what you can’t see right now stays fogged)') : '') +
-      (FOUNDING_TECHS.includes(t.id) ? row('Religion', 'The first civ to learn it founds a religion (one per civ)') : '') +
+      (FOUNDING_TECHS.includes(t.id) ? row('Religion', 'The first nation to learn it founds a religion (one per nation)') : '') +
       (leads.length ? row('Leads to', leads.join(', ')) : '') +
       (starters.length ? row('Starting tech of', starters.join(', ')) : '');
     return card(`tech:${t.id}`, 'tech', t.name, `${eraName(t.id)} tech`, disc(techIconHtml(t.id, 'uicon')), facts, `<p>${esc(t.description)}</p>`);
@@ -187,7 +187,7 @@ function greatPersonCards(): AlmanacCard[] {
 function leaderCards(): AlmanacCard[] {
   return PLAYABLE_CIVS.map((c) => {
     const facts =
-      row('Civ', esc(c.name)) +
+      row('Nation', esc(c.name)) +
       row('Starting tech', c.startTech ? techLink(c.startTech) : '<span class="sub">None</span>') +
       (c.lean ? row('As an AI, goes for', `${VICTORY_NAMES[c.lean.primary]} (then ${VICTORY_NAMES[c.lean.secondary].toLowerCase()})`) : '') +
       row('As an AI', `aggression ${c.aggression}/5 · trade ${c.tradeWillingness}/5`);
@@ -225,20 +225,29 @@ function mapSizeCards(): AlmanacCard[] {
   });
 }
 
-/** Round 19: the rules that aren't a thing you build (borders and referendums, spies, upgrades). */
+/** Round 19: the rules that aren't a thing you build (borders and referendums, spies, upgrades; Round 22: orders, elimination). */
 function ruleCards(): AlmanacCard[] {
   const B = BORDERS;
   const borders =
     row('Borders', esc(`Each city's culture spreads its borders: 1 tile at first, 2 once it has made ${B.radius[1]} culture, 3 at ${B.radius[2]}. Where two cities reach, the tile goes to the one with more influence there (culture and size, less with distance).`)) +
-    row('Settling', 'No one can found a city inside another civ’s borders.') +
+    row('Settling', 'No one can found a city inside another nation’s borders.') +
     row('Unrest', esc(`A city whose surroundings mostly belong to one rival, pulled by a city with ${B.pullRatio}× its influence, grows unrest each turn (half as fast with a ${BUILDINGS[B.resistBuilding].name}). Its owner is warned at ${B.warnAt}.`)) +
     row('Referendum', esc(`From ${B.voteAt} unrest, each turn a ${B.votePct}% chance (${B.perDefenderPct}% per defender, ${B.resistBuildingPct}% with a ${BUILDINGS[B.resistBuilding].name}, at least ${B.minVotePct}%) that it joins the rival, keeping its buildings. Original capitals never leave, nor a city within ${B.protectTurns} turns of being founded or changing hands. It works both ways.`));
   const upgrades =
     row('Old units', 'Once you can build a unit’s replacement, the old one leaves the Build list.') +
     row('Upgrade', esc(`Anywhere inside your borders, land or sea (not aboard a ship): (new cost − old cost) × ${RULES.upgrade.goldPerProduction} gold, at least ${RULES.upgrade.minGold}; an army counts its three units. It uses the turn; ★ and the army stay.`));
+  // Round 22 (items 6, 7, 8).
+  const orders =
+    row('Explore', 'Ships, military units and the Drone: each turn it heads for the nearest unexplored area on its own; it stops when it sights an enemy, is attacked, or has nothing left to explore.') +
+    row('Unload all', 'Everyone aboard with moves left goes ashore: into the city in port, or onto one land tile next to the ship.');
+  const elimination =
+    row('Last city', esc(`A nation that loses its last city is eliminated and its remaining units disband, unless it still has a Settler: then it has ${RULES.homelessTurns} turns to found a new city.`)) +
+    row('Domination', 'An eliminated nation’s capital counts as held.');
   return [
     card('rule:borders', 'rule', 'Borders and referendums', 'Rule', disc('🗺'), borders),
     card('rule:upgrades', 'rule', 'Old units and upgrades', 'Rule', disc('⬆'), upgrades),
+    card('rule:orders', 'rule', 'Explore and Unload all', 'Rule', disc('🧭'), orders),
+    card('rule:elimination', 'rule', 'Eliminated nations', 'Rule', disc('🏳'), elimination),
   ];
 }
 

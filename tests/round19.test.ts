@@ -75,7 +75,7 @@ describe('Round 19 item 9: victory warnings at every step', () => {
     const steps = warningsTo(s).map((e) => e.ref?.step);
     expect(steps).toEqual(['goal', 'building']);
     for (const e of warningsTo(s)) {
-      expect(e.otherText).toContain('An unknown civilization');
+      expect(e.otherText).toContain('An unknown nation');
       expect(e.otherText).not.toContain('London');
       expect(e.ref?.cityId).toBeUndefined();
     }

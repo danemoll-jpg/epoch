@@ -39,6 +39,7 @@ export function guidePages(): GuidePage[] {
         <p>With the Settler selected, tap <b>Found City</b> to build a city where it stands. Good spots have grassland and plains for food, with hills or forest nearby for production. Cities must be at least ${RULES.minCityDistance} tiles apart.</p>
         <p>When every unit has moved, tap <b>End Turn</b>. The computer players then take their turns. <b>Next Unit</b> jumps to a unit that still has orders to give; once a unit has used its moves, the game selects the next one for you and brings it into view.</p>
         <p><b>Fortify</b> digs a unit in (Next Unit skips it from then on). To use it again, select it (tap it, pick it from its city's unit list, or find it in ☰ → <b>Units</b>) and tap <b>Wake</b>. Ships and aircraft have <b>Stay</b> and <b>Wake</b> the same way.</p>
+        <p><b>🧭 Explore</b> sends a ship, a military unit, or a Drone off on its own: each turn it heads for the nearest unexplored land or sea (a small compass marks it, and Next Unit skips it). It stops and waits for orders when it sights an enemy, is attacked, or has nothing left to explore; tap it to take it off Explore yourself.</p>
         <p class="sub">Drag to move the map, pinch (or use the mouse wheel) to zoom.</p>`,
     },
     {
@@ -52,7 +53,7 @@ export function guidePages(): GuidePage[] {
         <p>Short of time? <b>Buy</b> finishes the current build next turn for gold.</p>
         <p>When something is finished you're told: a <b>wonder</b> gets a full-screen card with what it does; buildings and units come as one list at the start of your turn (a new unit's panel says which city trained it).</p>
         <p><b>📰 News</b> (at the top, or ☰ → News) lists everything that happened in the last few turns: builds, growth, techs, wars and peace, wonders, eras, Great People. Its count shows what's new; tap a line to see where it happened. Messages at the top stay a few seconds; tap one to dismiss it.</p>
-        <p><b>Borders:</b> each city's culture spreads its borders (the colored edge on the map), wider as the city makes more culture. No one can found a city inside another civ's borders. A small city surrounded by a rival's richer culture grows <b>unrest</b> (its panel says who pulls at it), and in the end may vote to join them in a <b>referendum</b>, keeping its buildings. It works both ways: Temples, wonders, defenders and a Courthouse keep your own cities; culture can win you theirs. Capitals never leave.</p>
+        <p><b>Borders:</b> each city's culture spreads its borders (the colored edge on the map), wider as the city makes more culture. No one can found a city inside another nation's borders. A small city surrounded by a rival's richer culture grows <b>unrest</b> (its panel says who pulls at it), and in the end may vote to join them in a <b>referendum</b>, keeping its buildings. It works both ways: Temples, wonders, defenders and a Courthouse keep your own cities; culture can win you theirs. Capitals never leave.</p>
         <p class="sub">Tap ⓘ beside anything in the Build list to read its card in the Almanac.</p>`,
     },
     {
@@ -60,7 +61,8 @@ export function guidePages(): GuidePage[] {
       title: 'Research and eras',
       html: `<p>Science from your cities goes into research. Tap <b>🔬</b> at the top to open the tech tree and pick what to learn next. Each tech unlocks new units, buildings, or wonders, and leads to more techs.</p>
         <p>The tree has four eras: Ancient, Medieval, Industrial, and Modern. Your first tech of a new era opens it with a full-screen card: your new era bonus and the units, buildings, and wonders the era brings. The colored chip at the top always shows your era, and you're told when a rival gets to a new era before you. Your leader gets a new bonus in each era (tap your leader's name at the top to see them).</p>
-        <p>You can also trade techs with other civs in Diplomacy.</p>`,
+        <p><b>Rocketry</b>'s satellites map the whole world for you: every land, coast and city goes on your map (what you can't see right now stays dim, as always).</p>
+        <p>You can also trade techs with other nations in Diplomacy.</p>`,
     },
     {
       id: 'combat',
@@ -77,14 +79,16 @@ export function guidePages(): GuidePage[] {
       title: 'Ships and aircraft',
       html: `${pics(unit('galley'), unit('transport'), unit('fighter'), unit('bomber'))}
         <p><b>Ships</b> are built in coastal cities. A land unit boards by stepping onto your ship, and goes ashore by stepping onto land. The ${card('unit:galley', 'Galley')} must stay near the coast; later ships cross the ocean. Ships can bombard units on the shore but never take a city.</p>
+        <p><b>⚓ Unload all</b> (on a ship with units aboard, or any unit aboard) puts everyone with moves left ashore at once: in port, into the city; at sea, tap the land tile next to the ship (or drag the ship onto it) and they all go there.</p>
         <p><b>Aircraft</b> live in a city (or on a ${card('unit:carrier', 'Carrier')}). They strike any enemy in range that you can see, then fly home. Enemy fighters nearby may intercept them first. Aircraft never capture cities. An <b>Airport</b> can airlift one land unit a turn to another Airport city. The ${card('unit:drone', 'Drone')} (Computers) is cheap and fragile, with the longest range: tap any tile in range to <b>scout</b> it (you see all around it until the turn ends), or strike like a small bomber.</p>`,
     },
     {
       id: 'diplomacy',
       title: 'Diplomacy',
-      html: `<p>You meet another civ when your units or cities see each other. When you meet, open a civ in Diplomacy, get a demand or an offer, or go to war or make peace, <b>their leader appears full screen</b> and says what they think; your choices are the big buttons below. Open <b>🤝 Diplomacy</b> to see everyone you've met: their leader, attitude toward you, and strength.</p>
-        <p>From there you can <b>declare war</b>, <b>propose peace</b>, <b>trade techs</b> (for gold or a tech of yours), and give gifts of gold to make friends.</p>
-        <p><b>Spies</b> (${card('unit:spy', 'Spy')}, from Literacy) can't be seen by rivals, and can walk into the cities of civs you're at peace with. Inside or next to a rival city a Spy can <b>investigate</b> it (always works: its buildings, what it's building, its defenders), <b>steal a technology</b>, <b>sabotage</b> its production, or pay to <b>incite a revolt</b> so it joins you (never a capital). The chance shows before you act; the Spy is used up either way, and a caught spy makes its victim angry. A <b>Courthouse</b> guards a city against spies and shows them next to it. You're told when a spy acts against you.</p>
+      html: `<p>You meet another nation when your units or cities see each other. Open <b>🤝 Diplomacy</b> to see everyone you've met (and those since eliminated): tap a nation for its <b>overview</b>: its leader, attitude toward you, war or peace and for how long, its strength next to yours, its cities, how close it is to winning, the techs you could trade, its leader bonuses, and your recent history together.</p>
+        <p>Tap <b>💬 Talk to …</b> and <b>their leader appears full screen</b> and says what they think (they also come to you that way when you first meet, when they make a demand or an offer, and when they declare war). From there you can <b>declare war</b>, <b>propose peace</b>, <b>trade techs</b> (for gold or a tech of yours), and give gifts of gold to make friends.</p>
+        <p>A nation that loses its last city is <b>eliminated</b> and its remaining units disband, unless it still has a Settler: then it has ${RULES.homelessTurns} turns to found a new city.</p>
+        <p><b>Spies</b> (${card('unit:spy', 'Spy')}, from Literacy) can't be seen by rivals, and can walk into the cities of nations you're at peace with. Inside or next to a rival city a Spy can <b>investigate</b> it (always works: its buildings, what it's building, its defenders), <b>steal a technology</b>, <b>sabotage</b> its production, or pay to <b>incite a revolt</b> so it joins you (never a capital). The chance shows before you act; the Spy is used up either way, and a caught spy makes its victim angry. A <b>Courthouse</b> guards a city against spies and shows them next to it. You're told when a spy acts against you.</p>
         <p>Computer players remember how you treat them. They may demand tribute; refusing makes them angrier. A peace treaty holds for ${RULES.diplomacy.minPeaceTurns} turns.</p>`,
     },
     {
@@ -99,20 +103,20 @@ export function guidePages(): GuidePage[] {
       id: 'religion',
       title: 'Religion and roads',
       html: `${pics(`<span class="udisc" style="background:${faith.color}">${iconHtml(faith.icon, faith.glyph)}</span>`, unit('missionary'), map(MAP_ICONS.holyCity, 'holy'))}
-        <p>The first civ to learn certain techs (such as Mysticism) <b>founds a religion</b> in its capital, the holy city. You name yours. Each civ founds at most one.</p>
-        <p>Religions spread to nearby cities on their own; a ${card('unit:missionary', 'Missionary')} (${RELIGION.missionaryCharges} spreads) does it at once. The holy city earns gold and culture, and civs that share your faith like you more.</p>
-        <p><b>Roads</b> are bought with gold from a city's panel (“Build road to…”), ${ROADS.goldPerTile} gold a tile, and laid at once. Units move much faster on them, and worked road tiles give extra trade. Railroad later upgrades them.</p>`,
+        <p>The first nation to learn certain techs (such as Mysticism) <b>founds a religion</b> in its capital, the holy city. You name yours. Each nation founds at most one.</p>
+        <p>Religions spread to nearby cities on their own; a ${card('unit:missionary', 'Missionary')} (${RELIGION.missionaryCharges} spreads) does it at once. The holy city earns gold and culture, and nations that share your faith like you more.</p>
+        <p><b>Roads</b> are bought with gold from a city's panel (“Build road to…”), ${ROADS.goldPerTile} gold a tile, and laid at once, as directly as the land allows and never through another nation's borders. Tap a city in the list to see the route and its price on the map, then <b>✓ Build</b>. Units move much faster on them, and worked road tiles give extra trade. Railroad later upgrades them.</p>`,
     },
     {
       id: 'winning',
       title: 'The four ways to win',
-      html: `<p>The first civ to reach any one of these wins. Tap <b>🏆</b> to see how close everyone is.</p>
+      html: `<p>The first nation to reach any one of these wins. Tap <b>🏆</b> to see how close everyone is.</p>
         <ul class="winList">
         <li><b>Domination</b>: hold every rival's original capital (★).</li>
         <li><b>Culture</b>: reach ${goals.culture} culture, then build the ${card('wonder:world_council', WONDERS.world_council.name)}.</li>
         <li><b>Economic</b>: have ${goals.gold} gold in the treasury, then build the ${card('wonder:global_exchange', WONDERS.global_exchange.name)}.</li>
         <li><b>Technology</b>: learn Space Flight, build ${VICTORY.spaceship.parts} ${card('project:spaceship', 'spaceship parts')} in your capital, launch, and keep your capital for ${VICTORY.spaceship.travelTurns} turns until it lands.</li></ul>
-        <p><b>Warnings:</b> a full-screen card warns you when a rival passes ${VICTORY.warnPct}% of a goal, reaches it, starts its victory wonder (with the city and about how many turns), and again at ${VICTORY.warnSoonTurns} turns or less, then every turn from ${VICTORY.warnEveryTurnFrom}; the same for a spaceship in flight and a civ one capital from domination. Each card says what you can do: capture that city, declare war, or race them. Even a civ you haven't met is announced. While a rival is within 10 turns of winning, 🏆 has a red dot.</p>
+        <p><b>Warnings:</b> a full-screen card warns you when a rival passes ${VICTORY.warnPct}% of a goal, reaches it, starts its victory wonder (with the city and about how many turns), and again at ${VICTORY.warnSoonTurns} turns or less, then every turn from ${VICTORY.warnEveryTurnFrom}; the same for a spaceship in flight and a nation one capital from domination. Each card says what you can do: capture that city, declare war, or race them. Even a nation you haven't met is announced. While a rival is within 10 turns of winning, 🏆 has a red dot.</p>
         <p><b>Keep playing:</b> after someone wins you can play on. A win after that (your spaceship landing, say) goes on the record, but the result stands.</p>
         <p class="sub">The goals above are for a Normal map; a Large map needs more (the 🏆 screen shows yours).</p>`,
     },
