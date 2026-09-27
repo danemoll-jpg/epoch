@@ -902,12 +902,10 @@ what was pushed.
   2026-09-26 on Dan's OK, live. Item 4 (drag to move, 0.21.0) done and committed, NOT pushed:**
   Dan decides when it goes out. See the Round 21 report in TODO.md. Pushing is Dan's call again.
 
-- **Round 22 (version 0.22.0): items 1–9 done and committed, NOT pushed** (nor Round 21's drag
-  to move): Dan tests on the play server and says "push" for all of it together. See the Round 22
-  report in TODO.md.
+- **Round 22 (version 0.22.0) and Round 21's drag to move: done, pushed 2026-09-27 on Dan's say-so
+  (`2f1d3ae`), live.** See the Round 22 report in TODO.md. Pushing is Dan's call again.
 
-**Current objective:** Dan tests Round 21's drag to move and Round 22 on the play server, then says
-"push". **Don't push until Dan says; it all goes out together.**
+**Current objective:** none set; the planning session writes the next round into TODO.md.
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.

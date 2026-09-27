@@ -2095,7 +2095,7 @@ migrations where state changes; the AI follows the same rules.
 say "push"; the iPad **Home Screen icon** sign-in and the **keep-which question**; **Q31** (time
 `huge-map` and `epic-map` on the iPad); optional: the title picture (`docs/TITLE-ART.md`).
 
-### Round 22 report (2026-09-27, version 0.22.0) — all committed, NOT pushed
+### Round 22 report (2026-09-27, version 0.22.0) — pushed 2026-09-27 on Dan's say-so (`2f1d3ae`, with Round 21's drag to move), live
 
 **Progress note:** items 1–9 are done and committed; the play server was restarted mid-round (after
 items 1, 2, 3, 4, 7, 9) and again at the end with everything. 1141 tests (1135 pass, 6 skipped as
