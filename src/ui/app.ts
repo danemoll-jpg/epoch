@@ -105,7 +105,8 @@ import type { CloudBackend } from '../cloud/backend';
 import { deviceLabel } from '../cloud/device';
 import type { CloudLink } from '../game/save';
 import { titleBackground } from './titleArt';
-import { confirmMove, resolveTap, type PendingMove } from './tap';
+import { confirmMove, resolveTap, type PendingMove, type TapResult } from './tap';
+import { DRAG_EDGE, dragGrabsUnit, dragPreview, dropResult, edgeScroll, inRect } from './dragMove';
 import { cityPlace, cycleCity, otherIdleCities } from './cityCycle';
 import { armyCandidates, isMixedStack, stackLabel, unitsOnTile } from '../game/stack';
 
@@ -231,6 +232,9 @@ export class App {
   private moveHere: { unitId: number; cityId: number } | undefined;
   /** Round 17 (B2): "Tap twice to move": the destination shown, waiting for the second tap. */
   private pendingMove: (PendingMove & { path: Coord[]; turns: number }) | undefined;
+  /** Round 21 (item 4): a unit being dragged: where the finger is, and the preview under it. */
+  private unitDrag: { unitId: number; sx: number; sy: number; tx: number; ty: number; preview?: { path: Coord[]; turns: number } } | undefined;
+  private dragFrame: number | undefined;
   /** Round 18 (item 3): a unit of yours was tapped from afar with this unit selected: the unit panel offers "Move … here". */
   private unitOffer: { unitId: number; x: number; y: number } | undefined;
   /** Round 18 (item 1): the smooth pan bringing a unit into view (its animation frame). */
@@ -338,6 +342,14 @@ export class App {
         this.clamp();
         this.requestDraw();
       },
+      // Round 21 (item 4): drag the selected unit to move it.
+      grab: (sx, sy) => {
+        if (this.turnBusy || this.selectedUnitId === undefined) return false;
+        const t = this.tileAtScreen(sx, sy);
+        return dragGrabsUnit(this.state, this.human, this.selectedUnitId, t.x, t.y);
+      },
+      onDragMove: (sx, sy) => this.dragUnitTo(sx, sy),
+      onDragEnd: (sx, sy, cancelled) => this.dropUnit(sx, sy, cancelled),
     });
 
     $('endTurnBtn').addEventListener('click', () => this.endTurn());
@@ -1673,6 +1685,67 @@ export class App {
     }
   }
 
+  private tileAtScreen(sx: number, sy: number): Coord {
+    const w = screenToWorld(this.camera, this.cssW, this.cssH, sx, sy);
+    return { x: Math.floor(w.x), y: Math.floor(w.y) };
+  }
+
+  /** Round 21 (item 4): the dragged unit is over (sx, sy): update the preview, scroll at the edges. */
+  private dragUnitTo(sx: number, sy: number): void {
+    const unitId = this.selectedUnitId;
+    if (unitId === undefined) return;
+    if (!this.unitDrag || this.unitDrag.unitId !== unitId) {
+      this.stopPan();
+      this.pendingMove = undefined;
+      this.unitDrag = { unitId, sx, sy, tx: NaN, ty: NaN };
+    }
+    this.unitDrag.sx = sx;
+    this.unitDrag.sy = sy;
+    this.updateDragPreview();
+    if (this.dragFrame === undefined) this.dragFrame = requestAnimationFrame(() => this.dragEdgeStep());
+  }
+
+  private updateDragPreview(): void {
+    const d = this.unitDrag;
+    if (!d) return;
+    const t = this.tileAtScreen(d.sx, d.sy);
+    if (t.x === d.tx && t.y === d.ty) return;
+    d.tx = t.x;
+    d.ty = t.y;
+    const over = this.coveredRects().blockers.some((r) => inRect(r, d.sx, d.sy));
+    d.preview = over ? undefined : dragPreview(this.state, this.human, d.unitId, t.x, t.y);
+    this.requestDraw();
+  }
+
+  /** While a unit is dragged near an edge of the visible map, the map scrolls under it. */
+  private dragEdgeStep(): void {
+    this.dragFrame = undefined;
+    const d = this.unitDrag;
+    if (!d) return;
+    const { dx, dy } = edgeScroll(d.sx, d.sy, this.coveredRects().safe, DRAG_EDGE.margin, DRAG_EDGE.maxSpeed);
+    if (dx || dy) {
+      panBy(this.camera, -dx, -dy);
+      this.clamp();
+      this.updateDragPreview();
+      this.requestDraw();
+    }
+    this.dragFrame = requestAnimationFrame(() => this.dragEdgeStep());
+  }
+
+  /** The drag ended: released on a tile does what a tap there would; anything else cancels. */
+  private dropUnit(sx: number, sy: number, cancelled: boolean): void {
+    const d = this.unitDrag;
+    this.unitDrag = undefined;
+    if (this.dragFrame !== undefined) cancelAnimationFrame(this.dragFrame);
+    this.dragFrame = undefined;
+    this.requestDraw();
+    if (!d || cancelled || this.turnBusy) return;
+    if (this.coveredRects().blockers.some((r) => inRect(r, sx, sy))) return;
+    const t = this.tileAtScreen(sx, sy);
+    const result = dropResult(this.state, this.human, d.unitId, t.x, t.y);
+    if (result) this.runTap(result, t.x, t.y, true);
+  }
+
   private handleTap(sx: number, sy: number): void {
     const w = screenToWorld(this.camera, this.cssW, this.cssH, sx, sy);
     const tx = Math.floor(w.x);
@@ -1693,6 +1766,16 @@ export class App {
       return;
     }
     if (pending) this.requestDraw();
+    this.runTap(result, tx, ty);
+  }
+
+  /**
+   * Does what a tap's result says. Round 21 (item 4): a unit dropped by a drag comes here too
+   * (`fromDrag`: the drag was its own confirmation, so "Tap twice to move" doesn't apply).
+   */
+  private runTap(result: TapResult, tx: number, ty: number, fromDrag = false): void {
+    const tile = tileAt(this.state.map, tx, ty);
+    if (!tile) return;
     switch (result.kind) {
       case 'move':
         this.moveTo(result.unitId, tx, ty);
@@ -1705,7 +1788,7 @@ export class App {
         return;
       // Round 19: a Drone scouts the tile (with "Tap twice to move", the second tap does it).
       case 'recon': {
-        if (!confirmMove(this.settings.tapTwice, this.pendingMove, result.unitId, tx, ty)) {
+        if (!fromDrag && !confirmMove(this.settings.tapTwice, this.pendingMove, result.unitId, tx, ty)) {
           this.toast('Tap the same tile again to scout it with the Drone');
           this.pendingMove = { unitId: result.unitId, x: tx, y: ty, path: [], turns: 0 };
           return;
@@ -4084,7 +4167,11 @@ export class App {
       targets: this.attackTargets(sel),
       openCityId: this.openCityId,
       flash: this.flash,
-      plannedMove: this.pendingMove && this.pendingMove.unitId === sel?.id ? { path: this.pendingMove.path, turns: this.pendingMove.turns } : undefined,
+      plannedMove: this.unitDrag
+        ? this.unitDrag.preview
+        : this.pendingMove && this.pendingMove.unitId === sel?.id
+          ? { path: this.pendingMove.path, turns: this.pendingMove.turns }
+          : undefined,
       onIconReady: () => this.requestDraw(),
       art: this.art,
       time: performance.now(),

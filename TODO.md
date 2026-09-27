@@ -2011,7 +2011,28 @@ decides when it goes out. Don't touch the hub.
   Archer catches the other, the Horseman's button sends it on its way, the Warrior's says it can set off
   next turn. One sim test's slack went from +4 to +5 (seed 33: a Ukrainian spy caught on turn 94 changes
   that game's course). 1079 tests pass.
-- **Pushed** on Dan's OK (see the commit list in the final report below); play server restarted.
+- **Pushed** on Dan's OK: `fe43f7c` (docs) and `f513d09` (the fix, 0.19.2) to `main` (live on Netlify);
+  play server restarted at http://10.0.0.224:4173/ with 0.19.2.
+- **4. Drag to move — done, committed, NOT pushed** (version 0.21.0; Dan decides when it goes out).
+  `src/ui/dragMove.ts` (pure): `dragGrabsUnit` (a press on the selected unit's tile, yours, with moves,
+  on your turn), `dropResult` (what a tap there would do; onto your own city or units from afar it
+  **moves there** instead of opening the city / selecting, since the drag showed that path: say if you'd
+  rather it opened the city), `dragPreview` (Round 17's path and "N turns" for a move, the target alone
+  for an attack or capture, nothing where there's no way), `edgeScroll` (within 48 px of the visible
+  map's edge, or past it over a panel, up to 12 px a frame). `input.ts`: a `grab` handler decides at
+  pointerdown; a grabbed press past the drag threshold sends `onDragMove`/`onDragEnd` and never pans;
+  anything else pans exactly as before; a press on the unit that doesn't move is still a tap; a second
+  finger cancels the drag and pinches; pointercancel cancels. `app.ts`: `dragUnitTo`/`dropUnit` and an
+  edge-scroll frame loop; a drop runs the same code as a tap (`runTap`, split out of `handleTap`) without
+  the "Tap twice to move" step; releasing back on the unit, off the map, or over a panel (the minimap,
+  top bar, unit panel…) cancels. How to Play's first page has the line. Tests: `tests/dragMove.test.ts`
+  (13: the rules, and the gesture through `attachMapInput` with a stand-in canvas: drag, pan, tap, mouse,
+  second finger, pointercancel). **Preview-verified** on desktop with the mouse (a Horseman dragged two
+  tiles moved there, the map didn't pan) and in touch emulation (760×1000, touch pointer events: the
+  path preview with "2 turns" mid-drag; back on the unit cancels; the edge scroll moves the view east;
+  the pane was hidden, so the frame loop was stepped by hand there). Not yet on the iPad.
+- **Commits waiting to be pushed:** the item 4 commit and this docs update (see `git log origin/main..main`).
+
 
 **Still open for Dan (no agent work needed):** a full game with Round 19; the iPad **Home Screen icon**
 sign-in and the **keep-which question**; **Q31** (time `huge-map` and `epic-map` on the iPad); optional:

@@ -656,7 +656,8 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   `docs/carrier-trim-candidates.html`).
 - The version shown on the About screen comes from `package.json`
   (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.19.0 for
-  round 19 (0.19.1: Round 20's Metz fix; 0.19.2: Round 21's spy fix).
+  round 19 (0.19.1: Round 20's Metz fix; 0.19.2: Round 21's spy fix); 0.21.0 for Round 21's
+  drag to move (committed, not pushed).
 - **Round 19: the news, the cards, and the log's running count.** The log is
   capped (`RULES.maxLogEntries`, 400), so **never find new entries by the log's
   length**: use `state.logCount` (the running count) and `entriesSince(state, mark)`
@@ -669,6 +670,10 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   (`victory.ts` `victoryWarnings`/`issueWarnings`/`warningAdvice`/`turnsToVictory`,
   `VICTORY.warnSoonTurns`/`warnEveryTurnFrom`); wins after Keep playing go to
   `state.laterWins`. Era flavor and tint in `ERAS` (`techs.ts`), `eraUnlocks`.
+- **Round 21: drag to move** (`src/ui/dragMove.ts`, pure: `dragGrabsUnit`, `dropResult`,
+  `dragPreview`, `edgeScroll`; `input.ts`'s optional `grab`/`onDragMove`/`onDragEnd`; in `app.ts`
+  `dragUnitTo`/`dropUnit`, and `runTap`, the half of `handleTap` a drop shares). Pressing on the
+  selected unit and dragging moves it; any other drag pans.
 - **Round 21: one rule for "who fights here" and "who blocks here".** `defenderCandidates` /
   `pickDefender` / `hasVisibleDefender` in `combat.ts` decide who would fight on a tile (the tap uses
   `hasVisibleDefender`, so a Spy, ships in port or grounded aircraft never make a tap an attack);
@@ -864,9 +869,11 @@ what was pushed.
   ships in port) was pushed on Dan's say-so as 0.19.1 and is live. The balance items (1–7)
   were pushed on Dan's say-so (2026-09-26, `67c2463`) and are live; see the Round 20 report in TODO.md. Pushing is Dan's call again.
 
-**Current objective: Round 21** (see TODO.md): the bug where an enemy Spy in your
-city blocks your own units ("Nothing to attack there"), plus catching spies (push it, Dan's OK), then drag to
-move (commit, don't push).
+- **Round 21: items 1–3 (the enemy-spy bug, catching spies; 0.19.2) done and pushed
+  2026-09-26 on Dan's OK, live. Item 4 (drag to move, 0.21.0) done and committed, NOT pushed:**
+  Dan decides when it goes out. See the Round 21 report in TODO.md. Pushing is Dan's call again.
+
+**Current objective:** waiting for the planning session (Round 21 is done; item 4 waits for Dan's push).
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.

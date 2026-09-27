@@ -1,11 +1,21 @@
 // Pointer input for the map canvas. One code path for mouse, touch, and pen via Pointer
 // Events: tap/click, one-finger or mouse drag to pan, two-finger pinch (plus mouse wheel) to
 // zoom. Nothing here depends on hover, right-click, or the keyboard.
+//
+// Round 21 (item 4): drag to move. A press that `grab` accepts (the selected unit's tile) turns
+// a drag into a unit drag: `onDragMove` as it goes, `onDragEnd` on release (cancelled by a
+// second finger or a pointercancel), and the map doesn't pan. Any other press pans as before.
+// A press on the unit that never moves past the threshold is still a tap.
 
 export interface MapInputHandlers {
   onTap(sx: number, sy: number): void;
   onPan(dx: number, dy: number): void;
   onZoom(factor: number, sx: number, sy: number): void;
+  /** Does a press here grab something to drag (instead of panning the map)? */
+  grab?(sx: number, sy: number): boolean;
+  onDragMove?(sx: number, sy: number): void;
+  /** The drag ended: dropped at (sx, sy), or cancelled. */
+  onDragEnd?(sx: number, sy: number, cancelled: boolean): void;
 }
 
 /** Movement (CSS px) before a press counts as a drag instead of a tap. */
@@ -18,6 +28,7 @@ export function attachMapInput(canvas: HTMLCanvasElement, h: MapInputHandlers): 
   let dragging = false;
   let multiTouch = false; // any second finger during this gesture cancels the tap
   let pinch: { dist: number; mx: number; my: number } | undefined;
+  let grabbed = false; // this press grabbed a unit: a drag moves it, not the map
 
   const local = (e: PointerEvent) => {
     const r = canvas.getBoundingClientRect();
@@ -48,9 +59,15 @@ export function attachMapInput(canvas: HTMLCanvasElement, h: MapInputHandlers): 
       start = p;
       dragging = false;
       multiTouch = false;
+      grabbed = !!h.grab?.(p.x, p.y);
     } else if (pointers.size === 2) {
       multiTouch = true;
       pinch = pinchInfo();
+      // A second finger turns a unit drag into a pinch: the drag is cancelled.
+      if (grabbed) {
+        grabbed = false;
+        if (dragging) h.onDragEnd?.(p.x, p.y, true);
+      }
     }
   });
 
@@ -62,7 +79,10 @@ export function attachMapInput(canvas: HTMLCanvasElement, h: MapInputHandlers): 
     pointers.set(e.pointerId, p);
     if (pointers.size === 1 && start) {
       const threshold = e.pointerType === 'mouse' ? DRAG_THRESHOLD_MOUSE : DRAG_THRESHOLD_TOUCH;
-      if (!dragging && Math.hypot(p.x - start.x, p.y - start.y) > threshold) {
+      if (grabbed) {
+        if (!dragging && Math.hypot(p.x - start.x, p.y - start.y) > threshold) dragging = true;
+        if (dragging) h.onDragMove?.(p.x, p.y);
+      } else if (!dragging && Math.hypot(p.x - start.x, p.y - start.y) > threshold) {
         dragging = true;
         h.onPan(p.x - start.x, p.y - start.y);
       } else if (dragging) {
@@ -90,7 +110,9 @@ export function attachMapInput(canvas: HTMLCanvasElement, h: MapInputHandlers): 
       return;
     }
     if (pointers.size === 0) {
-      if (!cancelled && !dragging && !multiTouch) h.onTap(p.x, p.y);
+      if (grabbed && dragging) h.onDragEnd?.(p.x, p.y, cancelled);
+      else if (!cancelled && !dragging && !multiTouch) h.onTap(p.x, p.y);
+      grabbed = false;
       start = undefined;
       pinch = undefined;
       dragging = false;
