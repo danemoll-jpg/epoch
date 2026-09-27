@@ -2095,6 +2095,107 @@ migrations where state changes; the AI follows the same rules.
 say "push"; the iPad **Home Screen icon** sign-in and the **keep-which question**; **Q31** (time
 `huge-map` and `epic-map` on the iPad); optional: the title picture (`docs/TITLE-ART.md`).
 
+### Round 22 report (2026-09-27, version 0.22.0) — all committed, NOT pushed
+
+**Progress note:** items 1–9 are done and committed; the play server was restarted mid-round (after
+items 1, 2, 3, 4, 7, 9) and again at the end with everything. 1141 tests (1135 pass, 6 skipped as
+before), lint and build clean.
+
+- **0. Drag to move (Round 21 item 4): still committed, not pushed**, waiting for Dan's test on the
+  play server (it's in the 0.22.0 build there). Nothing changed in it this round, except that
+  dragging a ship onto the land next to it now unloads everyone (item 6).
+- **1. Upgrades outside cities — done.** A unit can upgrade anywhere inside its owner's borders,
+  land or sea (`inUpgradeZone` in `upgrades.ts`), at the normal price. Borders already cover the
+  water next to the coast (territory is computed on every tile in reach, water included), so ships
+  there qualify with no extra rule. Still refused: another nation's or unclaimed land ("Only inside
+  your borders"), aboard a ship ("Not while aboard a ship"), no moves left, cargo that won't fit.
+  Upgrade all (☰ → Units) and the AI use the same rule. How to Play and the Almanac updated. The
+  `upgrade-units` scenario gained Eridu on the west coast with a Horseman in the field and a Galley at
+  sea, both upgradable where they stand. Unit-tested (`tests/round22.test.ts`, the scenario test).
+- **2. The road through Nantes — cause confirmed, fixed.** Cause: the router charged 1 for a tile
+  with a road and 1001 for a new one, so any old road won, however long the detour (in Dan's case,
+  down to Nantes and back up); it also predated borders. Now (`roads.ts`): the road goes as directly
+  as the land allows; among routes at most `ROADS.maxDetour` (2) steps longer than the direct one it
+  takes the fewest new tiles, each extra step counting as `detourTileCost` (2) new tiles and each
+  tile `offLinePenalty` (½) per tile it strays from the straight line, so old road is reused only
+  when it's on the way. It never crosses another nation's city or borders (your land, unclaimed land,
+  and, for a road to a friendly nation's city, that nation's land); when borders block it the panel
+  says so ("Nantes's borders are in the way", disabled in the list). **Tapping a city in "Build
+  road to…" now shows the route on the map (dashed, with "N new tiles · X gold") and a ✓ Build /
+  Cancel pair** before any gold is spent. The AI uses the same router, and skips city pairs already
+  joined without a detour. Scenario `road-direct` (Dan's case: an old road via Nantes; the new one
+  heads east, 3 new tiles). Unit-tested; preview-verified on desktop (the route line and the
+  confirm box). Performance: the new search costs about 20 ms vs 15 ms for all 193 AI city pairs on
+  the late Epic save (measured directly; the whole-game perf run differs only because the games
+  diverge).
+- **3. Diplomacy overview — done.** Tapping a nation (or arriving from a card's "Diplomacy" button)
+  shows its overview: small portrait, nation and leader, relation (war or peace and how long, the
+  treaty's end), attitude, military next to yours, cities (and "settlers looking for new land"),
+  victory progress in one line, culture, faith, the techs each side could teach, their leader
+  bonuses, and your recent history with them (the news log's entries about them). **💬 Talk to
+  <leader>** opens the full-screen leader scene; its Talk button leads to the trades, gifts, war and
+  peace page (with "‹ Overview" to go back); Goodbye returns to the overview. Their own approaches
+  (first contact, demands, offers, war on you) still open the scene directly (unchanged).
+  `src/ui/diploOverview.ts` (pure) is unit-tested; preview-verified in iPad portrait (820×1180) and
+  landscape (1180×820).
+- **4. "Met 2 of 4 civs" — done.** The count now includes eliminated nations you met:
+  **"Met 4 of 4 nations (2 eliminated)."** (`everMet` in `diplomacy.ts`, `metSummary`). Checked the
+  other places: Diplomacy now lists eliminated nations at the end (greyed, "Eliminated on turn N",
+  with their overview and history); the 🏆 screen already showed them ("Eliminated", now with the
+  turn); the leader panel has no count; the 🤝 button's tooltip uses the same summary; the end
+  screen now names the nations that fell. `Player.eliminatedTurn` records when. Unit-tested.
+- **5. "Nation", not "civ" — done.** Every player-facing "civ"/"civs"/"civilization" is now
+  "nation" (leader bonus texts, Almanac, How to Play, tips, setup's "Random nation", the 🏆 and
+  Diplomacy screens, the spy and missionary hints, the unknown-rival warnings, the 🤝 button's
+  aria-label), plus the `docs/` pages Dan reads (icon pickers, leader scenes, portraits page,
+  `PORTRAITS.md`, the art picker, rebuilt). Code identifiers unchanged; no save change. New
+  `tests/nationWording.test.ts` scans every shipped string literal (src/ outside src/dev/, and
+  index.html, including tooltips and aria-labels) and fails on the word. **Note:** there was no
+  existing "Civilization" test from Round 15 to copy (the plan assumed one); this test covers
+  "civilization" too. CLAUDE.md's IP guardrails have the rule.
+- **6. Unload all — done.** On a ship with units aboard (or any unit aboard), **⚓ Unload all (N)**:
+  in port everyone with moves steps into the city at once; at sea the land tiles next to the ship
+  light up and a tap on one (or dragging the ship onto it) puts them all there, each taking its own
+  step, so they stack as usual and an army stays an army. Units without moves, or that can't enter
+  the tile, stay aboard and the toast says why ("2 units went ashore; staying aboard: Settler: no
+  moves left"). Action `unloadAll` (`movement.ts`); the AI doesn't use it. Scenario `unload-all`.
+  Unit-tested; preview-verified on desktop (the tap and the drag).
+- **7. A nation with no cities — done (the planning default, 10 turns as Dan OK'd).** Losing its
+  last city eliminates a nation at once and disbands its remaining units (a card: "Maurya is no
+  more … its last unit was disbanded"), unless it still has a Settler: then it has 10 turns
+  (`RULES.homelessTurns`) to found a city (news: "Mali has no cities left; its settlers are looking
+  for new land"; for you, a card with "Show my Settler"). Checked once a game turn and after every
+  capture or fight; a nation that never had a city (the game's start) isn't touched. The AI's
+  Settler with no city founds at once (existing AI rule, tested). Domination counts an eliminated
+  nation's capital as held (unchanged); Diplomacy and the met count include it (item 4). **Saves
+  where it already happened:** `STATE_VERSION` 16; the 15 → 16 migration runs the check on load
+  (a cityless nation with no Settler is eliminated then). Scenario `last-city`. Unit-tested;
+  preview-verified on desktop.
+- **8. Explore mode — done.** **🧭 Explore** on any ship, land military unit, or the Drone (not
+  Settlers, Spies or Missionaries): each turn, at the start of your turn, it heads for the nearest
+  unexplored area (the AI's own explore step; the Drone scouts the least-known spot in range), and
+  Next Unit skips it; a small compass marks it; ☰ → Units has an "Exploring" filter and says
+  "🧭 exploring". It stops and asks for orders (a news toast says why) when it sights an enemy
+  unit or city, is attacked, or has nothing left it can reach. Units have no damage in this game,
+  so "damaged" doesn't apply, and a Galley's moves already keep it on the coast, so it can't end a
+  turn where it can't stay. Tapping the unit, any order, or Wake cancels it. Saved with the game
+  (`Unit.exploring`, in the version-16 save). Scenario `explore`. Unit-tested; preview-verified on
+  desktop (the button, the compass, Next Unit moving on).
+- **9. The map-revealing tech — done: Rocketry** (not Space Flight: Rocketry is the satellites
+  tech and comes earlier, when the map still matters; Space Flight is the last tech). Learning it,
+  by research, trade, or any other way, marks the whole map explored for that nation (terrain,
+  coasts, cities); tiles out of sight stay fogged as usual. A toast says "Satellites map the whole
+  world…", rivals you've met hear about theirs, the tech's description and its Almanac card say
+  it, the minimap fills in. The AI gets it the same way. Scenario `satellites`. Unit-tested.
+- **Throughout:** rules in data (`RULES.homelessTurns`, `ROADS.maxDetour`/`detourTileCost`/
+  `offLinePenalty`, `revealsMap` on the tech); How to Play (Explore, Unload all, the Diplomacy
+  overview, elimination, roads, Rocketry) and the Almanac (two new rule cards, the upgrade and
+  Rocketry cards) updated; `pace.test.ts` and `balance.test.ts` pass; no tips needed changing
+  beyond the wording. Not verified on the iPad: that's Dan's.
+- **Play server:** restarted with 0.22.0 at http://10.0.0.224:4173/.
+- **Commits waiting for Dan's "push"** (none pushed): Round 21's drag to move (`bee68d2`,
+  `e5803a6`), this round's docs commit and every Round 22 commit (see `git log origin/main..main`).
+
 ## Next Steps (Do Not Start Yet)
 
 All of these are deferred for **sequencing only**. Each depends on the

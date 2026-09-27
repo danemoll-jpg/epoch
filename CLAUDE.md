@@ -108,6 +108,12 @@ friends, not released publicly or sold.
 - **IP guardrails (standing rule):**
   - No Firaxis/2K art, UI, text, quotes, music, or leader-bonus wording.
   - Never use the name "Civilization" (it's a trademark) in the title or UI.
+  - **Say "nation", not "civ"** (DECIDED by Dan, 2026-09-26), in everything players
+    read: UI, toasts, cards, news, How to Play, tips, the Almanac, setup, About, and the
+    `docs/` pages Dan reads ("rival nations", "Met 4 of 4 nations"). Code identifiers stay
+    (`civId`, `civs.ts`, `data-civ`…). `tests/nationWording.test.ts` scans every shipped
+    string literal (src/ outside src/dev/, and index.html, tooltips and aria-labels too)
+    and fails on "civ", "civs", "civ's" or "civilization".
   - Leaders: any historical or real figure is allowed while the game is
     shared only with family and friends. Keep all leaders in `src/data/` so
     the list can be reviewed and swapped in one place.
@@ -194,7 +200,7 @@ debugging, including from Safari's Web Inspector on the iPad.
 completes inside Safari's `pagehide`). Saved after every successful action
 (including End Turn), on `visibilitychange` → hidden, and on `pagehide`.
 The save carries `saveVersion` (= `STATE_VERSION` in `src/game/types.ts`,
-currently 15). **Bump `STATE_VERSION` whenever the state shape changes, and
+currently 16). **Bump `STATE_VERSION` whenever the state shape changes, and
 add a migration** to `MIGRATIONS` in `src/game/save.ts` (keyed by the
 version it upgrades from), plus a line in `MIGRATION_NOTES` for the notice,
 so Dan's game carries forward. Migrated so far: 2 → 3 (M3: no techs,
@@ -221,7 +227,9 @@ can; no roads; no Missionaries; Theology is simply unknown), and 11 → 12
 (Round 13: `difficulty` 'normal' and `mapSize` 'normal'), and 12 → 13 (Round 19
 Part A: `laterWins` empty, `logCount` = the log's length), 13 → 14 (Part C: every
 player's `intel` empty), and 14 → 15 (Part E: each city's `culture` = an equal share
-of its civ's culture so far, `unrest` 0).
+of its civ's culture so far, `unrest` 0), and 15 → 16 (Round 22: `checkEliminations` runs on
+the save: a nation with no cities and no Settler is eliminated, its units disbanded; one with a
+Settler gets `homelessSince` = today; units start without `exploring`).
 
 **Round 14: End Turn runs in a Web Worker.** `src/ui/turnRunner.ts` sends a
 copy of the state to `src/ui/turnWorker.ts`, which runs `runTurnJob`
@@ -299,7 +307,7 @@ arrows, "n / 5", the dot), `tap-city-with-unit` (a Legion 4 tiles from Babylon
 selected first: tapping Babylon opens it with "Move Legion here (4 turns)"; the
 Warrior next to it moves in with one tap); (round 19) `rival-victory-wonder`,
 `keep-playing-spaceship`, `rival-era`, `built-this-turn`, `upgrade-units`, `spies`,
-`new-units` (Modern Infantry and the Drone), `culture-flip`, `leader-scenes`; (round 20) `city-only-ships` (Metz held only by ships in port: "Capture Metz?", and a Bomber striking the ships); (round 21) `spy-in-my-city` (an enemy Spy in Oxford: walk in and catch it, "Move … here" from afar, a spy caught in the open). A scenario can open a screen at load
+`new-units` (Modern Infantry and the Drone), `culture-flip`, `leader-scenes`; (round 20) `city-only-ships` (Metz held only by ships in port: "Capture Metz?", and a Bomber striking the ships); (round 21) `spy-in-my-city` (an enemy Spy in Oxford: walk in and catch it, "Move … here" from afar, a spy caught in the open); (round 22) `last-city` (Maurya eliminated with its Galley, Mali's Settler founds again), `satellites` (Rocketry maps the world), `road-direct` (Dan's Chernihiv–Nantes–Oxford road, now direct), `unload-all`, `explore`; `upgrade-units` also has a Horseman and a Galley upgrading inside Eridu's borders. A scenario can open a screen at load
 (`opens: 'mainMenu' | 'settings' | 'almanac' | 'howToPlay' | 'setup'`) and
 show every tip afresh (`freshTips`, without touching the device's list);
 scenarios are silent unless Settings → Sound in dev scenarios. The religion ones use
@@ -411,7 +419,7 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   `minTileSize` (pinch-out cap). `renderer.ts`'s `TerrainChunks` pre-draws the
   terrain in chunks once the zoom holds. `src/game/heap.ts` (the path
   searches' heap); `findPath` is A* with per-search lookups, `roadPath` uses
-  the heap (same results as before). `src/dev/artDemo.ts`,
+  the heap (same results as before; Round 22 replaced `roadPath`'s search, see below). `src/dev/artDemo.ts`,
   `src/dev/artPreview.ts` (the art picker page's script), `src/dev/fixtures/`.
   `src/ui/titleArt.ts`: Dan's optional title picture (`src/assets/title/`,
   spec in `docs/TITLE-ART.md`).
@@ -660,7 +668,7 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
 - The version shown on the About screen comes from `package.json`
   (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.19.0 for
   round 19 (0.19.1: Round 20's Metz fix; 0.19.2: Round 21's spy fix); 0.21.0 for Round 21's
-  drag to move (committed, not pushed).
+  drag to move; 0.22.0 for Round 22 (both committed, not pushed).
 - **Round 19: the news, the cards, and the log's running count.** The log is
   capped (`RULES.maxLogEntries`, 400), so **never find new entries by the log's
   length**: use `state.logCount` (the running count) and `entriesSince(state, mark)`
@@ -683,6 +691,24 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   `unitBlocks` / `cityBlocks` in `movement.ts` decide who blocks a tile for single steps *and* path
   searches. Don't add another copy of either. `catchSpies` (`conquest.ts`): a military unit stepping
   onto another civ's Spy catches it; a city that changes hands catches the rival spies inside.
+- **Round 22.** Upgrades happen anywhere inside your borders (`inUpgradeZone` in `upgrades.ts`;
+  borders already cover the water by the coast). **Roads** (`roads.ts`): `roadPath` searches only
+  the box around the two cities, over your land, unclaimed land and a friendly target's land
+  (never a third nation's borders or cities); among routes at most `ROADS.maxDetour` steps longer
+  than the direct one it takes the fewest new tiles, each extra step counting `detourTileCost` new
+  tiles and each tile `offLinePenalty` per tile off the straight line. `roadBlocker` says why not
+  ("Nantes's borders are in the way"), `blockedRoadTargets` lists those; the city panel shows the
+  route on the map (`ViewState.plannedRoad`) before ✓ Build. **Diplomacy** opens a nation on its
+  overview (`src/ui/diploOverview.ts`: `metSummary`, `relationText`, `progressLine`,
+  `historyWith`; `everMet` in `diplomacy.ts` counts the eliminated), and "💬 Talk to …" opens the
+  leader scene. **Elimination** (`checkEliminations` in `conquest.ts`, also once a game turn in
+  `turn.ts`): losing the last city eliminates a nation at once and disbands its units, unless it
+  has a Settler (`homelessSince`, `RULES.homelessTurns` = 10); `Player.eliminatedTurn`; log kinds
+  `eliminated` (a card) and `homeless`. **Unload all** (`unloadAll`/`unloadAllTiles`/
+  `unloadAllError` in `movement.ts`, action `unloadAll`). **Explore** (`src/game/explore.ts`,
+  `exploreStop.ts`; `Unit.exploring`; action `explore`; the player's explorers run at the start of
+  their turn in `turn.ts`; any other order clears it in `applyAction`; Wake too; log kind
+  `explore`). **Rocketry** has `revealsMap` (techs.ts): `learnTech` marks the whole map explored.
 - **Round 19: upgrades** (`src/game/upgrades.ts`; `upgradesTo` lines in `units.ts`;
   `RULES.upgrade`; `upgradePct` per difficulty), **spies** (`src/data/spies.ts`,
   `src/game/spies.ts`; the Spy is invisible except next to a rival Courthouse, walks
@@ -876,10 +902,12 @@ what was pushed.
   2026-09-26 on Dan's OK, live. Item 4 (drag to move, 0.21.0) done and committed, NOT pushed:**
   Dan decides when it goes out. See the Round 21 report in TODO.md. Pushing is Dan's call again.
 
-**Current objective: Round 22** (see TODO.md): ten fixes from Dan's playtest (upgrades
-inside your borders, direct roads, the Diplomacy overview, the met count, "nation" not "civ",
-Unload all, eliminating a nation with no cities, Explore mode, the map-reveal tech), plus Round 21's
-drag to move. **Don't push until Dan says; it all goes out together.**
+- **Round 22 (version 0.22.0): items 1–9 done and committed, NOT pushed** (nor Round 21's drag
+  to move): Dan tests on the play server and says "push" for all of it together. See the Round 22
+  report in TODO.md.
+
+**Current objective:** Dan tests Round 21's drag to move and Round 22 on the play server, then says
+"push". **Don't push until Dan says; it all goes out together.**
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.

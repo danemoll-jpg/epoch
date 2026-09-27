@@ -429,6 +429,8 @@ export function aiBuyRoads(state: GameState, p: number, reserve: number, priorit
       const a = mine[i]!;
       const b = mine[j]!;
       if (distance(a, b) > ROADS.ai.linkDistance) continue;
+      // Already joined by road without a real detour: nothing to buy (and no search to run).
+      if (roadConnected(state, a, b, distance(a, b) + ROADS.maxDetour)) continue;
       const opt = roadOption(state, p, a, b);
       if (opt && opt.newTiles > 0) options.push({ from: a, to: b, cost: opt.cost, war: false });
     }
