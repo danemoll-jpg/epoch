@@ -3,7 +3,8 @@
 //
 // The rule, in order:
 // 1. A unit is selected and has moves, and you tap a different tile:
-//    - an adjacent tile with enemy units → attack (the UI shows the odds first and only
+//    - an adjacent tile with enemy units that would fight (combat.ts's `hasVisibleDefender`:
+//      not a Spy, ships in port, or grounded aircraft; Round 21) → attack (the UI shows the odds first and only
 //      attacks on confirm; a unit that can't attack gets told why); but an enemy city whose
 //      only units are ships in port or aircraft (nobody defends it) → capture (Round 20);
 //    - your own city (Round 17): a unit on a tile next to it moves in with one tap (that's
@@ -31,6 +32,7 @@
 
 import { airRange, rebaseError, reconError } from '../game/air';
 import { capturableCity } from '../game/conquest';
+import { hasVisibleDefender } from '../game/combat';
 import { unitVisibleTo } from '../game/fog';
 import { distance } from '../game/grid';
 import { isAir, isAirType } from '../game/naval';
@@ -68,20 +70,23 @@ export function resolveTap(
   // city or Carrier in range; any other tap works as if nothing were selected.
   if (sel && sel.owner === viewer && sel.movesLeft > 0 && isAir(sel) && !onSelectedTile) {
     const at = { x: tx, y: ty };
-    const enemy = state.units.some((u) => u.x === tx && u.y === ty && u.owner !== viewer && unitVisibleTo(state, viewer, u));
-    if (enemy && distance(sel, at) <= airRange(sel)) return { kind: 'attack', unitId: sel.id };
+    if (hasVisibleDefender(state, at, viewer, sel) && distance(sel, at) <= airRange(sel)) return { kind: 'attack', unitId: sel.id };
     if (!rebaseError(state, sel, at)) return { kind: 'move', unitId: sel.id };
     // Round 19: a Drone scouts anywhere else in range.
     if (!reconError(state, sel, at)) return { kind: 'recon', unitId: sel.id };
   } else if (sel && sel.owner === viewer && sel.movesLeft > 0 && !onSelectedTile) {
-    // Round 19: only units you can see (not a hidden spy); a Spy never attacks, it walks in.
-    const enemyThere = state.units.some((u) => u.x === tx && u.y === ty && u.owner !== viewer && unitVisibleTo(state, viewer, u));
-    if (enemyThere && distance(sel, { x: tx, y: ty }) === 1 && !UNITS[sel.type].spy) {
+    // Round 21: an attack only when something you can see there would fight (combat.ts's own
+    // rule): an enemy Spy, ships in port or grounded aircraft never do, so that's a move (or,
+    // for an enemy city, a capture). A Spy never attacks; it walks in.
+    const at = { x: tx, y: ty };
+    if (distance(sel, at) === 1 && !UNITS[sel.type].spy) {
+      if (hasVisibleDefender(state, at, viewer, sel)) return { kind: 'attack', unitId: sel.id };
       // Round 20 (item 8): an enemy city held only by ships in port (or aircraft) has nobody
-      // to fight: walking in captures it.
-      const city = capturableCity(state, sel, { x: tx, y: ty });
-      if (city) return { kind: 'capture', unitId: sel.id, cityId: city.id };
-      return { kind: 'attack', unitId: sel.id };
+      // to fight: walking in captures it, after a confirm. An empty one is simply a move.
+      const city = capturableCity(state, sel, at);
+      if (city && state.units.some((u) => u.x === tx && u.y === ty && u.owner !== viewer && unitVisibleTo(state, viewer, u))) {
+        return { kind: 'capture', unitId: sel.id, cityId: city.id };
+      }
     }
     if (myCity) {
       const path = findPath(state, sel, { x: tx, y: ty });

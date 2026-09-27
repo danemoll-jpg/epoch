@@ -20,7 +20,7 @@
 import { ROADS } from '../data/roads';
 import { TERRAIN } from '../data/terrain';
 import { UNITS } from '../data/units';
-import { capturableCity, captureCity } from './conquest';
+import { capturableCity, captureCity, catchesSpies, catchSpies } from './conquest';
 import { distance, inBounds, neighbors, tileAt } from './grid';
 import { civName } from './conquest';
 import { updateContacts } from './diplomacy';
@@ -44,13 +44,25 @@ export function isEnterable(state: GameState, owner: number, x: number, y: numbe
   return !occupiedByOthers(state, owner, x, y);
 }
 
+/**
+ * Does a unit or city of `other` keep `owner`'s unit (a Spy if `spy`) off its tile? The one rule
+ * for single steps and path searches alike (Round 21: the path search had its own copy, which
+ * counted an enemy Spy as a wall, so "Move … here" found no way into a city with one inside).
+ * Round 19 (item 11): nobody is blocked by a spy (it's unseen), and a spy walks in among the
+ * units and into the cities of civs it's at peace with.
+ */
+function unitBlocks(state: GameState, owner: number, spy: boolean, other: Unit): boolean {
+  return other.owner !== owner && !UNITS[other.type].spy && (!spy || atWar(state, owner, other.owner));
+}
+
+function cityBlocks(state: GameState, owner: number, spy: boolean, city: City): boolean {
+  return city.owner !== owner && (!spy || atWar(state, owner, city.owner));
+}
+
 function occupiedByOthers(state: GameState, owner: number, x: number, y: number, mover?: Unit): boolean {
-  // Round 19 (item 11): nobody is blocked by a spy (it's unseen), and a spy walks in among the
-  // units and into the cities of civs it's at peace with.
   const spy = !!mover && !!UNITS[mover.type].spy;
-  const blocks = (other: number) => !spy || atWar(state, owner, other);
-  if (state.units.some((u) => u.x === x && u.y === y && u.owner !== owner && !UNITS[u.type].spy && blocks(u.owner))) return true;
-  return state.cities.some((c) => c.x === x && c.y === y && c.owner !== owner && blocks(c.owner));
+  if (state.units.some((u) => u.x === x && u.y === y && unitBlocks(state, owner, spy, u))) return true;
+  return state.cities.some((c) => c.x === x && c.y === y && cityBlocks(state, owner, spy, c));
 }
 
 /** Can this unit ever stand on this tile by walking or sailing (not boarding), ignoring move points? */
@@ -162,6 +174,9 @@ export function moveUnit(state: GameState, unitId: number, to: Coord): ActionRes
   }
   updateExplored(state, unit.owner);
   updateContacts(state);
+  // Round 21: a military unit stepping onto an enemy Spy catches it (a captured city catches
+  // any left inside too).
+  if (catchesSpies(unit)) catchSpies(state, unit, unit.owner);
   if (captured) captureCity(state, captured, unit.owner);
   // A barbarian village or an exploration hut here (Round 9).
   else if (!isShip(unit) && unit.carriedBy === null) enterTile(state, unit);
@@ -236,7 +251,7 @@ export function findPath(state: GameState, unit: Unit, to: Coord): Coord[] | und
   const estimate = (k: number) => Math.max(Math.abs((k % map.width) - gx), Math.abs(Math.floor(k / map.width) - gy)) * cheapest;
   // Who's where, looked up once per search instead of scanning every unit and city at every
   // step (canEnter and stepCost, done by hand with the same rules).
-  const look = pathLookups(state, unit.owner);
+  const look = pathLookups(state, unit);
   const walker = !isShip(unit) && !hovers(unit);
   const enter = (k: number) => {
     if (look.others[k]) return false;
@@ -335,17 +350,19 @@ export function pathTurns(state: GameState, unit: Unit, path: Coord[]): number {
   return turns;
 }
 
-/** For one path search: each tile's city, tiles holding other owners' units or cities, who knows Railroad. */
-function pathLookups(state: GameState, owner: number): { city: (City | undefined)[]; others: Uint8Array; rail: boolean[] } {
+/** For one path search: each tile's city, tiles another owner's unit or city blocks (as canEnter says), who knows Railroad. */
+function pathLookups(state: GameState, unit: Unit): { city: (City | undefined)[]; others: Uint8Array; rail: boolean[] } {
+  const owner = unit.owner;
+  const spy = !!UNITS[unit.type].spy;
   const n = state.map.width * state.map.height;
   const city: (City | undefined)[] = new Array(n);
   const others = new Uint8Array(n);
   for (const c of state.cities) {
     const k = c.y * state.map.width + c.x;
     city[k] = c;
-    if (c.owner !== owner) others[k] = 1;
+    if (cityBlocks(state, owner, spy, c)) others[k] = 1;
   }
-  for (const u of state.units) if (u.owner !== owner) others[u.y * state.map.width + u.x] = 1;
+  for (const u of state.units) if (unitBlocks(state, owner, spy, u)) others[u.y * state.map.width + u.x] = 1;
   return { city, others, rail: state.players.map((p) => p.techs.includes(ROADS.railTech)) };
 }
 
@@ -382,6 +399,10 @@ export function moveUnitToward(state: GameState, unitId: number, to: Coord): Act
   let moved = false;
   for (const step of path) {
     const res = moveUnit(state, unitId, step);
+    if (!res.ok && !moved && res.reason === 'Not enough moves left') {
+      // Round 21: say plainly that it only has to wait for its moves (not that it can't go).
+      return { ok: false, reason: 'Not enough moves left this turn for the first tile: it can set off next turn' };
+    }
     if (!res.ok) return moved ? { ok: true } : res;
     moved = true;
     // Took a village on the way: stop there so its owner can choose (Round 9).

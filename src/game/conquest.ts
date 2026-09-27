@@ -13,7 +13,8 @@ import { BARBARIAN_CIV } from '../data/barbarians';
 import { CIVS } from '../data/civs';
 import { BUILDINGS } from '../data/buildings';
 import { UNITS } from '../data/units';
-import { recordLoss, updateContacts } from './diplomacy';
+import { changeOpinion, hasMet, recordLoss, updateContacts } from './diplomacy';
+import { SPIES } from '../data/spies';
 import { updateExplored } from './fog';
 import { RULES } from '../data/rules';
 import { addLog } from './log';
@@ -101,6 +102,8 @@ export function captureCity(state: GameState, city: City, newOwner: number): voi
       ? `${who} captured ${city.name}, the ${civAdjective(state, oldOwner)} capital!`
       : `${who} captured ${city.name} from ${civName(state, oldOwner)}`;
   addLog(state, newOwner, text, city, oldOwner, { kind: 'capture', ref: { cityId: city.id } });
+  // Round 21: a rival's Spy still inside is caught by the new owner.
+  catchSpies(state, city, newOwner);
   if (sunk > 0) {
     const ships = lost.length === 1 ? 'a ship' : `${lost.length} ships`;
     const aboard = sunk > lost.length ? ` and ${sunk - lost.length} unit${sunk - lost.length === 1 ? '' : 's'} aboard` : '';
@@ -151,10 +154,45 @@ export function transferCity(state: GameState, city: City, newOwner: number): vo
   city.capturedTurn = state.turn;
   city.build = null;
   city.production = 0;
+  // Round 21: a rival's Spy inside (the old owner's went home above) is caught by the new owner.
+  catchSpies(state, city, newOwner);
   refreshWorkedTiles(state);
   updateExplored(state, newOwner);
   updateContacts(state);
   checkEliminations(state, newOwner, city);
+}
+
+/** Round 21: does this unit catch an enemy Spy by stepping onto its tile? Military units on land or at sea (not spies, civilians, or aircraft). */
+export function catchesSpies(u: Unit): boolean {
+  const def = UNITS[u.type];
+  return !def.spy && !isAir(u) && def.attack > 0 && u.carriedBy === null;
+}
+
+/**
+ * Round 21: every other civ's Spy standing (not aboard a ship) on `at` is caught by `catcher`
+ * and removed: a news item for both sides and, as for a spy caught acting, the catcher thinks
+ * less of the spy's owner. Called when a military unit steps onto the tile (movement.ts,
+ * combat.ts) and when a city changes hands (captureCity, transferCity). Returns how many.
+ */
+export function catchSpies(state: GameState, at: Coord, catcher: number): number {
+  const spies = state.units.filter((u) => u.x === at.x && u.y === at.y && u.owner !== catcher && UNITS[u.type].spy && u.carriedBy === null);
+  if (!spies.length) return 0;
+  const city = state.cities.find((c) => c.x === at.x && c.y === at.y);
+  const near = city ? undefined : [...state.cities].filter((c) => distance(c, at) <= 3).sort((a, b) => distance(a, at) - distance(b, at) || a.id - b.id)[0];
+  const where = city ? ` in ${city.name}` : near ? ` near ${near.name}` : '';
+  for (const spy of spies) {
+    removeUnit(state, spy.id);
+    const barbarian = state.players[catcher]?.kind === 'barbarian';
+    if (!barbarian) changeOpinion(state, catcher, spy.owner, SPIES.caughtOpinion);
+    const whose = barbarian || hasMet(state, catcher, spy.owner) ? civAdjective(state, spy.owner) : 'foreign';
+    const by = barbarian ? 'barbarians' : civName(state, catcher);
+    addLog(state, catcher, `You caught ${/^([AEIO]|U(?!k|ni))/i.test(whose) ? 'an' : 'a'} ${whose} spy${where}`, at, spy.owner, {
+      otherText: `Your spy was caught by ${by}${where}`,
+      kind: 'spy',
+      ref: city ? { cityId: city.id } : undefined,
+    });
+  }
+  return spies.length;
 }
 
 /** Marks every living civ with no cities and no units as eliminated. */

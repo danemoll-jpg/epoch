@@ -296,7 +296,7 @@ arrows, "n / 5", the dot), `tap-city-with-unit` (a Legion 4 tiles from Babylon
 selected first: tapping Babylon opens it with "Move Legion here (4 turns)"; the
 Warrior next to it moves in with one tap); (round 19) `rival-victory-wonder`,
 `keep-playing-spaceship`, `rival-era`, `built-this-turn`, `upgrade-units`, `spies`,
-`new-units` (Modern Infantry and the Drone), `culture-flip`, `leader-scenes`; (round 20) `city-only-ships` (Metz held only by ships in port: "Capture Metz?", and a Bomber striking the ships). A scenario can open a screen at load
+`new-units` (Modern Infantry and the Drone), `culture-flip`, `leader-scenes`; (round 20) `city-only-ships` (Metz held only by ships in port: "Capture Metz?", and a Bomber striking the ships); (round 21) `spy-in-my-city` (an enemy Spy in Oxford: walk in and catch it, "Move … here" from afar, a spy caught in the open). A scenario can open a screen at load
 (`opens: 'mainMenu' | 'settings' | 'almanac' | 'howToPlay' | 'setup'`) and
 show every tip afresh (`freshTips`, without touching the device's list);
 scenarios are silent unless Settings → Sound in dev scenarios. The religion ones use
@@ -656,7 +656,7 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   `docs/carrier-trim-candidates.html`).
 - The version shown on the About screen comes from `package.json`
   (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.19.0 for
-  round 19 (0.19.1: Round 20's Metz fix).
+  round 19 (0.19.1: Round 20's Metz fix; 0.19.2: Round 21's spy fix).
 - **Round 19: the news, the cards, and the log's running count.** The log is
   capped (`RULES.maxLogEntries`, 400), so **never find new entries by the log's
   length**: use `state.logCount` (the running count) and `entriesSince(state, mark)`
@@ -669,6 +669,12 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   (`victory.ts` `victoryWarnings`/`issueWarnings`/`warningAdvice`/`turnsToVictory`,
   `VICTORY.warnSoonTurns`/`warnEveryTurnFrom`); wins after Keep playing go to
   `state.laterWins`. Era flavor and tint in `ERAS` (`techs.ts`), `eraUnlocks`.
+- **Round 21: one rule for "who fights here" and "who blocks here".** `defenderCandidates` /
+  `pickDefender` / `hasVisibleDefender` in `combat.ts` decide who would fight on a tile (the tap uses
+  `hasVisibleDefender`, so a Spy, ships in port or grounded aircraft never make a tap an attack);
+  `unitBlocks` / `cityBlocks` in `movement.ts` decide who blocks a tile for single steps *and* path
+  searches. Don't add another copy of either. `catchSpies` (`conquest.ts`): a military unit stepping
+  onto another civ's Spy catches it; a city that changes hands catches the rival spies inside.
 - **Round 19: upgrades** (`src/game/upgrades.ts`; `upgradesTo` lines in `units.ts`;
   `RULES.upgrade`; `upgradePct` per difficulty), **spies** (`src/data/spies.ts`,
   `src/game/spies.ts`; the Spy is invisible except next to a rival Courthouse, walks

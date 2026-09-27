@@ -32,6 +32,8 @@ import { CivName, civName, civVerb } from '../game/conquest';
 import { civDef, peaceDesire } from '../game/diplomacy';
 import { findOverseasSite } from '../game/aiNaval';
 import { tileIndex } from '../game/grid';
+import { findPath, pathTurns } from '../game/movement';
+import { plural } from '../ui/text';
 import { cityYields, empireCulture, empireIncome, foodSurplus } from '../game/yields';
 import { techCost } from '../game/tech';
 import type { City, GameState } from '../game/types';
@@ -2238,6 +2240,42 @@ function cityOnlyShipsScenario(): GameState {
   return withDiceFor(cityOnlyShipsBase, (s) => !!strike(s, METZ).combat?.attackerWon);
 }
 
+/**
+ * Round 21: Oxford (yours, with a Courthouse, so you can see spies in and next to it) has a
+ * Mauryan Spy inside. A Legion stands next door, a Horseman in your capital, a Warrior two tiles
+ * off with only a third of a move left, and an Archer next to a second Mauryan Spy on open ground.
+ */
+export const OXFORD = { x: 10, y: 5 };
+export const OPEN_SPY = { x: 11, y: 6 };
+export function spyInMyCityScenario(): GameState {
+  const { state } = withCapital(undefined, { size: 4 }, 2);
+  eastRival(state);
+  addCity(state, 0, OXFORD.x, OXFORD.y, { name: 'Oxford', size: 3, buildings: ['courthouse'], build: { kind: 'unit', id: 'warrior' } });
+  state.players[0]!.citiesFounded = 2;
+  addUnit(state, 'spy', 1, OXFORD.x, OXFORD.y);
+  addUnit(state, 'spy', 1, OPEN_SPY.x, OPEN_SPY.y);
+  addUnit(state, 'legion', 0, OXFORD.x - 1, OXFORD.y);
+  addUnit(state, 'horseman', 0, CITY_X, CITY_Y);
+  addUnit(state, 'warrior', 0, OXFORD.x - 2, OXFORD.y - 1, { movesLeft: 1 / 3 });
+  addUnit(state, 'archer', 0, OPEN_SPY.x + 1, OPEN_SPY.y - 1);
+  return state;
+}
+
+function horsemanTurns(): number {
+  const s = spyInMyCityScenario();
+  const horse = s.units.find((u) => u.type === 'horseman')!;
+  return pathTurns(s, horse, findPath(s, horse, OXFORD)!);
+}
+
+const ROUND21_SCENARIOS: Scenario[] = [
+  {
+    id: 'spy-in-my-city',
+    title: 'Enemy spy in your city',
+    note: `Oxford (east of ${CAPITAL}) is yours, and a Mauryan Spy is inside (the Courthouse lets you see it). Tap the Legion next to Oxford, then Oxford: it walks in (no "Nothing to attack there") and catches the Spy: "You caught a Mauryan spy in Oxford". Or tap the Horseman in ${CAPITAL}, then Oxford: the city opens with "Move Horseman here (${plural(horsemanTurns(), 'turn')})". The Warrior north-west of Oxford has only ⅓ move left: its "Move Warrior here" says it can set off next turn. The Archer east of Oxford is next to a second Mauryan Spy in the open: tap the Spy's tile and the Archer catches it.`,
+    build: spyInMyCityScenario,
+  },
+];
+
 /** Round 20 (listed last in the ☰ menu, like each round's). */
 const ROUND20_SCENARIOS: Scenario[] = [
   {
@@ -2640,6 +2678,7 @@ export const SCENARIOS: Scenario[] = [
   ...ROUND18_SCENARIOS,
   ...ROUND19_SCENARIOS,
   ...ROUND20_SCENARIOS,
+  ...ROUND21_SCENARIOS,
 ];
 
 export function findScenario(id: string): Scenario | undefined {

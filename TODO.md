@@ -1975,6 +1975,44 @@ decides when it goes out. Don't touch the hub.
 **Done means:** items 0–4 reported; tests pass; items 1–3 **pushed** (Dan's OK) and live; item 4 committed,
 **not pushed**; the play server restarted.
 
+**Round 21 report (coding agent, 2026-09-26), items 0–3 (version 0.19.2):**
+- **0. Docs committed first — done** (`fe43f7c`), re-read.
+- **1. The tap — done.** Cause confirmed on the old code with a test: next to Oxford, `resolveTap` said
+  `attack` (any *visible* enemy counted), and `attackError` found nobody. Now `combat.ts` has
+  `defenderCandidates` (the one list `pickDefender` picks from) and `hasVisibleDefender`, which the tap
+  uses for land units and aircraft: a tile whose only enemy units can't defend it (a Spy, ships in port,
+  grounded aircraft) is a move, or Round 20's "Capture …?" for an enemy city with visible units in it.
+  **"Move … here" from 2+ tiles:** the path search had its own copy of "who blocks a tile" (`pathLookups`),
+  which counted *any* other civ's unit, spies included, so no path into Oxford existed: from afar the
+  city opened with no "Move … here" (and the Round 18 unit offer had the same hole). Now both use one
+  rule (`unitBlocks`/`cityBlocks` in `movement.ts`), which also lets a Spy's path go where its single
+  steps already could. **Low moves:** a unit whose first tile costs more than it has left used to fail with
+  "Not enough moves left"; it now says "Not enough moves left this turn for the first tile: it can set off
+  next turn" (the offer's turn count was already right). Checked with full moves too (a Horseman two and
+  three tiles off). Other checks: the odds panel uses `combatOdds` (already `pickDefender`); Tap twice to
+  move goes through `resolveTap`; the AI's village/hut "held" checks now use `defenderCandidates` (a spy on
+  a hut no longer scares it off). Unit-tested; preview-verified on desktop (the scenario below).
+- **2. Catching spies — done.** `catchSpies` (`conquest.ts`): a military unit (attack > 0, not a Spy,
+  civilian or aircraft) stepping onto a tile with another civ's Spy (not aboard a ship), in a city or
+  anywhere, at war or at peace, catches it: removed, "You caught a Mauryan spy in Oxford" (or "near
+  Oxford" in the open, within 3 tiles of a city) as news and a toast, "Your spy was caught by … in …" for
+  its owner, and the same `SPIES.caughtOpinion` as a spy caught acting. Also on each step of a longer
+  move, and when a unit wins its way into a village. **A city that changes hands: the Spy is caught**
+  (not expelled), by `captureCity` and `transferCity` (revolts, culture flips); the old owner's own
+  units, spies included, still go home as before. The AI uses the same move action, so it catches spies
+  the same way. Unit-tested.
+- **3. Tests and scenario — done.** `tests/round21.test.ts` (15): next door at war and at peace, from
+  afar (tap, path, turns, the move), a sliver of moves, a real defender still attacked, an aircraft never
+  told to strike a lone spy, caught in the city / on the way / in the open / not by a Settler or Spy / by
+  the AI / in a captured or flipped city, and "a Ukrainian" / "an English". Metz (Round 20) tests still
+  pass. Scenario **`spy-in-my-city`**: Oxford with a Courthouse and a Mauryan Spy inside, a Legion next
+  door, a Horseman in Babylon ("Move Horseman here (2 turns)"), a Warrior with ⅓ move, and an Archer next
+  to a second Spy in the open. Preview-verified on desktop: the Legion walks in and catches the Spy, the
+  Archer catches the other, the Horseman's button sends it on its way, the Warrior's says it can set off
+  next turn. One sim test's slack went from +4 to +5 (seed 33: a Ukrainian spy caught on turn 94 changes
+  that game's course). 1079 tests pass.
+- **Pushed** on Dan's OK (see the commit list in the final report below); play server restarted.
+
 **Still open for Dan (no agent work needed):** a full game with Round 19; the iPad **Home Screen icon**
 sign-in and the **keep-which question**; **Q31** (time `huge-map` and `epic-map` on the iPad); optional:
 the title picture (`docs/TITLE-ART.md`).

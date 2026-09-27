@@ -58,7 +58,7 @@ import { landmassAt, siteScore } from './mapgen';
 import { cargoShipTypes, navalBuild, playShip, runFerry, updateFerry } from './aiNaval';
 import { airBuild, runAiAir } from './aiAir';
 import { isAir, isShip } from './naval';
-import { attack, attackError, combatOdds, defenseStrength, fortify, formArmy, formArmyError } from './combat';
+import { attack, attackError, combatOdds, defenderCandidates, defenseStrength, fortify, formArmy, formArmyError } from './combat';
 import { capturableCity } from './conquest';
 import { runAiDiplomacy, runawayProgress, strengthRatio } from './diplomacy';
 import { canEnter, findUnit, isEnterable, moveUnit, moveUnitToward } from './movement';
@@ -802,16 +802,16 @@ function goForLoot(state: GameState, unit: Unit): boolean {
   };
   for (const v of state.villages) {
     if (v.takenBy !== null) continue;
-    consider(v, state.units.some((u) => u.x === v.x && u.y === v.y && u.owner !== unit.owner));
+    consider(v, defenderCandidates(state, v, unit.owner).length > 0);
   }
   for (let i = 0; i < state.map.tiles.length; i++) {
     if (!state.map.tiles[i]!.hut) continue;
     const at = coordOf(state, i);
-    if (!state.units.some((u) => u.x === at.x && u.y === at.y && u.owner !== unit.owner)) consider(at, false);
+    if (!defenderCandidates(state, at, unit.owner).length) consider(at, false);
   }
   if (!best) return false;
   const target: Coord = best.at;
-  const held = state.units.some((u) => u.x === target.x && u.y === target.y && u.owner !== unit.owner);
+  const held = defenderCandidates(state, target, unit.owner).length > 0;
   if (held) return approach(state, unit, target);
   return moveUnitToward(state, unit.id, target).ok;
 }

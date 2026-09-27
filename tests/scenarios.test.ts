@@ -40,6 +40,8 @@ import { BUILT_CITIES, FLIP_TOWN, METZ, NEW_UNITS_SCOUT, RIVAL_WONDER, UPGRADE_G
 import { listUnits } from '../src/ui/unitsList';
 import { cityOrder, cycleCity, otherIdleCities } from '../src/ui/cityCycle';
 import { resolveTap } from '../src/ui/tap';
+import { OPEN_SPY, OXFORD } from '../src/dev/scenarios';
+import { plural } from '../src/ui/text';
 import { DEFAULT_VIEW_TILES } from '../src/render/camera';
 import { findPath, pathTurns } from '../src/game/movement';
 import { FIXTURE_TURN } from '../src/dev/fixtures/fixtures';
@@ -85,6 +87,34 @@ function endTurn(s: GameState): void {
 
 /** What each scenario's note promises. A new scenario without an entry here fails the suite. */
 const OUTCOMES: Record<string, (s: GameState) => void> = {
+  // ---- Round 21 ----
+  'spy-in-my-city': (s) => {
+    const oxford = s.cities.find((c) => c.name === 'Oxford')!;
+    const [inCity, inOpen] = s.units.filter((u) => u.owner === 1 && u.type === 'spy');
+    expect(unitVisibleTo(s, 0, inCity!) && unitVisibleTo(s, 0, inOpen!)).toBe(true);
+    const legion = mine(s, 'legion');
+    const horse = mine(s, 'horseman');
+    const warrior = mine(s, 'warrior');
+    const archer = mine(s, 'archer');
+    // Next door: a move, not an attack. From afar: the city opens with "Move … here".
+    expect(resolveTap(s, 0, legion.id, OXFORD.x, OXFORD.y)).toEqual({ kind: 'move', unitId: legion.id });
+    expect(resolveTap(s, 0, horse.id, OXFORD.x, OXFORD.y)).toEqual({ kind: 'openCity', cityId: oxford.id, moveUnitId: horse.id });
+    expect(noteOf('spy-in-my-city')).toContain(`Move Horseman here (${plural(pathTurns(s, horse, findPath(s, horse, OXFORD)!), 'turn')})`);
+    expect(resolveTap(s, 0, warrior.id, OXFORD.x, OXFORD.y)).toMatchObject({ kind: 'openCity', moveUnitId: warrior.id });
+    const copy = structuredClone(s);
+    expect(applyAction(copy, { type: 'move', unitId: warrior.id, to: OXFORD }).reason).toContain('it can set off next turn');
+    const copy2 = structuredClone(s);
+    expect(applyAction(copy2, { type: 'move', unitId: horse.id, to: OXFORD }).ok).toBe(true);
+    // The Legion walks in and catches the spy.
+    expect(applyAction(s, { type: 'move', unitId: legion.id, to: OXFORD }).ok).toBe(true);
+    expect(legion).toMatchObject({ x: OXFORD.x, y: OXFORD.y });
+    expect(s.units.some((u) => u.id === inCity!.id)).toBe(false);
+    expect(s.log.map((e) => e.text)).toContain('You caught a Mauryan spy in Oxford');
+    // The Archer catches the one in the open.
+    expect(resolveTap(s, 0, archer.id, OPEN_SPY.x, OPEN_SPY.y)).toEqual({ kind: 'move', unitId: archer.id });
+    expect(applyAction(s, { type: 'move', unitId: archer.id, to: OPEN_SPY }).ok).toBe(true);
+    expect(s.units.some((u) => u.id === inOpen!.id)).toBe(false);
+  },
   // ---- Round 20 ----
   'city-only-ships': (s) => {
     const metz = s.cities.find((c) => c.name === 'Metz')!;

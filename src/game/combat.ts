@@ -35,7 +35,7 @@ import { TERRAIN } from '../data/terrain';
 import { UNITS } from '../data/units';
 import { GREAT_PEOPLE_RULES } from '../data/greatPeople';
 import { isBarbarian, raidCity, raidError, villageAt, villageDefensePct } from './barbarians';
-import { captureCity, checkEliminations, civAdjective, CivName, civName } from './conquest';
+import { captureCity, catchSpies, checkEliminations, civAdjective, CivName, civName } from './conquest';
 import { recordLoss, updateContacts } from './diplomacy';
 import { enterTile } from './villages';
 import { settled } from './yields';
@@ -144,24 +144,37 @@ export function defenseStrength(state: GameState, u: Unit, attackerIsLand = true
 }
 
 /**
- * The unit on `at` that would defend against `attackerOwner`: the best effective defense.
- * Round 20 (item 8): an aircraft striking a city with no defenders hits a ship in port there.
+ * Every unit on `at` that could defend it against `attackerOwner` (the one place that decides
+ * who fights there): land units and ships as `defendsTile` says, never a Spy or a grounded
+ * aircraft. Round 20 (item 8): an aircraft striking a tile with none of those hits a ship in
+ * port there instead.
  */
+export function defenderCandidates(state: GameState, at: Coord, attackerOwner: number, attacker?: Unit): Unit[] {
+  const here = state.units.filter((u) => u.x === at.x && u.y === at.y && u.owner !== attackerOwner);
+  const list = here.filter((u) => defendsTile(state, u));
+  if (list.length || !attacker || !isAir(attacker)) return list;
+  return here.filter((u) => isShip(u) && u.carriedBy === null);
+}
+
+/** The unit on `at` that would defend against `attackerOwner`: the best effective defense. */
 export function pickDefender(state: GameState, at: Coord, attackerOwner: number, attacker?: Unit): Unit | undefined {
+  const list = defenderCandidates(state, at, attackerOwner, attacker);
   let best: { u: Unit; d: number } | undefined;
-  for (const u of state.units) {
-    if (u.x !== at.x || u.y !== at.y || u.owner === attackerOwner || !defendsTile(state, u)) continue;
-    const d = defenseStrength(state, u).total;
+  for (const u of list) {
+    // Ships in port (only ever picked against aircraft) are rated as against a non-land attack.
+    const d = defenseStrength(state, u, defendsTile(state, u)).total;
     if (!best || d > best.d || (d === best.d && u.id < best.u.id)) best = { u, d };
   }
-  if (!best && attacker && isAir(attacker)) {
-    for (const u of state.units) {
-      if (u.x !== at.x || u.y !== at.y || u.owner === attackerOwner || !isShip(u) || u.carriedBy !== null) continue;
-      const d = defenseStrength(state, u, false).total;
-      if (!best || d > best.d || (d === best.d && u.id < best.u.id)) best = { u, d };
-    }
-  }
   return best?.u;
+}
+
+/**
+ * Round 21: is there something on `at` that `viewer` can see and `attacker` would have to fight?
+ * The tap rule asks this, so a tile whose only enemy units can't defend it (a Spy, ships in
+ * port, grounded aircraft) is a move, never an attack that finds "Nothing to attack there".
+ */
+export function hasVisibleDefender(state: GameState, at: Coord, viewer: number, attacker: Unit): boolean {
+  return defenderCandidates(state, at, attacker.owner, attacker).some((u) => unitVisibleTo(state, viewer, u));
 }
 
 /** Why `unit` can't attack the tile `at` right now, or undefined if it can. */
@@ -353,6 +366,7 @@ export function attack(state: GameState, unitId: number, at: Coord): ActionResul
     unit.x = at.x;
     unit.y = at.y;
     tookVillage = village.id;
+    catchSpies(state, at, unit.owner);
     updateExplored(state, unit.owner);
     updateContacts(state);
     enterTile(state, unit);
