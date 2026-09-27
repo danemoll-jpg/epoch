@@ -5,6 +5,9 @@ Read this at the start of every session. It is the short, operational version.
 to work on.
 
 ## ⚠️ Pushing rules
+- **Dan's preference (2026-09-26): bundle pushes.** Don't split a round into separate pushes (e.g. a bug fix now,
+  a feature later). Commit everything, let Dan test it on the play server, and push it **all together when he
+  says**. A split push only if Dan explicitly asks for one.
 - **Epoch repo, until go-live: push at the end of every round** (Dan's
   standing instruction, 2026-09-24). After tests pass and the docs are
   committed, `git push` the `epoch` repo to GitHub, then restart the play
@@ -873,7 +876,10 @@ what was pushed.
   2026-09-26 on Dan's OK, live. Item 4 (drag to move, 0.21.0) done and committed, NOT pushed:**
   Dan decides when it goes out. See the Round 21 report in TODO.md. Pushing is Dan's call again.
 
-**Current objective:** waiting for the planning session (Round 21 is done; item 4 waits for Dan's push).
+**Current objective: Round 22** (see TODO.md): ten fixes from Dan's playtest (upgrades
+inside your borders, direct roads, the Diplomacy overview, the met count, "nation" not "civ",
+Unload all, eliminating a nation with no cities, Explore mode, the map-reveal tech), plus Round 21's
+drag to move. **Don't push until Dan says; it all goes out together.**
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.

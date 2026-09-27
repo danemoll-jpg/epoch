@@ -1931,49 +1931,7 @@ share.
 **Pushed on Dan's say-so (2026-09-26):** the balance commit `67c2463`, now live. Tests: 1062 pass (pace and balance included).
 The play server was restarted after item 8 and again at the end of the round (http://10.0.0.224:4173/), so it now has the balance changes too (saves carry over; nothing in the state changed). The live site has only item 8.
 
-
-## Current Objective (Focus Area)
-
-### Round 21 — Bug: an enemy spy in your city blocks your own units
-
-**Dan's game (2026-09-26, turn 231):** he captured Oxford; an enemy (blue) Spy is inside it. Every unit he
-tries to move into Oxford gets **"Nothing to attack there"**. Same family as Round 20's Metz bug.
-
-**Cause (from reading the code):** `tap.ts` treats any *visible* enemy unit on the tile as an attack
-(`enemyThere`), but a Spy never defends (`defendsTile`) and never blocks movement (`movement.ts`), so
-`attackError` finds nobody and the move never happens. The Metz fix only covered enemy *cities*.
-
-**Order and pushing:** fix the bug (items 1–3) **first**, then commit, **push** (Dan OKs it), and restart the
-play server so he can finish his game. **Then** do item 4 (drag to move): commit it, but **don't push**; Dan
-decides when it goes out. Don't touch the hub.
-
-0. **Commit the updated docs first:** `CLAUDE.md` and `TODO.md` as their own commit, then re-read them.
-1. **Fix the tap:** an adjacent tile whose only enemy units **can't defend it** (spies, ships in port on land,
-   aircraft on the ground) is a **move** (or the Metz-style capture for an enemy city), never an attack.
-   Use the same rule the combat code uses (`pickDefender` / `defendsTile`), in one place, so the tap and the
-   combat code can't disagree again. Check every other place that decides "is there an enemy here" (the
-   odds panel, "Move … here" / board offers, Tap twice to move, the AI) for the same mismatch.
-   **Also:** Dan tried the city panel's **"Move … here"** button from a unit 2+ tiles away, and it didn't get
-   into Oxford either. Find out why and fix it (some of his nearby units had almost no moves left, so
-   check with full moves as well), and cover that path in the tests.
-2. **Catching spies:** when your military unit moves onto a tile with an enemy Spy (your city or anywhere),
-   the Spy is **caught** and removed: a news item and a toast ("You caught a Babylonian spy in Oxford"),
-   the same opinion effect as a spy caught acting. **An enemy Spy in a city that changes hands is expelled**
-   (sent to its owner's nearest city) or caught; pick one and say which. The AI catches spies the same way.
-3. **Tests and a scenario** (`spy-in-my-city`: your city with an enemy Spy inside and your units around it):
-   moving in from next door and from afar both work; the spy is caught; a spy on open ground is caught too;
-   Metz still works.
-
-4. **Drag to move (Dan, 2026-09-26: "as another option").** Press on the **selected unit** and drag: the
-   path and "N turns" show as you drag (the Round 17 path preview), and **releasing on a tile does what
-   a tap there would** (move, board, attack with the odds panel, capture). Releasing back on the unit, or
-   off the map, cancels. A drag that **starts anywhere else still pans the map**, exactly as today; a
-   pinch still zooms. Works with touch and the mouse; doesn't fight the minimap or panels; while dragging,
-   the map scrolls when you reach a screen edge. Tap to move keeps working, and "Tap twice to move" is
-   unaffected. How to Play gets a line; tests for the gesture rules; preview-verified on iPad emulation.
-
-**Done means:** items 0–4 reported; tests pass; items 1–3 **pushed** (Dan's OK) and live; item 4 committed,
-**not pushed**; the play server restarted.
+* **Round 21 — An enemy spy in your city blocked your units; catching spies; drag to move — done.** Items 1–3 pushed as 0.19.2 (Dan's OK; he'd have preferred one bundled push: see CLAUDE.md's pushing rules). Item 4 (drag to move, 0.21.0) committed, not pushed; it goes out with Round 22. The agent's report follows, moved from Current Objective.
 
 **Round 21 report (coding agent, 2026-09-26), items 0–3 (version 0.19.2):**
 - **0. Docs committed first — done** (`fe43f7c`), re-read.
@@ -2036,9 +1994,106 @@ decides when it goes out. Don't touch the hub.
 - **Commits waiting to be pushed:** item 4 with its docs, and this note (see `git log origin/main..main`).
 
 
-**Still open for Dan (no agent work needed):** a full game with Round 19; the iPad **Home Screen icon**
-sign-in and the **keep-which question**; **Q31** (time `huge-map` and `epic-map` on the iPad); optional:
-the title picture (`docs/TITLE-ART.md`).
+## Current Objective (Focus Area)
+
+### Round 22 — Ten fixes from Dan's playtest (items 1–9 below, plus drag to move)
+
+**Pushing: don't push anything until Dan says "push".** Dan pushes in bundles: this whole round, plus
+Round 21's drag to move, goes out together, after he's tested it on the play server. No split pushes.
+Don't touch the hub.
+
+**How to work:** commit after each item (or small group), restart the play server when a playable
+chunk is in, and keep a short progress note at the end of this section. At the end, report **every item
+(0–9) individually**, with how it was verified, and list the commits waiting for Dan's push.
+
+0. **Commit the updated docs first:** `CLAUDE.md` and `TODO.md` as their own commit, then re-read them.
+
+**The items** (from Dan's playtest, 2026-09-26/27, with his decisions). Item 0 below is a reminder, not
+new work:
+
+0. **Drag to move (Round 21 item 4)** is committed, not pushed: Dan tests it on the play server first.
+1. **Upgrades outside cities** (Dan, 2026-09-26: "can we not upgrade units not in a city? … ships seem to be
+   the biggest issue"). Today `upgradeError` (`upgrades.ts`) allows upgrades only in one of your cities.
+   **DECIDED by Dan: anywhere inside your own borders, land or sea, at the normal price** (not in enemy
+   or neutral territory, not aboard a ship). Check that borders cover the water tiles near your coast so
+   ships there qualify (if they don't, count sea tiles next to your land borders); keep "has moves left"
+   and "unload its cargo first"; update the Upgrade button's reason text ("Only inside your borders"),
+   Upgrade all in ☰ → Units, How to Play, the AI (it may upgrade anywhere in its borders too), and tests.
+2. **A bought road took a detour through another civ's city** (Dan, 2026-09-26, turn 232: he asked for a
+   road from Chernihiv to Oxford; it went Chernihiv → **Nantes** (a rival's city) → Oxford instead of
+   straight to Oxford). Likely cause: the router in `roads.ts` treats existing road and rail tiles as
+   free, so the cheapest route reuses the old line through Nantes; it also predates borders (Round 19),
+   so it ignores them. **Confirm the cause, then fix:**
+   - the road goes **as directly as the terrain allows** between the two cities you picked. Reusing
+     existing road is fine only when it doesn't make a real detour (e.g. no more than a tile or two
+     longer than the direct line);
+   - it **never passes through another civ's city or borders**; your own territory and unclaimed land
+     only. If there's no such route, say so ("Nantes's borders are in the way") rather than building it;
+   - **show the route on the map and its price before you pay** (if it isn't shown already), so a detour
+     is visible before it's bought;
+   - AI roads follow the same rules. Tests and a scenario (`road-direct`: two of your cities with a
+     rival's city and its old road off to one side).
+3. **Diplomacy: picking a leader jumps straight into the conversation** (Dan, 2026-09-26). In 🤝
+   Diplomacy, tapping a civ opens the full-screen leader scene (Round 19 Part F) at once. **Fix:** tapping
+   a civ first shows its **overview**: leader portrait (small), civ, attitude, war/peace and how long, their
+   strength compared with yours, cities, score or victory progress, techs you could trade, their leader
+   bonuses (already there), and recent history with you (the news log's entries about them). From there,
+   a **"Talk to …"** button opens the leader scene for trades, demands, war, and peace. The leader scene
+   still opens directly for **their** approaches (first contact, their demands and offers, war declared
+   on you). Tests; preview in iPad portrait and landscape.
+4. **"Met 2 of 4 civs" after two rivals were eliminated** (Dan, 2026-09-26: he had met all four; two
+   are gone). The count leaves out eliminated rivals it had met. **Fix:** count everyone you've met, and
+   say who's gone: "Met 4 of 4 nations (2 eliminated)". Check every other count or list that might skip
+   eliminated civs the same way (Diplomacy, 🏆, the leader panel, the end-of-game summary).
+5. **Say "nation", not "civ", in everything players see** (**DECIDED by Dan, 2026-09-26**). "Civ" is short
+   for the franchise name the IP rules keep out of the game. Replace it in all player-facing text: UI
+   labels, toasts, cards, the news log, How to Play, tips, the Almanac, the setup screen, About, and
+   `docs/` pages Dan reads ("rival nations", "Met 4 of 4 nations", "Nation: Ukraine"). Watch the
+   grammar (a/an, plurals). **Code identifiers stay as they are** (`civId`, `civs.ts`, …); no save change.
+   Add a test that fails if "civ" or "Civ" appears in shipped player-facing strings (like the
+   "Civilization" check from Round 15), and add "use nation, not civ" to CLAUDE.md's IP guardrails.
+6. **"Unload all" for ships** (Dan, 2026-09-27: "when disembarking units from a ship, can we get an all
+   disembark button"). With a ship selected (or one of its cargo), a button **"Unload all (3)"** moves every
+   unit aboard that still has moves onto land: in port, they step into the city; at sea next to land, you
+   tap the land tile to unload onto (or drag, with item 0's drag to move), and all of them go there,
+   stacking as usual (an army stays an army). Units without moves left, or that can't enter that tile,
+   stay aboard with a short reason. Same button in the stack list. The AI isn't affected. Tests and a
+   scenario (`unload-all`: a Transport with 3 units next to a beach and one in port).
+7. **A nation with no cities isn't eliminated** (Dan, 2026-09-27: he destroyed France's last city, ended the
+   turn, and France is still in Diplomacy: "Cities 0", at war). Cause: `conquest.ts` eliminates a nation
+   only with **no cities and no units**, so a leftover ship, spy, aircraft, or unit anywhere keeps it alive
+   forever. **Fix (the planning session's default; Dan may change it):** a nation that **loses its last city
+   is eliminated at once**, and its remaining units are removed (announced with the elimination card),
+   **unless it still has a Settler**: then it gets **10 turns** (**Dan OK'd this, 2026-09-27**) to found a new city ("France has no cities
+   left; its settlers are looking for new land"), and is eliminated if it doesn't. The AI's last Settler
+   tries to found a city. Check victory counting (domination: capitals held; "rivals left"), Diplomacy,
+   and the met count (item 4) after an elimination. Also fix saves where this already happened: a
+   nation with no cities and no Settler is eliminated on load. Tests and a scenario (`last-city`).
+8. **Explore mode** (Dan, 2026-09-27: "ships should have a scout mode where they travel around the map";
+   **Dan: ships and land units**). An **Explore** button for any ship, any land military unit, and the Drone
+   (not Settlers or Spies): each turn the unit heads for the nearest unexplored area on its own (reuse the
+   AI's `explore` in `ai.ts`), and "Next unit" skips it. It **stops and asks for orders** when it sees an
+   enemy unit or city, is attacked, is damaged, finds nothing left to explore it can reach, or a ship would
+   end its turn somewhere it can't stay (the Galley's coast rule). Tapping the unit or any order cancels it.
+   A small compass mark on the unit shows it's exploring; ☰ → Units lists it ("exploring"). Saved with
+   the game (a save migration if the state changes). Tests and a scenario (`explore`).
+9. **A tech that reveals the whole map** (Dan, 2026-09-27; **DECIDED: a tech**). When a nation learns
+   **Space Flight** (or another Modern tech you judge fits better, e.g. a satellites-era one; say which),
+   **the whole map's terrain, coasts and cities become known to it** (not live vision of units: tiles you
+   can't currently see stay fogged, as usual). A card or toast says so ("Satellites map the whole world"),
+   the tech's description and the Almanac say it, and the minimap fills in. The AI gets it the same way.
+   Tests.
+
+**Throughout:** rules in data; How to Play, the Almanac, and tips updated; a scenario per item (named in
+the items) with a note; tests; `pace.test.ts` and `balance.test.ts` passing; lint and build clean;
+preview-verified on desktop and iPad emulation (portrait and landscape); a `STATE_VERSION` bump with
+migrations where state changes; the AI follows the same rules.
+
+**Done means:** every item reported; tests pass; committed; **not pushed**; the play server restarted.
+
+**Still open for Dan (no agent work needed):** test drag to move and this round on the play server, then
+say "push"; the iPad **Home Screen icon** sign-in and the **keep-which question**; **Q31** (time
+`huge-map` and `epic-map` on the iPad); optional: the title picture (`docs/TITLE-ART.md`).
 
 ## Next Steps (Do Not Start Yet)
 
