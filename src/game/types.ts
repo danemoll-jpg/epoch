@@ -86,6 +86,13 @@ export interface Player {
   shipsBuilt: UnitTypeId[];
   /** Round 19 (item 11): rival cities its spies investigated, readable until the turn given. */
   intel: { cityId: number; until: number }[];
+  /**
+   * Round 22 (item 7): the turn this nation lost its last city while it still had a Settler
+   * (it has RULES.homelessTurns to found a new one), or absent/null.
+   */
+  homelessSince?: number | null;
+  /** Round 22 (item 4): the turn this nation was eliminated (absent while it's alive, or from older saves). */
+  eliminatedTurn?: number;
 }
 
 export interface SpaceProgram {
@@ -195,7 +202,7 @@ export interface City {
  * 14 = Round 19 Part C (spies: each civ's investigation reports).
  * 15 = Round 19 Part E (culture borders: each city's culture so far, and its unrest).
  */
-export const STATE_VERSION = 15;
+export const STATE_VERSION = 16;
 
 export interface GameState {
   version: number;
@@ -400,7 +407,9 @@ export interface LogEntry {
     // Round 19 Part C: a spy acted (or was caught).
     | 'spy'
     // Round 19 Part E: unrest in a city, and a referendum that moved one.
-    | 'referendum';
+    | 'referendum'
+    // Round 22: a nation eliminated, and one that lost its last city but still has a Settler.
+    | 'eliminated' | 'homeless';
   /** Round 19: what the entry is about, so the UI can build its card (all optional). */
   ref?: LogRef;
   /** Where it happened, so the UI can hide rival events the viewer can't see. */

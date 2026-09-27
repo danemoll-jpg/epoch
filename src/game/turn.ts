@@ -15,6 +15,7 @@ import type { ActionResult, GameState } from './types';
 import { chooseVillage, pendingVillage } from './villages';
 import { checkFoundings, spreadReligions } from './religion';
 import { processBorders } from './borders';
+import { checkEliminations } from './conquest';
 
 function startTurnFor(state: GameState, playerId: number): void {
   for (const u of state.units) {
@@ -50,6 +51,10 @@ export function endTurn(state: GameState): ActionResult {
   if (newTurn) spreadReligions(state);
   // Round 19 (item 7): unrest, and referendums, once a game turn.
   if (newTurn) processBorders(state);
+  // Round 22 (item 7): a nation whose settlers found no new city in time is eliminated.
+  if (newTurn) checkEliminations(state);
+  // …and play skips anyone just eliminated.
+  for (let i = 0; i < n && !state.players[next]!.alive; i++) next = (next + 1) % n;
   state.currentPlayer = next;
   startTurnFor(state, next);
   // Wonders just finished, captures during the turn, a spaceship arriving at this turn's start.

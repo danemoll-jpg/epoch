@@ -34,6 +34,11 @@ export const RULES = {
    */
   upgrade: { goldPerProduction: 2, minGold: 10, aiMaxPerTurn: 2 },
   maxLogEntries: 400,
+  /**
+   * Round 22 (item 7): a nation that loses its last city is eliminated at once (its remaining
+   * units disbanded), unless it still has a Settler: then it has this many turns to found a new city.
+   */
+  homelessTurns: 10,
 
   // ---- map shape (Round 8: several landmasses, so ships matter) ----
   map: {

@@ -11,6 +11,7 @@ import { MAP_SIZES } from '../data/mapSizes';
 import { UNITS } from '../data/units';
 import { newDiplomacy } from './diplomacy';
 import { newBarbarianPlayer } from './barbarians';
+import { checkEliminations } from './conquest';
 import { placeResources } from './resources';
 import { placeVillagesAndHuts } from './villages';
 import { setAlwaysAtWar } from './war';
@@ -270,6 +271,12 @@ const MIGRATIONS: Record<number, (s: Raw) => void> = {
       c.unrest = 0;
     }
   },
+  // Round 22 (item 7): a nation that lost its last city with no Settler left is eliminated now
+  // (its leftover units disbanded); one with a Settler gets its turns from today. Units start
+  // not exploring (Unit.exploring absent).
+  15: (s) => {
+    checkEliminations(s as unknown as GameState);
+  },
 };
 
 /** What each migration brought, for the "your game was updated" notice. Keyed like MIGRATIONS. */
@@ -287,6 +294,7 @@ export const MIGRATION_NOTES: Record<number, string> = {
   12: 'bigger news: victory warnings, era and wonder cards, and the news log',
   13: 'spies',
   14: 'culture borders and referendums',
+  15: 'Explore mode, and nations without cities are eliminated',
 };
 
 /** "the tech tree and combat and armies" for a save upgraded from version `from`. */

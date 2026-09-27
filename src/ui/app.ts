@@ -32,6 +32,7 @@ import {
   civDef,
   declareWarError,
   hasMet,
+  everMet,
   metCivs,
   offerAcceptError,
   offerText,
@@ -111,6 +112,7 @@ import { cityPlace, cycleCity, otherIdleCities } from './cityCycle';
 import { armyCandidates, isMixedStack, stackLabel, unitsOnTile } from '../game/stack';
 
 import { portraitHtml, sceneUrl } from './portraits';
+import { historyWith, metSummary, progressLine, relationText } from './diploOverview';
 import { esc, learnedTech, plural, techIconHtml, unitSummary } from './text';
 import { DEFAULT_SETTINGS, flashMs, loadSettings, loadTipsSeen, saveSettings, saveTipsSeen, toastMs, type Settings } from './settings';
 import { GAME } from '../data/game';
@@ -259,7 +261,8 @@ export class App {
   private endDismissed = false;
   /** Diplomacy screen view state: the civ picked, which page, the tech asked for, the last answer. */
   private diploCiv: number | undefined;
-  private diploPage: 'main' | 'trade' | 'confirmWar' = 'main';
+  /** Round 22 (item 3): a nation opens on its overview; 'main' is the talk page (after the leader scene). */
+  private diploPage: 'overview' | 'main' | 'trade' | 'confirmWar' = 'overview';
   private tradeGet: TechId | undefined;
   private diploAnswer: { civ: number; accepted: boolean; reason: string } | undefined;
   /** Round 19: the log entries the last action (or End Turn) added. */
@@ -691,6 +694,11 @@ export class App {
       case 'referendum':
         // Your city's unrest, and any referendum you're part of, get a panel or card.
         return e.player === me || (aimed && e.text.startsWith('Referendum!'));
+      // Round 22 (item 7): a nation eliminated gets a card; your own last city lost with a Settler left too.
+      case 'eliminated':
+        return e.player !== me;
+      case 'homeless':
+        return e.player === me;
       case 'leader':
         // The era bonus is on the new-era card.
         return e.player === me && batch.some((x) => x.kind === 'era' && x.player === me && x.ref?.era && e.text.startsWith(`${eraName(x.ref.era)} bonus:`));
@@ -763,7 +771,43 @@ export class App {
       else if (e.kind === 'victory' && e.ref?.step === 'later' && e.player === me) this.queueLaterWinCard(e);
       else if (e.kind === 'spy' && aimed) this.queueSpyAlert(e);
       else if (e.kind === 'referendum') this.queueReferendum(e);
+      else if (e.kind === 'eliminated' && e.player !== me) this.queueEliminatedCard(e);
+      else if (e.kind === 'homeless' && e.player === me) this.queueHomelessCard(e);
     }
+  }
+
+  /** Round 22 (item 7): a nation is out of the game (its last units disbanded). */
+  private queueEliminatedCard(e: LogEntry): void {
+    const text = entryText(e, this.human);
+    const byYou = e.other === this.human;
+    this.queueNotice({
+      title: `${CivName(this.state, e.player)} ${civVerb(this.state, e.player, 'is', 'are')} no more`,
+      text: /[.!]$/.test(text) ? text : `${text}.`,
+      sub: byYou ? 'You took their last city.' : 'Their name stays in Diplomacy and the news; their capital counts as held for domination.',
+      card: { kicker: 'A nation falls', tint: '#3a2a4a', hero: portraitHtml(this.state.players[e.player]!.civId, 160) },
+      buttons: [
+        { label: 'Diplomacy', run: () => this.openDiplo(e.player) },
+        { label: 'OK', cls: 'bigBtn primary' },
+      ],
+    });
+  }
+
+  /** Round 22 (item 7): you lost your last city but still have a Settler. */
+  private queueHomelessCard(e: LogEntry): void {
+    const settler = this.state.units.find((u) => u.owner === this.human && UNITS[u.type].canFoundCity);
+    this.queueNotice({
+      title: 'Your last city has fallen',
+      text: entryText(e, this.human),
+      sub: `Your people live on while a Settler does. Find a site outside other nations’ borders and tap Found City.`,
+      card: { kicker: 'A nation adrift', tint: '#5a1a1a', hero: '<div class="eraHero">⛺</div>' },
+      buttons: [
+        ...(settler ? [{ label: 'Show my Settler', run: () => {
+          this.select(settler.id);
+          this.centerOn(settler.x, settler.y);
+        } }] : []),
+        { label: 'OK', cls: 'bigBtn primary' },
+      ],
+    });
   }
 
   private queueEraCard(e: LogEntry): void {
@@ -873,8 +917,15 @@ export class App {
       text: '',
       scene: { civ, speech: this.leaderLine(civ, 'greet') },
       buttons: [
-        { label: 'Goodbye', cls: 'bigBtn', run: () => this.closeDiplo() },
-        { label: 'Talk', cls: 'bigBtn primary' },
+        { label: 'Goodbye', cls: 'bigBtn' },
+        {
+          label: 'Talk',
+          cls: 'bigBtn primary',
+          run: () => {
+            this.diploPage = 'main';
+            this.renderDiplo();
+          },
+        },
       ],
     });
   }
@@ -2686,7 +2737,7 @@ export class App {
     if (eliminated) {
       banner = '💀';
       title = 'Defeated';
-      text = `Your empire has fallen on turn ${this.state.turn}: no cities and no units left.`;
+      text = `Your empire has fallen on turn ${this.state.turn}: your last city is gone, and no Settler founded a new one.`;
     } else if (mine) {
       banner = '🏆';
       title = `${VICTORY_NAMES[v!.kind]} victory!`;
@@ -2705,7 +2756,7 @@ export class App {
     const rows = [this.human];
     if (v && v.winner !== this.human) rows.unshift(v.winner);
     $('endStats').innerHTML = `<p class="sub endLevel">${esc(DIFFICULTIES[this.state.difficulty].name)} · ${esc(MAP_SIZES[this.state.mapSize].name)} map · turn ${this.state.turn}</p><table class="stats"><thead><tr><th></th><th>Cities</th><th>Techs</th><th>Wonders</th><th>Culture</th><th>Gold</th></tr></thead>
-      <tbody>${rows.map((p) => this.statsRow(p)).join('')}</tbody></table>${
+      <tbody>${rows.map((p) => this.statsRow(p)).join('')}</tbody></table>${this.eliminatedLine()}${
         this.state.laterWins.length
           ? `<p class="sub">Later achievements: ${this.state.laterWins.map((w) => `${w.winner === this.human ? 'you' : esc(civName(this.state, w.winner))}, ${VICTORY_NAMES[w.kind].toLowerCase()} (turn ${w.turn})`).join('; ')}.</p>`
           : ''
@@ -2713,6 +2764,13 @@ export class App {
     $('endCloseBtn').textContent = eliminated ? 'Look at the map' : 'Keep playing';
     // In a dev scenario, "New Game" means going back to the real game.
     $('endNewBtn').textContent = this.opts.scenario ? 'Back to my game' : 'New Game';
+  }
+
+  /** Round 22 (item 4): the end screen names the nations that fell. */
+  private eliminatedLine(): string {
+    const gone = this.state.players.filter((p) => p.kind !== 'barbarian' && !p.alive && p.id !== this.human);
+    if (!gone.length) return '';
+    return `<p class="sub">Eliminated: ${gone.map((p) => `${esc(civDef(this.state, p.id).name)}${p.eliminatedTurn !== undefined ? ` (turn ${p.eliminatedTurn})` : ''}`).join(', ')}.</p>`;
   }
 
   private statsRow(p: number): string {
@@ -2905,7 +2963,7 @@ export class App {
       return `<div class="vcard unknown"><div class="vhead"><span class="swatch unknownSwatch"></span><b>Unknown civ</b></div>
         <div class="sub">You haven’t met them yet.</div>${inProgress}</div>`;
     }
-    if (!pl.alive) return `<div class="vcard out">${head}<span class="sub">Eliminated</span></div></div>`;
+    if (!pl.alive) return `<div class="vcard out">${head}<span class="sub">Eliminated${pl.eliminatedTurn !== undefined ? ` on turn ${pl.eliminatedTurn}` : ''}</span></div></div>`;
     const g: VictoryProgress = victoryProgress(this.state, p);
     const capital = capitalOf(this.state, p);
     const S = VICTORY.spaceship;
@@ -3491,9 +3549,9 @@ export class App {
   // ---- diplomacy screen ------------------------------------------------------------------
 
   private openDiplo(civ?: number): void {
-    const met = metCivs(this.state, this.human);
-    this.diploCiv = civ ?? (this.diploCiv !== undefined && met.includes(this.diploCiv) ? this.diploCiv : met[0]);
-    this.diploPage = 'main';
+    const met = everMet(this.state, this.human);
+    this.diploCiv = civ ?? (this.diploCiv !== undefined && met.includes(this.diploCiv) ? this.diploCiv : metCivs(this.state, this.human)[0] ?? met[0]);
+    this.diploPage = 'overview';
     this.tradeGet = undefined;
     this.diploAnswer = undefined;
     $('diploOverlay').hidden = false;
@@ -3520,13 +3578,20 @@ export class App {
     const d = btn.dataset;
     if (d.civ !== undefined) {
       this.diploCiv = Number(d.civ);
-      this.diploPage = 'main';
+      // Round 22 (item 3): their overview first; "Talk to …" opens the leader scene.
+      this.diploPage = 'overview';
       this.tradeGet = undefined;
       this.diploAnswer = undefined;
-      // Round 19 (item 6): their leader greets you, full screen.
-      this.greetScene(this.diploCiv);
     } else if (civ === undefined) {
       return;
+    } else if (d.act === 'talk') {
+      // Round 19 (item 6): their leader greets you, full screen.
+      this.greetScene(civ);
+      return;
+    } else if (d.act === 'overview') {
+      this.diploPage = 'overview';
+      this.tradeGet = undefined;
+      this.diploAnswer = undefined;
     } else if (d.act === 'war') {
       this.diploPage = 'confirmWar';
     } else if (d.act === 'warYes') {
@@ -3587,32 +3652,81 @@ export class App {
   }
 
   private renderDiplo(): void {
-    const met = metCivs(this.state, this.human);
-    if (this.diploCiv !== undefined && !met.includes(this.diploCiv)) this.diploCiv = met[0];
-    $('diploStatus').textContent = met.length
-      ? `You have met ${plural(met.length, 'civ')} of ${this.state.players.filter((p) => p.kind !== 'barbarian').length - 1}.`
-      : '';
+    // Round 22 (item 4): everyone you've met, the eliminated too (at the end, marked).
+    const met = everMet(this.state, this.human);
+    const living = met.filter((c) => this.state.players[c]!.alive);
+    const gone = met.filter((c) => !this.state.players[c]!.alive);
+    if (this.diploCiv !== undefined && !met.includes(this.diploCiv)) this.diploCiv = living[0] ?? met[0];
+    if (this.diploCiv !== undefined && !this.state.players[this.diploCiv]!.alive) this.diploPage = 'overview';
+    $('diploStatus').textContent = met.length ? `${metSummary(this.state, this.human).text}.` : '';
     const listEl = $('diploList');
     const scroll = listEl.scrollTop;
     listEl.innerHTML = met.length
-      ? met
+      ? [...living, ...gone]
           .map((c) => {
             const def = civDef(this.state, c);
+            const sel = c === this.diploCiv ? 'sel' : '';
+            if (!this.state.players[c]!.alive) {
+              return `<button type="button" data-civ="${c}" class="civRow out ${sel}">
+              ${portraitHtml(this.state.players[c]!.civId, 40, 'dcivPortrait')}
+              <span class="cname">${esc(def.name)}</span>
+              <span class="badge gone">Eliminated</span>
+              <span class="cmeta">${esc(def.leader)} · ${esc(relationText(this.state, this.human, c))}</span></button>`;
+            }
             const war = atWar(this.state, this.human, c);
             const att = attitude(this.state, c, this.human);
-            return `<button type="button" data-civ="${c}" class="civRow ${c === this.diploCiv ? 'sel' : ''}">
+            return `<button type="button" data-civ="${c}" class="civRow ${sel}">
               ${portraitHtml(this.state.players[c]!.civId, 40, 'dcivPortrait')}
               <span class="cname">${esc(def.name)}</span>
               <span class="badge ${war ? 'war' : 'peace'}">${war ? 'War' : 'Peace'}</span>
               <span class="cmeta">${esc(def.leader)} · <span class="att-${att}">${ATTITUDE_LABEL[att]}</span></span></button>`;
           })
           .join('')
-      : '<p class="sub">You haven’t met anyone yet. Explore: civs meet when one sees the other’s units or cities.</p>';
+      : '<p class="sub">You haven’t met anyone yet. Explore: nations meet when one sees the other’s units or cities.</p>';
     listEl.scrollTop = scroll;
     $('diploDetail').innerHTML = this.diploCiv === undefined ? '' : this.diploDetailHtml(this.diploCiv);
   }
 
+  /**
+   * Round 22 (item 3): a nation's overview: who they are, how things stand between you, their
+   * strength, cities, victory progress, techs to trade, bonuses, and your recent history. "Talk
+   * to …" opens the leader scene, and from it the talk page (trades, gifts, war and peace).
+   */
+  private diploOverviewHtml(civ: number): string {
+    const pl = this.state.players[civ]!;
+    const def = civDef(this.state, civ);
+    const alive = pl.alive;
+    const att = attitude(this.state, civ, this.human);
+    const cities = this.state.cities.filter((c) => c.owner === civ).length;
+    const theirs = alive ? tradeableTechs(this.state, civ, this.human) : [];
+    const ours = alive ? tradeableTechs(this.state, this.human, civ) : [];
+    const techs = (list: TechId[]) => list.map((t) => `<span class="cardItem">${techIconHtml(t)}${esc(TECHS[t].name)}</span>`).join(' ');
+    const history = historyWith(this.state, this.human, civ);
+    const facts = alive
+      ? `<dt>Relation</dt><dd>${esc(relationText(this.state, this.human, civ))}</dd>
+        <dt>Attitude</dt><dd class="att-${att}">${ATTITUDE_LABEL[att]}</dd>
+        <dt>Military</dt><dd>${strengthWords(strengthRatio(this.state, civ, this.human))}</dd>
+        <dt>Cities</dt><dd>${cities}${pl.homelessSince != null ? ' <span class="sub">(their settlers are looking for new land)</span>' : ''}</dd>
+        <dt>Victory</dt><dd>${esc(progressLine(this.state, civ))}</dd>
+        <dt>Culture</dt><dd>${pl.culture} <span class="sub">(+${empireCulture(this.state, civ)} per turn)</span></dd>
+        <dt>Faith</dt><dd>${this.faithWords(civ)}</dd>`
+      : `<dt>Status</dt><dd>${esc(relationText(this.state, this.human, civ))}</dd>`;
+    return `
+      <div class="leaderHead">${portraitHtml(pl.civId, 64)}<div>
+      <h3><span class="swatch" style="background:${playerColor(this.state, civ)}"></span> ${esc(def.name)}</h3>
+      <div class="sub">Led by ${esc(def.leader)}</div></div></div>
+      ${alive ? `<div class="diploActions"><button type="button" data-act="talk" class="bigBtn primary">💬 Talk to ${esc(def.leader)}</button></div>` : ''}
+      <dl class="facts">${facts}</dl>
+      ${alive ? `<div class="label">Techs to trade</div>
+      <div class="sub tradeLine">${theirs.length ? `They could teach you: ${techs(theirs)}` : 'They know nothing you could learn right now.'}</div>
+      <div class="sub tradeLine">${ours.length ? `You could teach them: ${techs(ours)}` : 'You know nothing they could learn right now.'}</div>` : ''}
+      <details><summary class="sub">Their leader bonuses</summary>${bonusListHtml(pl.civId, eraIndex(playerEra(pl)))}</details>
+      <div class="label">Recent history with you</div>
+      ${history.length ? `<ul class="diploHistory">${history.map((e) => `<li><span class="sub">T${e.turn}</span> ${esc(entryText(e, this.human))}</li>`).join('')}</ul>` : '<div class="sub">Nothing in the news lately.</div>'}`;
+  }
+
   private diploDetailHtml(civ: number): string {
+    if (this.diploPage === 'overview' || !this.state.players[civ]!.alive) return this.diploOverviewHtml(civ);
     const me = this.state.players[this.human]!;
     const def = civDef(this.state, civ);
     const name = esc(def.name);
@@ -3625,23 +3739,17 @@ export class App {
     const relation = war
       ? `At war${start !== null && start !== undefined ? ` since turn ${start}` : ''}`
       : `At peace${lock !== undefined ? ` · treaty holds until turn ${lock}` : ''}`;
-    const cities = this.state.cities.filter((c) => c.owner === civ).length;
     const answer =
       this.diploAnswer && this.diploAnswer.civ === civ
         ? `<div class="answer ${this.diploAnswer.accepted ? 'yes' : 'no'}">${this.diploAnswer.accepted ? '✓' : '✗'} ${esc(this.diploAnswer.reason)}</div>`
         : '';
     const head = `
-      <div class="leaderHead">${portraitHtml(this.state.players[civ]!.civId, 96)}<div>
+      <div class="leaderHead">${portraitHtml(this.state.players[civ]!.civId, 64)}<div>
       <h3><span class="swatch" style="background:${playerColor(this.state, civ)}"></span> ${name}</h3>
-      <div class="sub">Led by ${esc(def.leader)}</div>
-      <details><summary class="sub">Their leader bonuses</summary>${bonusListHtml(this.state.players[civ]!.civId, eraIndex(playerEra(this.state.players[civ]!)))}</details></div></div>
+      <div class="sub">Led by ${esc(def.leader)}</div></div></div>
       <dl class="facts">
         <dt>Relation</dt><dd>${relation}</dd>
         <dt>Attitude</dt><dd class="att-${att}">${ATTITUDE_LABEL[att]}</dd>
-        <dt>Cities</dt><dd>${cities}</dd>
-        <dt>Military</dt><dd>${strengthWords(strengthRatio(this.state, civ, this.human))}</dd>
-        <dt>Culture</dt><dd>${this.state.players[civ]!.culture} <span class="sub">(+${empireCulture(this.state, civ)} per turn)</span></dd>
-        <dt>Faith</dt><dd>${this.faithWords(civ)}</dd>
       </dl>${answer}`;
 
     if (this.diploPage === 'confirmWar') {
@@ -3697,6 +3805,7 @@ export class App {
       .map((g) => `<button type="button" data-gold="${g}" ${me.gold < g ? 'disabled' : ''}>Give ${g} gold</button>`)
       .join('');
     return `${head}
+      <div class="diploActions"><button type="button" data-act="overview">‹ Overview</button></div>
       <div class="label">Actions</div>
       <div class="diploActions">
         ${war
@@ -4319,11 +4428,10 @@ export class App {
       rb.classList.remove('ready');
     }
     rb.title = `Science +${income.science} per turn`;
-    const met = metCivs(this.state, this.human).length;
     const wars = metCivs(this.state, this.human).filter((c) => atWar(this.state, this.human, c)).length;
     // Round 15: the word hides on a narrow screen (style.css), leaving 🤝.
     $('diploBtn').innerHTML = `🤝 <span class="lbl">Diplomacy</span>${wars ? ` <span class="sub">· ${wars} at war</span>` : ''}`;
-    $('diploBtn').title = `${met} civ${met === 1 ? '' : 's'} met`;
+    $('diploBtn').title = metSummary(this.state, this.human).text;
     $('rateLabel').textContent = `${player.scienceRate}% sci · ${100 - player.scienceRate}% gold`;
     $<HTMLButtonElement>('rateDown').disabled = player.scienceRate <= 0;
     $<HTMLButtonElement>('rateUp').disabled = player.scienceRate >= 100;

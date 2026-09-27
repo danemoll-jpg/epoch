@@ -68,6 +68,14 @@ export function hasMet(state: GameState, a: number, b: number): boolean {
   return a !== b && state.diplomacy.met[a]?.[b] === true;
 }
 
+/**
+ * Round 22 (item 4): every nation `viewer` has met, eliminated ones included, in id order (for
+ * counts like "Met 4 of 4 nations (2 eliminated)").
+ */
+export function everMet(state: GameState, viewer: number): number[] {
+  return state.players.filter((p) => p.kind !== 'barbarian' && hasMet(state, viewer, p.id)).map((p) => p.id);
+}
+
 /** Living civs `viewer` has met, in id order. */
 export function metCivs(state: GameState, viewer: number): number[] {
   return state.players.filter((p) => p.alive && hasMet(state, viewer, p.id)).map((p) => p.id);

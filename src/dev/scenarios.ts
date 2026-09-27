@@ -18,6 +18,7 @@ import { BUILDINGS } from '../data/buildings';
 import { BORDERS, growthThreshold } from '../data/rules';
 import { PLAYABLE_CIVS, findCiv } from '../data/civs';
 import { LEADER_BONUSES, UNIQUE_RULES } from '../data/leaders';
+import { RULES } from '../data/rules';
 import { buyCost, itemCost } from '../game/production';
 import { dissolutionGold } from '../game/uniques';
 import { warScore } from '../game/diplomacy';
@@ -2276,6 +2277,42 @@ function horsemanTurns(): number {
   return pathTurns(s, horse, findPath(s, horse, OXFORD)!);
 }
 
+// ---- Round 22 ----------------------------------------------------------------------------
+
+/**
+ * Round 22 (item 7): two rivals down to their last city, both empty, each next to one of your
+ * units. Maurya (player 1) has a Galley at sea and no Settler; Mali (player 2) has a Settler far
+ * to the north-east. The Inca (player 3) hold Cusco in the south-east.
+ */
+export const LAST_MAURYA = { x: 10, y: 5 };
+export const LAST_MALI = { x: 10, y: 8 };
+export const MALI_SETTLER = { x: 13, y: 2 };
+export function lastCityScenario(): GameState {
+  const { state } = withCapital(undefined, { size: 3 }, 4);
+  // A third rival in the south-east, defended, so taking both cities isn't a domination win.
+  addCity(state, 3, 13, 9, { name: 'Cusco', capitalOf: 3, build: { kind: 'unit', id: 'warrior' } });
+  addUnit(state, 'spearman', 3, 13, 9, { fortified: true });
+  state.players[3]!.citiesFounded = 1;
+  addCity(state, 1, LAST_MAURYA.x, LAST_MAURYA.y, { name: 'Pataliputra', capitalOf: 1, build: { kind: 'unit', id: 'warrior' } });
+  addCity(state, 2, LAST_MALI.x, LAST_MALI.y, { name: 'Niani', capitalOf: 2, build: { kind: 'unit', id: 'warrior' } });
+  state.players[1]!.citiesFounded = 1;
+  state.players[2]!.citiesFounded = 1;
+  addUnit(state, 'galley', 1, 3, 10);
+  addUnit(state, 'settler', 2, MALI_SETTLER.x, MALI_SETTLER.y);
+  addUnit(state, 'legion', 0, LAST_MAURYA.x - 1, LAST_MAURYA.y);
+  addUnit(state, 'horseman', 0, LAST_MALI.x - 1, LAST_MALI.y);
+  return state;
+}
+
+const ROUND22_SCENARIOS: Scenario[] = [
+  {
+    id: 'last-city',
+    title: 'A nation loses its last city',
+    note: `Pataliputra (Maurya's last city) and Niani (Mali's) are empty, each next to one of your units. Take Pataliputra with the Legion: Maurya is eliminated at once, and its Galley out at sea is disbanded (a card says so). Take Niani with the Horseman: Mali has a Settler left in the north-east, so it has ${RULES.homelessTurns} turns to found a new city (a toast says so). Tap End Turn: Mali's Settler founds a city and Mali lives on. Diplomacy lists Maurya as eliminated, and still counts it as met.`,
+    build: lastCityScenario,
+  },
+];
+
 const ROUND21_SCENARIOS: Scenario[] = [
   {
     id: 'spy-in-my-city',
@@ -2688,6 +2725,7 @@ export const SCENARIOS: Scenario[] = [
   ...ROUND19_SCENARIOS,
   ...ROUND20_SCENARIOS,
   ...ROUND21_SCENARIOS,
+  ...ROUND22_SCENARIOS,
 ];
 
 export function findScenario(id: string): Scenario | undefined {

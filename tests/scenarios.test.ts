@@ -6,7 +6,7 @@ import { UNITS, UNIT_IDS } from '../src/data/units';
 import { SCENARIOS, type Scenario } from '../src/dev/scenarios';
 import { applyAction } from '../src/game/actions';
 import { attackError, attackStrength, combatOdds, defenseStrength, formArmyError } from '../src/game/combat';
-import { attitude, hasMet, metCivs } from '../src/game/diplomacy';
+import { attitude, everMet, hasMet, metCivs } from '../src/game/diplomacy';
 import { distance } from '../src/game/grid';
 import { atWar } from '../src/game/war';
 import { buildChoiceError, buildOptions, buyCost, buyError, itemCost } from '../src/game/production';
@@ -15,6 +15,7 @@ import { availableTechs } from '../src/game/tech';
 import { empireCulture, empireIncome } from '../src/game/yields';
 import { rushBuyCost } from '../src/data/rules';
 import { UNIQUE_RULES } from '../src/data/leaders';
+import { RULES } from '../src/data/rules';
 import { PLAYABLE_CIVS } from '../src/data/civs';
 import { deserializeGame, serializeGame } from '../src/game/save';
 import { playerEra } from '../src/game/tech';
@@ -36,6 +37,7 @@ import { RELIGION, RELIGION_SYMBOLS } from '../src/data/religion';
 import { ROADS } from '../src/data/roads';
 import { faithOpinion, holyReligion, religionCityCulture, religionCityGold, spreadTargets } from '../src/game/religion';
 import { roadAt, roadConnected } from '../src/game/roads';
+import { LAST_MALI, LAST_MAURYA } from '../src/dev/scenarios';
 import { BUILT_CITIES, FLIP_TOWN, METZ, NEW_UNITS_SCOUT, RIVAL_WONDER, UPGRADE_COAST,
   UPGRADE_GOLD, CYCLE_CITIES, FORTIFIED, LARGE_MAP_TURNS, MINIMAP_SEED, NEXT_UNIT, TAP_CITY_LEGION, TAP_CITY_WARRIOR, TAP_OWN } from '../src/dev/scenarios';
 import { listUnits } from '../src/ui/unitsList';
@@ -88,6 +90,22 @@ function endTurn(s: GameState): void {
 
 /** What each scenario's note promises. A new scenario without an entry here fails the suite. */
 const OUTCOMES: Record<string, (s: GameState) => void> = {
+  // ---- Round 22 ----
+  'last-city': (s) => {
+    expect(applyAction(s, { type: 'move', unitId: mine(s, 'legion').id, to: LAST_MAURYA }).ok).toBe(true);
+    expect(s.players[1]!.alive).toBe(false);
+    expect(s.units.some((u) => u.owner === 1)).toBe(false);
+    expect(s.log.some((e) => e.kind === 'eliminated' && e.player === 1 && e.text.includes('its last unit was disbanded'))).toBe(true);
+    expect(applyAction(s, { type: 'move', unitId: mine(s, 'horseman').id, to: LAST_MALI }).ok).toBe(true);
+    expect(s.players[2]!.alive).toBe(true);
+    expect(s.players[2]!.homelessSince).toBe(s.turn);
+    endTurn(s);
+    expect(s.cities.some((c) => c.owner === 2)).toBe(true);
+    expect(s.players[2]!.alive).toBe(true);
+    expect(everMet(s, 0)).toEqual([1, 2, 3]);
+    expect(s.victory).toBeFalsy();
+    expect(noteOf('last-city')).toContain(`${RULES.homelessTurns} turns`);
+  },
   // ---- Round 21 ----
   'spy-in-my-city': (s) => {
     const oxford = s.cities.find((c) => c.name === 'Oxford')!;

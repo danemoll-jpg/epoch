@@ -3157,3 +3157,33 @@ button.alink {
     border-right-color: #f4efe2;
   }
 }
+
+/* ---- Round 22 (items 3, 4): the Diplomacy overview, eliminated nations ---- */
+.badge.gone {
+  background: #4a4a55;
+}
+
+.civRow.out {
+  opacity: 0.7;
+}
+
+.civRow.out .dcivPortrait {
+  filter: grayscale(1);
+}
+
+#diploDetail .tradeLine {
+  margin: 4px 0;
+  line-height: 1.9;
+}
+
+.diploHistory {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.diploHistory li {
+  padding: 5px 0;
+  border-bottom: 1px solid var(--panel-border);
+  font-size: calc(14px * var(--ts));
+}

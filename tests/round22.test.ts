@@ -80,3 +80,177 @@ describe('Round 22 item 1: upgrades inside your borders', () => {
     expect(ai.type).toBe('spearman');
   });
 });
+
+// ---- item 7: a nation with no cities is eliminated -------------------------------------------
+
+import { RULES } from '../src/data/rules';
+import { captureCity } from '../src/game/conquest';
+import { endTurn, playComputerTurn } from '../src/game/turn';
+import { deserializeGame } from '../src/game/save';
+import { capitalsHeld } from '../src/game/victory';
+
+describe('Round 22 item 7: losing the last city', () => {
+  // Your capital Ur at (1, 1); France-like rival (player 1) with one city, Metz, at (6, 1).
+  function lastCity() {
+    const s = makeState(['ggggggggg', 'ggggggggg', 'ggggggggg', 'ccccccccc']);
+    addCity(s, 0, 1, 1, { name: 'Ur', capitalOf: 0 });
+    const metz = addCity(s, 1, 6, 1, { name: 'Metz', capitalOf: 1 });
+    s.players[0]!.citiesFounded = 1;
+    s.players[1]!.citiesFounded = 1;
+    return { s, metz };
+  }
+
+  it('with no Settler: eliminated at once, its leftover units (a ship, a spy) disbanded', () => {
+    const { s, metz } = lastCity();
+    addUnit(s, 'galley', 1, 4, 3);
+    addUnit(s, 'spy', 1, 2, 2);
+    captureCity(s, metz, 0);
+    expect(s.players[1]!.alive).toBe(false);
+    expect(s.units.some((u) => u.owner === 1)).toBe(false);
+    const e = s.log.find((x) => x.kind === 'eliminated')!;
+    expect(e.text).toMatch(/been eliminated; its last 2 units were disbanded/);
+    expect(e.publicText).toBe(e.text);
+    // Domination counts it as held.
+    expect(capitalsHeld(s, 0)).toEqual({ held: 1, of: 1 });
+  });
+
+  it(`with a Settler: ${RULES.homelessTurns} turns to found a city, then eliminated`, () => {
+    const { s, metz } = lastCity();
+    const settler = addUnit(s, 'settler', 1, 3, 2);
+    addUnit(s, 'warrior', 1, 3, 2);
+    captureCity(s, metz, 0);
+    expect(s.players[1]!.alive).toBe(true);
+    expect(s.players[1]!.homelessSince).toBe(s.turn);
+    expect(s.log.some((x) => x.kind === 'homeless' && /no cities left; its settlers are looking for new land/.test(x.publicText ?? ''))).toBe(true);
+    // Keep the Settler from founding: it sits aboard nothing, we just move the clock.
+    settler.movesLeft = 0;
+    s.turn += RULES.homelessTurns - 1;
+    captureCity(s, s.cities[0]!, 0); // any check: still inside the time
+    expect(s.players[1]!.alive).toBe(true);
+    s.turn += 1;
+    // The once-a-turn check at the start of a game turn.
+    s.currentPlayer = 1;
+    endTurn(s);
+    expect(s.players[1]!.alive).toBe(false);
+    expect(s.units.some((u) => u.owner === 1)).toBe(false);
+  });
+
+  it('founding a new city in time keeps the nation; the AI\'s Settler founds one', () => {
+    const s = makeState(['gggggggggggggg', 'gggggggggggggg', 'gggggggggggggg', 'cccccccccccccc']);
+    addCity(s, 0, 1, 1, { name: 'Ur', capitalOf: 0 });
+    const metz = addCity(s, 1, 6, 1, { name: 'Metz', capitalOf: 1 });
+    s.players[0]!.citiesFounded = 1;
+    s.players[1]!.citiesFounded = 1;
+    addUnit(s, 'settler', 1, 11, 1);
+    captureCity(s, metz, 0);
+    s.currentPlayer = 1;
+    playComputerTurn(s, 1);
+    expect(s.cities.some((c) => c.owner === 1)).toBe(true);
+    endTurn(s);
+    endTurn(s);
+    expect(s.players[1]!.alive).toBe(true);
+    expect(s.players[1]!.homelessSince ?? null).toBeNull();
+  });
+
+  it('losing its last Settler while homeless eliminates it', () => {
+    const { s, metz } = lastCity();
+    const settler = addUnit(s, 'settler', 1, 3, 2);
+    captureCity(s, metz, 0);
+    expect(s.players[1]!.alive).toBe(true);
+    const legion = addUnit(s, 'legion', 0, 2, 2);
+    s.rngState = 7;
+    expect(applyAction(s, { type: 'attack', unitId: legion.id, at: { x: settler.x, y: settler.y } }).ok).toBe(true);
+    expect(s.units.some((u) => u.id === settler.id)).toBe(false);
+    expect(s.players[1]!.alive).toBe(false);
+  });
+
+  it('a nation that never had a city (the game\'s start) isn\'t touched', () => {
+    const s = makeState(['ggggg', 'ggggg']);
+    addUnit(s, 'settler', 1, 3, 1);
+    addUnit(s, 'settler', 0, 1, 1);
+    s.turn = 30;
+    s.currentPlayer = 1;
+    endTurn(s);
+    expect(s.players[1]!.alive).toBe(true);
+    expect(s.players[1]!.homelessSince ?? null).toBeNull();
+  });
+
+  it('a v15 save migrates: a cityless nation with no Settler is eliminated, one with a Settler gets its turns', () => {
+    const s = makeState(['ggggggggg', 'ggggggggg', 'ggggggggg', 'ccccccccc'], { players: 3 });
+    addCity(s, 0, 1, 1, { name: 'Ur', capitalOf: 0 });
+    const metz = addCity(s, 1, 6, 1, { name: 'Metz', capitalOf: 1 });
+    for (const p of s.players) p.citiesFounded = 1;
+    // The old rule: Metz fell, but a ship kept player 1 alive; player 2 kept a Settler.
+    metz.owner = 0;
+    addUnit(s, 'galley', 1, 4, 3);
+    addUnit(s, 'settler', 2, 4, 0);
+    (s as unknown as { version: number }).version = 15;
+    const res = deserializeGame(JSON.stringify({ saveVersion: 15, savedAt: 1, state: s }));
+    expect(res.kind).toBe('ok');
+    if (res.kind !== 'ok') return;
+    expect(res.state.players[1]!.alive).toBe(false);
+    expect(res.state.units.some((u) => u.owner === 1)).toBe(false);
+    expect(res.state.players[2]!.alive).toBe(true);
+    expect(res.state.players[2]!.homelessSince).toBe(s.turn);
+  });
+});
+
+// ---- items 3 and 4: the Diplomacy overview and the met count -------------------------------
+
+import { everMet, metCivs } from '../src/game/diplomacy';
+import { declareWar } from '../src/game/diplomacy';
+import { historyWith, metSummary, progressLine, relationText } from '../src/ui/diploOverview';
+
+describe('Round 22 items 3 and 4: Diplomacy overview and the met count', () => {
+  function five() {
+    const s = makeState(['ggggggggggggggg', 'ggggggggggggggg', 'ggggggggggggggg'], { players: 5, peace: true });
+    addCity(s, 0, 1, 1, { name: 'Ur', capitalOf: 0 });
+    for (let p = 1; p < 5; p++) {
+      addCity(s, p, p * 3, 1, { name: `C${p}`, capitalOf: p });
+      s.players[p]!.citiesFounded = 1;
+    }
+    s.players[0]!.citiesFounded = 1;
+    return s;
+  }
+
+  it('counts eliminated nations you met: "Met 4 of 4 nations (2 eliminated)"', () => {
+    const s = five();
+    for (const p of [3, 4]) {
+      captureCity(s, s.cities.find((c) => c.owner === p)!, 0);
+      expect(s.players[p]!.alive).toBe(false);
+    }
+    expect(metCivs(s, 0)).toEqual([1, 2]);
+    expect(everMet(s, 0)).toEqual([1, 2, 3, 4]);
+    expect(metSummary(s, 0)).toMatchObject({ met: 4, of: 4, eliminated: 2, text: 'Met 4 of 4 nations (2 eliminated)' });
+    expect(relationText(s, 0, 3)).toBe(`Eliminated on turn ${s.turn}`);
+  });
+
+  it('an unmet nation doesn\'t count; no "(0 eliminated)"', () => {
+    const s = five();
+    s.diplomacy.met[0]![4] = false;
+    s.diplomacy.met[4]![0] = false;
+    expect(metSummary(s, 0).text).toBe('Met 3 of 4 nations');
+  });
+
+  it('relation: at war for how long, or at peace', () => {
+    const s = five();
+    expect(relationText(s, 0, 1)).toMatch(/^At peace/);
+    s.currentPlayer = 0;
+    declareWar(s, 0, 1);
+    s.turn += 5;
+    expect(relationText(s, 0, 1)).toBe(`At war for 5 turns (since turn ${s.turn - 5})`);
+  });
+
+  it('progress in a line, and recent history involving them, newest first', () => {
+    const s = five();
+    expect(progressLine(s, 1)).toMatch(/^Culture \d+% · Gold \d+% · Capitals 0 of 4 · Spaceship not started$/);
+    s.currentPlayer = 0;
+    declareWar(s, 0, 2);
+    captureCity(s, s.cities.find((c) => c.owner === 2)!, 0);
+    const h = historyWith(s, 0, 2);
+    expect(h.length).toBeGreaterThanOrEqual(2);
+    expect(h[0]!.kind).toBe('eliminated');
+    expect(h.every((e) => e.player === 2 || e.other === 2)).toBe(true);
+    expect(historyWith(s, 0, 1)).toEqual([]);
+  });
+});

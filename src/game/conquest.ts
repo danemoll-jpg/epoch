@@ -4,7 +4,8 @@
 // (see stepError in movement.ts), or by winning the fight against its last defender (the
 // winner moves in; see attack in combat.ts). Only civs at war can capture. The captured city changes owner, loses 1 population
 // (never below 1; cities are never destroyed), loses its Walls, and starts its production
-// over with nothing chosen. A civ with no cities and no units is eliminated.
+// over with nothing chosen. A civ with no cities and no units is eliminated; since Round 22
+// (item 7) so is one that loses its last city, unless it still has a Settler (see checkEliminations).
 // Ships (Round 8) don't defend a city, so a city with only ships in port counts as empty;
 // when it falls, the ships docked there and their cargo are lost. Aircraft based there
 // (Round 10) don't defend it either, and are lost with it. Helicopters never capture.
@@ -195,20 +196,54 @@ export function catchSpies(state: GameState, at: Coord, catcher: number): number
   return spies.length;
 }
 
-/** Marks every living civ with no cities and no units as eliminated. */
-export function checkEliminations(state: GameState, by: number, at: Coord): void {
+/**
+ * Round 22 (item 7): eliminates every living nation that has no cities left:
+ * - one that never had a city (the game's start) only once it has no units either;
+ * - one that lost its last city at once, its remaining units disbanded, unless it still has a
+ *   Settler: then it has RULES.homelessTurns turns (`homelessSince`) to found a new city.
+ * Called after anything that takes a city or a unit, and once a game turn (the time limit).
+ */
+export function checkEliminations(state: GameState, by?: number, at?: Coord): void {
   for (const p of state.players) {
     // The barbarians are never eliminated (Round 9).
     if (!p.alive || p.kind === 'barbarian') continue;
-    const hasCity = state.cities.some((c) => c.owner === p.id);
-    const hasUnit = state.units.some((u) => u.owner === p.id);
-    if (hasCity || hasUnit) continue;
-    p.alive = false;
-    p.researching = null;
-    state.diplomacy.offers = state.diplomacy.offers.filter((o) => o.from !== p.id && o.to !== p.id);
-    state.aiPlans[p.id] = null;
-    for (let i = 0; i < state.aiPlans.length; i++) if (state.aiPlans[i]?.target === p.id) state.aiPlans[i] = null;
-    const text = `${CivName(state, p.id)} ${civVerb(state, p.id, 'has', 'have')} been eliminated`;
-    addLog(state, p.id, text, at, by, { publicText: text });
+    if (state.cities.some((c) => c.owner === p.id)) {
+      if (p.homelessSince != null) p.homelessSince = null;
+      continue;
+    }
+    const units = state.units.filter((u) => u.owner === p.id);
+    const hadCity = p.citiesFounded > 0;
+    if (!hadCity && units.length > 0) continue;
+    const settler = units.find((u) => UNITS[u.type].canFoundCity);
+    if (hadCity && settler) {
+      if (p.homelessSince == null) {
+        p.homelessSince = state.turn;
+        const text = `${CivName(state, p.id)} ${civVerb(state, p.id, 'has', 'have')} no cities left; ${civVerb(state, p.id, 'its', 'their')} settlers are looking for new land`;
+        addLog(state, p.id, `You have no cities left! Found a new city with your Settler within ${RULES.homelessTurns} turns, or your nation is lost`, settler, by, {
+          otherText: text,
+          publicText: text,
+          kind: 'homeless',
+        });
+      }
+      if (state.turn - p.homelessSince < RULES.homelessTurns) continue;
+    }
+    eliminate(state, p.id, by, at ?? settler);
   }
+}
+
+/** Takes a nation out of the game: its remaining units are disbanded and everyone is told. */
+function eliminate(state: GameState, id: number, by?: number, at?: Coord): void {
+  const p = state.players[id]!;
+  const left = state.units.filter((u) => u.owner === id);
+  state.units = state.units.filter((u) => u.owner !== id);
+  p.alive = false;
+  p.eliminatedTurn = state.turn;
+  p.researching = null;
+  p.homelessSince = null;
+  state.diplomacy.offers = state.diplomacy.offers.filter((o) => o.from !== id && o.to !== id);
+  state.aiPlans[id] = null;
+  for (let i = 0; i < state.aiPlans.length; i++) if (state.aiPlans[i]?.target === id) state.aiPlans[i] = null;
+  const units = left.length ? `; ${civVerb(state, id, 'its', 'their')} last ${left.length === 1 ? 'unit was' : `${left.length} units were`} disbanded` : '';
+  const text = `${CivName(state, id)} ${civVerb(state, id, 'has', 'have')} been eliminated${units}`;
+  addLog(state, id, text, at, by, { publicText: text, kind: 'eliminated' });
 }
