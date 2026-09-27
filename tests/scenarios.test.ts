@@ -91,6 +91,16 @@ function endTurn(s: GameState): void {
 /** What each scenario's note promises. A new scenario without an entry here fails the suite. */
 const OUTCOMES: Record<string, (s: GameState) => void> = {
   // ---- Round 22 ----
+  satellites: (s) => {
+    const me = s.players[0]!;
+    expect(me.explored.filter((e) => e === 0).length).toBeGreaterThan(0);
+    const rival = s.units.find((u) => u.owner === 1)!;
+    endTurn(s);
+    expect(me.techs).toContain('rocketry');
+    expect(me.explored.every((e) => e === 1)).toBe(true);
+    expect(unitVisibleTo(s, 0, rival)).toBe(false);
+    expect(s.log.some((e) => e.player === 0 && e.text.startsWith('Satellites map the whole world'))).toBe(true);
+  },
   'last-city': (s) => {
     expect(applyAction(s, { type: 'move', unitId: mine(s, 'legion').id, to: LAST_MAURYA }).ok).toBe(true);
     expect(s.players[1]!.alive).toBe(false);

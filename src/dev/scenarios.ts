@@ -2304,12 +2304,31 @@ export function lastCityScenario(): GameState {
   return state;
 }
 
+/** Round 22 (item 9): one turn from Rocketry, with only your capital's surroundings explored. */
+export function satellitesScenario(): GameState {
+  const { state } = withCapital(undefined, { size: 4 }, 2);
+  eastRival(state);
+  oneTurnFromLearning(state, ['flight', 'electronics'], 'rocketry');
+  const me = state.players[0]!;
+  me.explored.fill(0);
+  for (let y = CITY_Y - 2; y <= CITY_Y + 2; y++) for (let x = CITY_X - 2; x <= CITY_X + 2; x++) me.explored[tileIndex(state.map, x, y)] = 1;
+  state.diplomacy.met[0]![1] = false;
+  state.diplomacy.met[1]![0] = false;
+  return state;
+}
+
 const ROUND22_SCENARIOS: Scenario[] = [
   {
     id: 'last-city',
     title: 'A nation loses its last city',
     note: `Pataliputra (Maurya's last city) and Niani (Mali's) are empty, each next to one of your units. Take Pataliputra with the Legion: Maurya is eliminated at once, and its Galley out at sea is disbanded (a card says so). Take Niani with the Horseman: Mali has a Settler left in the north-east, so it has ${RULES.homelessTurns} turns to found a new city (a toast says so). Tap End Turn: Mali's Settler founds a city and Mali lives on. Diplomacy lists Maurya as eliminated, and still counts it as met.`,
     build: lastCityScenario,
+  },
+  {
+    id: 'satellites',
+    title: 'Satellites map the world',
+    note: `Only the land around ${CAPITAL} is on your map. Tap End Turn: you learn ${TECHS.rocketry.name}, and its satellites map the whole world: the minimap fills in, and ${RIVAL_CAPITAL} in the south-east appears, though its units stay hidden in the fog (tiles out of sight stay dim). The Almanac's ${TECHS.rocketry.name} card says so.`,
+    build: satellitesScenario,
   },
 ];
 

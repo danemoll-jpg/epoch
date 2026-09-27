@@ -154,6 +154,7 @@ function techCards(): AlmanacCard[] {
       row('Needs', t.prereqs.length ? t.prereqs.map(techLink).join(', ') : '<span class="sub">Nothing</span>') +
       row('Unlocks', unlocks.length ? unlocks.join(', ') : '<span class="sub">Nothing to build; it leads on</span>') +
       (reveals.length ? row('Reveals', reveals.join(', ')) : '') +
+      (t.revealsMap ? row('Satellites', 'Maps the whole world: every land, coast and city goes on your map (what you can’t see right now stays fogged)') : '') +
       (FOUNDING_TECHS.includes(t.id) ? row('Religion', 'The first civ to learn it founds a religion (one per civ)') : '') +
       (leads.length ? row('Leads to', leads.join(', ')) : '') +
       (starters.length ? row('Starting tech of', starters.join(', ')) : '');

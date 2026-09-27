@@ -254,3 +254,23 @@ describe('Round 22 items 3 and 4: Diplomacy overview and the met count', () => {
     expect(historyWith(s, 0, 1)).toEqual([]);
   });
 });
+
+// ---- item 9: Rocketry's satellites map the whole world ---------------------------------------
+
+import { TECH_LIST } from '../src/data/techs';
+import { learnTech } from '../src/game/tech';
+
+describe('Round 22 item 9: the map-revealing tech', () => {
+  it('is Rocketry, and only Rocketry', () => {
+    expect(TECH_LIST.filter((t) => t.revealsMap).map((t) => t.id)).toEqual(['rocketry']);
+  });
+
+  it('an AI learning it gets the whole map explored, with news for those who met it', () => {
+    const s = makeState(['gggggggg', 'gggggggg'], { exploreAll: false });
+    learnTech(s, 1, 'rocketry', 'Learned Rocketry');
+    expect(s.players[1]!.explored.every((e) => e === 1)).toBe(true);
+    expect(s.players[0]!.explored.every((e) => e === 0)).toBe(true);
+    const e = s.log.find((x) => x.player === 1 && x.publicText?.includes('satellites'))!;
+    expect(e.publicText).toBe("Maurya's satellites have mapped the whole world");
+  });
+});

@@ -21,7 +21,7 @@ import {
 } from '../data/techs';
 import { UNITS, UNIT_IDS, type UnitTypeId } from '../data/units';
 import { WONDER_LIST, type WonderDef } from '../data/wonders';
-import { CivName } from './conquest';
+import { CivName, civPossessive } from './conquest';
 import { effectsOf, eraBonus, techCostPct } from './leaders';
 import { addLog } from './log';
 import { checkFoundings } from './religion';
@@ -163,6 +163,14 @@ export function learnTech(state: GameState, playerId: number, tech: TechId, text
   if (tech === ROADS.railTech) {
     const n = upgradeRails(state, playerId);
     if (n) addLog(state, playerId, `Railroad: ${n} road tile${n === 1 ? '' : 's'} near your cities became rail`, undefined, undefined, { kind: 'road' });
+  }
+  // Round 22 (item 9): satellites map the whole world (fog of war stays: only what's in sight is live).
+  if (TECHS[tech].revealsMap && player.kind !== 'barbarian') {
+    player.explored.fill(1);
+    const whose = civPossessive(state, playerId);
+    addLog(state, playerId, `Satellites map the whole world: every land, coast and city is now on your map`, undefined, undefined, {
+      publicText: `${whose.charAt(0).toUpperCase()}${whose.slice(1)} satellites have mapped the whole world`,
+    });
   }
   const eraAfter = playerEra(player);
   if (eraAfter !== eraBefore) {

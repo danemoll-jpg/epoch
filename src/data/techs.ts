@@ -50,10 +50,15 @@ export interface TechDef {
   prereqs: TechId[];
   /** One short line of our own. */
   description: string;
+  /**
+   * Round 22 (item 9): learning it maps the whole world for the nation: every tile becomes
+   * explored (terrain, coasts, cities), though what it can't see right now stays fogged.
+   */
+  revealsMap?: boolean;
 }
 
-function tech(id: TechId, name: string, era: EraId, tier: number, prereqs: TechId[], description: string): TechDef {
-  return { id, name, era, tier, prereqs, description };
+function tech(id: TechId, name: string, era: EraId, tier: number, prereqs: TechId[], description: string, extra: Partial<TechDef> = {}): TechDef {
+  return { id, name, era, tier, prereqs, description, ...extra };
 }
 
 /** In display order: by era, then roughly by tier. */
@@ -119,7 +124,7 @@ export const TECH_LIST: TechDef[] = [
   tech('flight', 'Flight', 'modern', 13, ['combustion', 'theory_of_gravity'], 'Heavier-than-air machines take to the sky.'),
   tech('mass_production', 'Mass Production', 'modern', 14, ['automobile', 'corporation'], 'Assembly lines turn out goods by the thousand.'),
   tech('computers', 'Computers', 'modern', 15, ['electronics', 'mass_production'], 'Machines that calculate faster than any person.'),
-  tech('rocketry', 'Rocketry', 'modern', 14, ['flight', 'electronics'], 'Controlled explosions that climb past the clouds.'),
+  tech('rocketry', 'Rocketry', 'modern', 14, ['flight', 'electronics'], 'Controlled explosions that climb past the clouds, and satellites that map the whole world.', { revealsMap: true }),
   tech('advanced_flight', 'Advanced Flight', 'modern', 14, ['flight', 'machine_tools'], 'Jet engines and spinning rotors: faster, higher, and able to hover.'),
   tech('space_flight', 'Space Flight', 'modern', 16, ['computers', 'rocketry'], 'Leaving the world behind. Opens the way to the stars.'),
 ];
