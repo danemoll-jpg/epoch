@@ -2408,7 +2408,7 @@ const ROUND22_SCENARIOS: Scenario[] = [
   {
     id: 'unload-all',
     title: 'Unload all',
-    note: `Your Transport, off the eastern beach, carries a Warrior, a Legion army and a Settler that has already moved. Tap the Transport: ⚓ Unload all (2). Tap it, then the beach tile next to the ship: the Warrior and the Legion army go ashore together (still an army); the Settler stays aboard, and the message says why. Or drag the Transport onto the beach. In ${CAPITAL}, the Galley in port has an Archer and a Spearman: Unload all puts both in the city at once.`,
+    note: `Your Transport, off the eastern beach, carries a Warrior, a Legion army and a Settler that has already moved. Tap the Transport: ⚓ Unload all (2). Tap it, then the beach tile next to the ship: the Warrior and the Legion army go ashore together (still an army); the Settler stays aboard, and the message says why. Or drag the Transport onto the beach: it asks first, saying who goes and who stays (Cancel keeps everyone aboard). In ${CAPITAL}, the Galley in port has an Archer and a Spearman: Unload all puts both in the city at once.`,
     build: unloadAllScenario,
   },
   {

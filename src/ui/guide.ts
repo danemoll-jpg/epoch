@@ -79,7 +79,7 @@ export function guidePages(): GuidePage[] {
       title: 'Ships and aircraft',
       html: `${pics(unit('galley'), unit('transport'), unit('fighter'), unit('bomber'))}
         <p><b>Ships</b> are built in coastal cities. A land unit boards by stepping onto your ship, and goes ashore by stepping onto land. The ${card('unit:galley', 'Galley')} must stay near the coast; later ships cross the ocean. Ships can bombard units on the shore but never take a city.</p>
-        <p><b>⚓ Unload all</b> (on a ship with units aboard, or any unit aboard) puts everyone with moves left ashore at once: in port, into the city; at sea, tap the land tile next to the ship (or drag the ship onto it) and they all go there.</p>
+        <p><b>⚓ Unload all</b> (on a ship with units aboard, or any unit aboard) puts everyone with moves left ashore at once: in port, into the city; at sea, tap the land tile next to the ship (or drag the ship onto it and confirm) and they all go there.</p>
         <p><b>Aircraft</b> live in a city (or on a ${card('unit:carrier', 'Carrier')}). They strike any enemy in range that you can see, then fly home. Enemy fighters nearby may intercept them first. Aircraft never capture cities. An <b>Airport</b> can airlift one land unit a turn to another Airport city. The ${card('unit:drone', 'Drone')} (Computers) is cheap and fragile, with the longest range: tap any tile in range to <b>scout</b> it (you see all around it until the turn ends), or strike like a small bomber.</p>`,
     },
     {

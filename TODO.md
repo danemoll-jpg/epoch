@@ -2192,6 +2192,11 @@ before), lint and build clean.
   overview, elimination, roads, Rocketry) and the Almanac (two new rule cards, the upgrade and
   Rocketry cards) updated; `pace.test.ts` and `balance.test.ts` pass; no tips needed changing
   beyond the wording. Not verified on the iPad: that's Dan's.
+- **Follow-up (Dan, 2026-09-27): dragging a ship onto land now asks first** ("Unload the Transport
+  here? Going ashore: Warrior, Legion army. Staying aboard: Settler (no moves left)." with Cancel /
+  ⚓ Unload 2 units); the Unload all button's tap-a-tile flow is unchanged. Preview-verified on
+  desktop (Cancel keeps them aboard, Unload lands them). Dev scenarios stay out of the 4173 build by
+  design; they're on the dev server, http://10.0.0.224:5173/ (☰ → Dev scenarios).
 - **Play server:** restarted with 0.22.0 at http://10.0.0.224:4173/.
 - **Commits waiting for Dan's "push"** (none pushed): Round 21's drag to move (`bee68d2`,
   `e5803a6`), this round's docs commit and every Round 22 commit (see `git log origin/main..main`).

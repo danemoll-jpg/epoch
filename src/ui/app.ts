@@ -1443,6 +1443,32 @@ export class App {
     this.refresh();
   }
 
+  /**
+   * Round 22 (item 6, Dan's follow-up): a ship dragged onto land asks first, saying who would go
+   * ashore and who would stay aboard, since a drag can end on the shore by accident.
+   */
+  private confirmDragUnload(shipId: number, to: Coord): void {
+    const ship = findUnit(this.state, shipId);
+    if (!ship) return;
+    const name = (u: Unit) => `${UNITS[u.type].name}${u.army ? ` ${armyWord(u.type)}` : ''}`;
+    const go: string[] = [];
+    const stay: string[] = [];
+    for (const u of cargoOf(this.state, ship)) {
+      const err = u.movesLeft <= 0 ? 'no moves left' : stepError(this.state, u, to);
+      if (err) stay.push(`${name(u)} (${err.replace(/^./, (c) => c.toLowerCase())})`);
+      else go.push(name(u));
+    }
+    this.showNow({
+      title: `Unload the ${UNITS[ship.type].name} here?`,
+      text: go.length ? `Going ashore: ${go.join(', ')}.` : 'Nobody aboard can go ashore here.',
+      sub: stay.length ? `Staying aboard: ${stay.join(', ')}.` : undefined,
+      buttons: [
+        { label: 'Cancel', cls: 'bigBtn' },
+        ...(go.length ? [{ label: `⚓ Unload ${go.length === 1 ? '1 unit' : `${go.length} units`}`, cls: 'bigBtn primary', run: () => this.finishUnloadAll(shipId, to) }] : []),
+      ],
+    });
+  }
+
   private finishUnloadAll(shipId: number, to?: Coord): void {
     this.unloadAllShip = undefined;
     const res = this.dispatchResult({ type: 'unloadAll', shipId, to });
@@ -1858,7 +1884,7 @@ export class App {
     // Round 22 (item 6): a ship dragged onto the land next to it unloads everyone aboard there.
     const ship = findUnit(this.state, d.unitId);
     if (ship && isShip(ship) && !unloadAllError(this.state, ship) && unloadAllTiles(this.state, ship).some((c) => c.x === t.x && c.y === t.y)) {
-      this.finishUnloadAll(ship.id, t);
+      this.confirmDragUnload(ship.id, t);
       return;
     }
     const result = dropResult(this.state, this.human, d.unitId, t.x, t.y);
