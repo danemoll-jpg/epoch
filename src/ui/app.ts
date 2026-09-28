@@ -1522,16 +1522,26 @@ export class App {
           label: c.name,
           run: () => {
             const res = this.dispatchResult({ type: 'airlift', unitId, cityId: c.id });
-            if (res.ok) {
-              this.toast(`${UNITS[u.type].name} airlifted to ${c.name}`);
-              this.centerOn(c.x, c.y);
-              this.selectNext(false);
-            }
+            if (res.ok) this.afterAirlift(u, from, c);
           },
         })),
         { label: 'Cancel' },
       ],
     });
+  }
+
+  /**
+   * Round 23 (item 1): after an airlift the map and the city panel stay on the city it left, and
+   * the next unit waiting there is selected (no pan), so several can go one after another.
+   */
+  private afterAirlift(u: Unit, from: City | undefined, to: City): void {
+    const done = !!from && from.airliftTurn === this.state.turn;
+    this.toast(`${this.unitName(u)} flew to ${to.name}${done ? ` (${from.name}’s Airport is done for this turn)` : ''}`);
+    const next = from ? this.readyUnits().find((w) => w.x === from.x && w.y === from.y && w.id !== u.id) : undefined;
+    this.selectedUnitId = next?.id;
+    this.unitOffer = undefined;
+    this.pendingMove = undefined;
+    this.refresh();
   }
 
   private changeRate(delta: number): void {
