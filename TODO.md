@@ -2194,6 +2194,17 @@ iPad **Home Screen icon** sign-in and the **keep-which question**; **Q31** (time
 - **Play server:** restarted with 0.23.0 at http://10.0.0.224:4173/. The dev scenarios (`drone-strike`, `air-cover`) are on the dev server only (☰ → Dev scenarios).
 - **Commits waiting for Dan's "push"** (none pushed): everything since `9756904` (`git log origin/main..main`).
 
+**Follow-up before the push (Dan, 2026-09-28): drag to move doesn't work for him, at least for a unit in
+a city.** Drag to move has been live since 0.22.0. Reproduce on the iPad (touch) and in iPad emulation:
+select a unit **in one of your cities** (by Next Unit, from the city panel's unit list, and by tapping),
+then press on it and drag. Likely suspects: the city panel (or the portrait bottom sheet) is open over the
+map and swallows the press; a press on your own city tile opens the city before `grab` is asked; the unit
+selected from the city panel isn't the one `dragGrabsUnit` sees; or touch vs. mouse (`pointerType`
+thresholds, `touch-action`). Also check a unit **outside** a city on a real touch device. Fix whatever it
+is so a press-and-drag on the selected unit works in a city and out (closing the city panel if it's in
+the way), add a test for the city case, and note it in the report. **Then** the round waits for Dan's
+"push" as before.
+
 ## Next Steps (Do Not Start Yet)
 
 All of these are deferred for **sequencing only**. Each depends on the
