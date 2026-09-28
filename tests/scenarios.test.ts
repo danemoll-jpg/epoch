@@ -1,6 +1,8 @@
 // Every dev scenario must do exactly what its on-screen note says after one End Turn. The
 // scenario and this test build the same state (src/dev/scenarios.ts), so they can't drift.
 
+import { airCover, escortsOf } from '../src/game/escorts';
+import { hasIntel } from '../src/game/spies';
 import { describe, expect, it } from 'vitest';
 import { UNITS, UNIT_IDS } from '../src/data/units';
 import { SCENARIOS, type Scenario } from '../src/dev/scenarios';
@@ -789,6 +791,41 @@ const OUTCOMES: Record<string, (s: GameState) => void> = {
     expect({ x: bomber.x, y: bomber.y }).toEqual(base);
     expect(bomber.movesLeft).toBe(0);
     expect(attackError(s, bomber, AIR_TARGET)).toBe('Already flew this turn');
+  },
+  'drone-strike': (s) => {
+    const drones = s.units.filter((u) => u.owner === 0 && u.type === 'drone');
+    expect(drones).toHaveLength(2);
+    const kish = s.cities.find((c) => c.owner === 1)!;
+    expect(applyAction(s, { type: 'recon', unitId: drones[0]!.id, at: { x: kish.x - 1, y: kish.y - 1 } }).ok).toBe(true);
+    expect(hasIntel(s, 0, kish.id)).toBe(true);
+    expect(s.units.includes(drones[0]!)).toBe(true);
+    const d = drones[1]!;
+    const icpt = interception(s, d, { x: 10, y: 5 })!;
+    expect(icpt.total).toBeLessThanOrEqual(0.5);
+    expect(noteOf('drone-strike')).toContain(`${Math.round(icpt.total * 100)}% chance to be intercepted`);
+    const res = applyAction(s, { type: 'attack', unitId: d.id, at: { x: 10, y: 5 } });
+    expect(res.combat).toMatchObject({ attackerWon: true, oneShot: true });
+    expect(res.combat!.interception!.slipped).toBe(true);
+    expect(s.units.some((u) => u.id === d.id)).toBe(false);
+    expect(s.units.some((u) => u.owner === 1 && u.type === 'musketman')).toBe(false);
+  },
+  'air-cover': (s) => {
+    const b = s.units.find((u) => u.owner === 0 && u.type === 'bomber')!;
+    const at = { x: 10, y: 5 };
+    expect(combatOdds(s, b, at)!.defense.mods).toContainEqual({ label: 'Air cover', pct: UNITS.jet_fighter.airCoverPct });
+    const before = interception(s, b, at)!.total;
+    expect(noteOf('air-cover')).toContain(`${Math.round(before * 100)}% chance to be intercepted`);
+    applyAction(s, { type: 'addEscort', unitId: b.id });
+    applyAction(s, { type: 'addEscort', unitId: b.id });
+    expect(escortsOf(s, b)).toHaveLength(2);
+    const after = interception(s, b, at)!.total;
+    expect(after).toBeLessThan(before);
+    expect(noteOf('air-cover')).toContain(`now ${Math.round(after * 100)}% to be intercepted`);
+    const warrior = s.units.find((u) => u.owner === 0 && u.type === 'warrior' && u.x === 9)!;
+    expect(airCover(s, 0, warrior).pct).toBe(UNITS.jet_fighter.airCoverPct);
+    const res = applyAction(s, { type: 'attack', unitId: b.id, at });
+    expect(res.combat!.interception!.escortWon).toBe(true);
+    expect(res.combat!.attackerWon).toBe(true);
   },
   intercept: (s) => {
     const bomber = mine(s, 'bomber');

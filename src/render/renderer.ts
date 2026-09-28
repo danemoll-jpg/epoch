@@ -405,6 +405,7 @@ function drawUnit(
   behind?: Unit,
   onIconReady?: () => void,
   cargo = 0,
+  escorts = 0,
 ): void {
   // In a city the disc shrinks into the lower-left corner so the city's size stays readable.
   const cx = inCity ? x + s * 0.27 : x + s / 2;
@@ -493,6 +494,23 @@ function drawUnit(
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(String(cargo), bx, by + s * 0.01);
+  }
+  if (escorts > 0) {
+    // Round 23: a bomber's escort group, a small sky-blue "+2" at the lower right.
+    const bx = cx + r * 0.85;
+    const by = cy + r * 0.85;
+    ctx.fillStyle = '#3d8fe0';
+    ctx.strokeStyle = '#0b1622';
+    ctx.lineWidth = Math.max(1, s * 0.03);
+    ctx.beginPath();
+    ctx.arc(bx, by, s * 0.14, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.font = `800 ${Math.round(s * 0.15)}px system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`+${escorts}`, bx, by + s * 0.01);
   }
   if (stackCount > 1) {
     const bx = cx + r * 0.85;
@@ -794,7 +812,8 @@ export function render(
     const inCity = state.cities.some((c) => c.x === shown.x && c.y === shown.y) || state.villages.some((v) => v.x === shown.x && v.y === shown.y);
     const others = shown.carriedBy === null ? outside : list;
     const aboard = shown.carriedBy === null ? carriedBy(state, shown).length : 0;
-    drawUnit(ctx, state, shown, others.length, p.x, p.y, s, shown.id === view.selectedUnitId, inCity, behindUnit(others, shown), view.onIconReady, aboard);
+    const escorts = list.filter((u) => u.escortOf === shown.id).length;
+    drawUnit(ctx, state, shown, others.length, p.x, p.y, s, shown.id === view.selectedUnitId, inCity, behindUnit(others, shown), view.onIconReady, aboard, escorts);
   }
 
   // Village flags go over the units standing in them.

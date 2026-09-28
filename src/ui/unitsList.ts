@@ -25,6 +25,8 @@ export function unitStatus(u: Unit): UnitStatus {
   if (u.exploring) return 'exploring';
   if (u.fortified) return 'fortified';
   if (u.carriedBy !== null && !isAir(u)) return 'aboard';
+  // Round 23: a fighter escorting a bomber rides along with it.
+  if (u.escortOf !== undefined) return 'aboard';
   return u.movesLeft > 0 ? 'ready' : 'done';
 }
 

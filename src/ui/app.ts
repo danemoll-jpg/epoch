@@ -4,7 +4,7 @@
 import { victoryGoals } from '../data/mapSizes';
 import { BUILDINGS } from '../data/buildings';
 import { CIVS } from '../data/civs';
-import { BORDERS, CITY_FOCUSES, RULES, growthThreshold, type CityFocus } from '../data/rules';
+import { AIR, BORDERS, CITY_FOCUSES, RULES, growthThreshold, type CityFocus } from '../data/rules';
 import { ERAS, TECHS, TECH_LIST, type TechId } from '../data/techs';
 import { TERRAIN } from '../data/terrain';
 import { BUILDING_ICONS, ICON_CREDITS, ICON_LICENSE, ICON_SITE, MAP_ICONS, TECH_ICONS, usedIcons, wonderIcon, type IconGroup } from '../data/icons';
@@ -26,6 +26,7 @@ import { bonusText, visibleResource } from '../game/resources';
 import { pendingVillage, settleVillageError } from '../game/villages';
 import { attackError, combatOdds, fortifyError, interception, overallChance, wakeError, type Strength } from '../game/combat';
 import { turnYearText } from '../game/calendar';
+import { addEscortError, airCover, escortCandidates, escortedBomber, escortsOf, groupRange } from '../game/escorts';
 import { airliftSourceError, airliftTargets, airRange, hasAirlift, tilesWithin } from '../game/air';
 import { CivName, civAdjective, civName, civVerb } from '../game/conquest';
 import {
@@ -371,6 +372,8 @@ export class App {
       if (!btn) return;
       const id = Number(btn.dataset.unit);
       if (btn.dataset.act === 'army') this.formArmyOf(id);
+      else if (btn.dataset.act === 'escort') this.escortAct(id, 'addEscort');
+      else if (btn.dataset.act === 'split') this.escortAct(id, 'splitEscorts');
       else if (btn.dataset.act === 'board') this.boardShip(id, Number(btn.dataset.ship));
       else if (btn.dataset.act === 'unload') this.unloadHere(id);
       else if (btn.dataset.act === 'unloadAll') this.startUnloadAll(Number(btn.dataset.ship));
@@ -1545,6 +1548,21 @@ export class App {
     this.refresh();
   }
 
+  /** Round 23 (item 5): Add escort / Split, from the bomber (or one of its escorts). */
+  private escortAct(bomberId: number, type: 'addEscort' | 'splitEscorts'): void {
+    const b = findUnit(this.state, bomberId);
+    if (!b) return;
+    const before = escortsOf(this.state, b).length;
+    if (!this.dispatch({ type, unitId: bomberId })) return;
+    const name = UNITS[b.type].name;
+    if (type === 'addEscort') {
+      const n = escortsOf(this.state, b).length;
+      this.toast(`The ${name} now flies with ${plural(n, 'escort')}: an interceptor has to get past ${n === 1 ? 'it' : 'each of them'} first`);
+    } else this.toast(`${plural(before, 'escort')} left the ${name}`);
+    this.selectedUnitId = bomberId;
+    this.refresh();
+  }
+
   private changeRate(delta: number): void {
     const rate = this.state.players[this.human]!.scienceRate + delta;
     if (rate < 0 || rate > 100) return;
@@ -1643,7 +1661,7 @@ export class App {
 
   /** Units still waiting for orders this turn (fortified units, and cargo riding aboard a ship, are left alone; aircraft on a Carrier aren't cargo). */
   private readyUnits(): Unit[] {
-    return this.myUnits().filter((u) => u.movesLeft > 0 && !u.fortified && !u.exploring && (u.carriedBy === null || isAir(u)));
+    return this.myUnits().filter((u) => u.movesLeft > 0 && !u.fortified && !u.exploring && u.escortOf === undefined && (u.carriedBy === null || isAir(u)));
   }
 
   private myCities(): City[] {
@@ -2734,25 +2752,44 @@ export class App {
       (aboard(unit) ? `<p class="sub">If your ${esc(UNITS[unit.type].name)} sinks, the ${plural(aboard(unit), 'unit')} aboard go down with it.</p>` : '');
     // Round 10: aircraft strike and fly home; a fighter may intercept first.
     const uname = esc(UNITS[unit.type].name);
-    const airNote = isAir(unit)
+    const airNote = isAir(unit) && UNITS[unit.type].oneShot
+      ? ''
+      : isAir(unit)
       ? `<p class="sub">Air strike: if you win, the defender is destroyed and your ${uname} flies back to base. Aircraft never capture${city && others === 0 ? `, so ${esc(city.name)} stays theirs` : ''}. If you lose, it’s shot down.</p>`
       : hovers(unit)
         ? `<p class="sub">Helicopters never capture: if you win, the defender is destroyed and your ${uname} stays where it is.</p>`
         : '';
     const icpt = interception(this.state, unit, at);
     const overall = Math.round(overallChance(this.state, unit, at) * 100);
+    // Round 23: slipping past (the Drone), escorts, home skies; all in the one "intercepted" chance.
+    const why = icpt
+      ? [
+          icpt.slip ? `it slips past ${Math.round(icpt.slip * 100)}% of the time` : '',
+          icpt.escorts.length
+            ? `escorted by ${escortWords(icpt.escorts.map((e) => e.escort))}: the fighter must beat ${icpt.escorts.length === 1 ? 'it' : 'each'} first (${icpt.escorts.map((e) => `${Math.round(e.chance * 100)}%`).join(', ')})`
+            : '',
+          icpt.attack.mods.some((m) => m.label === 'Stealth') ? 'stealth makes it harder' : '',
+          icpt.attack.mods.some((m) => m.label === 'Over its own land') ? `it fights better over its own land (+${AIR.homeInterceptPct}%)` : '',
+        ].filter(Boolean)
+      : [];
     const icptNote = icpt
-      ? `<p class="warnline">${this.badge(icpt.fighter.type, icpt.fighter.owner)}Their ${esc(this.unitName(icpt.fighter))} can intercept: it shoots your ${uname} down ${Math.round(icpt.chance * 100)}% of the time${icpt.attack.mods.some((m) => m.label === 'Stealth') ? ' (stealth makes it harder)' : ''}, and then the strike never happens. <b>Overall: ${overall}%</b> that it gets through and wins.</p>`
+      ? `<p class="warnline">${this.badge(icpt.fighter.type, icpt.fighter.owner)}Their ${esc(this.unitName(icpt.fighter))} can intercept: <b>${Math.round(icpt.total * 100)}% chance to be intercepted</b>${why.length ? ` (${esc(why.join('; '))})` : ''}, and then the strike never happens. <b>Overall: ${overall}%</b> that it gets through and wins.</p>`
       : flying ? '<p class="sub">No enemy fighter is in range to intercept.</p>' : '';
+    const coverNote = flying && odds.defense.mods.some((m) => m.label === 'Air cover')
+      ? `<p class="sub">Air cover: their fighters in range make the ${esc(UNITS[odds.defender.type].name)} harder to hit from the air.</p>`
+      : '';
+    const oneShot = !!UNITS[unit.type].oneShot;
+    const droneNote = oneShot ? `<p class="sub">Self-destruct: your ${uname} flies in and explodes. It’s used up whether the strike works or not.</p>` : '';
     $('attackBody').innerHTML = `
-      <h2>${isAir(unit) ? 'Air strike?' : 'Attack?'}</h2>
+      <h2>${oneShot ? 'Drone strike?' : isAir(unit) ? 'Air strike?' : 'Attack?'}</h2>
       <div class="odds ${pct >= 60 ? 'good' : pct >= 40 ? 'even' : 'bad'}"><b>${pct}%</b><span>chance to win${icpt ? ' the fight' : ''}</span></div>
       <div class="sides">
         ${sideHtml(this.badge(odds.attacker.type, odds.attacker.owner), `Your ${this.unitName(odds.attacker)}`, 'Attack', odds.attack)}
         ${sideHtml(this.badge(odds.defender.type, odds.defender.owner), this.unitLabel(odds.defender), 'Defense', odds.defense)}
       </div>
-      ${icptNote}${stackNote}${takeNote}${bombardNote}${airNote}${cargoNote}
-      <p class="sub">The loser is destroyed. Attacking uses up your unit’s turn.</p>`;
+      ${icptNote}${coverNote}${droneNote}${stackNote}${takeNote}${bombardNote}${airNote}${cargoNote}
+      <p class="sub">${oneShot ? 'If the strike wins, the defender is destroyed.' : 'The loser is destroyed. Attacking uses up your unit’s turn.'}</p>`;
+    $('attackGoBtn').textContent = oneShot ? '💥 Strike (self-destruct)' : 'Attack';
     $('attackOverlay').hidden = false;
     $<HTMLButtonElement>('attackGoBtn').focus({ preventScroll: true });
   }
@@ -2821,8 +2858,15 @@ export class App {
     if (c.airStrike && c.attackerWon) text = `Your ${mine} destroyed the ${theirs} (${pct}%) and flew back to base`;
     // Round 10: a fighter went after it first.
     const i = c.interception;
-    if (i && i.fighterWon) text = `A ${civAdjective(this.state, i.fighterOwner)} ${UNITS[i.fighterType].name} intercepted and shot down your ${mine} (${Math.round(i.chance * 100)}%). The strike never happened`;
-    else if (i) text = `Your ${mine} shot down the intercepting ${UNITS[i.fighterType].name}, then ${c.attackerWon ? `destroyed the ${theirs}` : `was destroyed by the ${theirs}`} (${pct}%)`;
+    // Round 23: a Drone explodes either way.
+    if (c.oneShot) text = c.attackerWon ? `Your ${mine} exploded and destroyed the ${theirs} (${pct}%)` : `Your ${mine} exploded, but the ${theirs} survived (${pct}%)`;
+    const escortLine = i?.escortsLost ? `${plural(i.escortsLost, 'escort')} shot down; ` : '';
+    const fighterName = i ? UNITS[i.fighterType].name : '';
+    if (i && i.fighterWon) text = `${escortLine}a ${civAdjective(this.state, i.fighterOwner)} ${fighterName} intercepted and shot down your ${mine} (${Math.round(i.chance * 100)}%). The strike never happened`;
+    else if (i?.slipped) text = `Your ${mine} slipped past their ${fighterName}. ${text}`;
+    else if (i?.escortWon) text = `${escortLine}your escort shot down the intercepting ${fighterName}. ${text}`;
+    else if (i) text = `${escortLine}your ${mine} shot down the intercepting ${fighterName}, then ${c.attackerWon ? `destroyed the ${theirs}` : `was destroyed by the ${theirs}`} (${pct}%)`;
+    text = text.charAt(0).toUpperCase() + text.slice(1);
     if (c.promoted && c.attackerWon) text += `. Your ${mine} is now a veteran ★`;
     if (c.cargoLost) text += `. ${plural(c.cargoLost, 'unit')} aboard went down with the ship`;
     this.toast(text, !c.attackerWon);
@@ -2864,7 +2908,7 @@ export class App {
   /** Tiles the selected unit could attack right now (outlined in red): next door, or in an aircraft's range. */
   private attackTargets(u: Unit | undefined): Coord[] {
     if (!u || u.owner !== this.human || u.movesLeft <= 0 || UNITS[u.type].attack <= 0) return [];
-    const tiles = isAir(u) ? tilesWithin(this.state, u, airRange(u)) : neighbors(this.state.map, u);
+    const tiles = isAir(u) ? tilesWithin(this.state, u, groupRange(this.state, u)) : neighbors(this.state.map, u);
     return tiles.filter((n) => !attackError(this.state, u, n));
   }
 
@@ -4607,9 +4651,24 @@ export class App {
         : carrier
           ? ` · ⚓ aboard the ${UNITS[carrier.type].name}`
           : '';
+      // Round 23: an escort group's range, the Drone's two uses, a fighter's air cover.
+      const range = groupRange(this.state, sel);
+      const escorts = escortsOf(this.state, sel).length;
+      const bomber = escortedBomber(this.state, sel);
       const air = isAir(sel)
-        ? ` · range ${airRange(sel)}${def.airAttack ? ` · vs aircraft ${def.airAttack}` : ''} · ${sel.movesLeft > 0 ? `tap an outlined target to strike, or a city or Carrier to rebase${def.recon ? ', or any other tile in range to scout it' : ''}` : 'flown this turn'}`
+        ? bomber
+          ? ` · escorting the ${UNITS[bomber.type].name}: it flies and fights with it`
+          : ` · range ${range}${escorts ? ` (with ${plural(escorts, 'escort')})` : ''}${def.airAttack ? ` · vs aircraft ${def.airAttack}` : ''}${def.airCoverPct ? ` · air cover +${def.airCoverPct}% within ${def.range}` : ''} · ${
+              sel.movesLeft > 0
+                ? def.oneShot
+                  ? 'tap an outlined target to strike (self-destruct: it’s used up), a city or Carrier to rebase, or any other tile to scout it (a rival city next to it is investigated)'
+                  : `tap an outlined target to strike, or a city or Carrier to rebase${def.recon ? ', or any other tile in range to scout it' : ''}`
+                : 'flown this turn'
+            }`
         : hovers(sel) ? ' · flies over anything · can’t capture' : '';
+      // Round 23 (item 5): your own fighters' air cover over this unit.
+      const coverPct = isAir(sel) ? 0 : airCover(this.state, sel.owner, sel).pct;
+      const cover = coverPct ? ` · ✈ air cover +${coverPct}%` : '';
       const carrierAir = isShip(sel) && def.airCargo ? ` · aircraft ${aircraftOf(this.state, sel).length}/${airCapacity(sel)}` : '';
       // Round 12: a Missionary's faith and spreads left.
       const faith = def.spreadsReligion ? religionById(this.state, sel.religion) : undefined;
@@ -4619,7 +4678,7 @@ export class App {
       const fresh = trained ? ` <span class="fresh">· just ${isShip(sel) || isAir(sel) ? 'built' : 'trained'} in ${esc(trained.name)}</span>` : '';
       $('unitInfo').innerHTML = `${this.badge(sel.type, sel.owner)}${def.name}${army}${vet}${fort}${fresh} <span class="sub">· attack ${def.attack * mult} · defense ${
         def.defense * mult
-      }${isAir(sel) ? '' : ` · moves ${movesText(sel.movesLeft)}/${def.moves}`}${mission}${naval}${carrierAir}${air}${isAir(sel) ? '' : ` · ${terrain}`}</span>`;
+      }${isAir(sel) ? '' : ` · moves ${movesText(sel.movesLeft)}/${def.moves}`}${mission}${naval}${carrierAir}${air}${isAir(sel) ? '' : ` · ${terrain}`}${cover}</span>`;
       foundBtn.hidden = !def.canFoundCity;
       const err = foundCityError(this.state, sel.id);
       foundBtn.disabled = err !== undefined;
@@ -4703,6 +4762,20 @@ export class App {
         err ? ` <span class="sub">· ${esc(err)}</span>` : waiting ? ' <span class="sub">· tap a land tile next to the ship</span>' : ''
       }</button>`;
     }
+    // Round 23 (item 5): escort groups. The bomber takes the best fighter based with it; Split lets them all go.
+    if (mine && UNITS[sel.type].escortable) {
+      const n = escortsOf(this.state, sel).length;
+      const err = addEscortError(this.state, sel);
+      if (n < AIR.maxEscorts && !err) {
+        const f = escortCandidates(this.state, sel)[0]!;
+        navalBtns += `<button type="button" data-act="escort" data-unit="${sel.id}" class="navalBtn">✈ Add escort <span class="sub">· ${esc(UNITS[f.type].name)} (${n + 1} of ${AIR.maxEscorts})</span></button>`;
+      }
+      if (n) navalBtns += `<button type="button" data-act="split" data-unit="${sel.id}" class="navalBtn">Split <span class="sub">· release ${plural(n, 'escort')}</span></button>`;
+    }
+    const escorted = escortedBomber(this.state, sel);
+    if (mine && escorted) {
+      navalBtns += `<button type="button" data-act="split" data-unit="${escorted.id}" class="navalBtn">Split from the ${esc(UNITS[escorted.type].name)} <span class="sub">· every escort goes free</span></button>`;
+    }
     // The Airport's airlift (Round 10).
     if (mine && !airliftSourceError(this.state, sel) && airliftTargets(this.state, sel).length > 0) {
       navalBtns += `<button type="button" data-act="airlift" data-unit="${sel.id}" class="navalBtn">✈ Airlift…</button>`;
@@ -4746,7 +4819,7 @@ export class App {
             .map(
               (u) => `<button type="button" data-unit="${u.id}" class="stackItem${u.id === sel.id ? ' on' : ''}">
               ${this.badge(u.type, u.owner)}${UNITS[u.type].name}${u.army ? ` ${armyWord(u.type)} ×${RULES.combat.armyMultiplier}` : ''}${u.veteran ? ' ★' : ''}${u.fortified && !isShip(u) ? ' 🛡' : ''}${u.carriedBy !== null ? ' ⚓' : ''}
-              <span class="sub">${movesText(u.movesLeft)}/${UNITS[u.type].moves}${u.carriedBy !== null ? ' · aboard' : ''}</span></button>`,
+              <span class="sub">${movesText(u.movesLeft)}/${UNITS[u.type].moves}${u.escortOf !== undefined ? ' · escorting' : escortsOf(this.state, u).length ? ` · +${escortsOf(this.state, u).length} escort` : u.carriedBy !== null ? ' · aboard' : ''}</span></button>`,
             )
             .join('')
         : '';
@@ -4922,4 +4995,11 @@ function gotoScenario(id: string | undefined): void {
   else params.delete('scenario');
   const q = params.toString();
   location.href = location.pathname + (q ? `?${q}` : '');
+}
+
+/** Round 23: "a Jet Fighter", "2 Jet Fighters", "a Fighter and a Jet Fighter". */
+function escortWords(units: Unit[]): string {
+  const types = [...new Set(units.map((u) => u.type))];
+  if (types.length === 1) return units.length === 1 ? `a ${UNITS[types[0]!].name}` : plural(units.length, UNITS[types[0]!].name);
+  return units.map((u) => `a ${UNITS[u.type].name}`).join(' and ');
 }

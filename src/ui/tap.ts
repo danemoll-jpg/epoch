@@ -30,7 +30,8 @@
 //      cycles through it;
 //    - anything else → inspect the tile (show its terrain and yields) and deselect.
 
-import { airRange, rebaseError, reconError } from '../game/air';
+import { rebaseError, reconError } from '../game/air';
+import { groupRange } from '../game/escorts';
 import { capturableCity } from '../game/conquest';
 import { hasVisibleDefender } from '../game/combat';
 import { unitVisibleTo } from '../game/fog';
@@ -70,7 +71,7 @@ export function resolveTap(
   // city or Carrier in range; any other tap works as if nothing were selected.
   if (sel && sel.owner === viewer && sel.movesLeft > 0 && isAir(sel) && !onSelectedTile) {
     const at = { x: tx, y: ty };
-    if (hasVisibleDefender(state, at, viewer, sel) && distance(sel, at) <= airRange(sel)) return { kind: 'attack', unitId: sel.id };
+    if (hasVisibleDefender(state, at, viewer, sel) && distance(sel, at) <= groupRange(state, sel)) return { kind: 'attack', unitId: sel.id };
     if (!rebaseError(state, sel, at)) return { kind: 'move', unitId: sel.id };
     // Round 19: a Drone scouts anywhere else in range.
     if (!reconError(state, sel, at)) return { kind: 'recon', unitId: sel.id };

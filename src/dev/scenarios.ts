@@ -2386,6 +2386,90 @@ function roadDirectOption() {
   return roadOption(s, 0, s.cities[0]!, s.cities[1]!)!;
 }
 
+
+// ---- Round 23: the Drone and air escorts ---------------------------------------------------
+
+/** Two Drones in Babylon; a Mauryan Fighter in Pataliputra; their Musketman east of Babylon in sight. */
+function droneBase(): GameState {
+  const state = airfield();
+  state.players[0]!.techs = ['flight', 'computers'];
+  state.players[1]!.techs = ['flight'];
+  addUnit(state, 'drone', 0, CITY_X, CITY_Y);
+  addUnit(state, 'drone', 0, CITY_X, CITY_Y);
+  addUnit(state, 'musketman', 1, AIR_TARGET.x, AIR_TARGET.y);
+  addUnit(state, 'fighter', 1, 12, 8);
+  addUnit(state, 'warrior', 0, FRONT.x, FRONT.y - 1, { fortified: true });
+  return state;
+}
+
+const droneStrike = (s: GameState) => {
+  const d = s.units.filter((u) => u.owner === 0 && u.type === 'drone').sort((a, b) => b.id - a.id)[0]!;
+  return applyAction(s, { type: 'attack', unitId: d.id, at: AIR_TARGET });
+};
+
+/** The dice are set so the Drone slips past their Fighter and destroys the Musketman. */
+function droneStrikeScenario(): GameState {
+  return withDiceFor(droneBase, (s) => {
+    const c = droneStrike(s).combat;
+    return !!c?.attackerWon && !!c.interception?.slipped;
+  });
+}
+
+function droneIntercept(): { total: number; odds: number } {
+  const s = droneBase();
+  const d = s.units.find((u) => u.owner === 0 && u.type === 'drone')!;
+  return { total: Math.round(interception(s, d, AIR_TARGET)!.total * 100), odds: Math.round(combatOdds(s, d, AIR_TARGET)!.chance * 100) };
+}
+
+/** A Bomber and two Fighters in Babylon; a Mauryan Jet Fighter in Pataliputra covers their Musketman. */
+function airCoverBase(): GameState {
+  const state = airStrikeBase();
+  state.players[1]!.techs = ['flight', 'advanced_flight'];
+  addUnit(state, 'fighter', 0, CITY_X, CITY_Y);
+  addUnit(state, 'fighter', 0, CITY_X, CITY_Y);
+  addUnit(state, 'jet_fighter', 1, 12, 8);
+  // Your own Jet Fighter covers the Warrior at the front.
+  state.players[0]!.techs = ['flight', 'advanced_flight'];
+  addUnit(state, 'jet_fighter', 0, CITY_X, CITY_Y, { fortified: true });
+  return state;
+}
+
+function escortAll(s: GameState): void {
+  const b = mine(s, 'bomber');
+  applyAction(s, { type: 'addEscort', unitId: b.id });
+  applyAction(s, { type: 'addEscort', unitId: b.id });
+}
+
+/** The dice are set so an escort shoots their Jet Fighter down and the Bomber's strike wins. */
+function airCoverScenario(): GameState {
+  return withDiceFor(airCoverBase, (s) => {
+    escortAll(s);
+    const c = strike(s).combat;
+    return !!c?.attackerWon && !!c.interception?.escortWon;
+  });
+}
+
+function airCoverOdds(escorted: boolean): number {
+  const s = airCoverBase();
+  if (escorted) escortAll(s);
+  return Math.round(interception(s, mine(s, 'bomber'), AIR_TARGET)!.total * 100);
+}
+
+const ROUND23_SCENARIOS: Scenario[] = [
+  {
+    id: 'drone-strike',
+    title: 'The Drone: scout, then strike',
+    note: `Two Drones are in ${CAPITAL}. Select one and tap the tile just north-west of ${RIVAL_CAPITAL}: it scouts there, and ${RIVAL_CAPITAL}’s report opens (tap the city: buildings, build, defenders). The Drone is still yours; it can scout again next turn. Select the other Drone and tap the Musketman east of ${CAPITAL}: the odds panel says ${droneIntercept().total}% chance to be intercepted by their Fighter (it slips past half the time), ${droneIntercept().odds}% to win, and the button reads 💥 Strike (self-destruct). Strike: the dice are set so it slips past and destroys the Musketman, and the Drone is gone.`,
+    build: droneStrikeScenario,
+  },
+  {
+    id: 'air-cover',
+    title: 'Air: escorts and air cover',
+    note: `A Bomber and two Fighters are in ${CAPITAL}; a Mauryan Jet Fighter in ${RIVAL_CAPITAL} covers their Musketman east of ${CAPITAL}. Select the Bomber and tap the Musketman: the odds panel shows Air cover +${UNITS.jet_fighter.airCoverPct}% on their side and ${airCoverOdds(false)}% chance to be intercepted. Cancel, then tap ✈ Add escort twice: a “+2” shows on the Bomber, its range drops to ${UNITS.fighter.range}, and the same strike is now ${airCoverOdds(true)}% to be intercepted (their Jet must beat each escort first). Strike: the dice are set so an escort shoots their Jet down and the strike goes ahead. Your Warrior at the front is under your own Jet Fighter’s air cover (its panel says so). Split lets the escorts go.`,
+    build: airCoverScenario,
+  },
+];
+
 const ROUND22_SCENARIOS: Scenario[] = [
   {
     id: 'last-city',
@@ -2832,6 +2916,7 @@ export const SCENARIOS: Scenario[] = [
   ...ROUND20_SCENARIOS,
   ...ROUND21_SCENARIOS,
   ...ROUND22_SCENARIOS,
+  ...ROUND23_SCENARIOS,
 ];
 
 export function findScenario(id: string): Scenario | undefined {

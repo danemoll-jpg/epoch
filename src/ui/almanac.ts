@@ -14,7 +14,7 @@ import { RESOURCES, RESOURCE_IDS } from '../data/resources';
 import { ERAS, TECHS, TECH_LIST, type TechId } from '../data/techs';
 import { TERRAIN } from '../data/terrain';
 import { UNITS, UNIT_IDS, type UnitTypeId } from '../data/units';
-import { BORDERS, RULES } from '../data/rules';
+import { AIR, BORDERS, RULES } from '../data/rules';
 import { SPIES, SPY_ACTIONS, SPY_ACTION_IDS } from '../data/spies';
 import { PROJECTS, PROJECT_IDS, VICTORY_NAMES } from '../data/victory';
 import { WONDER_LIST } from '../data/wonders';
@@ -240,6 +240,11 @@ function ruleCards(): AlmanacCard[] {
   const orders =
     row('Explore', 'Ships, military units and the Drone: each turn it heads for the nearest unexplored area on its own; it stops when it sights an enemy, is attacked, or has nothing left to explore.') +
     row('Unload all', 'Everyone aboard with moves left goes ashore: into the city in port, or onto one land tile next to the ship.');
+  // Round 23 (items 4 and 5).
+  const air =
+    row('Escorts', esc(`In a city or on a Carrier, a Bomber or Stealth Bomber can take up to ${AIR.maxEscorts} Fighters or Jet Fighters along (Add escort; Split to undo). The group rebases and strikes together, as far as its shortest range. An interceptor must shoot down each escort in turn before it reaches the bomber; if an escort wins, the interceptor is lost and the strike goes ahead.`)) +
+    row('Air cover', esc(`Your units within a fighter's range defend better against air strikes, Helicopters and Drones: +${UNITS.fighter.airCoverPct}% under a Fighter, +${UNITS.jet_fighter.airCoverPct}% under a Jet Fighter. Fighters also intercept +${AIR.homeInterceptPct}% better over their own land.`)) +
+    row('The Drone', esc(`Scout any tile in range, every turn: you see all around it, and a rival city next to it is investigated for ${AIR.droneIntelTurns} turns (it can't be caught). Or strike once: it explodes (attack ${UNITS.drone.attack}) and is used up. It slips past a fighter ${UNITS.drone.slipPct}% of the time.`));
   const elimination =
     row('Last city', esc(`A nation that loses its last city is eliminated and its remaining units disband, unless it still has a Settler: then it has ${RULES.homelessTurns} turns to found a new city.`)) +
     row('Domination', 'An eliminated nation’s capital counts as held.');
@@ -248,6 +253,7 @@ function ruleCards(): AlmanacCard[] {
     card('rule:upgrades', 'rule', 'Old units and upgrades', 'Rule', disc('⬆'), upgrades),
     card('rule:orders', 'rule', 'Explore and Unload all', 'Rule', disc('🧭'), orders),
     card('rule:elimination', 'rule', 'Eliminated nations', 'Rule', disc('🏳'), elimination),
+    card('rule:air', 'rule', 'Escorts, air cover and the Drone', 'Rule', disc('✈'), air),
   ];
 }
 

@@ -31,9 +31,11 @@ export function unitSummary(id: string): string {
     parts[0] = `attack ${def.attack} · defense ${def.defense}`;
     parts.push(`aircraft · range ${def.range}`);
     if (def.airAttack) parts.push(`${def.airAttack} vs aircraft, intercepts`);
-    if (def.evadePct) parts.push('hard to intercept');
-    parts.push('strikes and flies back to base');
-    if (def.recon) parts.push(`scouts a tile in range (sees ${def.sight} around it)`);
+    if (def.evadePct || def.slipPct) parts.push('hard to intercept');
+    if (def.airCoverPct) parts.push(`air cover +${def.airCoverPct}% in range · escorts bombers`);
+    if (def.escortable) parts.push('takes up to 2 fighter escorts');
+    parts.push(def.oneShot ? 'strike is a self-destruct (used up)' : 'strikes and flies back to base');
+    if (def.recon) parts.push(`scouts a tile in range (sees ${def.sight} around it; investigates a rival city next to it)`);
   }
   if (def.hover) parts.push('flies over anything, can’t capture');
   if (def.airCargo) parts.push(`carries ${def.airCargo} aircraft`);
