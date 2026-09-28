@@ -420,9 +420,10 @@ export function fortifyError(state: GameState, unit: Unit): string | undefined {
 }
 
 /**
- * Digs the unit in: +50% defense until it moves or attacks. Fortifying ends the unit's
- * turn, and "next unit" skips fortified units from then on. A ship can be told to stay put
- * the same way ("Stay"), but gets no defense bonus.
+ * Digs the unit in: +50% defense until it moves or attacks, counting at once. "Next unit" skips
+ * fortified units from then on. Since Round 23 (item 2) fortifying doesn't spend the unit's
+ * moves, so Wake leaves it ready at once (moving or attacking still ends the fortify). A ship
+ * can be told to stay put the same way ("Stay"), but gets no defense bonus.
  */
 export function fortify(state: GameState, unitId: number): ActionResult {
   const unit = findUnit(state, unitId);
@@ -430,7 +431,6 @@ export function fortify(state: GameState, unitId: number): ActionResult {
   const err = fortifyError(state, unit);
   if (err) return { ok: false, reason: err };
   unit.fortified = true;
-  unit.movesLeft = 0;
   return { ok: true };
 }
 
@@ -443,8 +443,8 @@ export function wakeError(state: GameState, unit: Unit): string | undefined {
 
 /**
  * Round 18 (item 2): wakes a fortified unit (or a ship told to stay put): it loses the
- * fortified bonus and Next Unit offers it again. Its moves are untouched, so a unit fortified
- * this turn (which used up its moves) is ready again next turn.
+ * fortified bonus and Next Unit offers it again. Its moves are untouched, and since Round 23
+ * fortifying no longer spends them, so a unit fortified this turn is ready again at once.
  */
 export function wake(state: GameState, unitId: number): ActionResult {
   const unit = findUnit(state, unitId);

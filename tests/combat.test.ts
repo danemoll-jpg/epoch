@@ -227,11 +227,11 @@ describe('combat events and fog', () => {
 });
 
 describe('fortify', () => {
-  it('fortifying ends the turn; the unit stays fortified across turns until it moves', () => {
+  it('fortifying keeps the moves (Round 23); the unit stays fortified across turns until it moves', () => {
     const s = makeState(['ggg']);
     const w = addUnit(s, 'warrior', 0, 0, 0);
     expect(applyAction(s, { type: 'fortify', unitId: w.id }).ok).toBe(true);
-    expect([w.fortified, w.movesLeft]).toEqual([true, 0]);
+    expect([w.fortified, w.movesLeft]).toEqual([true, 1]);
     expect(applyAction(s, { type: 'fortify', unitId: w.id }).reason).toBe('Already fortified');
     applyAction(s, { type: 'endTurn' });
     expect(w.fortified).toBe(true);

@@ -87,14 +87,18 @@ describe('Round 18 item 2: Wake', () => {
     expect(unitStatus(w)).toBe('ready');
   });
 
-  it('a unit fortified this turn wakes with no moves: ready again next turn', () => {
+  it('Round 23 (item 2): a unit fortified this turn wakes ready at once, and moving clears it', () => {
     const s = makeState([row(3)]);
     const w = addUnit(s, 'warrior', 0, 0, 0);
     expect(applyAction(s, { type: 'fortify', unitId: w.id }).ok).toBe(true);
-    expect(w.movesLeft).toBe(0);
+    expect([w.fortified, w.movesLeft]).toEqual([true, 1]);
+    expect(unitStatus(w)).toBe('fortified');
     expect(applyAction(s, { type: 'wake', unitId: w.id }).ok).toBe(true);
+    expect([w.fortified, w.movesLeft]).toEqual([false, 1]);
+    expect(unitStatus(w)).toBe('ready');
+    expect(applyAction(s, { type: 'fortify', unitId: w.id }).ok).toBe(true);
+    expect(applyAction(s, { type: 'move', unitId: w.id, to: { x: 1, y: 0 } }).ok).toBe(true);
     expect([w.fortified, w.movesLeft]).toEqual([false, 0]);
-    expect(unitStatus(w)).toBe('done');
   });
 
   it('a ship staying put wakes the same way', () => {
