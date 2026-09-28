@@ -1993,109 +1993,9 @@ The play server was restarted after item 8 and again at the end of the round (ht
   can be tried on the iPad at http://10.0.0.224:4173/ before it's pushed.
 - **Commits waiting to be pushed:** item 4 with its docs, and this note (see `git log origin/main..main`).
 
+* **Round 22 — Ten fixes from Dan's playtest (upgrades inside borders, direct roads, the Diplomacy overview, the met count, "nation" not "civ", Unload all, eliminating a nation with no cities, Explore mode, the map-reveal tech) plus Round 21's drag to move — done, pushed together and live as 0.22.0 (2026-09-27).** The agent's report follows, moved from Current Objective.
 
-## Current Objective (Focus Area)
-
-### Round 22 — Ten fixes from Dan's playtest (items 1–9 below, plus drag to move)
-
-**Pushing: don't push anything until Dan says "push".** Dan pushes in bundles: this whole round, plus
-Round 21's drag to move, goes out together, after he's tested it on the play server. No split pushes.
-Don't touch the hub.
-
-**How to work:** commit after each item (or small group), restart the play server when a playable
-chunk is in, and keep a short progress note at the end of this section. At the end, report **every item
-(0–9) individually**, with how it was verified, and list the commits waiting for Dan's push.
-
-0. **Commit the updated docs first:** `CLAUDE.md` and `TODO.md` as their own commit, then re-read them.
-
-**The items** (from Dan's playtest, 2026-09-26/27, with his decisions). Item 0 below is a reminder, not
-new work:
-
-0. **Drag to move (Round 21 item 4)** is committed, not pushed: Dan tests it on the play server first.
-1. **Upgrades outside cities** (Dan, 2026-09-26: "can we not upgrade units not in a city? … ships seem to be
-   the biggest issue"). Today `upgradeError` (`upgrades.ts`) allows upgrades only in one of your cities.
-   **DECIDED by Dan: anywhere inside your own borders, land or sea, at the normal price** (not in enemy
-   or neutral territory, not aboard a ship). Check that borders cover the water tiles near your coast so
-   ships there qualify (if they don't, count sea tiles next to your land borders); keep "has moves left"
-   and "unload its cargo first"; update the Upgrade button's reason text ("Only inside your borders"),
-   Upgrade all in ☰ → Units, How to Play, the AI (it may upgrade anywhere in its borders too), and tests.
-2. **A bought road took a detour through another civ's city** (Dan, 2026-09-26, turn 232: he asked for a
-   road from Chernihiv to Oxford; it went Chernihiv → **Nantes** (a rival's city) → Oxford instead of
-   straight to Oxford). Likely cause: the router in `roads.ts` treats existing road and rail tiles as
-   free, so the cheapest route reuses the old line through Nantes; it also predates borders (Round 19),
-   so it ignores them. **Confirm the cause, then fix:**
-   - the road goes **as directly as the terrain allows** between the two cities you picked. Reusing
-     existing road is fine only when it doesn't make a real detour (e.g. no more than a tile or two
-     longer than the direct line);
-   - it **never passes through another civ's city or borders**; your own territory and unclaimed land
-     only. If there's no such route, say so ("Nantes's borders are in the way") rather than building it;
-   - **show the route on the map and its price before you pay** (if it isn't shown already), so a detour
-     is visible before it's bought;
-   - AI roads follow the same rules. Tests and a scenario (`road-direct`: two of your cities with a
-     rival's city and its old road off to one side).
-3. **Diplomacy: picking a leader jumps straight into the conversation** (Dan, 2026-09-26). In 🤝
-   Diplomacy, tapping a civ opens the full-screen leader scene (Round 19 Part F) at once. **Fix:** tapping
-   a civ first shows its **overview**: leader portrait (small), civ, attitude, war/peace and how long, their
-   strength compared with yours, cities, score or victory progress, techs you could trade, their leader
-   bonuses (already there), and recent history with you (the news log's entries about them). From there,
-   a **"Talk to …"** button opens the leader scene for trades, demands, war, and peace. The leader scene
-   still opens directly for **their** approaches (first contact, their demands and offers, war declared
-   on you). Tests; preview in iPad portrait and landscape.
-4. **"Met 2 of 4 civs" after two rivals were eliminated** (Dan, 2026-09-26: he had met all four; two
-   are gone). The count leaves out eliminated rivals it had met. **Fix:** count everyone you've met, and
-   say who's gone: "Met 4 of 4 nations (2 eliminated)". Check every other count or list that might skip
-   eliminated civs the same way (Diplomacy, 🏆, the leader panel, the end-of-game summary).
-5. **Say "nation", not "civ", in everything players see** (**DECIDED by Dan, 2026-09-26**). "Civ" is short
-   for the franchise name the IP rules keep out of the game. Replace it in all player-facing text: UI
-   labels, toasts, cards, the news log, How to Play, tips, the Almanac, the setup screen, About, and
-   `docs/` pages Dan reads ("rival nations", "Met 4 of 4 nations", "Nation: Ukraine"). Watch the
-   grammar (a/an, plurals). **Code identifiers stay as they are** (`civId`, `civs.ts`, …); no save change.
-   Add a test that fails if "civ" or "Civ" appears in shipped player-facing strings (like the
-   "Civilization" check from Round 15), and add "use nation, not civ" to CLAUDE.md's IP guardrails.
-6. **"Unload all" for ships** (Dan, 2026-09-27: "when disembarking units from a ship, can we get an all
-   disembark button"). With a ship selected (or one of its cargo), a button **"Unload all (3)"** moves every
-   unit aboard that still has moves onto land: in port, they step into the city; at sea next to land, you
-   tap the land tile to unload onto (or drag, with item 0's drag to move), and all of them go there,
-   stacking as usual (an army stays an army). Units without moves left, or that can't enter that tile,
-   stay aboard with a short reason. Same button in the stack list. The AI isn't affected. Tests and a
-   scenario (`unload-all`: a Transport with 3 units next to a beach and one in port).
-7. **A nation with no cities isn't eliminated** (Dan, 2026-09-27: he destroyed France's last city, ended the
-   turn, and France is still in Diplomacy: "Cities 0", at war). Cause: `conquest.ts` eliminates a nation
-   only with **no cities and no units**, so a leftover ship, spy, aircraft, or unit anywhere keeps it alive
-   forever. **Fix (the planning session's default; Dan may change it):** a nation that **loses its last city
-   is eliminated at once**, and its remaining units are removed (announced with the elimination card),
-   **unless it still has a Settler**: then it gets **10 turns** (**Dan OK'd this, 2026-09-27**) to found a new city ("France has no cities
-   left; its settlers are looking for new land"), and is eliminated if it doesn't. The AI's last Settler
-   tries to found a city. Check victory counting (domination: capitals held; "rivals left"), Diplomacy,
-   and the met count (item 4) after an elimination. Also fix saves where this already happened: a
-   nation with no cities and no Settler is eliminated on load. Tests and a scenario (`last-city`).
-8. **Explore mode** (Dan, 2026-09-27: "ships should have a scout mode where they travel around the map";
-   **Dan: ships and land units**). An **Explore** button for any ship, any land military unit, and the Drone
-   (not Settlers or Spies): each turn the unit heads for the nearest unexplored area on its own (reuse the
-   AI's `explore` in `ai.ts`), and "Next unit" skips it. It **stops and asks for orders** when it sees an
-   enemy unit or city, is attacked, is damaged, finds nothing left to explore it can reach, or a ship would
-   end its turn somewhere it can't stay (the Galley's coast rule). Tapping the unit or any order cancels it.
-   A small compass mark on the unit shows it's exploring; ☰ → Units lists it ("exploring"). Saved with
-   the game (a save migration if the state changes). Tests and a scenario (`explore`).
-9. **A tech that reveals the whole map** (Dan, 2026-09-27; **DECIDED: a tech**). When a nation learns
-   **Space Flight** (or another Modern tech you judge fits better, e.g. a satellites-era one; say which),
-   **the whole map's terrain, coasts and cities become known to it** (not live vision of units: tiles you
-   can't currently see stay fogged, as usual). A card or toast says so ("Satellites map the whole world"),
-   the tech's description and the Almanac say it, and the minimap fills in. The AI gets it the same way.
-   Tests.
-
-**Throughout:** rules in data; How to Play, the Almanac, and tips updated; a scenario per item (named in
-the items) with a note; tests; `pace.test.ts` and `balance.test.ts` passing; lint and build clean;
-preview-verified on desktop and iPad emulation (portrait and landscape); a `STATE_VERSION` bump with
-migrations where state changes; the AI follows the same rules.
-
-**Done means:** every item reported; tests pass; committed; **not pushed**; the play server restarted.
-
-**Still open for Dan (no agent work needed):** test drag to move and this round on the play server, then
-say "push"; the iPad **Home Screen icon** sign-in and the **keep-which question**; **Q31** (time
-`huge-map` and `epic-map` on the iPad); optional: the title picture (`docs/TITLE-ART.md`).
-
-### Round 22 report (2026-09-27, version 0.22.0) — pushed 2026-09-27 on Dan's say-so (`2f1d3ae`, with Round 21's drag to move), live
+#### Round 22 report (2026-09-27, version 0.22.0) — pushed 2026-09-27 on Dan's say-so (`2f1d3ae`, with Round 21's drag to move), live
 
 **Progress note:** items 1–9 are done and committed; the play server was restarted mid-round (after
 items 1, 2, 3, 4, 7, 9) and again at the end with everything. 1141 tests (1135 pass, 6 skipped as
@@ -2200,6 +2100,83 @@ before), lint and build clean.
 - **Play server:** restarted with 0.22.0 at http://10.0.0.224:4173/.
 - **Commits waiting for Dan's "push"** (none pushed): Round 21's drag to move (`bee68d2`,
   `e5803a6`), this round's docs commit and every Round 22 commit (see `git log origin/main..main`).
+
+
+## Current Objective (Focus Area)
+
+### Round 23 — Five fixes from Dan's playtest: airlifts, Wake, years, the Drone, and air escorts
+
+**Pushing: don't push until Dan says "push"**; the whole round goes out together after he's tested it
+on the play server. No split pushes. Don't touch the hub.
+
+**How to work:** commit after each item, restart the play server when something playable is in, keep a
+short progress note at the end of this section, and at the end report **every item (0–5) individually**
+with how it was verified, listing the commits waiting for Dan's push.
+
+0. **Commit the updated docs first:** `CLAUDE.md` and `TODO.md` as their own commit, then re-read them.
+
+**The items** (from Dan's playtest, 2026-09-27/28, with his decisions):
+
+1. **Airlift: stay on the city you're airlifting from** (Dan, 2026-09-27). After an airlift the view and
+   selection jump to the destination. Keep the map and the city panel on the **source** city, so he can
+   airlift several units in a row; a short toast says where each one went ("Tank army flew to Kyiv").
+2. **Wake should make a unit ready at once** (Dan, 2026-09-27). Today Fortify uses up the unit's turn, so
+   a unit woken the same turn can't move until next turn. **Fix:** Fortify no longer spends the unit's
+   moves; it just sets the fortified state (the defense bonus as now) and takes it out of Next Unit. **Wake**
+   then leaves it with whatever moves it has, ready at once. Moving still clears fortified. Check the AI and
+   the fortify bonus rules still make sense (e.g. the bonus counts only from the next turn, if that's how
+   it works now); update How to Play; tests.
+3. **Years alongside turns** (Dan, 2026-09-27: "turns are fine to see but the year makes it more
+   interesting"). Show a made-up calendar year next to the turn: top bar "Turn 232 · 1854 AD", the news
+   log, the victory and end-of-game screens, save slots ("turn 232, 1854 AD"). Start at **4000 BC** and
+   slow down as the game goes on, e.g. 50 years a turn early, then 25, 10, 5, 2, and 1 year a turn late in
+   the Modern era, so a typical game (about turn 200–260) ends somewhere around **2000–2050 AD**; no year
+   0 (1 BC → 1 AD). Tied to the turn number (not eras), in data, the same for every map size (or scaled
+   by map size if games there run longer; say which). Tests for the conversion.
+4. **The Drone: a spy in the sky, then a bomb** (Dan, 2026-09-28: "what is the drone useful for? It
+   seems too weak … I thought it would be a cool way to send a bomb and they should not always get
+   caught"; and "why can't a drone be used for spying until it is exploded and then it disappears").
+   Today (`units.ts`): attack 6, defense 1, range 10, sight 4, recon; a fighter shoots it down most of
+   the time. **New design:**
+   - **Spying, reusable:** it keeps its long range and wide sight, and flying over or next to a rival
+     city **investigates** it like a Spy (buildings, what it's building and how long, defenders), with
+     no chance of being caught by that; it can scout again each turn;
+   - **Strike, one-shot:** a **"Strike (self-destruct)"** button: the Drone flies in and explodes, a
+     **strong hit** (around the Stealth Bomber's strength; the agent sets the number and reports it) on
+     units, or on a city's defenders; the Drone is used up either way;
+   - **hard to catch:** fighters intercept it only about **half the time or less** (like the Stealth
+     Bomber's `evadePct`), so it usually gets through;
+   - the odds panel shows the strike's odds and the chance it's intercepted; the AI uses drones the
+     same way (scouts, then strikes a key target, e.g. a unit guarding a victory-wonder city); the
+     Almanac and How to Play explain both uses. Check the balance matrix doesn't shift (drones come
+     late). Tests and a scenario (`drone-strike`).
+5. **Jet Fighters need a purpose** (Dan, 2026-09-28; **Dan chose: escort bombers, protect your land**).
+   - **Escort groups (Dan, 2026-09-28: "group jets with bombers like we create armies"):** in a city or on
+     a Carrier, a **Bomber or Stealth Bomber** can take **one or two fighters** (Fighter or Jet Fighter) as
+     escorts: an **"Add escort"** button, like forming an army, and **"Split"** to undo. The group rebases
+     and strikes as one, using the shortest range among them. When the group strikes, an enemy interceptor
+     must **get past the escorts first**: **two escorts protect more than one** (e.g. each escort fight
+     has to be won in turn, or the interception chance drops more with each escort; pick one rule, put its
+     numbers in data, and show it on the odds panel: "Escorted by 2 Jet Fighters: 12% chance to be
+     intercepted"). Escorts can be damaged or shot down doing it. On the map the group shows as the
+     bomber with a small "+2" escort mark. The AI forms escort groups when rivals have fighters.
+   - **Protect your land:** your units and cities **within a fighter's range** take less damage from
+     enemy air strikes and drones, and your fighters intercept more often there (show "Air cover" on
+     your tiles' info and the enemy's odds panel);
+   - Jet Fighters do both better than Fighters. The AI builds fighters when rivals fly bombers or drones,
+     and uses them as escorts. Tests and a scenario (`air-cover`).
+
+**Throughout:** rules and numbers in data; How to Play, the Almanac, and tips updated; a scenario per
+item where it helps (named in the items), each with a note; tests; `pace.test.ts` and `balance.test.ts`
+passing (run the sim matrix if items 4–5 could shift the victory mix, and report it); lint and build
+clean; preview-verified on desktop and iPad emulation (portrait and landscape); a `STATE_VERSION` bump
+with migrations where state changes (escort groups, fortify); the AI follows the same rules.
+
+**Done means:** items 0–5 reported; tests pass; committed; **not pushed**; the play server restarted.
+
+**Still open for Dan (no agent work needed):** test this round on the play server, then say "push"; the
+iPad **Home Screen icon** sign-in and the **keep-which question**; **Q31** (time `huge-map` and
+`epic-map` on the iPad); optional: the title picture (`docs/TITLE-ART.md`).
 
 ## Next Steps (Do Not Start Yet)
 

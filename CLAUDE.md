@@ -905,7 +905,9 @@ what was pushed.
 - **Round 22 (version 0.22.0) and Round 21's drag to move: done, pushed 2026-09-27 on Dan's say-so
   (`2f1d3ae`), live.** See the Round 22 report in TODO.md. Pushing is Dan's call again.
 
-**Current objective:** none set; the planning session writes the next round into TODO.md.
+**Current objective: Round 23** (see TODO.md): airlifts stay on the source city, Wake works at
+once, years alongside turns, the Drone (spy, then a one-shot strike), and fighter escort groups plus
+air cover. **Don't push until Dan says; it all goes out together.**
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.
