@@ -2178,7 +2178,7 @@ with migrations where state changes (escort groups, fortify); the AI follows the
 iPad **Home Screen icon** sign-in and the **keep-which question**; **Q31** (time `huge-map` and
 `epic-map` on the iPad); optional: the title picture (`docs/TITLE-ART.md`).
 
-**Progress note / Round 23 report (coding agent, 2026-09-28). Version 0.23.0, all committed, NOT pushed.**
+**Progress note / Round 23 report (coding agent, 2026-09-28). Version 0.23.0. PUSHED 2026-09-28 on Dan's say-so (`9756904..088d63e`, with the drag-in-a-city fix Dan confirmed works), live.**
 
 | # | Item | Status | Verified by |
 |---|------|--------|-------------|

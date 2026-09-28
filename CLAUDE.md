@@ -669,7 +669,7 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
 - The version shown on the About screen comes from `package.json`
   (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.19.0 for
   round 19 (0.19.1: Round 20's Metz fix; 0.19.2: Round 21's spy fix); 0.21.0 for Round 21's
-  drag to move; 0.22.0 for Round 22; 0.23.0 for Round 23 (committed, not pushed).
+  drag to move; 0.22.0 for Round 22; 0.23.0 for Round 23 (pushed 2026-09-28).
 - **Round 19: the news, the cards, and the log's running count.** The log is
   capped (`RULES.maxLogEntries`, 400), so **never find new entries by the log's
   length**: use `state.logCount` (the running count) and `entriesSince(state, mark)`
@@ -924,10 +924,10 @@ what was pushed.
 - **Round 22 (version 0.22.0) and Round 21's drag to move: done, pushed 2026-09-27 on Dan's say-so
   (`2f1d3ae`), live.** See the Round 22 report in TODO.md. Pushing is Dan's call again.
 
-- **Round 23 (version 0.23.0): done and committed, NOT pushed** (Dan tests on the play server, then
-  says "push"; it all goes out together). See the Round 23 report in TODO.md.
+- **Round 23 (version 0.23.0) and its drag-in-a-city fix: done, pushed 2026-09-28 on Dan's say-so
+  (`088d63e`), live.** See the Round 23 report in TODO.md. Pushing is Dan's call again.
 
-**Current objective: Round 23 is waiting for Dan's test and "push"** (see TODO.md).
+**Current objective: none until the planning session writes Round 24** (see TODO.md).
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.
