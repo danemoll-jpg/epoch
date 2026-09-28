@@ -25,6 +25,7 @@ import { cultureToNextGreatPerson, engineerCities, generalTiles, greatPersonErro
 import { bonusText, visibleResource } from '../game/resources';
 import { pendingVillage, settleVillageError } from '../game/villages';
 import { attackError, combatOdds, fortifyError, interception, overallChance, wakeError, type Strength } from '../game/combat';
+import { turnYearText } from '../game/calendar';
 import { airliftSourceError, airliftTargets, airRange, hasAirlift, tilesWithin } from '../game/air';
 import { CivName, civAdjective, civName, civVerb } from '../game/conquest';
 import {
@@ -1064,7 +1065,7 @@ export class App {
     });
     const turns = [...rows.keys()].sort((a, b) => b - a);
     $('newsBody').innerHTML = turns.length
-      ? turns.map((t) => `<div class="label">Turn ${t}${t === this.state.turn ? ' (now)' : ''}</div><ul class="newsList">${rows.get(t)!.reverse().join('')}</ul>`).join('')
+      ? turns.map((t) => `<div class="label">${turnYearText(t)}${t === this.state.turn ? ' (now)' : ''}</div><ul class="newsList">${rows.get(t)!.reverse().join('')}</ul>`).join('')
       : '<p class="sub">Nothing has happened yet. News of your cities, research, wars, wonders and eras will gather here.</p>';
     $('newsBody').scrollTop = 0;
   }
@@ -2653,7 +2654,7 @@ export class App {
     // Round 16b: cloud games live on the main menu; a player who isn't signed in is told how to reach them.
     $('backupCloud').innerHTML = this.opts.scenario ? '' : this.cloud.backupsHtml();
     const items = listBackups().map((b) => {
-      const turn = b.turn === undefined ? 'Unknown turn' : `Turn ${b.turn}`;
+      const turn = b.turn === undefined ? 'Unknown turn' : turnYearText(b.turn);
       const saved = b.savedAt ? `saved ${when(b.savedAt)}` : '';
       const upgrade = b.loadable && b.saveVersion !== undefined && b.saveVersion < STATE_VERSION ? ' (will be updated)' : '';
       const version = b.saveVersion === undefined ? '' : `version ${b.saveVersion}${upgrade}`;
@@ -2890,16 +2891,16 @@ export class App {
     if (eliminated) {
       banner = '💀';
       title = 'Defeated';
-      text = `Your empire has fallen on turn ${this.state.turn}: your last city is gone, and no Settler founded a new one.`;
+      text = `Your empire has fallen on ${turnYearText(this.state.turn, true)}: your last city is gone, and no Settler founded a new one.`;
     } else if (mine) {
       banner = '🏆';
       title = `${VICTORY_NAMES[v!.kind]} victory!`;
-      text = `You won on turn ${v!.turn}: ${victoryHow(v!.kind, true, victoryGoals(this.state.mapSize, this.state.difficulty))}.`;
+      text = `You won on ${turnYearText(v!.turn, true)}: ${victoryHow(v!.kind, true, victoryGoals(this.state.mapSize, this.state.difficulty))}.`;
     } else {
       banner = '🏳️';
       title = 'Defeat';
       const civ = v!.winner;
-      text = `${CivName(this.state, civ)} won ${aVictory(v!.kind)} on turn ${v!.turn}: ${victoryHow(v!.kind, false, victoryGoals(this.state.mapSize, this.state.difficulty))}. The game is theirs.`;
+      text = `${CivName(this.state, civ)} won ${aVictory(v!.kind)} on ${turnYearText(v!.turn, true)}: ${victoryHow(v!.kind, false, victoryGoals(this.state.mapSize, this.state.difficulty))}. The game is theirs.`;
     }
     const face = eliminated || mine ? this.human : v!.winner;
     $('endBanner').innerHTML = `${portraitHtml(this.state.players[face]!.civId, 96)} <span>${banner}</span>`;
@@ -2908,10 +2909,10 @@ export class App {
     $('endText').textContent = text;
     const rows = [this.human];
     if (v && v.winner !== this.human) rows.unshift(v.winner);
-    $('endStats').innerHTML = `<p class="sub endLevel">${esc(DIFFICULTIES[this.state.difficulty].name)} · ${esc(MAP_SIZES[this.state.mapSize].name)} map · turn ${this.state.turn}</p><table class="stats"><thead><tr><th></th><th>Cities</th><th>Techs</th><th>Wonders</th><th>Culture</th><th>Gold</th></tr></thead>
+    $('endStats').innerHTML = `<p class="sub endLevel">${esc(DIFFICULTIES[this.state.difficulty].name)} · ${esc(MAP_SIZES[this.state.mapSize].name)} map · ${turnYearText(this.state.turn, true)}</p><table class="stats"><thead><tr><th></th><th>Cities</th><th>Techs</th><th>Wonders</th><th>Culture</th><th>Gold</th></tr></thead>
       <tbody>${rows.map((p) => this.statsRow(p)).join('')}</tbody></table>${this.eliminatedLine()}${
         this.state.laterWins.length
-          ? `<p class="sub">Later achievements: ${this.state.laterWins.map((w) => `${w.winner === this.human ? 'you' : esc(civName(this.state, w.winner))}, ${VICTORY_NAMES[w.kind].toLowerCase()} (turn ${w.turn})`).join('; ')}.</p>`
+          ? `<p class="sub">Later achievements: ${this.state.laterWins.map((w) => `${w.winner === this.human ? 'you' : esc(civName(this.state, w.winner))}, ${VICTORY_NAMES[w.kind].toLowerCase()} (${turnYearText(w.turn, true)})`).join('; ')}.</p>`
           : ''
       }`;
     $('endCloseBtn').textContent = eliminated ? 'Look at the map' : 'Keep playing';
@@ -3057,10 +3058,10 @@ export class App {
     const v = this.state.victory;
     // Round 19 (item 10): after Keep playing, say up front that a win now won't count.
     $('victoryStatus').textContent = v
-      ? `${v.winner === this.human ? 'You' : CivName(this.state, v.winner)} won ${aVictory(v.kind)} on turn ${v.turn}${
+      ? `${v.winner === this.human ? 'You' : CivName(this.state, v.winner)} won ${aVictory(v.kind)} on ${turnYearText(v.turn, true)}${
           this.state.keepPlaying ? '. You kept playing: a win now won’t change the result, but it goes on the record' : ''
         }.`
-      : `Turn ${this.state.turn}. The first nation to reach any one of these wins.`;
+      : `${turnYearText(this.state.turn)}. The first nation to reach any one of these wins.`;
     // Round 13: the level and map this game is played at.
     $('victoryStatus').textContent += ` · ${DIFFICULTIES[this.state.difficulty].name} · ${MAP_SIZES[this.state.mapSize].name} map`;
     const body = $('victoryBody');
@@ -3087,7 +3088,7 @@ export class App {
     // Round 19 (item 10): wins reached after the game was decided.
     const later = this.state.laterWins.length
       ? `<div class="label">For the record (after the game was decided)</div><ul class="wonderList">${this.state.laterWins
-          .map((w) => `<li><b>${w.winner === this.human ? 'You' : hasMet(this.state, this.human, w.winner) ? esc(civDef(this.state, w.winner).name) : 'A nation you haven’t met'}</b> <span class="sub">${VICTORY_NAMES[w.kind]} victory · turn ${w.turn}</span></li>`)
+          .map((w) => `<li><b>${w.winner === this.human ? 'You' : hasMet(this.state, this.human, w.winner) ? esc(civDef(this.state, w.winner).name) : 'A nation you haven’t met'}</b> <span class="sub">${VICTORY_NAMES[w.kind]} victory · ${turnYearText(w.turn, true)}</span></li>`)
           .join('')}</ul>`
       : '';
     body.innerHTML = `${rules}${later}<div class="vcards">${cards}</div>
@@ -4081,7 +4082,7 @@ export class App {
       const where = newest.kind === 'cloud' ? ` · from the cloud (${esc(newest.device)})` : '';
       cont.innerHTML = `${portraitHtml(newest.civId, 64)}<span class="mmcText"><b>${sc && newest.kind === 'local' ? 'Back to the scenario' : 'Continue'}</b>
       <span>${esc(newest.leader)} of ${esc(newest.civName)}${where}</span>
-      <span class="sub">Turn ${newest.turn} · ${esc(newest.era)} era · ${esc(DIFFICULTIES[newest.difficulty as keyof typeof DIFFICULTIES]?.name ?? '')} · ${esc(MAP_SIZES[newest.mapSize as keyof typeof MAP_SIZES]?.name ?? '')} map</span></span>`;
+      <span class="sub">${turnYearText(newest.turn)} · ${esc(newest.era)} era · ${esc(DIFFICULTIES[newest.difficulty as keyof typeof DIFFICULTIES]?.name ?? '')} · ${esc(MAP_SIZES[newest.mapSize as keyof typeof MAP_SIZES]?.name ?? '')} map</span></span>`;
     }
     // Round 16b: signed in or not at a glance; while signed in, every game here and in the cloud.
     $('mmCloud').innerHTML = this.cloud.menuHtml(entries, !this.placeholder);
@@ -4552,7 +4553,7 @@ export class App {
     const player = this.state.players[this.human]!;
     const civ = CIVS.find((c) => c.id === player.civId);
     $('civLabel').innerHTML = `${portraitHtml(player.civId, 28)}${esc(civ?.name ?? '')} · ${esc(civ?.leader ?? '')}${this.uniqueReady() ? ' <span class="dot">●</span>' : ''}`;
-    $('turnLabel').textContent = `Turn ${this.state.turn}`;
+    $('turnLabel').textContent = turnYearText(this.state.turn);
     // Round 19 (item 1): the era as a chip in the era's color.
     const era = ERAS.find((e) => e.id === playerEra(player))!;
     $('eraLabel').textContent = `${era.name} era`;

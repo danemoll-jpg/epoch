@@ -6,6 +6,7 @@
 // Local saves stay primary: the App saves to the device exactly as before, with this game's
 // link to its cloud slot (`link`) inside the save file.
 
+import { turnYearText, yearText } from '../game/calendar';
 import { loadFirebase, SIGN_IN_FAILED, type CloudBackend, type CloudUser, type RedirectOutcome, type SignInOutcome } from '../cloud/backend';
 import { gunzipText } from '../cloud/compress';
 import { CloudSync, defaultSlotName, STATUS_TEXT, type SlotMeta, type SlotSave, type SyncOutcome, type SyncStatus } from '../cloud/sync';
@@ -498,7 +499,7 @@ export class CloudController {
       return;
     }
     const st = this.host.state();
-    const name = `${defaultSlotName(st)}, turn ${st.turn}`.slice(0, CLOUD.maxNameLength);
+    const name = `${defaultSlotName(st)}, turn ${st.turn}, ${yearText(st.turn)}`.slice(0, CLOUD.maxNameLength);
     this.showPanel(
       'Save to a new cloud slot',
       `<p>A copy of the game as it is now, kept in the cloud as a game of its own (for example before a risky move). This game carries on in its own slot.</p>
@@ -530,7 +531,7 @@ export class CloudController {
         ? `<button type="button" data-cloud="continue" class="primary">Play</button><button type="button" data-cloud="rename" data-slot="${e.slot}">Rename</button><button type="button" data-cloud="delete" data-slot="${e.slot}">Delete</button>`
         : `<button type="button" data-cloud="continue" class="primary">Play</button>`;
     return `<div class="cloudGame ${e.kind}">${portraitHtml(e.civId, 48)}<div class="cgText">${title}
-      <span class="sub">Turn ${e.turn} · ${esc(e.era)} era · ${esc(d)} · ${esc(size)} map</span>
+      <span class="sub">${turnYearText(e.turn)} · ${esc(e.era)} era · ${esc(d)} · ${esc(size)} map</span>
       <span class="sub">${esc(e.where)} · last played ${esc(whenText(e.savedAt, Date.now()))} on ${esc(e.device)}</span></div>
       <div class="cgBtns">${btns}</div></div>`;
   }
@@ -633,7 +634,7 @@ export class CloudController {
   }
 
   private copyLine(label: string, turn: number, savedAt: number, device: string): string {
-    return `<div class="cloudCopy"><b>${esc(label)}</b><span>Turn ${turn} · ${esc(whenText(savedAt, Date.now()))} · ${esc(device)}</span></div>`;
+    return `<div class="cloudCopy"><b>${esc(label)}</b><span>${turnYearText(turn)} · ${esc(whenText(savedAt, Date.now()))} · ${esc(device)}</span></div>`;
   }
 
   askConflict(cloud: SlotMeta): void {
