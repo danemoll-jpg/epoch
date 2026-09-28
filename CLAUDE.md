@@ -200,7 +200,7 @@ debugging, including from Safari's Web Inspector on the iPad.
 completes inside Safari's `pagehide`). Saved after every successful action
 (including End Turn), on `visibilitychange` → hidden, and on `pagehide`.
 The save carries `saveVersion` (= `STATE_VERSION` in `src/game/types.ts`,
-currently 16). **Bump `STATE_VERSION` whenever the state shape changes, and
+currently 17). **Bump `STATE_VERSION` whenever the state shape changes, and
 add a migration** to `MIGRATIONS` in `src/game/save.ts` (keyed by the
 version it upgrades from), plus a line in `MIGRATION_NOTES` for the notice,
 so Dan's game carries forward. Migrated so far: 2 → 3 (M3: no techs,
@@ -229,7 +229,8 @@ Part A: `laterWins` empty, `logCount` = the log's length), 13 → 14 (Part C: ev
 player's `intel` empty), and 14 → 15 (Part E: each city's `culture` = an equal share
 of its civ's culture so far, `unrest` 0), and 15 → 16 (Round 22: `checkEliminations` runs on
 the save: a nation with no cities and no Settler is eliminated, its units disbanded; one with a
-Settler gets `homelessSince` = today; units start without `exploring`).
+Settler gets `homelessSince` = today; units start without `exploring`), and 16 → 17 (Round 23:
+nothing to change; no fighter escorts a bomber yet, `Unit.escortOf` is simply absent).
 
 **Round 14: End Turn runs in a Web Worker.** `src/ui/turnRunner.ts` sends a
 copy of the state to `src/ui/turnWorker.ts`, which runs `runTurnJob`
@@ -307,7 +308,7 @@ arrows, "n / 5", the dot), `tap-city-with-unit` (a Legion 4 tiles from Babylon
 selected first: tapping Babylon opens it with "Move Legion here (4 turns)"; the
 Warrior next to it moves in with one tap); (round 19) `rival-victory-wonder`,
 `keep-playing-spaceship`, `rival-era`, `built-this-turn`, `upgrade-units`, `spies`,
-`new-units` (Modern Infantry and the Drone), `culture-flip`, `leader-scenes`; (round 20) `city-only-ships` (Metz held only by ships in port: "Capture Metz?", and a Bomber striking the ships); (round 21) `spy-in-my-city` (an enemy Spy in Oxford: walk in and catch it, "Move … here" from afar, a spy caught in the open); (round 22) `last-city` (Maurya eliminated with its Galley, Mali's Settler founds again), `satellites` (Rocketry maps the world), `road-direct` (Dan's Chernihiv–Nantes–Oxford road, now direct), `unload-all`, `explore`; `upgrade-units` also has a Horseman and a Galley upgrading inside Eridu's borders. A scenario can open a screen at load
+`new-units` (Modern Infantry and the Drone), `culture-flip`, `leader-scenes`; (round 20) `city-only-ships` (Metz held only by ships in port: "Capture Metz?", and a Bomber striking the ships); (round 21) `spy-in-my-city` (an enemy Spy in Oxford: walk in and catch it, "Move … here" from afar, a spy caught in the open); (round 22) `last-city` (Maurya eliminated with its Galley, Mali's Settler founds again), `satellites` (Rocketry maps the world), `road-direct` (Dan's Chernihiv–Nantes–Oxford road, now direct), `unload-all`, `explore`; (round 23) `drone-strike` (scout next to Pataliputra: its report opens; the other Drone slips past their Fighter and destroys the Musketman, used up), `air-cover` (their Jet's air cover on the odds panel; Add escort twice: "+2", range 4, lower interception; an escort shoots their Jet down); `upgrade-units` also has a Horseman and a Galley upgrading inside Eridu's borders. A scenario can open a screen at load
 (`opens: 'mainMenu' | 'settings' | 'almanac' | 'howToPlay' | 'setup'`) and
 show every tip afresh (`freshTips`, without touching the device's list);
 scenarios are silent unless Settings → Sound in dev scenarios. The religion ones use
@@ -668,7 +669,7 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
 - The version shown on the About screen comes from `package.json`
   (injected as `__APP_VERSION__` by `vite.config.ts`); it's 0.19.0 for
   round 19 (0.19.1: Round 20's Metz fix; 0.19.2: Round 21's spy fix); 0.21.0 for Round 21's
-  drag to move; 0.22.0 for Round 22 (both committed, not pushed).
+  drag to move; 0.22.0 for Round 22; 0.23.0 for Round 23 (committed, not pushed).
 - **Round 19: the news, the cards, and the log's running count.** The log is
   capped (`RULES.maxLogEntries`, 400), so **never find new entries by the log's
   length**: use `state.logCount` (the running count) and `entriesSince(state, mark)`
@@ -691,6 +692,21 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
   `unitBlocks` / `cityBlocks` in `movement.ts` decide who blocks a tile for single steps *and* path
   searches. Don't add another copy of either. `catchSpies` (`conquest.ts`): a military unit stepping
   onto another civ's Spy catches it; a city that changes hands catches the rival spies inside.
+- **Round 23.** **Calendar:** `src/data/calendar.ts` (`CALENDAR`: 4000 BC, 50/25/10/5/2/1 years a
+  turn; the same on every map size) and `src/game/calendar.ts` (`yearOf`, `yearText`, `turnYearText`;
+  no year 0: 50 BC → 1 AD). **Fortify** no longer spends moves (Wake leaves the unit ready at once).
+  **Airlift:** `App.afterAirlift` keeps the map and the city on the source city and selects the next unit
+  there (still one airlift per city per turn). **Air** (`AIR` in `rules.ts`: `maxEscorts` 2,
+  `homeInterceptPct`, `droneInvestigateRadius`, `droneIntelTurns`; unit flags `oneShot`, `slipPct`,
+  `escortable`, `airCoverPct` in `units.ts`): `src/game/escorts.ts` (`isFighter`, `escortsOf`,
+  `escortedBomber`, `escortingError` (an escort takes no orders), `groupRange`, `addEscort`/
+  `splitEscorts` (actions `addEscort`/`splitEscorts`), `followBomber`, `airCover`); `removeUnit` releases a
+  lost bomber's escorts. `combat.ts`'s `interception` returns every fight (`slip`, `escorts`, the last
+  fight's `chance`, and `total` = the chance it's shot down); read `total`, not `chance`, for "intercepted".
+  `combatOdds` adds "Air cover" against aircraft. The Drone's `recon` investigates rival cities next to the
+  tile (`reconCities`), and its strike is one-shot (`CombatReport.oneShot`). The AI (`aiAir.ts`) keeps
+  Drones for key targets (`keyTarget`), takes escorts when the enemy has fighters and splits after, and
+  builds more fighters when an enemy flies bombers or Drones (`fightersPerCityThreat`).
 - **Round 22.** Upgrades happen anywhere inside your borders (`inUpgradeZone` in `upgrades.ts`;
   borders already cover the water by the coast). **Roads** (`roads.ts`): `roadPath` searches only
   the box around the two cities, over your land, unclaimed land and a friendly target's land
@@ -905,9 +921,10 @@ what was pushed.
 - **Round 22 (version 0.22.0) and Round 21's drag to move: done, pushed 2026-09-27 on Dan's say-so
   (`2f1d3ae`), live.** See the Round 22 report in TODO.md. Pushing is Dan's call again.
 
-**Current objective: Round 23** (see TODO.md): airlifts stay on the source city, Wake works at
-once, years alongside turns, the Drone (spy, then a one-shot strike), and fighter escort groups plus
-air cover. **Don't push until Dan says; it all goes out together.**
+- **Round 23 (version 0.23.0): done and committed, NOT pushed** (Dan tests on the play server, then
+  says "push"; it all goes out together). See the Round 23 report in TODO.md.
+
+**Current objective: Round 23 is waiting for Dan's test and "push"** (see TODO.md).
 
 **Hub warning:** the game hub is live on Netlify, so pushing the hub repo
 deploys it immediately. Never push it without Dan saying so.
