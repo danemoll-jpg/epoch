@@ -9,6 +9,22 @@ export type CityFocus = 'balanced' | 'food' | 'production' | 'trade';
 
 export const CITY_FOCUSES: CityFocus[] = ['balanced', 'food', 'production', 'trade'];
 
+/**
+ * Round 23 (items 4 and 5): air rules beyond the unit table (src/game/escorts.ts, combat.ts).
+ * Escorts: an interceptor going after an escorted bomber must beat each escort in turn (each
+ * fight: its strength against aircraft against the escort's), and only then the bomber; losing
+ * any of those fights, it's shot down and the strike goes ahead.
+ */
+export const AIR = {
+  /** Fighters one bomber can take as escorts. */
+  maxEscorts: 2,
+  /** Interceptors fighting over their own land (inside their owner's borders) get this (percent). */
+  homeInterceptPct: 25,
+  /** The Drone: scouting within this many tiles of a rival city investigates it, for this many turns. */
+  droneInvestigateRadius: 1,
+  droneIntelTurns: 3,
+};
+
 export const RULES = {
   mapWidth: 32,
   mapHeight: 24,
@@ -274,6 +290,8 @@ export const RULES = {
       /** Round 19: Drones each AI keeps once it can build them (for scouting, and strikes at war). */
       dronesPerCiv: 1,
       dronesPerCivWar: 2,
+      /** Round 23: fighters per border or coastal city (up to 2 in one city) when an enemy flies bombers or Drones. */
+      fightersPerCityThreat: 1.5,
     },
 
     // ---- victory (Milestone 6; see src/game/aiGoals.ts) ----

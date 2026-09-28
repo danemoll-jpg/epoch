@@ -16,10 +16,13 @@
 // another of its owner's cities that has an Airport. It uses up the unit's moves.
 
 import { BUILDINGS } from '../data/buildings';
+import { AIR } from '../data/rules';
 import { UNITS } from '../data/units';
 import { distance } from './grid';
 import { updateExplored } from './fog';
-import { carrierWithRoom, cityAt, hovers, isAir, isShip } from './naval';
+import { escortingError, escortsOf, followBomber, groupRange } from './escorts';
+import { addLog } from './log';
+import { airRoom, cityAt, hovers, isAir, isShip } from './naval';
 import type { ActionResult, City, Coord, GameState, Unit } from './types';
 
 /** How far (tiles) this aircraft can strike or rebase. 0 for anything that isn't a based aircraft. */
@@ -56,25 +59,58 @@ export function recon(state: GameState, unitId: number, at: Coord): ActionResult
   unit.recon = { x: at.x, y: at.y, turn: state.turn };
   unit.movesLeft = 0;
   updateExplored(state, unit.owner);
-  return { ok: true, message: `scouted around ${at.x},${at.y}` };
+  // Round 23 (item 4): flying over or next to a rival city investigates it, like a Spy, and it
+  // can't be caught doing it. The report stays open for a few turns; the Drone can go again.
+  const p = state.players[unit.owner]!;
+  const seen = state.cities.filter((c) => c.owner !== unit.owner && distance(c, at) <= AIR.droneInvestigateRadius).sort((a, b) => a.id - b.id);
+  for (const c of seen) {
+    p.intel = (p.intel ?? []).filter((i) => i.cityId !== c.id && i.until >= state.turn);
+    p.intel.push({ cityId: c.id, until: state.turn + AIR.droneIntelTurns });
+    addLog(state, unit.owner, `Your ${UNITS[unit.type].name} looked over ${c.name}: its report is open for ${AIR.droneIntelTurns} turns`, c, c.owner, {
+      kind: 'spy',
+      ref: { cityId: c.id },
+    });
+  }
+  return { ok: true, message: seen.length ? `Report ready on ${seen.map((c) => c.name).join(' and ')}` : `scouted around ${at.x},${at.y}` };
+}
+
+/** Round 23: the rival cities a Drone scouting `at` would investigate. */
+export function reconCities(state: GameState, unit: Unit, at: Coord): City[] {
+  return state.cities.filter((c) => c.owner !== unit.owner && distance(c, at) <= AIR.droneInvestigateRadius);
+}
+
+/**
+ * Round 23: the owner's Carrier on this tile with room for `n` more aircraft (oldest first),
+ * not counting `except` (the Carrier the group is leaving).
+ */
+function carrierWithRoomFor(state: GameState, owner: number, x: number, y: number, n: number, except?: number): Unit | undefined {
+  return state.units
+    .filter((u) => u.owner === owner && u.x === x && u.y === y && isShip(u) && u.id !== except && airRoom(state, u) >= n)
+    .sort((a, b) => a.id - b.id)[0];
 }
 
 /** Why this aircraft can't rebase to `to`, or undefined if it can. */
 export function rebaseError(state: GameState, unit: Unit, to: Coord): string | undefined {
   if (state.currentPlayer !== unit.owner) return 'Not your turn';
   if (!isAir(unit)) return 'Only aircraft rebase';
+  const escorting = escortingError(state, unit);
+  if (escorting) return escorting;
   if (unit.movesLeft <= 0) return 'Already flew this turn';
   const d = distance(unit, to);
-  if (d > airRange(unit)) return `Out of range (${airRange(unit)} tiles)`;
+  // Round 23: a bomber with escorts flies as one group, as far as the shortest range, and
+  // lands only where there's room for all of it.
+  const range = groupRange(state, unit);
+  if (d > range) return `Out of range (${range} tiles${range < airRange(unit) ? ' with its escorts' : ''})`;
+  const size = 1 + escortsOf(state, unit).length;
   const city = cityAt(state, to.x, to.y);
   const ownCity = city && city.owner === unit.owner;
   if (d === 0) {
     // Same tile: between a city and a Carrier docked there.
-    if (unit.carriedBy === null) return carrierWithRoom(state, unit.owner, to.x, to.y) ? undefined : 'Already based here';
+    if (unit.carriedBy === null) return carrierWithRoomFor(state, unit.owner, to.x, to.y, size) ? undefined : 'Already based here';
     return ownCity ? undefined : 'Already aboard';
   }
   if (ownCity) return undefined;
-  if (carrierWithRoom(state, unit.owner, to.x, to.y, unit.carriedBy ?? undefined)) return undefined;
+  if (carrierWithRoomFor(state, unit.owner, to.x, to.y, size, unit.carriedBy ?? undefined)) return undefined;
   const carrier = state.units.find((u) => u.x === to.x && u.y === to.y && u.owner === unit.owner && isShip(u) && (UNITS[u.type].airCargo ?? 0) > 0);
   if (carrier) return `The ${UNITS[carrier.type].name} is full`;
   return 'Aircraft land only in your cities or on your Carriers';
@@ -93,21 +129,23 @@ export function rebase(state: GameState, unitId: number, to: Coord): ActionResul
   const city = cityAt(state, to.x, to.y);
   const ownCity = !!city && city.owner === unit.owner;
   const same = unit.x === to.x && unit.y === to.y;
+  const size = 1 + escortsOf(state, unit).length;
   let carrier: Unit | undefined;
-  if (same) carrier = unit.carriedBy === null ? carrierWithRoom(state, unit.owner, to.x, to.y) : undefined;
-  else if (!ownCity) carrier = carrierWithRoom(state, unit.owner, to.x, to.y, unit.carriedBy ?? undefined);
+  if (same) carrier = unit.carriedBy === null ? carrierWithRoomFor(state, unit.owner, to.x, to.y, size) : undefined;
+  else if (!ownCity) carrier = carrierWithRoomFor(state, unit.owner, to.x, to.y, size, unit.carriedBy ?? undefined);
   unit.x = to.x;
   unit.y = to.y;
   unit.carriedBy = carrier ? carrier.id : null;
   unit.movesLeft = 0;
   unit.fortified = false;
+  followBomber(state, unit);
   return { ok: true, message: carrier ? `onto the ${UNITS[carrier.type].name}` : city ? `to ${city.name}` : undefined };
 }
 
 /** Where this aircraft could rebase to this turn (other tiles only): its cities and Carriers with room, in range. */
 export function rebaseTargets(state: GameState, unit: Unit): Coord[] {
   if (!isAir(unit) || unit.movesLeft <= 0) return [];
-  return tilesWithin(state, unit, airRange(unit)).filter((c) => (c.x !== unit.x || c.y !== unit.y) && !rebaseError(state, unit, c));
+  return tilesWithin(state, unit, groupRange(state, unit)).filter((c) => (c.x !== unit.x || c.y !== unit.y) && !rebaseError(state, unit, c));
 }
 
 // ---- the airlift -----------------------------------------------------------------------------

@@ -7,6 +7,7 @@
 // damage in this game, so "damaged" never applies; a Galley's moves already keep it on the
 // coast, so it never ends a turn where it can't stay. The AI never uses it.
 
+import { escortingError } from './escorts';
 import { UNITS } from '../data/units';
 import { aiExploreStep } from './ai';
 import { airRange, recon } from './air';
@@ -36,7 +37,7 @@ export function exploreError(state: GameState, u: Unit): string | undefined {
   if (!canExplore(u)) return `A ${UNITS[u.type].name} doesn’t explore`;
   if (u.carriedBy !== null && !isAir(u)) return 'Unload it first';
   if (u.exploring) return 'Already exploring';
-  return undefined;
+  return escortingError(state, u);
 }
 
 /** A unit or city of someone this unit's owner is at war with (or barbarians), in sight of it. */

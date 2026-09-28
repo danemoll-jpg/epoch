@@ -160,11 +160,15 @@ export function defendsTile(state: GameState, u: Unit): boolean {
   return !isShip(u) && u.carriedBy === null;
 }
 
-/** Removes a unit; a ship takes its cargo down with it. Returns every unit removed. */
+/**
+ * Removes a unit; a ship takes its cargo down with it. Returns every unit removed. A lost
+ * bomber's escorts (Round 23) are released, each its own unit again.
+ */
 export function removeUnit(state: GameState, unitId: number): Unit[] {
   const gone = state.units.filter((u) => u.id === unitId || u.carriedBy === unitId);
   const ids = new Set(gone.map((u) => u.id));
   state.units = state.units.filter((u) => !ids.has(u.id));
+  for (const u of state.units) if (u.escortOf !== undefined && ids.has(u.escortOf)) delete u.escortOf;
   return gone;
 }
 

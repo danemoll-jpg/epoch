@@ -15,14 +15,34 @@
 // strike rebases toward the front: to its own city closest to the plan's target, if that's
 // closer than where it is now.
 
-import { RULES } from '../data/rules';
+import { AIR, RULES } from '../data/rules';
 import { UNITS, UNIT_IDS, type UnitTypeId } from '../data/units';
+import { WONDERS } from '../data/wonders';
+import { addEscort, escortsOf, groupRange, splitEscorts } from './escorts';
+import { atWar } from './war';
 import { airRange, rebase, rebaseError, recon, reconError, tilesWithin } from './air';
 import { attack, attackError, overallChance } from './combat';
 import { distance, neighbors } from './grid';
 import { isAir, isCoastal } from './naval';
 import { buildChoiceError } from './production';
 import type { AiPlan, City, Coord, GameState, Unit } from './types';
+
+/** Round 23: does any rival `p` is at war with fly aircraft of this kind? */
+function enemyFlies(state: GameState, p: number, kind: (id: UnitTypeId) => boolean): boolean {
+  return state.units.some((u) => u.owner !== p && kind(u.type) && atWar(state, p, u.owner));
+}
+
+/**
+ * Round 23 (item 4): a Drone is used up by its strike, so the AI saves it for a key target: the
+ * war plan's target city, a city building a victory wonder or spaceship parts, or an enemy next
+ * to one of its own cities.
+ */
+function keyTarget(state: GameState, p: number, at: Coord, targetCity: City | undefined): boolean {
+  if (targetCity && distance(targetCity, at) === 0) return true;
+  const city = state.cities.find((c) => c.x === at.x && c.y === at.y && c.owner !== p);
+  if (city?.build && (city.build.kind === 'project' || (city.build.kind === 'wonder' && WONDERS[city.build.id].victory))) return true;
+  return state.cities.some((c) => c.owner === p && distance(c, at) <= 1);
+}
 
 const A = RULES.ai.air;
 
@@ -77,10 +97,15 @@ export function airBuild(state: GameState, city: City, atWar: boolean): { fighte
   const fighter = bestAir(state, city, isFighterType, (id) => UNITS[id].airAttack ?? 0);
   if (fighter && airDefenseCity(state, city)) {
     const mine = state.cities.filter((c) => c.owner === owner);
-    const cap = Math.ceil(mine.filter((c) => airDefenseCity(state, c)).length * A.fightersPerCity);
+    // Round 23 (item 5): more fighters when an enemy flies bombers or Drones, and one more per
+    // bomber of its own (for escorts) when an enemy flies fighters.
+    const threat = enemyFlies(state, owner, (id) => isBomberType(id) || isDroneType(id));
+    const escorts = enemyFlies(state, owner, isFighterType) ? count(state, owner, isBomberType) : 0;
+    const cap = Math.ceil(mine.filter((c) => airDefenseCity(state, c)).length * (threat ? A.fightersPerCityThreat : A.fightersPerCity)) + escorts;
     // Count this city's own build as not there yet, so it keeps choosing the same thing.
     const building = city.build?.kind === 'unit' && isFighterType(city.build.id) ? 1 : 0;
-    if (count(state, owner, isFighterType, city) - building < 1 && count(state, owner, isFighterType) - building < cap) out.fighter = fighter;
+    const perCity = threat || escorts ? 2 : 1;
+    if (count(state, owner, isFighterType, city) - building < perCity && count(state, owner, isFighterType) - building < cap) out.fighter = fighter;
   }
   const bomber = bestAir(state, city, isBomberType, (id) => UNITS[id].attack);
   if (bomber && atWar && state.aiPlans[owner]) {
@@ -95,8 +120,10 @@ export function airBuild(state: GameState, city: City, atWar: boolean): { fighte
 export function bestStrike(state: GameState, unit: Unit, plan: AiPlan | null): Coord | undefined {
   const targetCity = plan ? state.cities.find((c) => c.id === plan.cityId) : undefined;
   let best: { at: Coord; score: number } | undefined;
-  for (const at of tilesWithin(state, unit, airRange(unit))) {
+  const oneShot = !!UNITS[unit.type].oneShot;
+  for (const at of tilesWithin(state, unit, groupRange(state, unit))) {
     if (attackError(state, unit, at)) continue;
+    if (oneShot && !keyTarget(state, unit.owner, at, targetCity)) continue;
     const chance = overallChance(state, unit, at);
     if (chance * 100 < A.strikeMinChancePct) continue;
     let score = chance;
@@ -128,11 +155,20 @@ export function runAiAir(state: GameState, playerId: number, plan: AiPlan | null
   for (const p of planes) {
     const unit = state.units.find((u) => u.id === p.id);
     if (!unit || unit.movesLeft <= 0) continue;
+    // Round 23 (item 5): a bomber takes the fighters based with it along when the enemy has
+    // fighters of its own, strikes, and lets them go again afterwards.
+    if (UNITS[unit.type].escortable && enemyFlies(state, playerId, isFighterType)) {
+      // The best fighters first; addEscort refuses once there are AIR.maxEscorts or none is left.
+      for (let i = 0; i < AIR.maxEscorts && addEscort(state, unit.id).ok; i++);
+    }
     const at = bestStrike(state, unit, plan);
     if (at) {
       attack(state, unit.id, at);
+      const after = state.units.find((u) => u.id === p.id);
+      if (after && escortsOf(state, after).length) splitEscorts(state, after.id);
       continue;
     }
+    if (escortsOf(state, unit).length) splitEscorts(state, unit.id);
     // Round 19: a Drone with nothing to strike scouts (the war target, else the nearest dark area).
     if (UNITS[unit.type].recon && droneScout(state, unit, targetCity)) continue;
     if (targetCity) rebaseTowardFront(state, unit, targetCity);

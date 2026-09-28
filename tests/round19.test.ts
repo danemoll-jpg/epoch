@@ -536,10 +536,10 @@ describe('Round 19 (Dan): Modern Infantry and the Drone', () => {
     expect(bestDefender(s, c)).toBe('modern_infantry');
   });
 
-  it('the Drone: cheaper and weaker than the Bomber, longer range and sight; fighters shoot it down easily', () => {
+  it('the Drone: cheaper than the Bomber, longer range and sight (Round 23: a strong one-shot strike, hard to catch)', () => {
     const d = UNITS.drone;
     expect(d.cost).toBeLessThan(UNITS.bomber.cost);
-    expect(d.attack).toBeLessThan(UNITS.bomber.attack);
+    expect(d.attack).toBeGreaterThan(UNITS.bomber.attack);
     expect(d.range!).toBeGreaterThan(UNITS.stealth_bomber.range!);
     expect(d.sight).toBeGreaterThan(UNITS.bomber.sight);
     const s = makeState(MAP);
@@ -550,7 +550,7 @@ describe('Round 19 (Dan): Modern Infantry and the Drone', () => {
     addUnit(s, 'warrior', 1, 10, 5);
     addUnit(s, 'warrior', 0, 9, 5); // eyes on the target
     const i = interception(s, drone, { x: 10, y: 5 });
-    expect(i?.chance).toBeGreaterThan(0.75);
+    expect(i?.total).toBeLessThanOrEqual(0.5);
   });
 
   it('scouting: in range, away from base, once a turn; the area is seen until the turn ends', () => {

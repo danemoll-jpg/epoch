@@ -131,6 +131,11 @@ export interface Unit {
   recon?: { x: number; y: number; turn: number };
   /** Round 22 (item 8): in Explore mode (it moves on its own at the start of each of its owner's turns). */
   exploring?: boolean;
+  /**
+   * Round 23 (item 5): the bomber this fighter escorts. It stands on the bomber's tile (and its
+   * Carrier, if any), rebases and strikes with it, and takes no orders of its own until Split.
+   */
+  escortOf?: number;
 }
 
 export type BuildItem =
@@ -204,7 +209,7 @@ export interface City {
  * 14 = Round 19 Part C (spies: each civ's investigation reports).
  * 15 = Round 19 Part E (culture borders: each city's culture so far, and its unrest).
  */
-export const STATE_VERSION = 16;
+export const STATE_VERSION = 17;
 
 export interface GameState {
   version: number;
@@ -494,5 +499,18 @@ export interface CombatReport {
    * A fighter intercepted the attack first (Round 10). If the fighter won, the attacker was
    * shot down and the strike never happened (attackerWon is false).
    */
-  interception?: { fighterType: UnitTypeId; fighterOwner: number; fighterWon: boolean; chance: number };
+  interception?: {
+    fighterType: UnitTypeId;
+    fighterOwner: number;
+    fighterWon: boolean;
+    /** The chance the attacker was shot down, all told (slipping past, escorts, the last fight). */
+    chance: number;
+    /** Round 23: the attacker (a Drone) slipped past before any fight. */
+    slipped?: boolean;
+    /** Round 23: escorts shot down by the interceptor, and whether an escort shot it down. */
+    escortsLost?: number;
+    escortWon?: boolean;
+  };
+  /** Round 23 (item 4): the attacker (a Drone) was used up by its strike. */
+  oneShot?: boolean;
 }

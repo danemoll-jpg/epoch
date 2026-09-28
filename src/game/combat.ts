@@ -30,7 +30,7 @@
 // `airAttack` against aircraft. Aircraft never defend a tile, and there are no air armies (Q16).
 
 import { BUILDINGS } from '../data/buildings';
-import { RULES } from '../data/rules';
+import { AIR, RULES } from '../data/rules';
 import { TERRAIN } from '../data/terrain';
 import { UNITS } from '../data/units';
 import { GREAT_PEOPLE_RULES } from '../data/greatPeople';
@@ -48,6 +48,8 @@ import { nextFloat } from './rng';
 import { atWar } from './war';
 import { armyWord, canCapture, defendsTile, hovers, isAir, isAircraft, isShip, isWaterAt, removeUnit } from './naval';
 import { airRange } from './air';
+import { tileOwner } from './borders';
+import { airCover, escortingError, escortsOf, followBomber, groupRange, isFighter } from './escorts';
 import { attackMods, defenseMods, effectsOf } from './leaders';
 import type { ActionResult, CombatReport, Coord, GameState, Unit } from './types';
 
@@ -185,11 +187,15 @@ export function attackError(state: GameState, unit: Unit, at: Coord): string | u
   if (def.attack <= 0) return `A ${def.name} can't attack`;
   // Aircraft strike from a Carrier; land cargo can't attack from a ship.
   if (unit.carriedBy !== null && !isAir(unit)) return 'Units can’t attack from a ship. Unload onto land first';
+  const escorting = escortingError(state, unit);
+  if (escorting) return escorting;
   if (unit.movesLeft <= 0) return isAir(unit) ? 'Already flew this turn' : 'No moves left';
   if (isAir(unit)) {
     const d = distance(unit, at);
+    // Round 23: an escorted bomber flies only as far as its shortest-ranged escort.
+    const range = groupRange(state, unit);
     if (d === 0) return 'Nothing to attack there';
-    if (d > airRange(unit)) return `Out of range (${airRange(unit)} tiles)`;
+    if (d > range) return `Out of range (${range} tiles${range < airRange(unit) ? ' with its escorts' : ''})`;
   } else if (distance(unit, at) !== 1) return 'Move next to it first to attack';
   if (isLandAttack(unit) && isWaterAt(state, at.x, at.y)) return 'Land units can’t attack ships at sea';
   const defender = pickDefender(state, at, unit.owner, unit);
@@ -200,23 +206,43 @@ export function attackError(state: GameState, unit: Unit, at: Coord): string | u
   return undefined;
 }
 
-// ---- interception (Round 10) ---------------------------------------------------------------
+// ---- interception (Round 10; escorts, slipping past and home skies: Round 23) --------------
+
+/** Round 23: one escort the interceptor must beat before it reaches the bomber. */
+export interface EscortFight {
+  escort: Unit;
+  /** The interceptor's strength against it, and its strength against aircraft. */
+  attack: Strength;
+  defense: Strength;
+  /** The interceptor's chance to shoot this escort down (else the escort shoots it down). */
+  chance: number;
+}
 
 export interface Interception {
   fighter: Unit;
   /** The fighter's strength against the attacker, and the attacker's against it. */
   attack: Strength;
   defense: Strength;
-  /** The fighter's chance to shoot the attacker down. */
+  /** The fighter's chance to win the last fight, against the attacker itself. */
   chance: number;
+  /** Round 23: the escorts it must beat first, in order. */
+  escorts: EscortFight[];
+  /** Round 23: the chance (0–1) the attacker slips past before any fight (the Drone). */
+  slip: number;
+  /** The chance the attacker is shot down, all told: (1 − slip) × every escort fight × the last fight. */
+  total: number;
 }
 
-/** A fighter's strength against an aircraft: its airAttack, less the target's stealth. */
-function interceptStrength(fighter: Unit, target: Unit): Strength {
+/**
+ * A fighter's strength against an aircraft: its airAttack, less the target's stealth, plus
+ * Round 23's bonus over its owner's own land.
+ */
+function interceptStrength(state: GameState, fighter: Unit, target: Unit, at: Coord): Strength {
   const mods: Modifier[] = [];
   if (fighter.veteran) mods.push({ label: 'Veteran', pct: RULES.combat.veteranPct });
   const evade = UNITS[target.type].evadePct ?? 0;
   if (evade) mods.push({ label: 'Stealth', pct: -evade });
+  if (AIR.homeInterceptPct && tileOwner(state, at.x, at.y) === fighter.owner) mods.push({ label: 'Over its own land', pct: AIR.homeInterceptPct });
   return strength(UNITS[fighter.type].airAttack ?? 0, mods);
 }
 
@@ -227,10 +253,32 @@ function airDefense(u: Unit): Strength {
   return strength(UNITS[u.type].defense * armyFactor(u), mods);
 }
 
+/** Round 23: an escort's strength against an interceptor: its strength against aircraft. */
+function escortStrength(u: Unit): Strength {
+  const mods: Modifier[] = [];
+  if (u.veteran) mods.push({ label: 'Veteran', pct: RULES.combat.veteranPct });
+  return strength(UNITS[u.type].airAttack ?? 0, mods);
+}
+
+/** How `fighter` would go after `attacker` striking `at`: every fight in order, and the odds all told. */
+function interceptBy(state: GameState, fighter: Unit, attacker: Unit, at: Coord): Interception {
+  const escorts = escortsOf(state, attacker).map((escort) => {
+    const attack = interceptStrength(state, fighter, escort, at);
+    const defense = escortStrength(escort);
+    return { escort, attack, defense, chance: winChance(attack.total, defense.total) };
+  });
+  const attack = interceptStrength(state, fighter, attacker, at);
+  const defense = airDefense(attacker);
+  const chance = winChance(attack.total, defense.total);
+  const slip = (UNITS[attacker.type].slipPct ?? 0) / 100;
+  const total = (1 - slip) * escorts.reduce((p, e) => p * e.chance, 1) * chance;
+  return { fighter, attack, defense, chance, escorts, slip, total };
+}
+
 /**
  * The fighter that would intercept `attacker` striking `at`, or undefined: one of the target's
  * owner's fighters (a based aircraft with an airAttack) whose base is within its range of the
- * target, the one with the best chance. Only aircraft and Helicopters are intercepted.
+ * target, the one most likely to shoot it down. Only aircraft and Helicopters are intercepted.
  */
 export function interception(state: GameState, attacker: Unit, at: Coord): Interception | undefined {
   if (!isAircraft(attacker)) return undefined;
@@ -238,25 +286,23 @@ export function interception(state: GameState, attacker: Unit, at: Coord): Inter
   if (!target) return undefined;
   let best: Interception | undefined;
   for (const f of state.units) {
-    if (f.owner !== target.owner || !isAir(f) || !((UNITS[f.type].airAttack ?? 0) > 0)) continue;
+    if (f.owner !== target.owner || !isFighter(f)) continue;
     if (distance(f, at) > airRange(f) || !atWar(state, f.owner, attacker.owner)) continue;
-    const a = interceptStrength(f, attacker);
-    const d = airDefense(attacker);
-    const chance = winChance(a.total, d.total);
-    if (!best || chance > best.chance || (chance === best.chance && f.id < best.fighter.id)) best = { fighter: f, attack: a, defense: d, chance };
+    const i = interceptBy(state, f, attacker, at);
+    if (!best || i.total > best.total || (i.total === best.total && f.id < best.fighter.id)) best = i;
   }
   return best;
 }
 
 /**
- * The chance an attack gets through and wins: (1 − the interceptor's chance) × the fight's
+ * The chance an attack gets through and wins: (1 − the chance it's shot down) × the fight's
  * chance. The AI's odds rule for aircraft; the odds panel shows it too.
  */
 export function overallChance(state: GameState, unit: Unit, at: Coord): number {
   const odds = combatOdds(state, unit, at);
   if (!odds) return 0;
   const icpt = interception(state, unit, at);
-  return (1 - (icpt?.chance ?? 0)) * odds.chance;
+  return (1 - (icpt?.total ?? 0)) * odds.chance;
 }
 
 /** The odds of `unit` attacking the tile `at`, or undefined if there's nothing to attack. */
@@ -264,7 +310,12 @@ export function combatOdds(state: GameState, unit: Unit, at: Coord): CombatOdds 
   const defender = pickDefender(state, at, unit.owner, unit);
   if (!defender) return undefined;
   const attack = attackStrength(unit, state, isAircraft(defender), defender.owner);
-  const defense = defenseStrength(state, defender, isLandAttack(unit));
+  let defense = defenseStrength(state, defender, isLandAttack(unit));
+  // Round 23 (item 5): the defender's fighters in range give it air cover against aircraft.
+  if (isAircraft(unit)) {
+    const cover = airCover(state, defender.owner, at);
+    if (cover.pct) defense = strength(defense.base, [...defense.mods, { label: 'Air cover', pct: cover.pct }]);
+  }
   return { attacker: unit, defender, attack, defense, chance: winChance(attack.total, defense.total) };
 }
 
@@ -276,14 +327,41 @@ export function attack(state: GameState, unitId: number, at: Coord): ActionResul
   if (err) return { ok: false, reason: err };
   const name = (u: Unit) => `${civAdjective(state, u.owner)} ${UNITS[u.type].name}${u.army ? ` ${armyWord(u.type)}` : ''}`;
 
-  // An aircraft (or a Helicopter) may be intercepted on the way (Round 10).
+  // An aircraft (or a Helicopter) may be intercepted on the way (Round 10). Round 23: a Drone
+  // may slip past first, and an escorted bomber's escorts must each be beaten before it is.
   let intercepted: CombatReport['interception'];
   const icpt = interception(state, unit, at);
   if (icpt) {
     const { fighter } = icpt;
-    const fighterWon = nextFloat(state) < icpt.chance;
-    const ipct = Math.round(icpt.chance * 100);
-    intercepted = { fighterType: fighter.type, fighterOwner: fighter.owner, fighterWon, chance: icpt.chance };
+    const ipct = Math.round(icpt.total * 100);
+    intercepted = { fighterType: fighter.type, fighterOwner: fighter.owner, fighterWon: false, chance: icpt.total };
+    let reached = true;
+    if (icpt.slip > 0 && nextFloat(state) < icpt.slip) {
+      intercepted.slipped = true;
+      reached = false;
+      addLog(state, unit.owner, `${name(unit)} slipped past the ${name(fighter)}`, at, fighter.owner, { kind: 'intercept' });
+    }
+    let lost = 0;
+    for (const e of reached ? icpt.escorts : []) {
+      if (nextFloat(state) < e.chance) {
+        removeUnit(state, e.escort.id);
+        lost++;
+        addLog(state, unit.owner, `${name(fighter)} shot down the escorting ${name(e.escort)} (${Math.round(e.chance * 100)}% odds)`, at, fighter.owner, { kind: 'intercept' });
+        recordLoss(state, unit.owner, fighter.owner, 1);
+        continue;
+      }
+      // The escort wins: the interceptor is shot down, and the strike goes ahead.
+      removeUnit(state, fighter.id);
+      intercepted.escortWon = true;
+      reached = false;
+      if (!e.escort.veteran && nextFloat(state) * 100 < RULES.combat.veteranChancePct) e.escort.veteran = true;
+      addLog(state, unit.owner, `The escorting ${name(e.escort)} shot down the intercepting ${name(fighter)} (${100 - Math.round(e.chance * 100)}% odds)`, at, fighter.owner, { kind: 'intercept' });
+      recordLoss(state, fighter.owner, unit.owner, 1);
+      break;
+    }
+    if (lost) intercepted.escortsLost = lost;
+    const fighterWon = reached && nextFloat(state) < icpt.chance;
+    intercepted.fighterWon = fighterWon;
     if (fighterWon) {
       const target = pickDefender(state, at, unit.owner, unit)!;
       const shotChance = combatOdds(state, unit, at)!.chance;
@@ -308,12 +386,15 @@ export function attack(state: GameState, unitId: number, at: Coord): ActionResul
           promoted: false,
           airStrike: isAir(unit) || undefined,
           interception: intercepted,
+          oneShot: UNITS[unit.type].oneShot || undefined,
         },
       };
     }
-    removeUnit(state, fighter.id);
-    addLog(state, unit.owner, `${name(unit)} shot down the intercepting ${name(fighter)} (${100 - ipct}% odds)`, at, fighter.owner, { kind: 'intercept' });
-    recordLoss(state, fighter.owner, unit.owner, 1);
+    if (reached) {
+      removeUnit(state, fighter.id);
+      addLog(state, unit.owner, `${name(unit)} shot down the intercepting ${name(fighter)} (${100 - ipct}% odds)`, at, fighter.owner, { kind: 'intercept' });
+      recordLoss(state, fighter.owner, unit.owner, 1);
+    }
   }
 
   const odds = combatOdds(state, unit, at)!;
@@ -332,12 +413,21 @@ export function attack(state: GameState, unitId: number, at: Coord): ActionResul
   }
   unit.movesLeft = 0;
   unit.fortified = false;
+  // Round 23: the escorts fly home with their bomber (or are released if it was lost).
+  followBomber(state, unit);
+  // Round 23 (item 4): a one-shot (the Drone) is used up by its strike, win or lose.
+  const oneShot = !!UNITS[unit.type].oneShot;
+  if (oneShot && attackerWon) removeUnit(state, unit.id);
 
   const pct = Math.round(chance * 100);
-  const back = isAir(unit) && attackerWon ? ' and flew back to base' : '';
-  const text = attackerWon
-    ? `${name(unit)} defeated ${name(defender)}${back} (${pct}% odds)`
-    : `${name(unit)} was destroyed attacking ${name(defender)} (${pct}% odds)`;
+  const back = isAir(unit) && attackerWon && !oneShot ? ' and flew back to base' : '';
+  const text = oneShot
+    ? attackerWon
+      ? `${name(unit)} exploded on ${name(defender)} and destroyed it (${pct}% odds)`
+      : `${name(unit)} exploded on ${name(defender)}, which survived (${pct}% odds)`
+    : attackerWon
+      ? `${name(unit)} defeated ${name(defender)}${back} (${pct}% odds)`
+      : `${name(unit)} was destroyed attacking ${name(defender)} (${pct}% odds)`;
   addLog(state, unit.owner, text, at, defender.owner, isAircraft(unit) ? { kind: 'strike' } : undefined);
   if (cargoLost > 0) addLog(state, loser.owner, `${cargoLost} unit${cargoLost === 1 ? '' : 's'} aboard the ${UNITS[loser.type].name} went down with it`, at, winner.owner);
   recordLoss(state, loser.owner, winner.owner, (loser.army ? RULES.combat.armySize : 1) + cargoLost);
@@ -398,6 +488,7 @@ export function attack(state: GameState, unitId: number, at: Coord): ActionResul
       cargoLost,
       airStrike: isAir(unit) || undefined,
       interception: intercepted,
+      oneShot: oneShot || undefined,
     },
   };
 }
@@ -416,7 +507,7 @@ export function fortifyError(state: GameState, unit: Unit): string | undefined {
   if (UNITS[unit.type].canFoundCity) return 'Settlers can’t fortify';
   if (unit.carriedBy !== null && !isAir(unit)) return 'Can’t fortify aboard a ship';
   if (unit.fortified) return 'Already fortified';
-  return undefined;
+  return escortingError(state, unit);
 }
 
 /**

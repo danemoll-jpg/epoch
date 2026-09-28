@@ -21,6 +21,7 @@ import { buyRoad } from './roads';
 import { upgradeUnit } from './upgrades';
 import { startExploring } from './explore';
 import { spyAction } from './spies';
+import { addEscort, splitEscorts } from './escorts';
 import type { SpyActionId } from '../data/spies';
 
 export type Action =
@@ -39,6 +40,10 @@ export type Action =
   /** Round 19 (item 11): a spy acts on a rival city (a tech to steal may be named). */
   | { type: 'spy'; unitId: number; cityId: number; action: SpyActionId; tech?: TechId }
   | { type: 'formArmy'; unitId: number }
+  /** Round 23 (item 5): a fighter based with this bomber joins it as an escort (the best one, unless named). */
+  | { type: 'addEscort'; unitId: number; escortId?: number }
+  /** Round 23 (item 5): the bomber's escorts go back to being units of their own. */
+  | { type: 'splitEscorts'; unitId: number }
   /** Board a ship docked on the unit's own tile (in a city). At sea, boarding is a move onto the ship. */
   | { type: 'board'; unitId: number; shipId: number }
   /** Go ashore from a ship docked in a city, into the city. Elsewhere, unloading is a move onto land. */
@@ -111,6 +116,10 @@ function runAction(state: GameState, action: Action): ActionResult {
       return spyAction(state, action.unitId, action.cityId, action.action, action.tech);
     case 'formArmy':
       return formArmy(state, action.unitId);
+    case 'addEscort':
+      return addEscort(state, action.unitId, action.escortId);
+    case 'splitEscorts':
+      return splitEscorts(state, action.unitId);
     case 'board':
       return boardShip(state, action.unitId, action.shipId);
     case 'unload':

@@ -277,6 +277,8 @@ const MIGRATIONS: Record<number, (s: Raw) => void> = {
   15: (s) => {
     checkEliminations(s as unknown as GameState);
   },
+  // Round 23: escort groups (`Unit.escortOf`) are new, so nothing is escorting yet; nothing to change.
+  16: () => {},
 };
 
 /** What each migration brought, for the "your game was updated" notice. Keyed like MIGRATIONS. */
@@ -295,6 +297,7 @@ export const MIGRATION_NOTES: Record<number, string> = {
   13: 'spies',
   14: 'culture borders and referendums',
   15: 'Explore mode, and nations without cities are eliminated',
+  16: 'fighter escorts, air cover, and the new Drone',
 };
 
 /** "the tech tree and combat and armies" for a save upgraded from version `from`. */

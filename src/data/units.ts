@@ -101,6 +101,22 @@ export interface UnitDef {
    * everything within its `sight` of that tile is explored and seen for the rest of the turn (the Drone).
    */
   recon?: boolean;
+  /**
+   * Round 23 (item 4): used up by its strike, win or lose (the Drone's "Strike (self-destruct)").
+   */
+  oneShot?: boolean;
+  /**
+   * Round 23 (item 4): the chance (percent) it slips past an interceptor before any fight (the
+   * Drone: small and low, so a fighter catches it only about half the time or less).
+   */
+  slipPct?: number;
+  /** Round 23 (item 5): a bomber that can take fighters along as escorts (src/game/escorts.ts). */
+  escortable?: boolean;
+  /**
+   * Round 23 (item 5): air cover. Your units on a tile within this fighter's range defend this
+   * much better (percent) against air strikes, Helicopters and Drones. The best fighter counts.
+   */
+  airCoverPct?: number;
 }
 
 function unit(
@@ -161,15 +177,17 @@ export const UNITS: Record<UnitTypeId, UnitDef> = {
   // Aircraft (Round 10). Attack is a strike on land or sea; defense is its strength when
   // intercepted; airAttack is its strength against aircraft.
   //                  name              glyph icon             cost att def range airAtt tech
-  fighter: aircraft('fighter', 'Fighter', 'Fi', 'biplane', 60, 4, 4, 4, 8, 'flight'),
-  bomber: aircraft('bomber', 'Bomber', 'Bm', 'carpet-bombing', 80, 12, 3, 6, 0, 'flight', { siege: true }),
-  jet_fighter: aircraft('jet_fighter', 'Jet Fighter', 'Jf', 'jet-fighter', 80, 8, 8, 6, 16, 'advanced_flight'),
+  fighter: aircraft('fighter', 'Fighter', 'Fi', 'biplane', 60, 4, 4, 4, 8, 'flight', { airCoverPct: 25 }),
+  bomber: aircraft('bomber', 'Bomber', 'Bm', 'carpet-bombing', 80, 12, 3, 6, 0, 'flight', { siege: true, escortable: true }),
+  jet_fighter: aircraft('jet_fighter', 'Jet Fighter', 'Jf', 'jet-fighter', 80, 8, 8, 6, 16, 'advanced_flight', { airCoverPct: 50 }),
   stealth_bomber: aircraft('stealth_bomber', 'Stealth Bomber', 'Sb', 'stealth-bomber', 120, 20, 6, 8, 0, 'advanced_flight', {
-    alsoRequires: 'computers', evadePct: 50, siege: true,
+    alsoRequires: 'computers', evadePct: 50, siege: true, escortable: true,
   }),
-  // Round 19: cheaper and weaker than the Bomber (attack 6, and defense 1: a fighter shoots it
-  // down most of the time), but the longest range and the widest sight; it can Scout.
-  drone: aircraft('drone', 'Drone', 'Dr', 'delivery-drone', 45, 6, 1, 10, 0, 'computers', { sight: 4, recon: true }),
+  // Round 19: the longest range and the widest sight; it can Scout (Round 23: scouting next to a
+  // rival city also investigates it). Round 23 (item 4): its strike is a one-shot self-destruct
+  // almost as strong as the Stealth Bomber's (18 against 20), and it slips past a fighter half
+  // the time before any fight (its defense is still 1 once caught).
+  drone: aircraft('drone', 'Drone', 'Dr', 'delivery-drone', 50, 18, 1, 10, 0, 'computers', { sight: 4, recon: true, oneShot: true, slipPct: 50 }),
   helicopter: {
     id: 'helicopter', name: 'Helicopter', glyph: 'He', icon: 'helicopter', domain: 'land', cargo: 0, cost: 70,
     moves: 5, sight: 2, attack: 10, defense: 4, canFoundCity: false, popCost: 0, requires: 'advanced_flight', hover: true,
