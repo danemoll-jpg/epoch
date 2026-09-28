@@ -27,7 +27,7 @@ import { pendingVillage, settleVillageError } from '../game/villages';
 import { attackError, combatOdds, fortifyError, interception, overallChance, wakeError, type Strength } from '../game/combat';
 import { turnYearText } from '../game/calendar';
 import { addEscortError, airCover, escortCandidates, escortedBomber, escortsOf, groupRange } from '../game/escorts';
-import { airliftSourceError, airliftTargets, airRange, hasAirlift, tilesWithin } from '../game/air';
+import { airliftSourceError, airliftTargets, airRange, hasAirlift, reconCities, tilesWithin } from '../game/air';
 import { CivName, civAdjective, civName, civVerb } from '../game/conquest';
 import {
   attitude,
@@ -1223,9 +1223,9 @@ export class App {
       `Buildings: ${city.buildings.length ? city.buildings.map((b) => BUILDINGS[b].name).join(', ') : 'none'}${city.wonders.length ? ` · wonders: ${city.wonders.map((w) => WONDERS[w].name).join(', ')}` : ''}`,
     ];
     this.showNow({
-      title: `Spy report: ${city.name}`,
+      title: `Report: ${city.name}`,
       icon: UNITS.spy.icon,
-      text: `${CivName(this.state, city.owner)}'s city, as your spy saw it.`,
+      text: `${CivName(this.state, city.owner)}'s city, as your spy or Drone saw it.`,
       lines: lines.map((l) => esc(l)),
       buttons: [{ label: until !== undefined ? `OK (readable until turn ${until})` : 'OK', cls: 'bigBtn' }],
     });
@@ -1980,8 +1980,14 @@ export class App {
           return;
         }
         this.pendingMove = undefined;
+        // Round 23 (item 4): a rival city next to the tile is investigated too (tap it to read the report).
+        const seen = reconCities(this.state, findUnit(this.state, result.unitId)!, { x: tx, y: ty });
         if (this.dispatch({ type: 'recon', unitId: result.unitId, at: { x: tx, y: ty } })) {
-          this.toast(`Drone scouted the area: you can see it until the end of the turn`);
+          this.toast(
+            seen.length
+              ? `Drone scouted the area and looked over ${seen.map((c) => c.name).join(' and ')}: tap ${seen.length === 1 ? 'it' : 'one'} to read the report (open for ${AIR.droneIntelTurns} turns)`
+              : 'Drone scouted the area: you can see it until the end of the turn',
+          );
           this.selectNext(false);
         }
         return;
@@ -4819,7 +4825,7 @@ export class App {
             .map(
               (u) => `<button type="button" data-unit="${u.id}" class="stackItem${u.id === sel.id ? ' on' : ''}">
               ${this.badge(u.type, u.owner)}${UNITS[u.type].name}${u.army ? ` ${armyWord(u.type)} ×${RULES.combat.armyMultiplier}` : ''}${u.veteran ? ' ★' : ''}${u.fortified && !isShip(u) ? ' 🛡' : ''}${u.carriedBy !== null ? ' ⚓' : ''}
-              <span class="sub">${movesText(u.movesLeft)}/${UNITS[u.type].moves}${u.escortOf !== undefined ? ' · escorting' : escortsOf(this.state, u).length ? ` · +${escortsOf(this.state, u).length} escort` : u.carriedBy !== null ? ' · aboard' : ''}</span></button>`,
+              <span class="sub">${movesText(u.movesLeft)}/${UNITS[u.type].moves}${u.escortOf !== undefined ? ' · escorting' : escortsOf(this.state, u).length ? ` · +${plural(escortsOf(this.state, u).length, 'escort')}` : u.carriedBy !== null ? ' · aboard' : ''}</span></button>`,
             )
             .join('')
         : '';

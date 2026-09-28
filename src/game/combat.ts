@@ -407,7 +407,8 @@ export function attack(state: GameState, unitId: number, at: Coord): ActionResul
   // A sunk ship takes its cargo down with it.
   const cargoLost = removeUnit(state, loser.id).length - 1;
   let promoted = false;
-  if (!winner.veteran && nextFloat(state) * 100 < RULES.combat.veteranChancePct) {
+  // Round 23: a one-shot that won is gone, so it can't be promoted.
+  if (!winner.veteran && !(winner === unit && UNITS[unit.type].oneShot) && nextFloat(state) * 100 < RULES.combat.veteranChancePct) {
     winner.veteran = true;
     promoted = true;
   }

@@ -45,7 +45,7 @@ export function groupRange(state: GameState, u: Unit): number {
   return escortsOf(state, u).reduce((r, e) => Math.min(r, UNITS[e.type].range ?? 0), own);
 }
 
-/** The fighters on this bomber's base that could join it as escorts now. */
+/** The fighters on this bomber's base that could join it as escorts now, the one Add escort takes first. */
 export function escortCandidates(state: GameState, bomber: Unit): Unit[] {
   if (!UNITS[bomber.type].escortable) return [];
   return state.units
@@ -54,7 +54,12 @@ export function escortCandidates(state: GameState, bomber: Unit): Unit[] {
         u.owner === bomber.owner && u.x === bomber.x && u.y === bomber.y && u.carriedBy === bomber.carriedBy &&
         isFighter(u) && u.escortOf === undefined && u.movesLeft > 0,
     )
-    .sort((a, b) => (UNITS[b.type].airAttack ?? 0) - (UNITS[a.type].airAttack ?? 0) || Number(b.veteran) - Number(a.veteran) || a.id - b.id);
+    // The best first, but a fighter told to stay on guard ("Stay") only once the others are taken.
+    .sort(
+      (a, b) =>
+        Number(a.fortified) - Number(b.fortified) ||
+        (UNITS[b.type].airAttack ?? 0) - (UNITS[a.type].airAttack ?? 0) || Number(b.veteran) - Number(a.veteran) || a.id - b.id,
+    );
 }
 
 /** Why `escort` can't join `bomber` now, or undefined if it can. */
