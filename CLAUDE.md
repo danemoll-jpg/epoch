@@ -685,7 +685,10 @@ Nothing else to wire up: the ☰ menu lists every entry automatically.
 - **Round 21: drag to move** (`src/ui/dragMove.ts`, pure: `dragGrabsUnit`, `dropResult`,
   `dragPreview`, `edgeScroll`; `input.ts`'s optional `grab`/`onDragMove`/`onDragEnd`; in `app.ts`
   `dragUnitTo`/`dropUnit`, and `runTap`, the half of `handleTap` a drop shares). Pressing on the
-  selected unit and dragging moves it; any other drag pans.
+  selected unit and dragging moves it; any other drag pans. Round 23 follow-up: a press grabs the unit
+  on its tile **or on its drawn disc ± `GRAB_SLOP`** (a unit in a city is drawn on the tile's lower-left
+  edge; the disc geometry is `src/render/unitDisc.ts`, shared with the renderer), and starting a drag
+  closes the city panel.
 - **Round 21: one rule for "who fights here" and "who blocks here".** `defenderCandidates` /
   `pickDefender` / `hasVisibleDefender` in `combat.ts` decide who would fight on a tile (the tap uses
   `hasVisibleDefender`, so a Spy, ships in port or grounded aircraft never make a tap an attack);

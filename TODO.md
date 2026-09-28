@@ -2205,6 +2205,32 @@ is so a press-and-drag on the selected unit works in a city and out (closing the
 the way), add a test for the city case, and note it in the report. **Then** the round waits for Dan's
 "push" as before.
 
+**Drag to move in a city: fixed (coding agent, 2026-09-28).**
+- **Cause:** in a city the unit's disc is drawn small in the tile's **lower-left corner**, right on the
+  tile's edge, and the city's name label covers the top of the tile below. A finger on the disc often lands
+  just past the tile edge, and a press on any tile other than the unit's own pans the map. Outside a city
+  the disc is big and centered, so the same press works. **Reproduced** in iPad emulation (landscape): a
+  press 3 px below Babylon's tile edge on the Rifleman's disc panned the map. The mouse worked when pressed
+  on the tile itself, with or without the city panel open. The press isn't lost to the city panel or to
+  the city opening, and the unit picked from the city panel is the one the drag sees.
+- **Fix:** a press grabs the selected unit anywhere on its tile **or on its drawn disc, give or take
+  0.2 tile** (`GRAB_SLOP` in `src/ui/dragMove.ts`; the disc geometry is now one function,
+  `src/render/unitDisc.ts`, shared by the renderer and the drag rule; `grab` passes the exact map point).
+  **Starting a drag closes the city panel** (it would cover the map and swallow drops).
+- **Tests:** `tests/dragMove.test.ts`: a press on the disc just below or left of a city tile grabs the
+  unit, while the same spot next to an ordinary tile doesn't; dropping next to the city moves the unit
+  out; and a finger gesture through `input.ts` (touch, 80 px tiles) pressing below Babylon's edge drags
+  the unit rather than the map.
+- **Preview-verified:** iPad landscape emulation (the press that used to pan now moves the Rifleman out
+  of Babylon). iPad portrait with touch-type pointer events: the city panel open, a press just below the
+  city tile's edge, the panel closes as the drag starts, and the Rifleman lands on the tile south. Outside
+  a city (the `combat` scenario's Legion) a touch drag still works. **Not verified on a real iPad**;
+  that's Dan's.
+- **Also:** the dev scenario outcome tests now allow 30 s like their sister loop (`large-map` plays 60
+  AI turns and passed 5 s under a full parallel run). Timed before and after Round 23: the same (about
+  1.7–2.0 s alone), so the AI isn't slower.
+
+
 ## Next Steps (Do Not Start Yet)
 
 All of these are deferred for **sequencing only**. Each depends on the

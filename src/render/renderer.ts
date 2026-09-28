@@ -28,6 +28,7 @@ import { behindUnit } from '../game/stack';
 import { unitVisibleTo, visibleTiles } from '../game/fog';
 import { territory } from '../game/borders';
 import { carriedBy, isAir } from '../game/naval';
+import { unitDisc } from './unitDisc';
 import { tileIndex } from '../game/grid';
 import { visibleResource } from '../game/resources';
 import { roadAt } from '../game/roads';
@@ -407,10 +408,12 @@ function drawUnit(
   cargo = 0,
   escorts = 0,
 ): void {
-  // In a city the disc shrinks into the lower-left corner so the city's size stays readable.
-  const cx = inCity ? x + s * 0.27 : x + s / 2;
-  const cy = inCity ? y + s * 0.73 : y + s / 2;
-  const r = inCity ? s * 0.21 : s * 0.3;
+  // In a city the disc shrinks into the lower-left corner so the city's size stays readable
+  // (unitDisc.ts, which the drag rule reads too).
+  const disc = unitDisc(inCity);
+  const cx = x + s * disc.cx;
+  const cy = y + s * disc.cy;
+  const r = s * disc.r;
   // Mixed stack: a second, smaller disc of another unit type peeks out behind (upper left),
   // so a different unit on the tile is never hidden.
   if (behind) {

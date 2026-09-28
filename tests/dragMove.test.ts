@@ -180,3 +180,55 @@ describe('drag to move: the gesture', () => {
     expect(r2.log).toEqual(['drag 150,100', 'cancel']);
   });
 });
+
+// ---- Round 23 follow-up: dragging a unit out of one of your cities ---------------------------
+
+describe('drag to move: a unit in a city (Round 23 follow-up)', () => {
+  function inCity() {
+    const state = makeState(['gggggggg', 'gggggggg', 'gggggggg', 'gggggggg']);
+    const city = addCity(state, 0, 3, 1, { name: 'Babylon' });
+    const rifle = addUnit(state, 'rifleman', 0, 3, 1);
+    return { state, city, rifle };
+  }
+
+  it('a press on its disc just past the tile edge still grabs it (in a city the disc sits on the lower-left edge)', () => {
+    const { state, rifle } = inCity();
+    // The disc is drawn around (3.27, 1.73); a finger on its bottom can land at y 2.05, in the tile below.
+    expect(dragGrabsUnit(state, 0, rifle.id, 3.27, 2.05)).toBe(true);
+    expect(dragGrabsUnit(state, 0, rifle.id, 2.95, 1.9)).toBe(true); // just left of the tile
+    expect(dragGrabsUnit(state, 0, rifle.id, 3.5, 1.5)).toBe(true); // the city picture: its own tile
+    expect(dragGrabsUnit(state, 0, rifle.id, 3.9, 2.6)).toBe(false); // well into the next tile: pans
+    // Outside a city the same spot below the tile is too far from the centered disc.
+    const { state: open, legion } = board();
+    expect(dragGrabsUnit(open, 0, legion.id, 1.27, 2.05)).toBe(false);
+  });
+
+  it('dropping it next to the city moves it out', () => {
+    const { state, rifle } = inCity();
+    const r = dropResult(state, 0, rifle.id, 3, 0);
+    expect(r).toEqual({ kind: 'move', unitId: rifle.id });
+    expect(applyAction(state, { type: 'move', unitId: rifle.id, to: { x: 3, y: 0 } }).ok).toBe(true);
+    expect([rifle.x, rifle.y]).toEqual([3, 0]);
+  });
+
+  it('with a finger (80 px tiles): pressing its disc below the city tile and dragging drags the unit, not the map', () => {
+    const { state, rifle } = inCity();
+    const c = fakeCanvas();
+    const log: string[] = [];
+    const TILE = 80;
+    attachMapInput(c, {
+      onTap: () => void log.push('tap'),
+      onPan: () => void (log.includes('pan') || log.push('pan')),
+      onZoom: () => {},
+      grab: (x, y) => dragGrabsUnit(state, 0, rifle.id, x / TILE, y / TILE),
+      onDragMove: () => void (log.includes('drag') || log.push('drag')),
+      onDragEnd: (x, y, cancelled) => void log.push(cancelled ? 'cancel' : `drop ${Math.floor(x / TILE)},${Math.floor(y / TILE)}`),
+    });
+    // Babylon's tile spans y 80–160; the finger lands at y 164, on the disc's bottom.
+    send(c, 'pointerdown', 1, 3.27 * TILE, 164);
+    send(c, 'pointermove', 1, 3.27 * TILE, 120);
+    send(c, 'pointermove', 1, 3.4 * TILE, 40);
+    send(c, 'pointerup', 1, 3.4 * TILE, 40);
+    expect(log).toEqual(['drag', 'drop 3,0']);
+  });
+});

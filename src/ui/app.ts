@@ -355,8 +355,9 @@ export class App {
       // Round 21 (item 4): drag the selected unit to move it.
       grab: (sx, sy) => {
         if (this.turnBusy || this.selectedUnitId === undefined) return false;
-        const t = this.tileAtScreen(sx, sy);
-        return dragGrabsUnit(this.state, this.human, this.selectedUnitId, t.x, t.y);
+        // Round 23 follow-up: the exact map point, so a press on the unit's disc just past its tile's edge grabs it too.
+        const w = screenToWorld(this.camera, this.cssW, this.cssH, sx, sy);
+        return dragGrabsUnit(this.state, this.human, this.selectedUnitId, w.x, w.y);
       },
       onDragMove: (sx, sy) => this.dragUnitTo(sx, sy),
       onDragEnd: (sx, sy, cancelled) => this.dropUnit(sx, sy, cancelled),
@@ -1864,6 +1865,8 @@ export class App {
       this.stopPan();
       this.pendingMove = undefined;
       this.unitDrag = { unitId, sx, sy, tx: NaN, ty: NaN };
+      // Round 23 follow-up: the city panel would hide (and swallow drops on) much of the map: close it.
+      if (this.openCityId !== undefined) this.closeCity();
     }
     this.unitDrag.sx = sx;
     this.unitDrag.sy = sy;

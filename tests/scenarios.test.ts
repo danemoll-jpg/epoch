@@ -1475,7 +1475,8 @@ describe('dev scenarios', () => {
     const outcome = OUTCOMES[id];
     expect(outcome, `add an expected outcome for scenario "${id}" to OUTCOMES`).toBeDefined();
     outcome!(scenario.build());
-  });
+    // As below: large-map's 60 AI turns can pass the default 5 s under a full parallel run.
+  }, 30_000);
 
   it.each(SCENARIOS.map((s) => [s.id, s] as [string, Scenario]))('%s is a valid, repeatable game state', (_id, scenario) => {
     const a = scenario.build();

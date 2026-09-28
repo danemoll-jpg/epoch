@@ -19,13 +19,29 @@ import { findPath, findUnit, pathTurns } from '../game/movement';
 import { isAir } from '../game/naval';
 import type { Coord, GameState } from '../game/types';
 import type { ScreenRect } from '../render/camera';
+import { unitDisc } from '../render/unitDisc';
 import { resolveTap, type TapResult } from './tap';
 
-/** Does a press on tile (tx, ty) grab the selected unit for a drag? */
-export function dragGrabsUnit(state: GameState, viewer: number, selectedUnitId: number | undefined, tx: number, ty: number): boolean {
+/**
+ * Round 23 follow-up: how far (in tiles) outside the unit's drawn disc a press still grabs it.
+ * In a city the disc sits small in the tile's lower-left corner, right on the tile's edge (and the
+ * city's name label covers the top of the tile below), so a finger on it often lands just past the
+ * edge; that used to pan the map instead.
+ */
+export const GRAB_SLOP = 0.2;
+
+/**
+ * Does a press at map point (wx, wy) (in tiles; fractions allowed) grab the selected unit for a
+ * drag? Anywhere on its tile, or on its drawn disc give or take GRAB_SLOP.
+ */
+export function dragGrabsUnit(state: GameState, viewer: number, selectedUnitId: number | undefined, wx: number, wy: number): boolean {
   if (selectedUnitId === undefined || state.currentPlayer !== viewer) return false;
   const u = findUnit(state, selectedUnitId);
-  return !!u && u.owner === viewer && u.movesLeft > 0 && u.x === tx && u.y === ty;
+  if (!u || u.owner !== viewer || u.movesLeft <= 0) return false;
+  if (Math.floor(wx) === u.x && Math.floor(wy) === u.y) return true;
+  const inCity = state.cities.some((c) => c.x === u.x && c.y === u.y) || state.villages.some((v) => v.x === u.x && v.y === u.y);
+  const d = unitDisc(inCity);
+  return Math.hypot(wx - (u.x + d.cx), wy - (u.y + d.cy)) <= d.r + GRAB_SLOP;
 }
 
 /** What releasing the dragged unit on (tx, ty) does: a tap's result, or undefined to cancel. */
